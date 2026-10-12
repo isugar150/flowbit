@@ -3,12 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDownIcon, CircleDotIcon, CircleUserRoundIcon, LayoutGridIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import type { ProjectSummary } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
+import { NAV_DESTINATIONS, enterableProjects, isCurrentPath } from "./nav-destinations";
 
 const m = messages.projects;
 
@@ -33,31 +34,20 @@ function NavItem({ href, current, children }: { href: string; current: boolean; 
 /** The sidebar's navigation: every project you can enter, under a section that can be folded away. */
 export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary[] }) {
   const pathname = usePathname();
-  // "내 프로젝트" lists the ones this person can enter; the rest are on the all-projects page.
-  const projects = allProjects.filter((project) => project.myRole !== null);
+  const projects = enterableProjects(allProjects);
   const [open, setOpen] = useState(true);
 
   return (
     <nav aria-label={m.title} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2 py-1">
       <ul className="flex flex-col gap-px">
-        <li>
-          <NavItem href="/my-issues" current={pathname === "/my-issues" || pathname.startsWith("/my-issues/")}>
-            <CircleUserRoundIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            {messages.myIssues.title}
-          </NavItem>
-        </li>
-        <li>
-          <NavItem href="/issues" current={pathname === "/issues"}>
-            <CircleDotIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            {messages.issues.all}
-          </NavItem>
-        </li>
-        <li>
-          <NavItem href="/" current={pathname === "/"}>
-            <LayoutGridIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            {m.all}
-          </NavItem>
-        </li>
+        {NAV_DESTINATIONS.map(({ href, label, icon: Icon, exact }) => (
+          <li key={href}>
+            <NavItem href={href} current={isCurrentPath(pathname, href, exact)}>
+              <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+              {label}
+            </NavItem>
+          </li>
+        ))}
       </ul>
       <div className="flex flex-col gap-px">
         <div className="flex h-7 items-center justify-between">
@@ -82,7 +72,7 @@ export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary
                 const href = `/project/${project.id}`;
                 return (
                   <li key={project.id}>
-                    <NavItem href={href} current={pathname === href || pathname.startsWith(`${href}/`)}>
+                    <NavItem href={href} current={isCurrentPath(pathname, href)}>
                       <ProjectIcon iconUrl={project.iconUrl} />
                       <span className="truncate">{project.name}</span>
                     </NavItem>

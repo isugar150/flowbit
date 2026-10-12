@@ -154,6 +154,19 @@
 
 ## 작업 기록
 
+### 2026-10-12 — 프론트엔드 최적화 (모듈화, 공통화, 속도)
+
+화면의 모양과 동작은 바꾸지 않았다. `npm run lint`, `npm run typecheck`, `npx next build` 통과. **브라우저로는 확인하지 않았다** (아래 "확인할 것").
+
+- **속도 (D-099)**
+  - `serverGet` 이 같은 주소를 한 요청에서 한 번만 부른다. 프로젝트 화면(레이아웃의 `generateMetadata` + `loadProject`), 이슈 주소 직접 열기(제목용 조회 + 상세, 목록과 상세의 라벨·사용자), 문서 화면(제목 + 본문)에서 겹치던 백엔드 호출이 하나로 줄었다.
+  - 늦게 불러오는 것: 새 이슈 창(Tiptap 포함), 달력(react-day-picker), 프로젝트 만들기 폼(react-hook-form·zod. 사이드바에 있어 모든 화면에 실려 있었다), 이슈 목록의 목표·캘린더 보기.
+  - 이슈 목록: 걸러 내기·묶기를 `useMemo` 로, 줄을 `memo` 한 `IssueListRow` 로, 검색어를 `useDeferredValue` 로. 프로젝트 권한 확인은 줄마다 `find` 하던 것을 `Set` 으로.
+- **공통화**: `fileForm`(4곳), `personName`·`PersonAvatar`·`PersonMark`(`components/person.tsx`, 20여 곳), `usersAsMembers`(4곳), 이슈 줄의 조각(`issue-row.tsx`: 목록·읽기 전용 줄·하위 이슈), `replaceListQuery`, 사이드바·좁은 화면 메뉴의 목적지(`nav-destinations.ts`).
+- **모듈화**: `create-project-dialog.tsx`(버튼과 틀) / `create-project-form.tsx`(폼)으로 나눔. `PersonAvatar` 는 `features/issues/options.tsx` 에서 `components/person.tsx` 로 옮김.
+- **확인할 것 (화면)**: ① 새 이슈 창을 처음 열 때(버튼, `C`, 캘린더의 날짜) 프로젝트·목표·담당자·날짜 기본값이 들어가고 제목에 커서가 가는지 ② 프로젝트 만들기 창을 처음 열 때 이름 칸에 커서가 가는지 ③ 날짜 칩을 처음 열 때 달력이 뜨기 전 빈 상자가 어색하지 않은지 ④ 목표·캘린더 보기로 처음 바꿀 때.
+- **하지 않은 것 (다음에 볼 만한 것)**: 관리자 설정 폼 네 개(LDAP, SSO, SMTP·푸시, 웹훅)가 "폼 상태 + 저장·테스트 mutation + 필드 오류" 구조를 각자 되풀이한다. 훅 하나로 묶을 수 있으나 화면 확인 없이 고치기엔 위험해 두었다. `text-[0.8125rem] leading-5` 가 90여 곳에 있다(Tailwind 테마 토큰 후보). 이슈 수가 수천이 되면 목록 가상화가 필요하다.
+
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
 
 ### 2026-10-12 — LDAP 사용 시 구성원 관리 제한, 계정 전환, 구성원별 프로젝트 권한

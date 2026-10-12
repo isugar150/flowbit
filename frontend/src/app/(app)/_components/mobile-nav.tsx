@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CircleDotIcon, CircleUserRoundIcon, LayoutGridIcon, MenuIcon } from "lucide-react";
+import { MenuIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ProjectSummary } from "@/features/projects/types";
 import { messages } from "@/messages";
+import { NAV_DESTINATIONS, enterableProjects, isCurrentPath } from "./nav-destinations";
 
 const m = messages.projects;
 
@@ -25,9 +26,8 @@ const m = messages.projects;
  */
 export function MobileNav({ projects: allProjects }: { projects: ProjectSummary[] }) {
   const pathname = usePathname();
-  const projects = allProjects.filter((project) => project.myRole !== null);
-  const current = (href: string, exact = false) =>
-    pathname === href || (!exact && pathname.startsWith(`${href}/`)) ? ("page" as const) : undefined;
+  const projects = enterableProjects(allProjects);
+  const current = (href: string, exact = false) => (isCurrentPath(pathname, href, exact) ? ("page" as const) : undefined);
 
   return (
     <DropdownMenu>
@@ -36,18 +36,12 @@ export function MobileNav({ projects: allProjects }: { projects: ProjectSummary[
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="start" className="max-h-[70dvh] w-64">
         <DropdownMenuGroup>
-          <DropdownMenuItem className="min-h-11" aria-current={current("/my-issues")} render={<Link href="/my-issues" />}>
-            <CircleUserRoundIcon />
-            {messages.myIssues.title}
-          </DropdownMenuItem>
-          <DropdownMenuItem className="min-h-11" aria-current={current("/issues", true)} render={<Link href="/issues" />}>
-            <CircleDotIcon />
-            {messages.issues.all}
-          </DropdownMenuItem>
-          <DropdownMenuItem className="min-h-11" aria-current={current("/", true)} render={<Link href="/" />}>
-            <LayoutGridIcon />
-            {m.all}
-          </DropdownMenuItem>
+          {NAV_DESTINATIONS.map(({ href, label, icon: Icon, exact }) => (
+            <DropdownMenuItem key={href} className="min-h-11" aria-current={current(href, exact)} render={<Link href={href} />}>
+              <Icon />
+              {label}
+            </DropdownMenuItem>
+          ))}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>

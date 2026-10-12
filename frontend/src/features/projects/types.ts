@@ -1,5 +1,6 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
 import type { IssuePerson, IssuePriority } from "@/features/issues/types";
+import type { UserSummary } from "@/features/members/types";
 
 export type ProjectRole = "MANAGER" | "EDITOR" | "VIEWER";
 export type ProjectStatus = "BACKLOG" | "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED";
@@ -57,6 +58,14 @@ export type ProjectChanges = Partial<{
   targetDate: string | null;
   labels: string[];
 }>;
+
+/**
+ * Everyone in the workspace in the shape of project members, for an issue that is in no project:
+ * anyone can be assigned to it.
+ */
+export function usersAsMembers(users: UserSummary[] | null): ProjectMember[] {
+  return (users ?? []).map((person) => ({ ...person, userId: person.id, role: "EDITOR" }));
+}
 
 /**
  * A project in the list (GET /api/v1/projects). Everyone sees every project; `myRole` is null

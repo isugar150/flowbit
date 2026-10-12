@@ -62,6 +62,9 @@ frontend/
 - **비밀번호를 받는 폼은 `method="post"` 를 단다.** 스크립트가 붙기 전에(느린 로딩, 개발 서버의 다른 호스트 차단) 사용자가 제출하면 브라우저가 폼을 직접 보내는데, `method` 가 없으면 GET 이라 아이디와 비밀번호가 주소에 들어간다(실제로 겪었다). `proxy.ts` 는 주소에 `password` 가 있으면 지우고 다시 보낸다.
 - **목록의 필터처럼 주소로 열 수 있는 화면 상태는 `useState` 가 아니라 주소(`useSearchParams`)에 둔다.** Next 16 은 다녀간 화면을 살려 두므로, 처음 값만 받는 `useState` 는 다른 주소로 다시 들어와도 예전 값을 보여 줄 수 있다(마일스톤 필터에서 겪었다). 바꿀 때는 `window.history.replaceState` 로 주소만 바꾼다(Next 가 `useSearchParams` 와 맞춰 주고 서버를 다시 부르지 않는다).
 - **레이아웃은 최상위에서 `params` 나 백엔드 데이터를 `await` 하지 않는다.** `cacheComponents` 에서는 같은 레이아웃 안에서 이동할 때(예: 프로젝트의 개요 → 이슈 탭) 그 레이아웃 아래에 `<Suspense>` 가 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다. 데이터를 읽는 부분은 별도 비동기 컴포넌트로 빼서 `<Suspense>` 로 감싸고, 그 레이아웃 바로 아래 페이지들을 위해 같은 폴더에 `loading.tsx` 를 둔다 (`project/[id]/layout.tsx`, `project/[id]/loading.tsx` 가 예).
+- **`serverGet` 은 같은 주소를 한 요청에서 한 번만 부른다** (React `cache()`). 레이아웃, 페이지, `generateMetadata` 가 같은 것을 각자 읽어도 백엔드 호출은 하나다(프로젝트, 이슈, 라벨, 사용자 목록). 그래서 돌려받은 값은 여럿이 함께 쓰는 것이니 고치지 않는다(`map`/`filter` 로 새로 만든다).
+- **열어야 쓰는 무거운 것은 `next/dynamic` 으로 늦게 불러온다** (D-099). 문서 편집기를 품은 새 이슈 창(`new-issue-dialog.tsx`), 달력(`components/ui/calendar.tsx`, react-day-picker), 프로젝트 만들기 폼(`create-project-form.tsx`, react-hook-form·zod), 이슈 목록의 목표·캘린더 보기가 그렇다. 사이드바나 목록처럼 모든 화면에 깔리는 컴포넌트에서 이런 것을 정적으로 import 하지 않는다. 버튼에 포인터나 포커스가 오면 미리 받아 두고(`onPointerEnter`/`onFocus` 에서 같은 `import()` 호출), 처음 열 때부터 렌더한다. 늦게 붙는 컴포넌트는 "처음 렌더될 때 이미 열려 있을 수 있다"는 것을 전제로 쓴다(초기값을 열림 상태에서도 채우기, 포커스는 마운트 뒤 직접 주기).
+- **긴 목록의 줄은 `memo` 한 컴포넌트로 두고, 걸러 내기·묶기는 `useMemo` 로 한다** (`issues-view.tsx` 의 `IssueListRow`). 검색어는 `useDeferredValue` 로 넘겨 입력란이 목록을 기다리지 않게 한다. 줄에 넘기는 콜백은 `useCallback` 으로 고정한다(안 그러면 `memo` 가 소용없다).
 - 개발 모드(`npm run dev`)는 처음 여는 화면마다 1~2초 컴파일하고 링크 미리 가져오기도 하지 않는다. 속도를 판단할 때는 `npm run build && npm run start` 로 본다. 측정값: `/login` 응답이 개발 모드 약 75ms, 프로덕션 약 13ms.
 
 ## 화면을 만들 때 쓰는 조각 (D-039)
@@ -75,6 +78,9 @@ frontend/
 | 날짜 칩 | `features/issues/components/date-chips.tsx` | `DateChip`(날짜 하나: 기한), `DateRangeChip`(기간: 첫 클릭이 시작일, 두 번째 클릭이 종료일). 달력은 `components/ui/calendar.tsx`(react-day-picker, 한국어), 팝오버는 `components/ui/popover.tsx` (D-043) |
 | 문서 편집기 | `components/editor/rich-text-editor.tsx` | 프로젝트 설명, 이슈 본문 |
 | 자동 저장 | `lib/use-autosave.ts`, `components/editor/save-status.tsx` | 저장 버튼 없이 저장하는 모든 곳 |
+| 사람 | `components/person.tsx` | `personName()`(표시 이름. `displayName ?? loginId` 를 직접 쓰지 않는다), `PersonAvatar`(작은 아바타), `PersonMark`(아바타 + 이름 툴팁), `Person`(아바타·이름·아이디) |
+| 이슈 줄의 조각 | `features/issues/components/issue-row.tsx` | `PriorityMark`, `StatusMark`, `IssueTitleLink`, `IssueProjectName`, `IssueLabels`, `IssueDue`. 이슈를 한 줄로 그리는 곳(목록, 하위 이슈)은 이것을 조합한다 |
+| 내비게이션 항목 | `app/(app)/_components/nav-destinations.ts` | 사이드바와 좁은 화면 메뉴가 함께 쓰는 목적지 목록, `isCurrentPath()` |
 
 - **자주 고치는 내용은 설정 화면에 넣지 않는다.** 보이는 그 자리에서 고치고 자동 저장한다(프로젝트 요약·설명, 이슈 제목·본문). 설정 화면에는 드물게 바꾸는 것(이름, 구성원)만 둔다.
 - 편집기에 새 블록을 추가하려면 세 곳을 함께 고친다: 편집기의 `/` 메뉴(`SLASH_ITEMS`), 백엔드의 허용 목록(`RichText.kt` 의 `NODE_TYPES`), 글꼴·간격(`globals.css` 의 `.rich-text`).
@@ -105,6 +111,8 @@ frontend/
 
 - 브라우저는 항상 같은 출처의 `/api/v1/...` 를 부른다. Next.js 가 백엔드로 넘긴다 ([02-architecture.md](02-architecture.md)).
 - 브라우저 쪽 호출은 `lib/api/client.ts` 의 `apiFetch` 하나를 거친다. 컴포넌트에서 `fetch` 를 직접 쓰지 않는다. `apiFetch` 가 CSRF 헤더 추가(토큰이 없으면 먼저 받아 옴, 거절되면 한 번 재시도), 문제 문서 → `ApiError` 변환, 네트워크 실패 → `NetworkError` 변환을 맡는다.
+- 파일 하나를 올리는 요청의 본문은 `fileForm(file)`(`lib/api/client.ts`)로 만든다.
+- 프로젝트에 속하지 않은 이슈의 담당자 후보(전체 사용자)는 `usersAsMembers()`(`features/projects/types.ts`)로 구성원 모양으로 바꾼다.
 - 분기는 `ApiError.code` 로 한다. 서버가 준 문구로 분기하지 않는다.
 - 요청/응답 타입은 지금은 `features/<기능>/types.ts` 에 직접 적는다. 엔드포인트가 늘어나면 OpenAPI 에서 생성하는 방식으로 바꾼다 (D-023).
 - 서버 오류의 필드별 메시지(`errors[]`)는 해당 폼 필드 아래에 표시한다. 필드와 무관한 오류는 폼 위의 `Alert` 로 보여준다.

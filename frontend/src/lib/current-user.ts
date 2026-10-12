@@ -42,13 +42,19 @@ export const getProjects = cache(
   async (): Promise<ProjectSummary[]> => (await serverGet<ProjectSummary[]>("/api/v1/projects")) ?? [],
 );
 
+const readOnce = cache(async (path: string): Promise<unknown> => {
+  const cookieHeader = await sessionCookieHeader();
+  return cookieHeader ? fetchJson<unknown>(path, cookieHeader) : null;
+});
+
 /**
  * Reads one backend resource as the signed-in user from a server component.
- * Null means signed out, not allowed, or not found.
+ * Null means signed out, not allowed, or not found. The same path is asked for once per render,
+ * however many components (a page, its layout, its `generateMetadata`) read it; treat what comes
+ * back as read-only, since they all share it.
  */
-export async function serverGet<T>(path: string): Promise<T | null> {
-  const cookieHeader = await sessionCookieHeader();
-  return cookieHeader ? fetchJson<T>(path, cookieHeader) : null;
+export function serverGet<T>(path: string): Promise<T | null> {
+  return readOnce(path) as Promise<T | null>;
 }
 
 async function sessionCookieHeader(): Promise<string | null> {

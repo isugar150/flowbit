@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import type { UserSummary } from "@/features/members/types";
-import type { ProjectMember } from "@/features/projects/types";
+import { usersAsMembers } from "@/features/projects/types";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { getProjects, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
@@ -18,8 +18,6 @@ export async function AllIssues({ deleted = false }: { deleted?: boolean }) {
     serverGet<Label[]>("/api/v1/labels"),
     getProjects(),
   ]);
-  const people = (users ?? []).map((person): ProjectMember => ({ ...person, userId: person.id, role: "EDITOR" }));
-
   return (
     <>
       <RealtimeScope topics={["issues"]} />
@@ -27,7 +25,7 @@ export async function AllIssues({ deleted = false }: { deleted?: boolean }) {
       <IssuesView
         projectId={null}
         issues={issues ?? []}
-        members={people}
+        members={usersAsMembers(users)}
         milestones={[]}
         labels={labels ?? []}
         projects={projects}

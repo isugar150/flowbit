@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { personName } from "@/components/person";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +37,7 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
     },
   });
   const inSidebar = placement === "sidebar";
-  const name = user.displayName ?? user.loginId;
+  const name = personName(user);
   const isAdmin = user.role === "ADMIN";
 
   return (

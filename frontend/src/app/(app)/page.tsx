@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BoxIcon, DiamondIcon, LayoutGridIcon, LockIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { PersonAvatar, personName } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
 import { PillTabs } from "@/components/pill-tabs";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { PriorityIcon, priorityLabel } from "@/features/issues/meta";
-import { PersonAvatar } from "@/features/issues/options";
 import { milestoneProgress } from "@/features/milestones/types";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import { HealthBadge, ProjectStatusIcon, projectStatusLabel } from "@/features/projects/meta";
@@ -156,7 +156,7 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
         {lead ? (
           <span className="flex min-w-0 items-center gap-1.5">
             <PersonAvatar person={lead} />
-            <span className="truncate">{lead.displayName ?? lead.loginId}</span>
+            <span className="truncate">{personName(lead)}</span>
           </span>
         ) : null}
       </td>

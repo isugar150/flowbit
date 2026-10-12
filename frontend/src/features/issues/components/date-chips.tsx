@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import type { DateRange } from "react-day-picker";
 import { ArrowRightIcon, CalendarIcon } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
+import type { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -11,6 +12,13 @@ import { chipClass, plainChipClass } from "./chip-select";
 import { DueDate } from "@/components/dates";
 
 const m = messages.dates;
+
+// The calendar (react-day-picker) is only needed once a date chip is opened, so it is not part of
+// the script of every page that shows a date. The box holds the calendar's place while it arrives.
+const Calendar = dynamic<React.ComponentProps<typeof CalendarComponent>>(
+  () => import("@/components/ui/calendar").then((module) => module.Calendar),
+  { ssr: false, loading: () => <div className="h-70 w-58" aria-hidden="true" /> },
+);
 
 /** "2026-10-24" ↔ a Date at local midnight. Dates carry no time zone, so neither side shifts a day. */
 function toDate(value: string | null): Date | undefined {

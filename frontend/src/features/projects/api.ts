@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, fileForm } from "@/lib/api/client";
 import type { Project, ProjectChanges, ProjectHealth, ProjectMember, ProjectRole, ProjectUpdate } from "./types";
 
 export function createProject(input: { name: string; description: string }): Promise<Project> {
@@ -35,12 +35,6 @@ export function postProjectUpdate(input: {
 /** The writer of the update or a manager of the project. */
 export function deleteProjectUpdate(input: { id: string; updateId: string }): Promise<void> {
   return apiFetch<void>(`/api/v1/projects/${input.id}/updates/${input.updateId}`, { method: "DELETE" });
-}
-
-function fileForm(file: File): FormData {
-  const form = new FormData();
-  form.append("file", file);
-  return form;
 }
 
 /** Managers only. The server converts the image to a 256px square WebP. */

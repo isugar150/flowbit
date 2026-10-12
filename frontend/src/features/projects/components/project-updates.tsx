@@ -7,7 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { ChipSelect } from "@/features/issues/components/chip-select";
-import { PersonAvatar } from "@/features/issues/options";
+import { PersonAvatar, personName } from "@/components/person";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
@@ -98,7 +98,7 @@ export function ProjectUpdates({
                 <HealthBadge health={update.health} />
                 <span className="flex min-w-0 items-center gap-1.5">
                   <PersonAvatar person={update.author} />
-                  <span className="truncate">{update.author.displayName ?? update.author.loginId}</span>
+                  <span className="truncate">{personName(update.author)}</span>
                 </span>
                 <time
                   dateTime={update.createdAt}

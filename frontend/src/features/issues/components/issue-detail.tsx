@@ -6,7 +6,7 @@ import { Person } from "@/components/person";
 import { DialogTitle } from "@/components/ui/dialog";
 import type { UserSummary } from "@/features/members/types";
 import type { Milestone } from "@/features/milestones/types";
-import type { ProjectMember } from "@/features/projects/types";
+import { usersAsMembers, type ProjectMember } from "@/features/projects/types";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { getProjects, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
@@ -43,9 +43,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
   const [members, milestones] = await Promise.all([
     projectPath
       ? serverGet<ProjectMember[]>(`${projectPath}/members`)
-      : serverGet<UserSummary[]>("/api/v1/users").then((users) =>
-          (users ?? []).map((person): ProjectMember => ({ ...person, userId: person.id, role: "EDITOR" })),
-        ),
+      : serverGet<UserSummary[]>("/api/v1/users").then(usersAsMembers),
     projectPath ? serverGet<Milestone[]>(`${projectPath}/milestones`) : Promise.resolve([]),
   ]);
   const created = new Intl.DateTimeFormat("sv-SE", { timeZone: user.timezone }).format(new Date(issue.createdAt));

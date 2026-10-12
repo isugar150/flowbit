@@ -1,10 +1,72 @@
 import Link from "next/link";
 import { DueDate } from "@/components/dates";
+import { PersonMark } from "@/components/person";
 import { PriorityIcon, StatusIcon, priorityLabel, statusLabel } from "../meta";
-import { PersonAvatar } from "../options";
-import type { Issue } from "../types";
+import type { Issue, IssuePriority, IssueStatus } from "../types";
 import { LabelPill } from "./label-chip";
 import { SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
+
+const metaText = "text-[0.8125rem] leading-5 text-muted-foreground";
+
+/** The priority icon, with its name as a tooltip and for screen readers. */
+export function PriorityMark({ priority }: { priority: IssuePriority }) {
+  return (
+    <span title={priorityLabel(priority)} className="flex shrink-0">
+      <PriorityIcon priority={priority} />
+      <span className="sr-only">{priorityLabel(priority)}</span>
+    </span>
+  );
+}
+
+/** The status icon, with its name as a tooltip and for screen readers. */
+export function StatusMark({ status }: { status: IssueStatus }) {
+  return (
+    <span title={statusLabel(status)} className="flex shrink-0">
+      <StatusIcon status={status} />
+      <span className="sr-only">{statusLabel(status)}</span>
+    </span>
+  );
+}
+
+/** The title of an issue as the link that opens it; it takes the room the rest of the line leaves. */
+export function IssueTitleLink({ issue }: { issue: Pick<Issue, "key" | "title"> }) {
+  return (
+    <Link
+      href={`/issue/${issue.key}`}
+      className="min-w-0 flex-1 truncate rounded-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      {issue.title}
+    </Link>
+  );
+}
+
+/** The project an issue is linked to, on screens wide enough for it. */
+export function IssueProjectName({ issue }: { issue: Issue }) {
+  if (!issue.project) return null;
+  return <span className={`hidden max-w-40 shrink-0 truncate lg:block ${metaText}`}>{issue.project.name}</span>;
+}
+
+/** The first few labels of an issue, on screens wide enough for them. */
+export function IssueLabels({ issue, max = 3 }: { issue: Issue; max?: number }) {
+  if (issue.labels.length === 0) return null;
+  return (
+    <span className="hidden shrink-0 items-center gap-1 sm:flex">
+      {issue.labels.slice(0, max).map((label) => (
+        <LabelPill key={label.id} label={label} />
+      ))}
+    </span>
+  );
+}
+
+/** The due date of an issue, on screens wide enough for it. */
+export function IssueDue({ issue }: { issue: Issue }) {
+  if (!issue.dueDate) return null;
+  return (
+    <span className={`hidden shrink-0 tabular-nums sm:block ${metaText}`}>
+      <DueDate value={issue.dueDate} />
+    </span>
+  );
+}
 
 /**
  * One issue as a read-only line of a list: priority, key, title (which opens it), then its
@@ -15,47 +77,15 @@ export function IssueRow({ issue, depth = 0, withStatus }: { issue: Issue; depth
   return (
     <li className="flex h-10 items-center gap-2 border-b pr-5 pl-5 hover:bg-muted max-md:h-12">
       <SubIssueIndent depth={depth} />
-      <span title={priorityLabel(issue.priority)} className="flex shrink-0">
-        <PriorityIcon priority={issue.priority} />
-        <span className="sr-only">{priorityLabel(issue.priority)}</span>
-      </span>
-      <span className="w-20 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{issue.key}</span>
-      {withStatus ? (
-        <span title={statusLabel(issue.status)} className="flex shrink-0">
-          <StatusIcon status={issue.status} />
-          <span className="sr-only">{statusLabel(issue.status)}</span>
-        </span>
-      ) : null}
-      <Link
-        href={`/issue/${issue.key}`}
-        className="min-w-0 flex-1 truncate rounded-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        {issue.title}
-      </Link>
+      <PriorityMark priority={issue.priority} />
+      <span className={`w-20 shrink-0 truncate tabular-nums ${metaText}`}>{issue.key}</span>
+      {withStatus ? <StatusMark status={issue.status} /> : null}
+      <IssueTitleLink issue={issue} />
       <SubIssueProgress issue={issue} />
-      {issue.project ? (
-        <span className="hidden max-w-40 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground lg:block">
-          {issue.project.name}
-        </span>
-      ) : null}
-      {issue.labels.length > 0 ? (
-        <span className="hidden shrink-0 items-center gap-1 sm:flex">
-          {issue.labels.slice(0, 3).map((label) => (
-            <LabelPill key={label.id} label={label} />
-          ))}
-        </span>
-      ) : null}
-      {issue.dueDate ? (
-        <span className="hidden shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums sm:block">
-          <DueDate value={issue.dueDate} />
-        </span>
-      ) : null}
-      {issue.assignee ? (
-        <span title={issue.assignee.displayName ?? issue.assignee.loginId} className="flex shrink-0">
-          <PersonAvatar person={issue.assignee} />
-          <span className="sr-only">{issue.assignee.displayName ?? issue.assignee.loginId}</span>
-        </span>
-      ) : null}
+      <IssueProjectName issue={issue} />
+      <IssueLabels issue={issue} />
+      <IssueDue issue={issue} />
+      {issue.assignee ? <PersonMark person={issue.assignee} /> : null}
     </li>
   );
 }

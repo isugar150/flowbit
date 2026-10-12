@@ -13,7 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import type { Milestone } from "@/features/milestones/types";
 import type { UserSummary } from "@/features/members/types";
-import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
+import { usersAsMembers, type ProjectMember, type ProjectSummary } from "@/features/projects/types";
 import { apiFetch } from "@/lib/api/client";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
@@ -96,7 +96,9 @@ export function NewIssueDialog({
   // Every time the dialog opens (button, `C`), start from the list's current milestone filter and
   // without the previous attempt's messages. Adjusted while rendering, since the dialog is opened
   // from outside and its own onOpenChange does not run for that.
-  const [wasOpen, setWasOpen] = useState(open);
+  // Starts as closed even when the dialog is first rendered open (it is loaded on first use), so
+  // that first opening takes the defaults too.
+  const [wasOpen, setWasOpen] = useState(false);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
@@ -137,7 +139,7 @@ export function NewIssueDialog({
     queryFn: async (): Promise<{ members: ProjectMember[]; milestones: Milestone[] }> => {
       if (projectId === null) {
         const users = await apiFetch<UserSummary[]>("/api/v1/users");
-        return { members: users.map((person) => ({ ...person, userId: person.id, role: "EDITOR" })), milestones: [] };
+        return { members: usersAsMembers(users), milestones: [] };
       }
       const path = `/api/v1/projects/${encodeURIComponent(projectId)}`;
       const [members, milestones] = await Promise.all([

@@ -73,6 +73,13 @@ export async function apiFetch<T>(path: string, { method = "GET", body }: Option
   return parse<T>(response);
 }
 
+/** One file as the multipart body the upload endpoints take. */
+export function fileForm(file: File): FormData {
+  const form = new FormData();
+  form.append("file", file);
+  return form;
+}
+
 async function parse<T>(response: Response): Promise<T> {
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;

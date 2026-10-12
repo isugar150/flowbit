@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   BoxIcon,
@@ -14,6 +15,7 @@ import {
   UsersIcon,
   XIcon,
 } from "lucide-react";
+import { PersonMark } from "@/components/person";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Kbd } from "@/components/ui/kbd";
@@ -25,21 +27,28 @@ import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
-import { PriorityIcon, STATUS_ORDER, StatusIcon, priorityLabel, statusLabel } from "../meta";
-import { NONE, PersonAvatar, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
+import { STATUS_ORDER, StatusIcon, statusLabel } from "../meta";
+import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
 import { arrangeBySubIssues } from "../sub-issue-tree";
-import type { Issue, Label } from "../types";
+import type { Issue, IssueStatus, Label } from "../types";
 import { ChipSelect, type ChipOption } from "./chip-select";
+import type { IssueDates } from "./issue-calendar";
 import { projectOptions } from "./issue-properties";
-import { IssueMilestoneChart } from "./issue-timeline";
-import { IssueCalendarView, type IssueDates } from "./issue-calendar";
-import { IssueViewSwitch, useIssueView, useListAddress } from "./issue-views";
-import { LabelFilterChip, LabelPill } from "./label-chip";
+import { IssueDue, IssueLabels, IssueProjectName, IssueTitleLink, PriorityMark } from "./issue-row";
+import { IssueViewSwitch, replaceListQuery, useIssueView, useListAddress } from "./issue-views";
+import { LabelFilterChip } from "./label-chip";
 import { SubIssueContextRow, SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
-import { NewIssueDialog } from "./new-issue-dialog";
-import { DueDate } from "@/components/dates";
 
 const m = messages.issues;
+
+// The list is what nearly everyone comes for, so only the list is in the page's own script. The
+// other two views arrive when they are chosen, and the new-issue dialog (which carries the whole
+// document editor) when it is first opened, or a moment earlier when its button is pointed at.
+const IssueMilestoneChart = dynamic(() => import("./issue-timeline").then((module) => module.IssueMilestoneChart));
+const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module) => module.IssueCalendarView));
+const loadNewIssueDialog = () => import("./new-issue-dialog");
+const NewIssueDialog = dynamic(() => loadNewIssueDialog().then((module) => module.NewIssueDialog), { ssr: false });
+const preloadNewIssueDialog = () => void loadNewIssueDialog();
 
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -96,6 +105,8 @@ export function IssuesView({
   canEdit: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  // The dialog is not rendered (or downloaded) until it is first asked for; after that it stays.
+  const [dialogUsed, setDialogUsed] = useState(false);
   // The filters live in the address (`?status=TODO&milestone=<id>&q=…`), so the links on the
   // project overview open the list already narrowed, and back/forward and sharing keep it.
   // An issue open in a dialog changes the browser's address, not the list's (useListAddress).
@@ -108,9 +119,7 @@ export function IssuesView({
   const replaceQuery = (change: (params: URLSearchParams) => void) => {
     const params = new URLSearchParams(searchParams.toString());
     change(params);
-    const query = params.toString();
-    // The list is already loaded; only the address changes, without asking the server again.
-    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+    replaceListQuery(pathname, params);
   };
   const setFilter = (key: ChipKey, value: string) =>
     replaceQuery((params) => {
@@ -125,10 +134,15 @@ export function IssuesView({
     milestone: readFilter("milestone", (value) => milestones.some((milestone) => milestone.id === value)),
   };
   // Labels are the one filter with several values at once: "?label=<id>,<id>,none".
-  const labelFilter = (searchParams.get("label") ?? "")
-    .split(",")
-    .map((value) => (value === NONE_PARAM ? NONE : value))
-    .filter((value) => value === NONE || labels.some((label) => label.id === value));
+  const labelParam = searchParams.get("label") ?? "";
+  const labelFilter = useMemo(
+    () =>
+      labelParam
+        .split(",")
+        .map((value) => (value === NONE_PARAM ? NONE : value))
+        .filter((value) => value === NONE || labels.some((label) => label.id === value)),
+    [labelParam, labels],
+  );
   const setLabelFilter = (value: string[]) =>
     replaceQuery((params) => {
       if (value.length === 0) params.delete("label");
@@ -138,23 +152,29 @@ export function IssuesView({
   // Typed text is kept here and copied to the address: an input driven by the address alone would
   // lag a step behind and break Korean composition.
   const [search, setSearch] = useState(() => searchParams.get(SEARCH_KEY) ?? "");
-  const needle = search.trim().toLowerCase();
+  // The box shows each letter at once; a long list catches up with the typing a moment later.
+  const needle = useDeferredValue(search).trim().toLowerCase();
   const filtered = needle !== "" || labelFilter.length > 0 || CHIP_KEYS.some((key) => filters[key] !== ALL);
-  const matches = (filter: string, value: string | null | undefined) => filter === ALL || (value ?? NONE) === filter;
-  const issues = allIssues.filter(
-    (issue) =>
-      matches(filters.project, issue.project?.id) &&
-      matches(filters.status, issue.status) &&
-      // "No priority" is a priority of its own (NONE), not a missing value.
-      (filters.priority === ALL || issue.priority === filters.priority) &&
-      matches(filters.assignee, issue.assignee?.id) &&
-      (labelFilter.length === 0 ||
-        (issue.labels.length === 0
-          ? labelFilter.includes(NONE)
-          : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
-      matches(filters.milestone, issue.milestone?.id) &&
-      (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle)),
-  );
+  const { project, status, priority, assignee, milestone } = filters;
+  // Worked out again only when the issues or what narrows them changes, not on every render
+  // (a menu opening, someone else arriving on the page).
+  const issues = useMemo(() => {
+    const matches = (filter: string, value: string | null | undefined) => filter === ALL || (value ?? NONE) === filter;
+    return allIssues.filter(
+      (issue) =>
+        matches(project, issue.project?.id) &&
+        matches(status, issue.status) &&
+        // "No priority" is a priority of its own (NONE), not a missing value.
+        (priority === ALL || issue.priority === priority) &&
+        matches(assignee, issue.assignee?.id) &&
+        (labelFilter.length === 0 ||
+          (issue.labels.length === 0
+            ? labelFilter.includes(NONE)
+            : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
+        matches(milestone, issue.milestone?.id) &&
+        (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle)),
+    );
+  }, [allIssues, project, status, priority, assignee, milestone, labelFilter, needle]);
   const all = (label: string, icon: React.ReactNode): ChipOption<string> => ({ value: ALL, label, icon });
   const filterChips: { key: ChipKey; label: string; options: ChipOption<string>[] }[] = [
     // Inside a project every issue has that project, so the filter is only on the list of all issues.
@@ -198,12 +218,18 @@ export function IssuesView({
   const labelChip = <LabelFilterChip labels={labels} value={labelFilter} onChange={setLabelFilter} noneValue={NONE} />;
   const [view, setView] = useIssueView();
   const mutation = useRefreshingMutation(updateIssue);
+  const { mutate } = mutation;
+  const changeStatus = useCallback(
+    (number: number, next: IssueStatus) => mutate({ number, changes: { status: next } }),
+    [mutate],
+  );
   // Deleted issues are only looked at: nothing is made or changed among them.
   const writable = canEdit && !deleted;
   // Dates a new issue starts with, when it is made from the calendar.
   const [dialogDates, setDialogDates] = useState<IssueDates | null>(null);
   const openDialog = (dates: IssueDates | null) => {
     setDialogDates(dates);
+    setDialogUsed(true);
     setDialogOpen(true);
   };
   const deletedToggle = (
@@ -220,8 +246,11 @@ export function IssuesView({
     </Button>
   );
   // An issue linked to a project the person can only view is read-only for them.
-  const mayEdit = (issue: Issue) =>
-    !issue.project || projects.find((project) => project.id === issue.project?.id)?.myRole !== "VIEWER";
+  const viewOnly = useMemo(
+    () => new Set(projects.filter((item) => item.myRole === "VIEWER").map((item) => item.id)),
+    [projects],
+  );
+  const mayEdit = useCallback((issue: Issue) => !issue.project || !viewOnly.has(issue.project.id), [viewOnly]);
 
   useEffect(() => {
     if (!writable) return;
@@ -231,6 +260,7 @@ export function IssuesView({
       if (isTyping(event.target) || document.querySelector("[role=dialog]")) return;
       event.preventDefault();
       setDialogDates(null);
+      setDialogUsed(true);
       setDialogOpen(true);
     };
     window.addEventListener("keydown", onKeyDown);
@@ -238,17 +268,26 @@ export function IssuesView({
   }, [writable]);
 
   const newIssueButton = writable ? (
-    <Button className="max-md:h-11" onClick={() => openDialog(null)}>
+    <Button
+      className="max-md:h-11"
+      onClick={() => openDialog(null)}
+      onPointerEnter={preloadNewIssueDialog}
+      onFocus={preloadNewIssueDialog}
+    >
       <PlusIcon data-icon="inline-start" />
       {m.new}
       <Kbd className="max-md:hidden">C</Kbd>
     </Button>
   ) : null;
 
-  const groups = STATUS_ORDER.map((status) => ({
-    status,
-    items: issues.filter((issue) => issue.status === status),
-  })).filter((group) => group.items.length > 0);
+  const groups = useMemo(
+    () =>
+      STATUS_ORDER.map((group) => {
+        const items = issues.filter((issue) => issue.status === group);
+        return { status: group, count: items.length, rows: arrangeBySubIssues(items) };
+      }).filter((group) => group.count > 0),
+    [issues],
+  );
 
   return (
     <>
@@ -354,10 +393,10 @@ export function IssuesView({
               <h2 className="flex h-9 items-center gap-2 border-y bg-muted px-5 text-[0.8125rem] leading-5 font-medium">
                 <StatusIcon status={group.status} />
                 {statusLabel(group.status)}
-                <span className="font-normal text-muted-foreground tabular-nums">{group.items.length}</span>
+                <span className="font-normal text-muted-foreground tabular-nums">{group.count}</span>
               </h2>
               <ul>
-                {arrangeBySubIssues(group.items).map((row) =>
+                {group.rows.map((row) =>
                   row.kind === "context" ? (
                     <SubIssueContextRow
                       key={`context-${row.parent.number}`}
@@ -365,72 +404,15 @@ export function IssuesView({
                       className="flex h-10 items-center gap-2 border-b pr-5 pl-12 max-md:h-12"
                     />
                   ) : (
-                    ((issue: Issue) => (
-                      <li
-                        key={issue.id}
-                        data-presence-id={`issue-row:${issue.number}`}
-                        className="flex h-10 items-center gap-2 border-b pr-5 pl-3 hover:bg-muted max-md:h-12"
-                      >
-                        <SubIssueIndent depth={row.depth} />
-                        {writable && mayEdit(issue) ? (
-                          <ChipSelect
-                            iconOnly
-                            label={m.statusOf(issue.key)}
-                            value={issue.status}
-                            options={statusOptions}
-                            disabled={mutation.isPending}
-                            onChange={(status) => mutation.mutate({ number: issue.number, changes: { status } })}
-                          />
-                        ) : (
-                          <span className="flex size-7 items-center justify-center">
-                            <StatusIcon status={issue.status} />
-                          </span>
-                        )}
-                        <span title={priorityLabel(issue.priority)} className="flex shrink-0">
-                          <PriorityIcon priority={issue.priority} />
-                          <span className="sr-only">{priorityLabel(issue.priority)}</span>
-                        </span>
-                        <span className="w-16 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
-                          {issue.key}
-                        </span>
-                        <Link
-                          href={`/issue/${issue.key}`}
-                          className="min-w-0 flex-1 truncate rounded-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                        >
-                          {issue.title}
-                        </Link>
-                        <SubIssueProgress issue={issue} />
-                        {projectId === null && issue.project ? (
-                          <span className="hidden max-w-40 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground lg:block">
-                            {issue.project.name}
-                          </span>
-                        ) : null}
-                        {issue.labels.length > 0 ? (
-                          <span className="hidden shrink-0 items-center gap-1 sm:flex">
-                            {issue.labels.slice(0, 3).map((label) => (
-                              <LabelPill key={label.id} label={label} />
-                            ))}
-                          </span>
-                        ) : null}
-                        {issue.milestone ? (
-                          <span className="hidden max-w-40 shrink-0 items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground md:flex">
-                            <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
-                            <span className="truncate">{issue.milestone.name}</span>
-                          </span>
-                        ) : null}
-                        {issue.dueDate ? (
-                          <span className="hidden shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums sm:block">
-                            <DueDate value={issue.dueDate} />
-                          </span>
-                        ) : null}
-                        {issue.assignee ? (
-                          <span title={issue.assignee.displayName ?? issue.assignee.loginId} className="flex shrink-0">
-                            <PersonAvatar person={issue.assignee} />
-                            <span className="sr-only">{issue.assignee.displayName ?? issue.assignee.loginId}</span>
-                          </span>
-                        ) : null}
-                      </li>
-                    ))(row.issue)
+                    <IssueListRow
+                      key={row.issue.id}
+                      issue={row.issue}
+                      depth={row.depth}
+                      editable={writable && mayEdit(row.issue)}
+                      pending={mutation.isPending}
+                      showProject={projectId === null}
+                      onStatusChange={changeStatus}
+                    />
                   ),
                 )}
               </ul>
@@ -438,7 +420,7 @@ export function IssuesView({
           ))}
         </div>
       )}
-      {writable ? (
+      {writable && dialogUsed ? (
         <NewIssueDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
@@ -455,3 +437,65 @@ export function IssuesView({
     </>
   );
 }
+
+/**
+ * One line of the list. Kept from rendering again unless its own issue changed, so typing in the
+ * search box or opening a menu does not redo every line of a long list.
+ */
+const IssueListRow = memo(function IssueListRow({
+  issue,
+  depth,
+  editable,
+  pending,
+  showProject,
+  onStatusChange,
+}: {
+  issue: Issue;
+  depth: number;
+  /** Whether the status can be changed right in the list. */
+  editable: boolean;
+  /** A change is on its way; the status menus wait for it. */
+  pending: boolean;
+  /** On lists that span projects, each line says which project it is in. */
+  showProject: boolean;
+  onStatusChange: (number: number, status: IssueStatus) => void;
+}) {
+  return (
+    <li
+      data-presence-id={`issue-row:${issue.number}`}
+      className="flex h-10 items-center gap-2 border-b pr-5 pl-3 hover:bg-muted max-md:h-12"
+    >
+      <SubIssueIndent depth={depth} />
+      {editable ? (
+        <ChipSelect
+          iconOnly
+          label={m.statusOf(issue.key)}
+          value={issue.status}
+          options={statusOptions}
+          disabled={pending}
+          onChange={(status) => onStatusChange(issue.number, status)}
+        />
+      ) : (
+        <span className="flex size-7 items-center justify-center">
+          <StatusIcon status={issue.status} />
+        </span>
+      )}
+      <PriorityMark priority={issue.priority} />
+      <span className="w-16 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
+        {issue.key}
+      </span>
+      <IssueTitleLink issue={issue} />
+      <SubIssueProgress issue={issue} />
+      {showProject ? <IssueProjectName issue={issue} /> : null}
+      <IssueLabels issue={issue} />
+      {issue.milestone ? (
+        <span className="hidden max-w-40 shrink-0 items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground md:flex">
+          <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{issue.milestone.name}</span>
+        </span>
+      ) : null}
+      <IssueDue issue={issue} />
+      {issue.assignee ? <PersonMark person={issue.assignee} /> : null}
+    </li>
+  );
+});

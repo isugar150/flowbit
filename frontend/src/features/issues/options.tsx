@@ -1,8 +1,7 @@
 import { CircleSlashIcon, DiamondIcon, UserIcon } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { PersonAvatar, personName } from "@/components/person";
 import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
-import { initial } from "@/lib/initials";
 import { messages } from "@/messages";
 import type { ChipOption } from "./components/chip-select";
 import {
@@ -32,25 +31,13 @@ export const priorityOptions: ChipOption<IssuePriority>[] = PRIORITIES.map((prio
   icon: <PriorityIcon priority={priority} />,
 }));
 
-type PersonLike = { loginId: string; displayName: string | null; avatarUrl: string | null };
-
-export function PersonAvatar({ person }: { person: PersonLike }) {
-  const name = person.displayName ?? person.loginId;
-  return (
-    <Avatar size="sm" className="size-4.5">
-      {person.avatarUrl ? <AvatarImage src={person.avatarUrl} alt="" /> : null}
-      <AvatarFallback className="text-[0.625rem]">{initial(name)}</AvatarFallback>
-    </Avatar>
-  );
-}
-
 /** Everyone in the project, plus "nobody". */
 export function assigneeOptions(members: ProjectMember[]): ChipOption<string>[] {
   return [
     { value: NONE, label: m.noAssignee, icon: <UserIcon className="size-4 text-muted-foreground" aria-hidden /> },
     ...members.map((member) => ({
       value: member.userId,
-      label: member.displayName ?? member.loginId,
+      label: personName(member),
       icon: <PersonAvatar person={member} />,
     })),
   ];

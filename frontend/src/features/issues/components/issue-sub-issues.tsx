@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { CircleUserRoundIcon, PlusIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
+import { PersonMark } from "@/components/person";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createIssue } from "../api";
-import { PriorityIcon, StatusIcon, priorityLabel, statusLabel } from "../meta";
-import { PersonAvatar } from "../options";
 import type { IssueDetail } from "../types";
+import { IssueTitleLink, PriorityMark, StatusMark } from "./issue-row";
 import { LabelPill } from "./label-chip";
 import { SubIssueProgress } from "./sub-issue-rows";
 
@@ -77,17 +76,9 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
         <ul className="flex flex-col">
           {issue.subIssues.map((child) => (
             <li key={child.id} className="flex h-9 items-center gap-2 rounded-md px-1 hover:bg-muted max-md:h-11">
-              <span title={statusLabel(child.status)} className="flex shrink-0">
-                <StatusIcon status={child.status} />
-                <span className="sr-only">{statusLabel(child.status)}</span>
-              </span>
+              <StatusMark status={child.status} />
               <span className="shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{child.key}</span>
-              <Link
-                href={`/issue/${child.key}`}
-                className="min-w-0 flex-1 truncate rounded-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {child.title}
-              </Link>
+              <IssueTitleLink issue={child} />
               <SubIssueProgress issue={child} />
               {/* The right side always says something: labels and a due date when there are any, then priority and who has it. */}
               <span className="hidden shrink-0 items-center gap-1 sm:flex">
@@ -100,15 +91,9 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
                   <DueDate value={child.dueDate} />
                 </span>
               ) : null}
-              <span title={priorityLabel(child.priority)} className="flex shrink-0">
-                <PriorityIcon priority={child.priority} />
-                <span className="sr-only">{priorityLabel(child.priority)}</span>
-              </span>
+              <PriorityMark priority={child.priority} />
               {child.assignee ? (
-                <span title={child.assignee.displayName ?? child.assignee.loginId} className="flex shrink-0">
-                  <PersonAvatar person={child.assignee} />
-                  <span className="sr-only">{child.assignee.displayName ?? child.assignee.loginId}</span>
-                </span>
+                <PersonMark person={child.assignee} />
               ) : (
                 <span title={messages.issues.noAssignee} className="flex shrink-0">
                   <CircleUserRoundIcon className="size-4.5 text-muted-foreground/60" aria-hidden="true" />

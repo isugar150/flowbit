@@ -8,7 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { ChipSelect, chipClass } from "@/features/issues/components/chip-select";
 import { DateRangeChip } from "@/features/issues/components/date-chips";
-import { NONE, PersonAvatar, priorityOptions } from "@/features/issues/options";
+import { PersonAvatar, personName } from "@/components/person";
+import { NONE, priorityOptions } from "@/features/issues/options";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,7 @@ export function ProjectProperties({
     { value: NONE, label: m.noLead, icon: <UserIcon className="size-4 text-muted-foreground" aria-hidden /> },
     ...members.map((member) => ({
       value: member.userId,
-      label: member.displayName ?? member.loginId,
+      label: personName(member),
       icon: <PersonAvatar person={member} />,
     })),
   ];
@@ -53,7 +54,7 @@ export function ProjectProperties({
   if (project.lead && !members.some((member) => member.userId === project.lead?.id)) {
     leadOptions.push({
       value: project.lead.id,
-      label: project.lead.displayName ?? project.lead.loginId,
+      label: personName(project.lead),
       icon: <PersonAvatar person={project.lead} />,
     });
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { personName } from "@/components/person";
 import { hasUnsavedEdits, onEditsSaved } from "@/lib/use-autosave";
 import { messages } from "@/messages";
 import { useSendFocus, useViewers } from "./realtime-provider";
@@ -244,7 +245,7 @@ export function PresenceFocus() {
     const frames: (() => void)[] = [];
     const find = (mark: string) => document.querySelector<HTMLElement>(`[${MARK}="${CSS.escape(mark)}"]`);
     for (const [target, people] of byTarget) {
-      const names = people.map((viewer) => viewer.displayName ?? viewer.loginId).join(", ");
+      const names = people.map(personName).join(", ");
       const [, mark, index, offset] = EDITOR_TARGET.exec(target) ?? [];
       const host = mark ? find(mark) : null;
       const editor = host?.querySelector(EDITOR);

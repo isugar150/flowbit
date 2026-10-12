@@ -29,6 +29,12 @@ export function useListAddress(): { pathname: string; searchParams: URLSearchPar
     : { pathname, searchParams: new URLSearchParams(query) };
 }
 
+/** Changes the list's query in the address only: the issues are already here, so the server is not asked again. */
+export function replaceListQuery(pathname: string, params: URLSearchParams) {
+  const query = params.toString();
+  window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+}
+
 /**
  * Which way a list of issues is shown: as the list, as a timeline chart by milestone
  * (issue-timeline.tsx), or on a calendar (issue-calendar.tsx). Kept
@@ -42,9 +48,7 @@ export function useIssueView(): [IssueViewMode, (view: IssueViewMode) => void] {
     const params = new URLSearchParams(searchParams.toString());
     if (next === "list") params.delete("view");
     else params.set("view", next);
-    const query = params.toString();
-    // The issues are already here; only the address changes, without asking the server again.
-    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+    replaceListQuery(pathname, params);
   };
   return [view, setView];
 }

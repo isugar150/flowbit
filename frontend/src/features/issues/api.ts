@@ -1,5 +1,5 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, fileForm } from "@/lib/api/client";
 import type {
   Attachment,
   Issue,
@@ -47,9 +47,7 @@ export function toggleReaction(input: { number: number; emoji: string }): Promis
 }
 
 export function uploadAttachment(input: { number: number; file: File }): Promise<Attachment> {
-  const form = new FormData();
-  form.append("file", input.file);
-  return apiFetch<Attachment>(`/api/v1/issues/${input.number}/attachments`, { method: "POST", body: form });
+  return apiFetch<Attachment>(`/api/v1/issues/${input.number}/attachments`, { method: "POST", body: fileForm(input.file) });
 }
 
 export function deleteAttachment(id: string): Promise<void> {

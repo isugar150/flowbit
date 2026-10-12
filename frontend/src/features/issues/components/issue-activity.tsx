@@ -9,7 +9,7 @@ import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { setIssueSubscribed } from "../api";
 import { priorityLabel, statusLabel } from "../meta";
-import { PersonAvatar } from "../options";
+import { PersonAvatar, personName } from "@/components/person";
 import type { IssueActivityFeed, IssueActivityItem, IssuePriority, IssueStatus } from "../types";
 
 const m = messages.issues.activity;
@@ -71,6 +71,7 @@ function describe(item: IssueActivityItem): { action: string; change?: string } 
  */
 export function IssueActivity({ number, feed }: { number: number; feed: IssueActivityFeed }) {
   const mutation = useRefreshingMutation(setIssueSubscribed);
+  const subscriberNames = feed.subscribers.map(personName).join(", ");
 
   return (
     <section data-presence-id="activity" aria-labelledby="issue-activity-title" className="flex flex-col gap-3 border-t pt-5">
@@ -80,14 +81,14 @@ export function IssueActivity({ number, feed }: { number: number; feed: IssueAct
         </h3>
         {feed.subscribers.length > 0 ? (
           <span
-            title={m.subscribers(feed.subscribers.map((person) => person.displayName ?? person.loginId).join(", "))}
+            title={m.subscribers(subscriberNames)}
             className="flex items-center -space-x-1"
           >
             {feed.subscribers.slice(0, 5).map((person) => (
               <PersonAvatar key={person.id} person={person} />
             ))}
             <span className="sr-only">
-              {m.subscribers(feed.subscribers.map((person) => person.displayName ?? person.loginId).join(", "))}
+              {m.subscribers(subscriberNames)}
             </span>
           </span>
         ) : null}
@@ -123,7 +124,7 @@ export function IssueActivity({ number, feed }: { number: number; feed: IssueAct
                 <PersonAvatar person={item.actor} />
               </span>
               <p className="min-w-0 flex-1 break-words">
-                <span className="font-medium text-foreground">{item.actor.displayName ?? item.actor.loginId}</span> {action}
+                <span className="font-medium text-foreground">{personName(item.actor)}</span> {action}
                 {change ? <span className="text-foreground"> {change}</span> : null}
                 <span aria-hidden="true"> · </span>
                 <TimeAgo iso={item.createdAt} />
