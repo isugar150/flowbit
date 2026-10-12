@@ -55,7 +55,7 @@ frontend/
 
 ### 페이지 이동이 느려지지 않게 하는 규칙 (2026-10-12 측정 후 정함)
 
-- **`proxy.ts` 에서 백엔드를 부르지 않는다.** 모든 페이지 요청 앞에서 실행되므로 여기서 쓰는 시간은 전부 대기 시간이 된다. 세션 쿠키가 있는지만 보고, 쿠키가 실제로 유효한지는 페이지가 데이터를 읽을 때(`requireUser`) 확인한다. 초기 설정 완료 여부는 한 번 확인하면 메모리에 둔다.
+- **`proxy.ts` 에서 백엔드를 부르지 않는다.** 모든 페이지 요청 앞에서 실행되므로 여기서 쓰는 시간은 전부 대기 시간이 된다. 세션 쿠키가 있는지만 보고, 쿠키가 실제로 유효한지는 페이지가 데이터를 읽을 때(`requireUser`) 확인한다. 초기 설정 완료 여부는 한 번 확인하면 메모리에 두되, **세션 쿠키가 없는 요청에서는 매번 다시 묻는다**(로그인 화면과 첫 방문뿐이라 드물다. 개발 DB 를 지우고 다시 시작했을 때 `/login` 이 아니라 `/setup` 으로 가게 하려는 것이다).
 - 유효하지 않은 쿠키는 `requireUser` 가 `/session-expired` 로 보내고, 거기서 쿠키를 지운 뒤 로그인으로 간다. 서버 컴포넌트에서 `redirect("/login")` 을 직접 쓰지 않는다(쿠키가 남아 있으면 proxy 가 다시 돌려보내 무한히 돈다).
 - 한 요청 안에서 같은 데이터를 두 번 가져오지 않는다. 여러 곳에서 쓰는 조회는 `lib/current-user.ts` 에 React `cache()` 로 감싸 둔다(`getCurrentUser`, `getWorkspace`, `getProjects`). 서로 무관한 조회는 `Promise.all` 로 함께 보낸다.
 - `(app)/loading.tsx` 가 있어서 링크를 누르면 내용 영역이 바로 스켈레톤으로 바뀐다. 데이터를 오래 읽는 구역을 새로 만들면 그 구역에 맞는 `loading.tsx` 를 둔다.
@@ -80,8 +80,9 @@ frontend/
 - 편집기에 새 블록을 추가하려면 세 곳을 함께 고친다: 편집기의 `/` 메뉴(`SLASH_ITEMS`), 백엔드의 허용 목록(`RichText.kt` 의 `NODE_TYPES`), 글꼴·간격(`globals.css` 의 `.rich-text`).
 - 표는 `components/editor/table-extensions.ts`(칸의 `align`, `verticalAlign` 속성)와 `table-toolbar.tsx`(커서가 표 안에 있을 때 뜨는 도구 모음)에 있다. 칸에 새 속성을 더하면 `RichText.kt` 의 칸 검증도 함께 고친다.
 - 편집기의 이미지는 `components/editor/upload-image.ts` 로 먼저 올리고 받은 주소를 `image` 블록에 넣는다. 밖의 주소나 base64 는 넣지 않는다(서버가 거부한다).
+- 지금 시각이 있어야 그릴 수 있는 화면(캘린더의 "이번 달")은 `useInBrowser()`(`components/dates.tsx`)로 브라우저에서만 그린다.
 - **렌더 중에 현재 시각을 읽지 않는다** (`Date.now()`, `new Date()`). `cacheComponents` 에서는 서버 렌더 중의 시각 읽기가 오류다("unstable value `Date.now()` while prerendering"). "3분 전"이나 "올해면 연도 생략"처럼 지금 시각에 기대는 글자는 `components/dates.tsx` 의 `<TimeAgo>`, `<DueDate>` 로 그린다(서버는 날짜 그대로, 브라우저가 바꿔 보여 준다).
-- **대화상자로 여는 페이지**는 가로채기 경로로 만든다. `(app)/layout.tsx` 가 `modal` 슬롯을 그리고, `(app)/@modal/(.)issue/[key]/page.tsx` 가 대화상자다(앱 어느 화면에서 이슈를 눌러도 그 위에 뜬다). 슬롯에는 `default.tsx`, `page.tsx`, `[...catchAll]/page.tsx`(모두 null)가 있어야 다른 탭으로 옮길 때 대화상자가 남지 않는다. 닫기는 `router.back()`.
+- **대화상자로 여는 페이지**는 가로채기 경로로 만든다. `(app)/layout.tsx` 가 `modal` 슬롯을 그리고, `(app)/@modal/(.)issue/[key]/page.tsx` 가 대화상자다(앱 어느 화면에서 이슈를 눌러도 그 위에 뜬다). 슬롯에는 `default.tsx` 와 `page.tsx`(모두 null)를 둔다. **슬롯에 `[...catchAll]` 을 두지 않는다**: `(app)` 은 주소에 나타나지 않는 묶음이라 그 catch-all 이 `/setup`, `/unavailable` 같은 `(public)` 의 주소까지 가로채 404 를 만든다(실제로 겪었다). 대신 대화상자(`issue-dialog.tsx`)가 주소를 보고, `/issue/…` 가 아니면 스스로 사라진다. 닫기는 `router.back()`. 주소를 직접 연 경우(`issue/[key]/page.tsx`)는 전체 이슈 목록(`all-issues.tsx`)을 뒤에 그리고 같은 대화상자를 띄우며, 닫으면 `/issues` 로 간다. 그 대화상자 안에서 다른 이슈(하위 이슈)를 누르면 가로챈 대화상자가 뜨므로, 페이지의 대화상자는 자기 주소가 아닐 때 숨는다(`path`).
 - 같은 폴더 안에서 페이지끼리 오가면(이슈 상세 ↔ 이슈 목록) 그 폴더에도 `loading.tsx` 가 있어야 한다(`project/[key]/issues/loading.tsx`). 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다.
 - 편집기 위에 띄우는 것(`/` 메뉴, 표 도구 모음)은 `position: fixed` 로 두되 좌표에서 `fixedOrigin()`(`components/editor/fixed-origin.ts`)을 뺀다. 대화상자는 `transform` 으로 가운데에 놓이기 때문에 그 안의 `fixed` 는 창이 아니라 대화상자 모서리가 기준이다. 빼지 않으면 새 이슈 창에서 메뉴가 엉뚱한 곳에 뜬다.
 - 편집기는 `RichTextEditor` 하나뿐이다(개요 설명, 이슈 본문, 새 이슈 창). 블록이나 도구를 더하면 세 곳 모두에 생긴다.

@@ -6,6 +6,7 @@ import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ValidationException
 import com.flowbit.issue.application.AttachmentView
 import com.flowbit.issue.application.DocumentDetail
+import com.flowbit.issue.application.DocumentOwner
 import com.flowbit.issue.application.DocumentSummary
 import com.flowbit.issue.application.IssueActivityFeed
 import com.flowbit.issue.application.IssueActivityType
@@ -116,6 +117,9 @@ data class IssueResponse(
     val priority: IssuePriority,
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val assignee: IssuePersonResponse?,
+    /** The first day when the issue covers a span of days that ends on `dueDate`; null for a single date. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val startDate: LocalDate?,
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val dueDate: LocalDate?,
     /** The project the issue is linked to; null when it is on its own. */
@@ -126,11 +130,19 @@ data class IssueResponse(
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val parent: IssueParent?,
     val labels: List<IssueLabel>,
+    /** How many sub-issues the issue has, and how many of them are done; for the progress shown in lists. */
+    val subIssueCount: Int,
+    val subIssueDoneCount: Int,
     val createdBy: IssuePersonResponse,
     val version: Int,
     val createdAt: Instant,
     val updatedAt: Instant,
+    /** When the issue was deleted; null for an issue in use. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val deletedAt: Instant?,
     val canEdit: Boolean? = null,
+    /** Whether the caller may restore the issue; only on a deleted one. */
+    val canRestore: Boolean? = null,
     val subIssues: List<IssueResponse>? = null,
     val reactions: List<ReactionSummary>? = null,
     val attachments: List<AttachmentResponse>? = null,
@@ -148,20 +160,25 @@ data class IssueResponse(
                 status = issue.status,
                 priority = issue.priority,
                 assignee = issue.assignee?.let(IssuePersonResponse::from),
+                startDate = issue.startDate,
                 dueDate = issue.dueDate,
                 project = issue.project,
                 milestone = issue.milestone,
                 parent = issue.parent,
                 labels = issue.labels,
+                subIssueCount = issue.subIssueCount,
+                subIssueDoneCount = issue.subIssueDoneCount,
                 createdBy = IssuePersonResponse.from(issue.createdBy),
                 version = issue.version,
                 createdAt = issue.createdAt,
                 updatedAt = issue.updatedAt,
+                deletedAt = issue.deletedAt,
             )
 
         fun from(detail: IssueDetail) =
             from(detail.issue).copy(
                 canEdit = detail.canEdit,
+                canRestore = detail.canRestore.takeIf { detail.issue.deletedAt != null },
                 subIssues = detail.subIssues.map(::from),
                 reactions = detail.reactions,
                 attachments = detail.attachments.map(AttachmentResponse::from),
@@ -205,8 +222,12 @@ data class DocumentResponse(
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val content: String?,
     val updatedAt: Instant,
-    /** The issue the document belongs to. */
-    val issue: IssueParent,
+    /** The issue the document belongs to, or null when it belongs to a project. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val issue: IssueParent?,
+    /** The project the document belongs to, or null when it belongs to an issue. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val project: IssueProject?,
     val canEdit: Boolean,
 ) {
     companion object {
@@ -216,7 +237,8 @@ data class DocumentResponse(
                 title = detail.document.title,
                 content = detail.content,
                 updatedAt = detail.document.updatedAt,
-                issue = IssueParent(detail.issue.number, detail.issue.key, detail.issue.title),
+                issue = detail.issue?.let { IssueParent(it.number, it.key, it.title) },
+                project = detail.project,
                 canEdit = detail.canEdit,
             )
     }
@@ -236,6 +258,8 @@ data class CreateIssueRequest(
     val projectKey: String? = null,
     /** Makes the issue a sub-issue of this one. */
     val parentId: UUID? = null,
+    /** With `dueDate`, makes the issue cover a span of days. */
+    val startDate: LocalDate? = null,
 ) {
     fun toNewIssue(projectKey: String? = this.projectKey) =
         NewIssue(
@@ -250,6 +274,7 @@ data class CreateIssueRequest(
             labelIds.orEmpty(),
             projectKey,
             parentId,
+            startDate,
         )
 }
 
@@ -291,6 +316,15 @@ class IssueAnnouncer(
         )
     }
 
+    /** A document changed; whoever shows the issue or the project it belongs to should read again. */
+    fun documentChanged(
+        user: AuthenticatedUser,
+        owner: DocumentOwner,
+    ) {
+        owner.issueNumber?.let { touched(user, it) }
+        owner.projectKey?.let { realtime.publish("project:$it", user.id) }
+    }
+
     /** Something on the issue's own page changed (a reaction, a file, a document, who follows it). */
     fun touched(
         user: AuthenticatedUser,
@@ -317,7 +351,8 @@ class IssueController(
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestParam(required = false) project: String?,
-    ): List<IssueResponse> = issueService.list(user, project).map(IssueResponse::from)
+        @RequestParam(defaultValue = "false") deleted: Boolean,
+    ): List<IssueResponse> = issueService.list(user, project, deleted).map(IssueResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -349,6 +384,32 @@ class IssueController(
         @RequestBody body: Map<String, Any?>,
     ): IssueResponse {
         val change = issueService.update(user, number, IssuePatch(body))
+        announcer.changed(user, change)
+        change.issue.parent?.let { announcer.touched(user, it.number) }
+        return IssueResponse.from(change.issue)
+    }
+
+    /**
+     * Deletes the issue. It leaves the lists (ask for them with `deleted=true`) but can still be
+     * read with its history, and restored.
+     */
+    @DeleteMapping("/{number}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun delete(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+    ) {
+        val change = issueService.delete(user, number)
+        announcer.changed(user, change)
+        change.issue.parent?.let { announcer.touched(user, it.number) }
+    }
+
+    @PostMapping("/{number}/restore")
+    suspend fun restore(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+    ): IssueResponse {
+        val change = issueService.restore(user, number)
         announcer.changed(user, change)
         change.issue.parent?.let { announcer.touched(user, it.number) }
         return IssueResponse.from(change.issue)
@@ -435,7 +496,8 @@ class ProjectIssueController(
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable key: String,
-    ): List<IssueResponse> = issueService.list(user, key).map(IssueResponse::from)
+        @RequestParam(defaultValue = "false") deleted: Boolean,
+    ): List<IssueResponse> = issueService.list(user, key, deleted).map(IssueResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -451,6 +513,32 @@ class ProjectIssueController(
     }
 }
 
+/** The documents of a project, made from its overview. They are read and changed under /api/v1/documents. */
+@RestController
+@RequestMapping("/api/v1/projects/{key}/documents")
+class ProjectDocumentController(
+    private val issueService: IssueService,
+    private val announcer: IssueAnnouncer,
+) {
+    @GetMapping
+    suspend fun list(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+    ): List<DocumentSummaryResponse> = issueService.projectDocuments(user, key).map(DocumentSummaryResponse::from)
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    suspend fun create(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+        @RequestBody body: CreateDocumentRequest,
+    ): DocumentSummaryResponse {
+        val document = issueService.createProjectDocument(user, key, body.title)
+        announcer.documentChanged(user, DocumentOwner(null, key.uppercase()))
+        return DocumentSummaryResponse.from(document)
+    }
+}
+
 /** "내 이슈": the caller's issues across projects. `scope` is `assigned` (default) or `created`. */
 @RestController
 @RequestMapping("/api/v1/me/issues")
@@ -461,11 +549,12 @@ class MyIssuesController(
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestParam(defaultValue = "assigned") scope: String,
+        @RequestParam(defaultValue = "false") deleted: Boolean,
     ): List<IssueResponse> {
         val parsed =
             MyIssueScope.entries.firstOrNull { it.name.equals(scope, ignoreCase = true) }
                 ?: throw ValidationException("scope", "INVALID", "값이 올바르지 않습니다")
-        return issueService.mine(user, parsed).map(IssueResponse::from)
+        return issueService.mine(user, parsed, deleted).map(IssueResponse::from)
     }
 }
 
@@ -502,7 +591,7 @@ class AttachmentController(
     }
 }
 
-/** Documents that belong to issues. */
+/** Documents, whether they belong to an issue or to a project. */
 @RestController
 @RequestMapping("/api/v1/documents")
 class DocumentController(
@@ -523,7 +612,7 @@ class DocumentController(
         @RequestBody body: Map<String, Any?>,
     ): DocumentResponse {
         val document = issueService.updateDocument(user, id, IssuePatch(body))
-        announcer.touched(user, document.issue.number)
+        announcer.documentChanged(user, DocumentOwner(document.issue?.number, document.project?.key))
         return DocumentResponse.from(document)
     }
 
@@ -533,6 +622,6 @@ class DocumentController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable id: UUID,
     ) {
-        announcer.touched(user, issueService.removeDocument(user, id))
+        announcer.documentChanged(user, issueService.removeDocument(user, id))
     }
 }

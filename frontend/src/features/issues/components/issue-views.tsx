@@ -1,0 +1,61 @@
+"use client";
+
+import { usePathname, useSearchParams } from "next/navigation";
+import { CalendarIcon, ChartGanttIcon, ListIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { messages } from "@/messages";
+
+const m = messages.issues.views;
+
+export const ISSUE_VIEWS = ["list", "milestone", "calendar"] as const;
+export type IssueViewMode = (typeof ISSUE_VIEWS)[number];
+
+/**
+ * Which way a list of issues is shown: as the list, as a timeline chart by milestone
+ * (issue-timeline.tsx), or on a calendar (issue-calendar.tsx). Kept
+ * in the address (`?view=milestone`), so a reload, the back button and a shared link keep it.
+ */
+export function useIssueView(): [IssueViewMode, (view: IssueViewMode) => void] {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const param = searchParams.get("view");
+  const view = ISSUE_VIEWS.find((item) => item === param) ?? "list";
+  const setView = (next: IssueViewMode) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "list") params.delete("view");
+    else params.set("view", next);
+    const query = params.toString();
+    // The issues are already here; only the address changes, without asking the server again.
+    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+  };
+  return [view, setView];
+}
+
+const VIEW_ICONS = { list: ListIcon, milestone: ChartGanttIcon, calendar: CalendarIcon };
+
+/** The three buttons that switch between the views. */
+export function IssueViewSwitch({ view, onChange }: { view: IssueViewMode; onChange: (view: IssueViewMode) => void }) {
+  return (
+    <div role="group" aria-label={m.label} className="flex shrink-0 items-center rounded-full border p-0.5">
+      {ISSUE_VIEWS.map((item) => {
+        const Icon = VIEW_ICONS[item];
+        return (
+          <button
+            key={item}
+            type="button"
+            aria-pressed={view === item}
+            title={m[item]}
+            onClick={() => onChange(item)}
+            className={cn(
+              "flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[0.8125rem] leading-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-8",
+              view === item ? "bg-secondary font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="size-3.5" aria-hidden="true" />
+            <span className="max-sm:sr-only">{m[item]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

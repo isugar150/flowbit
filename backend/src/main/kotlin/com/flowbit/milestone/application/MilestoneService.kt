@@ -113,7 +113,7 @@ class MilestoneService(
                        count(i.id) filter (where i.status <> 'CANCELED') as issue_count,
                        count(i.id) filter (where i.status = 'DONE') as done_count
                 from milestones m
-                left join issues i on i.milestone_id = m.id
+                left join issues i on i.milestone_id = m.id and i.deleted_at is null
                 where m.project_id = :projectId
                 group by m.id
                 order by m.target_date nulls last, m.created_at

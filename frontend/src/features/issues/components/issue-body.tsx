@@ -71,7 +71,10 @@ export function IssueBody({ issue, canEdit }: { issue: Issue; canEdit: boolean }
           onCreateDocument={
             canEdit
               ? async () => {
-                  const document = await createDocument({ number: issue.number, title: messages.issues.documents.untitled });
+                  const document = await createDocument({
+                    owner: { issueNumber: issue.number },
+                    title: messages.issues.documents.untitled,
+                  });
                   router.refresh();
                   return { href: `/doc/${document.id}`, title: document.title };
                 }

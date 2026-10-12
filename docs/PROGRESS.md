@@ -121,10 +121,11 @@
 - `@AuthenticationPrincipal` 로 받는 `AuthenticatedUser` 에 `java.security.Principal` 을 구현하면 타입 오류가 난다 (실제로 겪었다).
 - shadcn 은 Base UI 기반이다. `asChild` 가 아니라 `render` prop 을 쓴다.
 - Next.js 16: `middleware.ts` 가 아니라 `src/proxy.ts`. `cacheComponents` 가 켜져 있어 요청별 데이터를 읽는 서버 컴포넌트는 `<Suspense>` 안에 둔다.
-- 개발 DB 를 지우고 초기 설정부터 다시 하려면 **Next 서버도 다시 시작**해야 한다. `proxy.ts` 가 "초기 설정 완료"를 메모리에 기억한다.
+- 개발 DB 를 지우고 다시 시작해도 Next 서버는 그대로 둬도 된다. `proxy.ts` 는 "초기 설정 완료"를 기억하지만 **로그인하지 않은 요청에서는 매번 백엔드에 다시 묻는다**. 예전 세션 쿠키가 남아 있으면 한 번 `/session-expired` 를 거쳐 `/login` → `/setup` 으로 간다.
 - Next 개발 서버를 켠 채로 `providers.tsx` 같은 최상위 클라이언트 모듈을 새로 만들면 "No QueryClient set" 오류가 날 수 있다. 개발 서버를 다시 시작하면 사라진다.
 - 프론트엔드에 `npm install` 로 패키지를 추가할 때 peer 충돌이 나면 `@types/node` 버전부터 확인한다 (Vitest 가 22 이상을 요구해서 22 로 맞췄다).
 - 이 PC(macOS)의 JDK 25 는 `~/Library/Java/JavaVirtualMachines/corretto-25.0.4.1/Contents/Home` 에 있다. Gradle 을 돌릴 때 `JAVA_HOME` 을 이 경로로 지정한다.
+- **사용자가 IDE 로 백엔드를 띄워 둔 채 `./gradlew` 를 돌리면 그 서버가 깨진다.** IDE 는 `backend/build/classes` 의 클래스로 서버를 띄우는데, 빌드가 그 파일들을 바꿔 놓으면 서버가 나중에 읽는 클래스가 새 버전이 되어 요청이 멈추거나 500 이 난다(2026-10-12 에 초기 설정의 로고 올리기에서 겪었다). 에이전트의 검사는 `FLOWBIT_BUILD_DIR=build-check ./gradlew check` 처럼 다른 폴더에 빌드한다(`backend/build.gradle.kts` 끝).
 - 같은 저장소를 다른 세션이나 에디터가 동시에 고치고 있을 수 있다. 문서를 통째로 다시 쓰기 전에 현재 내용을 다시 읽는다.
 
 ## 열린 질문
@@ -136,6 +137,94 @@
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 하위 이슈의 프로젝트·목표, 새 이슈 창의 속성 패널
+
+- 사용자 지적: ① 하위 이슈는 상위 이슈의 프로젝트·목표를 따라가야 하지 않느냐 (D-080). ② 새 이슈 창의 속성이 편집할 때와 다르게 생겼다.
+- 한 일: ① `IssueService.create` 가 상위의 프로젝트·목표를 물려줌, `moveSubIssuesAlong`(상위가 옮겨 가면 하위도). 테스트 1개. ② `IssuePropertyFields`(값과 변경만 주고받는 패널)를 만들어 이슈 편집(`IssueProperties`)과 새 이슈 창이 함께 쓴다.
+- 확인한 범위: `./gradlew check`(`build-check`), typecheck, eslint, `next build`. 화면은 보지 않았다.
+
+### 2026-10-12 — 목표 차트, 캘린더 조작, 이슈 기간, 삭제된 이슈
+
+- 사용자 지시: ① 삭제된 이슈를 내 이슈·전체 이슈·프로젝트 이슈에서 볼 수 있게(히스토리 용도). ② 목표 보기는 간트 차트로, 필터도 걸 수 있게. ③ 이슈 날짜를 하루뿐 아니라 시작일~종료일로도. ④ 캘린더에서 끌어 날짜 이동, 날짜를 누르거나 끌어 이슈 등록.
+- 한 일 (D-077~D-079):
+  - 백엔드: `issues.start_date`, `deleted_at`·`deleted_by`, 삭제·복원 API와 목록의 `deleted`, 이슈 응답의 `startDate`·`deletedAt`·목표의 `targetDate`, 집계에서 삭제된 이슈 제외. 테스트 2개.
+  - 프런트: `issue-timeline.tsx`(간트), `issue-calendar.tsx`(기간 표시, 끌어 옮기기, 눌러/끌어 만들기), `DateRangeChip` 의 `singleIsEnd`, `issue-deletion.tsx`, `issues-view.tsx` 의 삭제된 이슈 전환, 내 이슈가 `IssuesView` 를 쓰도록(`my-issues-views.tsx` 삭제).
+- 확인한 범위: `./gradlew check`(`build-check`), typecheck, eslint, `next build`. **화면은 보지 않았다.** 끌어 놓기와 차트 배치는 실제로 봐야 아는 부분이 많다.
+- **`V1__schema.sql` 이 바뀌었다**(`start_date`, `deleted_at`, `deleted_by`, `documents`). 개발 DB 를 다시 지워야 백엔드가 뜬다.
+
+### 2026-10-12 — 목표 보기, 캘린더 보기
+
+- 사용자 지시: 내 이슈, 전체 이슈, 프로젝트 이슈를 마일스톤 뷰어, 캘린더 뷰어로 볼 수 있게 (D-076).
+- 한 일: `issue-views.tsx`(보기 전환, 목표 보기, 캘린더 보기), `issue-row.tsx`(읽기 전용 줄), `my-issues-views.tsx`, `issues-view.tsx` 에 전환 버튼과 분기. 백엔드 변경 없음.
+- 확인한 범위: typecheck, eslint, `next build`. 화면은 보지 않았다.
+
+### 2026-10-12 — 프로젝트 문서
+
+- 사용자 지시: 프로젝트 개요의 에디터에서 페이지를 추가할 수 있게 (D-075).
+- 한 일: 테이블 `issue_documents` → `documents`(이슈 또는 프로젝트 소유), `IssueService` 의 문서 함수들이 주인을 가려 권한을 판단, `GET/POST /api/v1/projects/{key}/documents`, 개요 편집기의 `/문서`, 개요의 "자료" 목록, 문서 화면이 프로젝트 문서도 처리. 테스트 1개.
+- 확인한 범위: `./gradlew check`(`build-check`), typecheck, eslint, `next build`. 화면은 보지 않았다.
+- **`V1__schema.sql` 이 바뀌었다.** 개발 DB 를 다시 지워야 백엔드가 뜬다.
+
+### 2026-10-12 — 새로 고쳐도 이슈는 대화상자로
+
+- 사용자 지시: 이슈 모달을 보다가 새로 고치면 페이지로 나오는데, 똑같이 모달로 나와야 한다 (D-074).
+- 한 일: `issue/[key]/page.tsx` 가 전체 이슈 목록(`all-issues.tsx`) 위에 `IssueDialog` 를 띄운다. `IssueDialog` 에 `closeTo`, `path`.
+- 확인한 범위: typecheck, eslint, `next build`. 화면은 보지 않았다.
+- `IssueDetail` 의 페이지용 배치(뒤로 가기 링크, `inDialog`)는 사용자 지시로 지웠다. 이슈는 대화상자로만 보인다. `issue/[key]/page.tsx` 는 주소를 직접 열었을 때 목록 위에 대화상자를 띄우는 경로라 남아 있다.
+
+### 2026-10-12 — 이슈 옆 패널을 세 묶음으로, 하위 이슈 줄의 오른쪽
+
+- 사용자 지시: ① 이슈 모달의 속성 영역을 Linear 사진처럼 나누고 프로젝트·목표 선택도 같은 방식으로 (D-073). ② 이슈 상세의 하위 이슈 목록 오른쪽이 비어 있으니 라벨 등을 표시.
+- 한 일: `issue-properties.tsx` 를 한 컴포넌트(속성·라벨·프로젝트 묶음)로 다시 씀, `ChipSelect`·`DateChip` 의 `plain`, `LabelChip` 의 `asPills`, `issue-detail.tsx` 의 옆 패널에서 카드 제거. 하위 이슈 줄에 진행 수·라벨·기한·우선순위·담당자.
+- 확인한 범위: typecheck, eslint, `next build`. 화면은 보지 않았다.
+
+### 2026-10-12 — 목록에서 하위 이슈를 들여 보여 주기
+
+- 사용자 지시: 내 이슈, 모든 이슈, 프로젝트의 이슈에서 하위 이슈가 있으면 Linear 처럼 단계로 표현 (D-072).
+- 한 일: 목록 응답에 `subIssueCount`·`subIssueDoneCount`, `sub-issue-tree.ts`(묶음 안에서 순서 정하기), `sub-issue-rows.tsx`(꺾인 선, 진행 수, 흐린 상위 줄), `issues-view.tsx`·`my-issues-list.tsx` 에 적용.
+- 확인한 범위: `./gradlew check`(`build-check`), typecheck, eslint, `next build`. 화면은 보지 않았다.
+
+### 2026-10-12 — 초기 설정 두 단계, 프로젝트 키 자동
+
+- 사용자 지시: ① 초기 설정을 워크스페이스 설정 → 관리자 계정 설정 두 단계로 (D-070). ② 새 프로젝트를 만들 때 왜 키를 또 받느냐 (D-071).
+- 한 일: ① `setup-form.tsx` 에 단계 상태, `SetupSteps` 가 현재 단계를 받음. ② `ProjectService.freeKeyFor`, `POST /api/v1/projects` 의 `key` 를 선택으로, 새 프로젝트 창에서 키 칸 제거. 테스트 1개.
+- 확인한 범위: `./gradlew check`(`build-check` 폴더), typecheck, eslint. 화면은 보지 않았다.
+- 프로젝트 키는 개요의 `# KEY` 와 속성 카드, 설정 화면에 여전히 보인다(주소에 쓰이는 값이라 남겼다).
+
+### 2026-10-12 — 초기 설정 전인데 로그인 화면이 뜨던 문제
+
+- 사용자 보고: 초기 설정 전에 `/` 로 들어가면 로그인 화면이 뜬다. 로그인 화면에서 설정이 안 돼 있으면 설정 화면으로 넘어가야 한다.
+- 원인: `proxy.ts` 가 "초기 설정 완료"를 메모리에 한 번 기억하면 다시 묻지 않았다. DB 를 지우고 Next 서버를 그대로 두면 완료된 줄 알고 `/login` 으로 보냈다.
+- 고친 것: 세션 쿠키가 없는 요청(로그인 화면, 첫 방문)에서는 매번 백엔드에 묻는다. 로그인한 사용자의 페이지 이동에는 여전히 추가 호출이 없다(D-038 유지).
+- 확인한 범위: typecheck, eslint. 백엔드가 꺼져 있어 실제 이동은 확인하지 못했다.
+
+### 2026-10-12 — 초기 설정에서 로고 올리기가 멈춘 문제
+
+- 사용자 보고: 초기 설정에서 "설정하는 중"에서 넘어가지 않다가 "초기 설정은 끝났지만 로고를 올리지 못했습니다. 서버에서 문제가 생겼습니다"가 뜬다.
+- 확인한 사실: DB 에는 설정 완료와 로고(`logo_key`)가 모두 저장돼 있었다. 즉 서버는 로고를 받았고 응답만 실패했다. 사용자의 서버는 20:18 에 떴고, 에이전트의 `./gradlew check` 가 20:21 에 `backend/build/classes` 를 새 코드로 바꿔 놓았고, 사용자의 초기 설정은 20:23 이었다. 통합 테스트(설정 뒤 로고 올리기)는 통과한다.
+- 판단: 실행 중인 서버의 클래스 파일을 빌드가 바꿔 놓아 생긴 일로 본다(재현해서 확정하지는 못했다). 위 "알아둘 것"에 적고, 검사용 빌드 폴더를 따로 쓸 수 있게 했다.
+- 사용자가 할 일: DB 를 지우고(컬럼 이름이 `workspace_key` 로 바뀌었다) 백엔드를 다시 시작한 뒤 초기 설정을 다시 한다. 같은 증상이 또 나오면 코드 문제이므로 다시 본다.
+
+### 2026-10-12 — "이슈 키"를 "워크스페이스 키"로
+
+- 사용자 지시: 필드 이름을 이슈 키가 아니라 워크스페이스 키로 (나중에 다른 데도 쓸 수 있게). D-069.
+- 한 일: 화면 문구, API 필드(`workspaceKey`), 엔티티·컬럼(`workspace_key`, `V1__schema.sql` 을 직접 고침), 테스트, 문서. 아래 기록들의 "이슈 키"는 같은 것이다.
+- 확인한 범위: `./gradlew check`, typecheck, eslint.
+- `V1__schema.sql` 이 바뀌었으므로 **그사이 새로 만든 개발 DB 가 있다면 다시 지워야 한다**.
+
+### 2026-10-12 — 초기 설정의 이슈 키
+
+- 사용자 지시: 워크스페이스 이름과 이슈 키를 따로 받을 것 (D-068).
+- 한 일: `POST /api/v1/setup` 의 `workspaceKey`, `/setup` 의 "이슈 키" 칸(기본 `FB`), 테스트 1개.
+- 확인한 범위: `./gradlew check`, typecheck, eslint. 화면은 보지 않았다.
+
+### 2026-10-12 — `/setup` 404
+
+- 사용자 보고: `/setup` 에 들어가면 404.
+- 원인: 이슈 대화상자를 앱 전체로 옮기면서 만든 `(app)/@modal/[...catchAll]` 이 `(public)` 의 주소(`/setup`, `/unavailable`)까지 가로챘다.
+- 고친 것: catch-all 을 지우고, 대화상자가 주소를 보고 스스로 닫히게 했다. 04 가이드에 규칙 추가.
+- 확인: 개발 서버에서 `/setup`, `/unavailable` 이 다시 200 으로 응답한다(`curl`).
 
 ### 2026-10-12 — 마이그레이션을 하나로
 
@@ -158,7 +247,7 @@
 - 사용자 지시: Linear 이슈 화면처럼 ① 이모지와 파일 첨부 ② 하위 이슈 ③ 에디터에서 페이지 추가 ④ 속성의 "프로젝트"에서 프로젝트와 그 하위 목표를 고르게, **이슈는 독립적이고 연결만** ⑤ 프로젝트 개요의 구성원 카드에 관리자용 "+" 버튼.
 - 사용자에게 물어 정한 것: 이슈 키는 워크스페이스 키 하나, 권한은 연결된 프로젝트를 따름, "페이지"는 이슈에 딸린 문서.
 - 한 일 (D-062~D-066):
-  - 백엔드: `V12`, `IssueService`·`IssueQueries`·`IssueController` 를 번호 기준으로 다시 씀, `IssueExtras.kt`(리액션·첨부·문서), `FileStorage`, `ProjectService.accessById`, 워크스페이스 `issueKey`, 실시간 주제 `issue:{번호}`·`issues`. 테스트 8개 추가(전체 통과).
+  - 백엔드: `V12`, `IssueService`·`IssueQueries`·`IssueController` 를 번호 기준으로 다시 씀, `IssueExtras.kt`(리액션·첨부·문서), `FileStorage`, `ProjectService.accessById`, 워크스페이스 `workspaceKey`, 실시간 주제 `issue:{번호}`·`issues`. 테스트 8개 추가(전체 통과).
   - 프런트: `/issue/[key]`, `(app)/@modal/(.)issue/[key]`(앱 전체에서 대화상자), `/issues`, `/doc/[id]`, 이슈 상세의 새 구역들(`issue-reactions`, `issue-attachments`, `issue-sub-issues`, `issue-documents`), "프로젝트" 카드(`IssueProjectLink`), 새 이슈 창의 프로젝트 선택, 편집기 `/문서`, 사이드바 "전체 이슈", 관리자 설정의 이슈 키, `add-project-member-button.tsx`.
   - 없앤 것: `/project/[key]/issues/[number]` 와 프로젝트 수준의 `@modal`.
 - 확인한 범위: `./gradlew check`, typecheck, eslint, `next build`. **화면은 보지 않았다.** 이번 변경은 범위가 커서 화면에서 깨진 곳이 있을 수 있다. 먼저 볼 곳: 이슈를 눌렀을 때의 대화상자, 프로젝트 바꾸기, 새 이슈 창의 프로젝트 선택, 파일 올리기·내려받기.

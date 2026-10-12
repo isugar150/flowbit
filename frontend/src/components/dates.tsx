@@ -11,7 +11,7 @@ const subscribe = () => () => {};
  * wait for the browser: with `cacheComponents`, reading the clock during a server render is an
  * error ("encountered the unstable value Date.now() while prerendering").
  */
-function useInBrowser(): boolean {
+export function useInBrowser(): boolean {
   return useSyncExternalStore(
     subscribe,
     () => true,

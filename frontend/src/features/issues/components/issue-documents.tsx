@@ -8,21 +8,22 @@ import { TimeAgo } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
-import { createDocument } from "../api";
+import { createDocument, type DocumentOwner } from "../api";
 import type { IssueDocumentSummary } from "../types";
 
 const m = messages.issues.documents;
 
 /**
- * The documents of an issue ("자료"): pages with a title and a body written in the same editor,
- * for notes that are too long for the issue itself. "+" makes one and opens it.
+ * The documents of an issue or a project ("자료"): pages with a title and a body written in the
+ * same editor, for notes that are too long for the issue or the overview itself. "+" makes one
+ * and opens it.
  */
 export function IssueDocuments({
-  number,
+  owner,
   documents,
   canEdit,
 }: {
-  number: number;
+  owner: DocumentOwner;
   documents: IssueDocumentSummary[];
   canEdit: boolean;
 }) {
@@ -49,7 +50,7 @@ export function IssueDocuments({
             aria-label={m.add}
             title={m.add}
             disabled={create.isPending}
-            onClick={() => create.mutate({ number, title: m.untitled })}
+            onClick={() => create.mutate({ owner, title: m.untitled })}
           >
             <PlusIcon />
           </Button>

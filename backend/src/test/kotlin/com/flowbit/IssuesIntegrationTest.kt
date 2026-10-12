@@ -364,9 +364,41 @@ class IssuesIntegrationTest : IntegrationTest() {
         @Suppress("UNCHECKED_CAST")
         val subIssues = editor.get("/api/v1/issues/1").json()["subIssues"] as List<Map<String, Any?>>
         assertEquals(listOf("FB-2"), subIssues.map { it["key"] })
+        editor.patch("/api/v1/issues/2", """{"status":"DONE"}""")
+        val listed = editor.get("/api/v1/issues").jsonList().single { it["key"] == "FB-1" }
+        assertEquals(1 to 1, listed["subIssueCount"] to listed["subIssueDoneCount"])
         assertEquals(422, editor.patch("/api/v1/issues/1", """{"parentId":"${child["id"]}"}""").status)
         assertEquals(422, editor.patch("/api/v1/issues/1", """{"parentId":"${parent["id"]}"}""").status)
         assertNull(editor.patch("/api/v1/issues/2", """{"parentId":null}""").json()["parent"])
+    }
+
+    @Test
+    fun `하위 이슈는 상위 이슈의 프로젝트와 목표를 물려받고 상위가 옮겨 가면 따라간다`() {
+        admin.post("/api/v1/projects", """{"name":"보안","key":"SEC"}""")
+        val beta = admin.post("/api/v1/projects/PAY/milestones", """{"name":"베타"}""").json()["id"]
+        val release = admin.post("/api/v1/projects/PAY/milestones", """{"name":"출시"}""").json()["id"]
+        val alpha = admin.post("/api/v1/projects/PAY/milestones", """{"name":"알파"}""").json()["id"]
+        val parent = admin.post("/api/v1/projects/PAY/issues", """{"title":"상위","milestoneId":"$beta"}""").json()
+
+        val child = admin.post("/api/v1/issues", """{"title":"하위","parentId":"${parent["id"]}"}""").json()
+        val ownWay = admin.post("/api/v1/issues", """{"title":"다른 목표","parentId":"${parent["id"]}","milestoneId":"$alpha"}""").json()
+
+        assertEquals("PAY" to "베타", (child["project"] as Map<*, *>)["key"] to (child["milestone"] as Map<*, *>)["name"])
+        assertEquals("알파", (ownWay["milestone"] as Map<*, *>)["name"])
+
+        // The parent moves to another milestone: the child that shared it follows, the other stays.
+        admin.patch("/api/v1/issues/1", """{"milestoneId":"$release"}""")
+        assertEquals("출시", (admin.get("/api/v1/issues/2").json()["milestone"] as Map<*, *>)["name"])
+        assertEquals("알파", (admin.get("/api/v1/issues/3").json()["milestone"] as Map<*, *>)["name"])
+
+        // The parent moves to another project: both children go with it, without a milestone.
+        admin.patch("/api/v1/issues/1", """{"projectKey":"SEC"}""")
+        listOf(2, 3).forEach { number ->
+            val moved = admin.get("/api/v1/issues/$number").json()
+            assertEquals("SEC", (moved["project"] as Map<*, *>)["key"])
+            assertNull(moved["milestone"])
+        }
+        assertTrue(activityOf(admin.get("/api/v1/issues/2/activity").json()).any { it["type"] == "PROJECT_CHANGED" })
     }
 
     @Test
@@ -437,15 +469,77 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `이슈의 날짜는 하루이거나 시작일과 종료일이고 종료일을 지우면 시작일도 지워진다`() {
+        val created = editor.post("/api/v1/issues", """{"title":"출시 준비","startDate":"2026-11-02","dueDate":"2026-11-06"}""").json()
+        assertEquals("2026-11-02" to "2026-11-06", created["startDate"] to created["dueDate"])
+
+        assertEquals(422, editor.patch("/api/v1/issues/1", """{"startDate":"2026-11-10"}""").status)
+        val single = editor.patch("/api/v1/issues/1", """{"startDate":null}""").json()
+        assertEquals(null to "2026-11-06", single["startDate"] to single["dueDate"])
+        val span = editor.patch("/api/v1/issues/1", """{"startDate":"2026-11-04","dueDate":"2026-11-09"}""").json()
+        assertEquals("2026-11-04" to "2026-11-09", span["startDate"] to span["dueDate"])
+        val cleared = editor.patch("/api/v1/issues/1", """{"dueDate":null}""").json()
+        assertEquals(null to null, cleared["startDate"] to cleared["dueDate"])
+        val changes = activityOf(editor.get("/api/v1/issues/1/activity").json()).filter { it["type"] == "DUE_DATE_CHANGED" }
+        assertEquals(mapOf("from" to "2026-11-06", "to" to "2026-11-04 ~ 2026-11-09"), changes[1]["detail"])
+    }
+
+    @Test
+    fun `이슈를 삭제하면 목록에서 빠지고 삭제된 목록과 활동으로 볼 수 있으며 복원할 수 있다`() {
+        editor.post("/api/v1/projects/PAY/issues", """{"title":"지울 이슈","assigneeId":"$editorId"}""")
+        editor.post("/api/v1/projects/PAY/issues", """{"title":"남는 이슈"}""")
+
+        assertEquals(403, viewer.delete("/api/v1/issues/1").status)
+        assertEquals(204, editor.delete("/api/v1/issues/1").status)
+
+        assertEquals(listOf("FB-2"), viewer.get("/api/v1/projects/PAY/issues").jsonList().map { it["key"] })
+        assertEquals(listOf("FB-1"), viewer.get("/api/v1/projects/PAY/issues?deleted=true").jsonList().map { it["key"] })
+        assertEquals(listOf("FB-1"), editor.get("/api/v1/issues?deleted=true").jsonList().map { it["key"] })
+        assertEquals(listOf("FB-1"), editor.get("/api/v1/me/issues?deleted=true").jsonList().map { it["key"] })
+        assertEquals(emptyList(), editor.get("/api/v1/me/issues").jsonList())
+        val shown = viewer.get("/api/v1/issues/1").json()
+        assertEquals(false, shown["canEdit"])
+        assertTrue(shown["deletedAt"] != null)
+        assertEquals(403, editor.patch("/api/v1/issues/1", """{"title":"고치기"}""").status)
+        assertEquals("DELETED", activityOf(viewer.get("/api/v1/issues/1/activity").json()).last()["type"])
+        assertEquals(1, admin.get("/api/v1/projects").jsonList().single()["issueCount"])
+
+        assertEquals(403, viewer.post("/api/v1/issues/1/restore", "{}").status)
+        assertNull(editor.post("/api/v1/issues/1/restore", "{}").json()["deletedAt"])
+        assertEquals(2, viewer.get("/api/v1/projects/PAY/issues").jsonList().size)
+        assertEquals(200, editor.patch("/api/v1/issues/1", """{"title":"고치기"}""").status)
+    }
+
+    @Test
+    fun `프로젝트에도 문서를 만들 수 있고 그 프로젝트의 권한을 따른다`() {
+        val created = editor.post("/api/v1/projects/PAY/documents", """{"title":"설계 메모"}""")
+
+        assertEquals(201, created.status)
+        val url = "/api/v1/documents/${created.json()["id"]}"
+        val shown = viewer.get(url).json()
+        assertEquals("PAY", (shown["project"] as Map<*, *>)["key"])
+        assertNull(shown["issue"])
+        assertEquals(false, shown["canEdit"])
+        assertEquals(listOf("설계 메모"), viewer.get("/api/v1/projects/PAY/documents").jsonList().map { it["title"] })
+        assertEquals(200, editor.patch(url, """{"title":"설계 메모 2"}""").status)
+        assertEquals(403, viewer.post("/api/v1/projects/PAY/documents", """{"title":"안 됨"}""").status)
+        assertEquals(403, viewer.patch(url, """{"title":"안 됨"}""").status)
+        assertEquals(404, outsider.get(url).status)
+        assertEquals(404, outsider.get("/api/v1/projects/PAY/documents").status)
+        assertEquals(204, editor.delete(url).status)
+        assertEquals(emptyList(), editor.get("/api/v1/projects/PAY/documents").jsonList())
+    }
+
+    @Test
     fun `관리자가 이슈 키를 바꾸면 모든 이슈의 키가 바뀌고 번호는 그대로다`() {
         editor.post("/api/v1/projects/PAY/issues", """{"title":"결제 실패"}""")
 
-        val changed = admin.patch("/api/v1/admin/workspace", """{"issueKey":"flow"}""")
+        val changed = admin.patch("/api/v1/admin/workspace", """{"workspaceKey":"flow"}""")
 
-        assertEquals("FLOW", changed.json()["issueKey"])
+        assertEquals("FLOW", changed.json()["workspaceKey"])
         assertEquals("FLOW-1", editor.get("/api/v1/issues/1").json()["key"])
-        assertEquals(422, admin.patch("/api/v1/admin/workspace", """{"issueKey":"1"}""").status)
-        assertEquals(403, editor.patch("/api/v1/admin/workspace", """{"issueKey":"X1"}""").status)
+        assertEquals(422, admin.patch("/api/v1/admin/workspace", """{"workspaceKey":"1"}""").status)
+        assertEquals(403, editor.patch("/api/v1/admin/workspace", """{"workspaceKey":"X1"}""").status)
     }
 
     @Suppress("UNCHECKED_CAST")

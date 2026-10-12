@@ -36,6 +36,7 @@ export function LabelChip({
   value,
   onChange,
   disabled,
+  asPills,
 }: {
   /** Every label in the workspace. */
   labels: Label[];
@@ -43,6 +44,8 @@ export function LabelChip({
   value: string[];
   onChange: (labelIds: string[]) => void;
   disabled?: boolean;
+  /** Show the chosen labels as pills in a row, with a "+" that opens the list. For side panels. */
+  asPills?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -68,6 +71,27 @@ export function LabelChip({
         if (!next) setQuery("");
       }}
     >
+      {asPills ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {selected.map((label) => (
+            <LabelPill key={label.id} label={label} />
+          ))}
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`${m.editLabels}: ${selected.map((label) => label.name).join(", ") || m.noLabels}`}
+                title={m.editLabels}
+                className="flex size-6 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:hidden aria-expanded:bg-muted max-md:size-9"
+              />
+            }
+          >
+            <PlusIcon className="size-3.5" aria-hidden="true" />
+          </PopoverTrigger>
+          {selected.length === 0 && disabled ? <span className="text-[0.8125rem] leading-5 text-muted-foreground">{m.noLabels}</span> : null}
+        </div>
+      ) : (
       <PopoverTrigger
         render={
           <button
@@ -94,6 +118,7 @@ export function LabelChip({
           </>
         )}
       </PopoverTrigger>
+      )}
       <PopoverContent className="flex w-56 flex-col gap-1 p-1">
         <input
           value={query}

@@ -26,15 +26,16 @@ import { ApiError } from "@/lib/api/errors";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createProject } from "../api";
-import { createProjectSchema, suggestProjectKey } from "../schema";
+import { createProjectSchema } from "../schema";
 
 const m = messages.projects;
 
 type Input = z.input<typeof createProjectSchema>;
 type Values = z.output<typeof createProjectSchema>;
-const DEFAULTS: Input = { name: "", key: "", description: "" };
+const DEFAULTS: Input = { name: "", description: "" };
 
 /**
+ * A new project needs only a name. Its short name in addresses (the key) is made by the server.
  * `variant="icon"` is the small plus in the sidebar; `"button"` is the labelled button on pages;
  * `"ghost"` is the quiet labelled button in a page header.
  */
@@ -47,7 +48,7 @@ export function CreateProjectDialog({ variant }: { variant: "icon" | "button" | 
     setOpen(false);
     router.push(`/project/${project.key}`);
   });
-  const { errors, dirtyFields } = form.formState;
+  const { errors } = form.formState;
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
@@ -58,22 +59,11 @@ export function CreateProjectDialog({ variant }: { variant: "icon" | "button" | 
     }
   };
 
-  const nameField = form.register("name", {
-    // Offer a key from the name until the person edits the key themselves.
-    onChange: (event) => {
-      if (!dirtyFields.key) form.setValue("key", suggestProjectKey(event.target.value));
-    },
-  });
-
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null);
     try {
       await mutation.mutateAsync(values);
     } catch (error) {
-      if (error instanceof ApiError && error.code === "PROJECT_KEY_TAKEN") {
-        form.setError("key", { message: error.message }, { shouldFocus: true });
-        return;
-      }
       if (error instanceof ApiError && error.fieldErrors.length > 0) {
         for (const fieldError of error.fieldErrors) {
           if (fieldError.field in DEFAULTS) {
@@ -119,25 +109,9 @@ export function CreateProjectDialog({ variant }: { variant: "icon" | "button" | 
                 placeholder={m.namePlaceholder}
                 autoComplete="off"
                 aria-invalid={errors.name ? true : undefined}
-                {...nameField}
+                {...form.register("name")}
               />
               {errors.name ? <FieldError>{errors.name.message}</FieldError> : null}
-            </Field>
-            <Field data-invalid={errors.key ? true : undefined}>
-              <FieldLabel htmlFor="project-key">{m.keyLabel}</FieldLabel>
-              <Input
-                id="project-key"
-                className="h-10 w-40 uppercase tabular-nums max-md:h-11"
-                autoComplete="off"
-                autoCapitalize="characters"
-                spellCheck={false}
-                maxLength={10}
-                aria-invalid={errors.key ? true : undefined}
-                aria-describedby="project-key-hint"
-                {...form.register("key")}
-              />
-              {errors.key ? <FieldError>{errors.key.message}</FieldError> : null}
-              <FieldDescription id="project-key-hint">{m.keyHint}</FieldDescription>
             </Field>
             <Field data-invalid={errors.description ? true : undefined}>
               <FieldLabel htmlFor="project-description">{m.descriptionLabel}</FieldLabel>

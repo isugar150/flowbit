@@ -176,4 +176,13 @@ class ProjectsIntegrationTest : IntegrationTest() {
     private fun createProject(key: String) {
         assertEquals(201, owner.post("/api/v1/projects", """{"name":"$key 프로젝트","key":"$key"}""").status)
     }
+
+    @Test
+    fun `키를 주지 않으면 이름으로 만들고 겹치면 숫자를 붙인다`() {
+        val keys =
+            listOf("Payment Rework", "Billing", "Billing", "결제 개편", "고객 지원")
+                .map { name -> admin.post("/api/v1/projects", """{"name":"$name"}""").json()["key"] }
+
+        assertEquals(listOf("PR", "BILL", "BILL2", "P1", "P2"), keys)
+    }
 }

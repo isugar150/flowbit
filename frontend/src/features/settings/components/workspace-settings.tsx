@@ -3,7 +3,7 @@
 import { FieldGroup } from "@/components/ui/field";
 import { initials } from "@/lib/initials";
 import { messages } from "@/messages";
-import { removeWorkspaceLogo, renameWorkspace, setIssueKey, uploadWorkspaceLogo } from "../api";
+import { removeWorkspaceLogo, renameWorkspace, setWorkspaceKey, uploadWorkspaceLogo } from "../api";
 import type { Workspace } from "../types";
 import { ImageUploadField } from "./image-upload-field";
 import { NameForm } from "./name-form";
@@ -33,14 +33,14 @@ export function WorkspaceSettings({ workspace }: { workspace: Workspace }) {
         save={renameWorkspace}
       />
       <NameForm
-        id="issueKey"
-        label={m.issueKeyLabel}
-        hint={m.issueKeyHint}
-        initialValue={workspace.issueKey}
+        id="workspaceKey"
+        label={m.workspaceKeyLabel}
+        hint={m.workspaceKeyHint}
+        initialValue={workspace.workspaceKey}
         maxLength={10}
         required
-        messages={{ required: m.issueKeyInvalid, tooLong: m.issueKeyInvalid }}
-        save={(value) => setIssueKey(value.toUpperCase())}
+        messages={{ required: m.workspaceKeyInvalid, tooLong: m.workspaceKeyInvalid }}
+        save={(value) => setWorkspaceKey(value.toUpperCase())}
       />
     </FieldGroup>
   );

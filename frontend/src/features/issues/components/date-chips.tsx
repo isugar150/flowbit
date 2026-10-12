@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { chipClass } from "./chip-select";
+import { chipClass, plainChipClass } from "./chip-select";
 import { DueDate } from "@/components/dates";
 
 const m = messages.dates;
@@ -35,6 +35,7 @@ export function DateChip({
   label,
   placeholder,
   disabled,
+  plain,
 }: {
   /** YYYY-MM-DD or null */
   value: string | null;
@@ -44,6 +45,8 @@ export function DateChip({
   /** Shown when there is no date. */
   placeholder: string;
   disabled?: boolean;
+  /** Draw it as a plain row instead of a pill. */
+  plain?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selected = toDate(value);
@@ -60,7 +63,7 @@ export function DateChip({
             type="button"
             disabled={disabled}
             aria-label={`${label}: ${value ?? placeholder}`}
-            className={chipClass}
+            className={plain ? plainChipClass : chipClass}
           />
         }
       >
@@ -101,6 +104,8 @@ export function DateRangeChip({
   label,
   placeholder,
   disabled,
+  singleIsEnd,
+  plain,
 }: {
   /** YYYY-MM-DD or null */
   start: string | null;
@@ -110,6 +115,13 @@ export function DateRangeChip({
   label: string;
   placeholder: string;
   disabled?: boolean;
+  /**
+   * For a date that may be one day or a span (an issue's): picking one day and closing, or the
+   * same day twice, gives that day as the end with no start. Without it, one day is a start.
+   */
+  singleIsEnd?: boolean;
+  /** Draw it as a plain row instead of a pill. */
+  plain?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // The range being picked; null until the first click, so the saved range stays highlighted.
@@ -117,7 +129,9 @@ export function DateRangeChip({
   const saved: DateRange | undefined = start || end ? { from: toDate(start), to: toDate(end) } : undefined;
   const shown = draft ?? saved;
 
-  const save = (next: { start: string | null; end: string | null }) => {
+  const save = (picked: { start: string | null; end: string | null }) => {
+    const single = singleIsEnd && (picked.end === null || picked.start === picked.end);
+    const next = single ? { start: null, end: picked.end ?? picked.start } : picked;
     if (next.start !== start || next.end !== end) onChange(next);
   };
 
@@ -138,7 +152,11 @@ export function DateRangeChip({
   };
 
   const text =
-    start || end ? (
+    singleIsEnd && end && !start ? (
+      <span className="tabular-nums">
+        <DueDate value={end} />
+      </span>
+    ) : start || end ? (
       <>
         <span className="tabular-nums">{start ? <DueDate value={start} /> : "…"}</span>
         <ArrowRightIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -156,7 +174,7 @@ export function DateRangeChip({
             type="button"
             disabled={disabled}
             aria-label={`${label}: ${start || end ? `${start ?? ""} ~ ${end ?? ""}` : placeholder}`}
-            className={cn(chipClass, "max-w-none")}
+            className={cn(plain ? plainChipClass : chipClass, "max-w-none")}
           />
         }
       >
@@ -165,7 +183,7 @@ export function DateRangeChip({
       </PopoverTrigger>
       <PopoverContent className="w-auto">
         <p className="px-2 pb-1 text-[0.8125rem] leading-5 text-muted-foreground" aria-live="polite">
-          {draft?.from ? m.pickEnd : m.pickStart}
+          {draft?.from ? (singleIsEnd ? m.pickEndOrClose : m.pickEnd) : m.pickStart}
         </p>
         <Calendar
           mode="range"

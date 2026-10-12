@@ -14,8 +14,8 @@ CREATE TABLE instance_settings (
     logo_key           text        CHECK (logo_key ~ '^[0-9a-f-]{36}\.webp$'),
     default_locale     text        NOT NULL DEFAULT 'ko' CHECK (default_locale IN ('ko', 'en')),
     default_timezone   text        NOT NULL DEFAULT 'Asia/Seoul',
-    -- Issues are numbered across the whole workspace and shown as <issue_key>-<number>: FB-12.
-    issue_key          text        NOT NULL DEFAULT 'FB' CHECK (issue_key ~ '^[A-Z][A-Z0-9]{1,9}$'),
+    -- Issues are numbered across the whole workspace and shown as <workspace_key>-<number>: FB-12.
+    workspace_key          text        NOT NULL DEFAULT 'FB' CHECK (workspace_key ~ '^[A-Z][A-Z0-9]{1,9}$'),
     next_issue_number  integer     NOT NULL DEFAULT 1 CHECK (next_issue_number >= 1),
     setup_completed_at timestamptz,
     created_at         timestamptz NOT NULL DEFAULT now(),
@@ -149,7 +149,7 @@ CREATE INDEX milestones_project_id_idx ON milestones (project_id);
 -- the link can change without the issue's number changing.
 CREATE TABLE issues (
     id           uuid        PRIMARY KEY,
-    -- Unique across the workspace; shown after instance_settings.issue_key: FB-12.
+    -- Unique across the workspace; shown after instance_settings.workspace_key: FB-12.
     number       integer     NOT NULL CHECK (number >= 1),
     -- Null: linked to no project, and then open to everyone.
     project_id   uuid        REFERENCES projects (id) ON DELETE SET NULL,
@@ -167,13 +167,20 @@ CREATE TABLE issues (
     priority     text        NOT NULL DEFAULT 'NONE'
                              CHECK (priority IN ('NONE', 'URGENT', 'HIGH', 'MEDIUM', 'LOW')),
     assignee_id  uuid        REFERENCES users (id) ON DELETE SET NULL,
+    -- One date (due_date alone) or a span: start_date is only set together with a due date.
+    start_date   date,
     due_date     date,
     created_by   uuid        NOT NULL REFERENCES users (id),
     -- Incremented on every change; used later for conflict detection and realtime ordering.
     version      integer     NOT NULL DEFAULT 1,
     created_at   timestamptz NOT NULL DEFAULT now(),
     updated_at   timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT issues_number_key UNIQUE (number)
+    -- Deleting an issue only marks it: it leaves the lists but stays readable with its history,
+    -- and can be restored.
+    deleted_at   timestamptz,
+    deleted_by   uuid        REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT issues_number_key UNIQUE (number),
+    CONSTRAINT issues_dates_order CHECK (start_date IS NULL OR (due_date IS NOT NULL AND start_date <= due_date))
 );
 
 CREATE INDEX issues_project_status_idx ON issues (project_id, status);
@@ -257,15 +264,19 @@ CREATE TABLE issue_attachments (
 
 CREATE INDEX issue_attachments_issue_id_idx ON issue_attachments (issue_id, created_at);
 
--- Documents that belong to an issue: a title and a body written in the same editor as the issue.
-CREATE TABLE issue_documents (
+-- Documents: a title and a body written in the block editor. Each belongs either to an issue
+-- (listed under it as "자료") or to a project (made from the project's overview), never to both.
+CREATE TABLE documents (
     id         uuid        PRIMARY KEY,
-    issue_id   uuid        NOT NULL REFERENCES issues (id) ON DELETE CASCADE,
+    issue_id   uuid        REFERENCES issues (id) ON DELETE CASCADE,
+    project_id uuid        REFERENCES projects (id) ON DELETE CASCADE,
     title      text        NOT NULL DEFAULT '' CHECK (char_length(title) <= 200),
     content    jsonb,
     created_by uuid        NOT NULL REFERENCES users (id),
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT documents_one_owner CHECK ((issue_id IS NULL) <> (project_id IS NULL))
 );
 
-CREATE INDEX issue_documents_issue_id_idx ON issue_documents (issue_id, created_at);
+CREATE INDEX documents_issue_id_idx ON documents (issue_id, created_at);
+CREATE INDEX documents_project_id_idx ON documents (project_id, created_at);

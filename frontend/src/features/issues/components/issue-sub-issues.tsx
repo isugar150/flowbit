@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PlusIcon } from "lucide-react";
+import { CircleUserRoundIcon, PlusIcon } from "lucide-react";
+import { DueDate } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createIssue } from "../api";
-import { StatusIcon, statusLabel } from "../meta";
+import { PriorityIcon, StatusIcon, priorityLabel, statusLabel } from "../meta";
 import { PersonAvatar } from "../options";
 import type { IssueDetail } from "../types";
 import { LabelPill } from "./label-chip";
+import { SubIssueProgress } from "./sub-issue-rows";
 
 const m = messages.issues.subIssues;
 
@@ -33,6 +35,7 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
       status: "BACKLOG",
       priority: "NONE",
       assigneeId: null,
+      startDate: null,
       dueDate: null,
       milestoneId: null,
       labelIds: [],
@@ -85,10 +88,33 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
               >
                 {child.title}
               </Link>
-              {child.labels.slice(0, 2).map((label) => (
-                <LabelPill key={label.id} label={label} />
-              ))}
-              {child.assignee ? <PersonAvatar person={child.assignee} /> : null}
+              <SubIssueProgress issue={child} />
+              {/* The right side always says something: labels and a due date when there are any, then priority and who has it. */}
+              <span className="hidden shrink-0 items-center gap-1 sm:flex">
+                {child.labels.slice(0, 2).map((label) => (
+                  <LabelPill key={label.id} label={label} />
+                ))}
+              </span>
+              {child.dueDate ? (
+                <span className="hidden shrink-0 text-xs leading-4 text-muted-foreground tabular-nums sm:block">
+                  <DueDate value={child.dueDate} />
+                </span>
+              ) : null}
+              <span title={priorityLabel(child.priority)} className="flex shrink-0">
+                <PriorityIcon priority={child.priority} />
+                <span className="sr-only">{priorityLabel(child.priority)}</span>
+              </span>
+              {child.assignee ? (
+                <span title={child.assignee.displayName ?? child.assignee.loginId} className="flex shrink-0">
+                  <PersonAvatar person={child.assignee} />
+                  <span className="sr-only">{child.assignee.displayName ?? child.assignee.loginId}</span>
+                </span>
+              ) : (
+                <span title={messages.issues.noAssignee} className="flex shrink-0">
+                  <CircleUserRoundIcon className="size-4.5 text-muted-foreground/60" aria-hidden="true" />
+                  <span className="sr-only">{messages.issues.noAssignee}</span>
+                </span>
+              )}
             </li>
           ))}
         </ul>

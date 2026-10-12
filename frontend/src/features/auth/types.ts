@@ -17,4 +17,5 @@ export type Credentials = {
 
 export type SetupRequest = Credentials & {
   workspaceName: string;
+  workspaceKey: string;
 };

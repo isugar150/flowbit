@@ -3,6 +3,8 @@ import { CalendarIcon, HashIcon, ShieldIcon, UsersIcon } from "lucide-react";
 import { Person } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
+import { IssueDocuments } from "@/features/issues/components/issue-documents";
+import type { IssueDocumentSummary } from "@/features/issues/types";
 import type { UserSummary } from "@/features/members/types";
 import { MilestonesSection } from "@/features/milestones/components/milestones-section";
 import type { Milestone } from "@/features/milestones/types";
@@ -29,13 +31,14 @@ function formatDate(iso: string, timeZone: string): string {
 export default async function ProjectOverviewPage({ params }: PageProps<"/project/[key]">) {
   const { key } = await params;
   const path = `/api/v1/projects/${encodeURIComponent(key)}`;
-  const [user, project, members, projects, milestones, updates] = await Promise.all([
+  const [user, project, members, projects, milestones, updates, documents] = await Promise.all([
     requireUser(),
     loadProject(key),
     serverGet<ProjectMember[]>(`${path}/members`),
     getProjects(),
     serverGet<Milestone[]>(`${path}/milestones`),
     serverGet<ProjectUpdate[]>(`${path}/updates`),
+    serverGet<IssueDocumentSummary[]>(`${path}/documents`),
   ]);
   if (!members || !milestones || !updates) notFound();
   // People who manage the project can add members right from the card; they need the list of everyone.
@@ -77,6 +80,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
           </div>
         </dl>
         </ProjectOverviewEditor>
+        <IssueDocuments owner={{ projectKey: project.key }} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"} />
         <MilestonesSection projectKey={project.key} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
         <ProjectUpdates projectKey={project.key} updates={updates} canEdit={project.myRole !== "VIEWER"} />
       </div>

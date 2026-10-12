@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
@@ -21,9 +21,11 @@ import { FormAlert } from "./form-alert";
 import { LoginIdField } from "./login-id-field";
 import { LogoPicker } from "./logo-picker";
 import { PasswordField } from "./password-field";
+import { SetupSteps } from "./setup-steps";
 import { SubmitButton } from "./submit-button";
 
-const SERVER_FIELDS = ["workspaceName", "loginId", "password"] as const;
+const SERVER_FIELDS = ["workspaceName", "workspaceKey", "loginId", "password"] as const;
+const WORKSPACE_FIELDS = ["workspaceName", "workspaceKey"] as const;
 
 export function SetupForm() {
   const router = useRouter();
@@ -33,29 +35,46 @@ export function SetupForm() {
   const [logo, setLogo] = useState<File | null>(null);
   // Setup succeeds only once, so a logo that fails afterwards cannot be retried from this form.
   const [logoError, setLogoError] = useState<string | null>(null);
+  // Two steps on one page: the workspace first, then the administrator account.
+  const [step, setStep] = useState<"workspace" | "account">("workspace");
   const form = useForm<SetupInput, unknown, SetupValues>({
     resolver: zodResolver(setupSchema),
-    defaultValues: { workspaceName: "", loginId: "", password: "", passwordConfirm: "" },
+    defaultValues: { workspaceName: "", workspaceKey: "FB", loginId: "", password: "", passwordConfirm: "" },
   });
   const mutation = useMutation({ mutationFn: completeSetup });
   const { errors } = form.formState;
   const workspaceName = useWatch({ control: form.control, name: "workspaceName" });
   const pending = mutation.isPending || created;
 
+  const goToAccount = async () => {
+    // Only what this step asks for is checked; the account fields are still empty.
+    if (!(await form.trigger(WORKSPACE_FIELDS, { shouldFocus: true }))) return;
+    setFormError(null);
+    setStep("account");
+  };
+  // The first field of the step that has just appeared takes the cursor.
+  useEffect(() => {
+    form.setFocus(step === "workspace" ? "workspaceName" : "loginId");
+  }, [step, form]);
+
   const enter = (path: string) => {
     router.replace(path);
     router.refresh();
   };
 
-  const onSubmit = form.handleSubmit(async ({ workspaceName, loginId, password }) => {
+  const onSubmit = form.handleSubmit(async ({ workspaceName, workspaceKey, loginId, password }) => {
     setFormError(null);
     setAlreadyCompleted(false);
     try {
-      await mutation.mutateAsync({ workspaceName, loginId, password });
+      await mutation.mutateAsync({ workspaceName, workspaceKey, loginId, password });
     } catch (error) {
       if (error instanceof ApiError) {
         // The server applies the same rules; show what it rejected under the field it names.
         let focused = false;
+        // An error on a workspace field belongs to the first step: go back to where it can be fixed.
+        if (error.fieldErrors.some((fieldError) => WORKSPACE_FIELDS.some((name) => name === fieldError.field))) {
+          setStep("workspace");
+        }
         for (const fieldError of error.fieldErrors) {
           const field = SERVER_FIELDS.find((name) => name === fieldError.field);
           if (!field) continue;
@@ -101,7 +120,21 @@ export function SetupForm() {
   return (
     // method="post": if the browser submits the form itself (its script has not loaded), the
     // password goes in the request body, never in the address.
-    <form method="post" onSubmit={onSubmit} noValidate className="flex flex-col gap-7">
+    <form
+      method="post"
+      // Enter in the first step moves on instead of submitting half a form.
+      onSubmit={
+        step === "workspace"
+          ? (event) => {
+              event.preventDefault();
+              void goToAccount();
+            }
+          : onSubmit
+      }
+      noValidate
+      className="flex flex-col gap-7"
+    >
+      <SetupSteps current={step === "workspace" ? 1 : 2} />
       {formError ? (
         <FormAlert>
           {formError}
@@ -115,7 +148,8 @@ export function SetupForm() {
           ) : null}
         </FormAlert>
       ) : null}
-      <FieldSet>
+      {/* Both steps stay in the page so what was typed is kept; the one not shown is hidden. */}
+      <FieldSet hidden={step !== "workspace"}>
         <FieldLegend>{messages.setup.workspaceSection}</FieldLegend>
         <FieldGroup>
           <Field data-invalid={errors.workspaceName ? true : undefined}>
@@ -126,8 +160,6 @@ export function SetupForm() {
               className="h-10 max-md:h-11"
               autoComplete="organization"
               maxLength={100}
-              // The first field of a page whose only purpose is this form.
-              autoFocus
               aria-invalid={errors.workspaceName ? true : undefined}
               aria-describedby={errors.workspaceName ? "workspaceName-error" : "workspaceName-hint"}
               {...form.register("workspaceName")}
@@ -136,6 +168,26 @@ export function SetupForm() {
               <FieldError id="workspaceName-error">{errors.workspaceName.message}</FieldError>
             ) : (
               <FieldDescription id="workspaceName-hint">{messages.setup.workspaceNameHint}</FieldDescription>
+            )}
+          </Field>
+          <Field data-invalid={errors.workspaceKey ? true : undefined}>
+            <FieldLabel htmlFor="workspaceKey">{messages.setup.workspaceKeyLabel}</FieldLabel>
+            <Input
+              id="workspaceKey"
+              type="text"
+              className="h-10 w-32 uppercase tabular-nums max-md:h-11"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={10}
+              aria-invalid={errors.workspaceKey ? true : undefined}
+              aria-describedby={errors.workspaceKey ? "workspaceKey-error" : "workspaceKey-hint"}
+              {...form.register("workspaceKey")}
+            />
+            {errors.workspaceKey ? (
+              <FieldError id="workspaceKey-error">{errors.workspaceKey.message}</FieldError>
+            ) : (
+              <FieldDescription id="workspaceKey-hint">{messages.setup.workspaceKeyHint}</FieldDescription>
             )}
           </Field>
           <LogoPicker
@@ -147,7 +199,7 @@ export function SetupForm() {
           />
         </FieldGroup>
       </FieldSet>
-      <FieldSet>
+      <FieldSet hidden={step !== "account"}>
         <FieldLegend>{messages.setup.accountSection}</FieldLegend>
         <FieldGroup>
           <LoginIdField
@@ -173,7 +225,18 @@ export function SetupForm() {
           />
         </FieldGroup>
       </FieldSet>
-      <SubmitButton pending={pending} label={messages.setup.submit} pendingLabel={messages.setup.submitting} />
+      {step === "workspace" ? (
+        <Button type="submit" className="h-10 max-md:h-11">
+          {messages.setup.next}
+        </Button>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <SubmitButton pending={pending} label={messages.setup.submit} pendingLabel={messages.setup.submitting} />
+          <Button type="button" variant="ghost" className="h-10 max-md:h-11" disabled={pending} onClick={() => setStep("workspace")}>
+            {messages.setup.back}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

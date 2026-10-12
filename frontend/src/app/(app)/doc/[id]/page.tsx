@@ -7,7 +7,7 @@ import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
 
-/** A document that belongs to an issue: a title and a body, saved as they are typed. */
+/** A document that belongs to an issue or to a project: a title and a body, saved as they are typed. */
 export default async function DocumentPage({ params }: PageProps<"/doc/[id]">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
@@ -16,10 +16,17 @@ export default async function DocumentPage({ params }: PageProps<"/doc/[id]">) {
 
   return (
     <>
-      <RealtimeScope topics={[`issue:${document.issue.number}`]} presence={`document:${document.id}`} priority={1} />
+      <RealtimeScope
+        topics={[document.issue ? `issue:${document.issue.number}` : `project:${document.project?.key ?? ""}`]}
+        presence={`document:${document.id}`}
+        priority={1}
+      />
       <PageHeader
         crumbs={[
-          { label: `${document.issue.key} ${document.issue.title}`, href: `/issue/${document.issue.key}` },
+          // Where the document belongs: its issue, or its project.
+          document.issue
+            ? { label: `${document.issue.key} ${document.issue.title}`, href: `/issue/${document.issue.key}` }
+            : { label: document.project?.name ?? "", href: `/project/${document.project?.key ?? ""}` },
           { label: document.title || messages.issues.documents.untitled, icon: <FileTextIcon /> },
         ]}
       />

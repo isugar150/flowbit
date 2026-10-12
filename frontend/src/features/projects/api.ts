@@ -1,7 +1,8 @@
 import { apiFetch } from "@/lib/api/client";
 import type { Project, ProjectChanges, ProjectHealth, ProjectMember, ProjectRole, ProjectUpdate } from "./types";
 
-export function createProject(input: { name: string; key: string; description: string }): Promise<Project> {
+/** The project's key (its short name in addresses) is made by the server from the name. */
+export function createProject(input: { name: string; description: string }): Promise<Project> {
   return apiFetch<Project>("/api/v1/projects", { method: "POST", body: input });
 }
 

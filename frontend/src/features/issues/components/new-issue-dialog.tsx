@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";
-import { PropertyRow } from "@/components/property-card";
 import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import type { Milestone } from "@/features/milestones/types";
@@ -19,12 +18,8 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createIssue } from "../api";
-import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
 import type { Label, NewIssueInput } from "../types";
-import { ChipSelect } from "./chip-select";
-import { DateChip } from "./date-chips";
-import { projectOptions } from "./issue-properties";
-import { LabelChip } from "./label-chip";
+import { IssuePropertyFields } from "./issue-properties";
 
 const m = messages.issues;
 
@@ -33,6 +28,7 @@ const DEFAULT_PROPERTIES: Properties = {
   status: "BACKLOG",
   priority: "NONE",
   assigneeId: null,
+  startDate: null,
   dueDate: null,
   milestoneId: null,
   labelIds: [],
@@ -53,6 +49,7 @@ export function NewIssueDialog({
   milestones: defaultMilestones,
   labels,
   defaultMilestoneId = null,
+  defaultDates = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,6 +64,8 @@ export function NewIssueDialog({
   labels: Label[];
   /** Pre-selected when the list is filtered to one milestone. */
   defaultMilestoneId?: string | null;
+  /** Dates to start with, when the dialog is opened from a day or a span of days on the calendar. */
+  defaultDates?: { startDate: string | null; dueDate: string } | null;
 }) {
   const [title, setTitle] = useState("");
   const [properties, setProperties] = useState<Properties>(DEFAULT_PROPERTIES);
@@ -90,7 +89,13 @@ export function NewIssueDialog({
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setProperties((current) => ({ ...current, projectKey: defaultProjectKey, milestoneId: defaultMilestoneId }));
+      setProperties((current) => ({
+        ...current,
+        projectKey: defaultProjectKey,
+        milestoneId: defaultMilestoneId,
+        startDate: defaultDates?.startDate ?? null,
+        dueDate: defaultDates?.dueDate ?? null,
+      }));
       setTitleError(false);
       setLastCreated(null);
     }
@@ -135,9 +140,6 @@ export function NewIssueDialog({
   // An assignee or a milestone belongs to a project; changing the project starts those over.
   const setProject = (key: string | null) =>
     setProperties((current) => ({ ...current, projectKey: key, assigneeId: null, milestoneId: null }));
-
-  const set = <K extends keyof Properties>(key: K, value: Properties[K]) =>
-    setProperties((current) => ({ ...current, [key]: value }));
 
   const submit = () => {
     if (mutation.isPending) return;
@@ -224,58 +226,20 @@ export function NewIssueDialog({
               }}
             />
           </div>
-          <aside className="shrink-0 border-t px-3 py-2.5 md:w-64 md:border-t-0 md:border-l">
-            <h3 className="px-1 py-1 text-[0.8125rem] leading-5 font-medium text-muted-foreground">{messages.projects.properties}</h3>
-            <dl className="flex flex-col">
-              <PropertyRow label={m.status}>
-                <ChipSelect label={m.status} value={properties.status} options={statusOptions} onChange={(value) => set("status", value)} />
-              </PropertyRow>
-              <PropertyRow label={m.priority}>
-                <ChipSelect
-                  label={m.priority}
-                  value={properties.priority}
-                  options={priorityOptions}
-                  onChange={(value) => set("priority", value)}
-                />
-              </PropertyRow>
-              <PropertyRow label={m.assignee}>
-                <ChipSelect
-                  label={m.assignee}
-                  value={properties.assigneeId ?? NONE}
-                  options={assigneeOptions(members)}
-                  onChange={(value) => set("assigneeId", value === NONE ? null : value)}
-                />
-              </PropertyRow>
-              <PropertyRow label={m.project}>
-                <ChipSelect
-                  label={m.project}
-                  value={projectKey ?? NONE}
-                  options={projectOptions(projects, projectKey)}
-                  onChange={(value) => setProject(value === NONE ? null : value)}
-                />
-              </PropertyRow>
-              {milestones.length > 0 ? (
-                <PropertyRow label={m.milestone}>
-                  <ChipSelect
-                    label={m.milestone}
-                    value={properties.milestoneId ?? NONE}
-                    options={milestoneOptions(milestones)}
-                    onChange={(value) => set("milestoneId", value === NONE ? null : value)}
-                  />
-                </PropertyRow>
-              ) : null}
-              <PropertyRow label={m.labels}>
-                <LabelChip labels={labels} value={properties.labelIds} onChange={(value) => set("labelIds", value)} />
-              </PropertyRow>
-              <PropertyRow label={m.dueDate}>
-                <DateChip
-                  label={m.dueDate}
-                  placeholder={m.noDueDate}
-                  value={properties.dueDate}
-                  onChange={(value) => set("dueDate", value)}
-                />
-              </PropertyRow>
-            </dl>
+          {/* The same panel as on an existing issue, so making and changing look alike. */}
+          <aside className="shrink-0 border-t px-5 py-4 md:w-64 md:border-t-0 md:border-l">
+            <IssuePropertyFields
+              values={properties}
+              onChange={(changes) => {
+                // An assignee or a milestone belongs to a project; changing the project starts those over.
+                if ("projectKey" in changes) setProject(changes.projectKey ?? null);
+                else setProperties((current) => ({ ...current, ...changes }));
+              }}
+              members={members}
+              labels={labels}
+              projects={projects}
+              milestones={milestones}
+            />
           </aside>
           </div>
           {mutation.isError ? (

@@ -127,7 +127,8 @@ data class ProjectEntryResponse(
 
 data class CreateProjectRequest(
     val name: String,
-    val key: String,
+    /** The short name in addresses (/project/PAY). Optional: left out, the server makes one from the name. */
+    val key: String? = null,
     val description: String? = null,
 )
 

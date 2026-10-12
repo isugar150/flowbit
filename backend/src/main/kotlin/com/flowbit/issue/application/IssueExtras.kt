@@ -27,9 +27,11 @@ data class AttachmentView(
     val createdAt: Instant,
 )
 
+/** A document; it belongs to an issue or to a project, so exactly one of the two ids is set. */
 data class DocumentSummary(
     val id: UUID,
-    val issueId: UUID,
+    val issueId: UUID?,
+    val projectId: UUID?,
     val title: String,
     val updatedAt: Instant,
 )
@@ -128,10 +130,14 @@ class IssueExtrasStore(
 
     suspend fun documents(issueId: UUID): List<DocumentSummary> = documentsWhere("issue_id = :id order by created_at, id", issueId)
 
+    suspend fun projectDocuments(projectId: UUID): List<DocumentSummary> = documentsWhere("project_id = :id order by created_at, id", projectId)
+
     suspend fun findDocument(id: UUID): DocumentSummary? = documentsWhere("id = :id", id).firstOrNull()
 
+    /** Give exactly one of `issueId` and `projectId`: whose document this is. */
     suspend fun addDocument(
-        issueId: UUID,
+        issueId: UUID?,
+        projectId: UUID?,
         title: String,
         userId: UUID,
         now: Instant,
@@ -140,18 +146,19 @@ class IssueExtrasStore(
         databaseClient
             .sql(
                 """
-                insert into issue_documents (id, issue_id, title, created_by, created_at, updated_at)
-                values (:id, :issueId, :title, :userId, :now, :now)
+                insert into documents (id, issue_id, project_id, title, created_by, created_at, updated_at)
+                values (:id, :issueId, :projectId, :title, :userId, :now, :now)
                 """.trimIndent(),
             ).bind("id", id)
-            .bind("issueId", issueId)
+            .let { if (issueId != null) it.bind("issueId", issueId) else it.bindNull("issueId", UUID::class.java) }
+            .let { if (projectId != null) it.bind("projectId", projectId) else it.bindNull("projectId", UUID::class.java) }
             .bind("title", title)
             .bind("userId", userId)
             .bind("now", now)
             .fetch()
             .rowsUpdated()
             .awaitSingle()
-        return DocumentSummary(id, issueId, title, now)
+        return DocumentSummary(id, issueId, projectId, title, now)
     }
 
     /** Sets the title when one is given and marks the document as changed now. */
@@ -161,7 +168,7 @@ class IssueExtrasStore(
         now: Instant,
     ) {
         databaseClient
-            .sql("update issue_documents set title = coalesce(:title, title), updated_at = :now where id = :id")
+            .sql("update documents set title = coalesce(:title, title), updated_at = :now where id = :id")
             .bind("id", id)
             .bind("now", now)
             .let { if (title != null) it.bind("title", title) else it.bindNull("title", String::class.java) }
@@ -170,7 +177,7 @@ class IssueExtrasStore(
             .awaitSingle()
     }
 
-    suspend fun deleteDocument(id: UUID) = deleteById("issue_documents", id)
+    suspend fun deleteDocument(id: UUID) = deleteById("documents", id)
 
     private suspend fun deleteById(
         table: String,
@@ -209,12 +216,13 @@ class IssueExtrasStore(
         id: UUID,
     ): List<DocumentSummary> =
         databaseClient
-            .sql("select id, issue_id, title, updated_at from issue_documents where $where")
+            .sql("select id, issue_id, project_id, title, updated_at from documents where $where")
             .bind("id", id)
             .map { row ->
                 DocumentSummary(
                     id = checkNotNull(row.get("id", UUID::class.java)),
-                    issueId = checkNotNull(row.get("issue_id", UUID::class.java)),
+                    issueId = row.get("issue_id", UUID::class.java),
+                    projectId = row.get("project_id", UUID::class.java),
                     title = checkNotNull(row.get("title", String::class.java)),
                     updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
                 )

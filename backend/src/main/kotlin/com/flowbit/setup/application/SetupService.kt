@@ -13,6 +13,7 @@ import com.flowbit.user.domain.User
 import org.springframework.stereotype.Service
 import org.springframework.transaction.reactive.TransactionalOperator
 import org.springframework.transaction.reactive.executeAndAwait
+import java.util.Locale
 
 data class SetupResult(
     val admin: User,
@@ -38,6 +39,7 @@ class SetupService(
         rawLoginId: String,
         password: String,
         rawWorkspaceName: String?,
+        rawWorkspaceKey: String?,
         client: ClientInfo,
     ): SetupResult {
         if (instanceService.isSetupCompleted()) {
@@ -45,16 +47,20 @@ class SetupService(
         }
         val loginId = CredentialPolicy.normalizeLoginId(rawLoginId)
         val workspaceName = rawWorkspaceName?.trim()?.ifEmpty { null }
+        val workspaceKey = rawWorkspaceKey?.trim()?.uppercase(Locale.ROOT)?.ifEmpty { null }
         val errors =
             CredentialPolicy.validate(loginId, password) +
-                listOfNotNull(workspaceName?.let { instanceService.workspaceNameError(it, "workspaceName") })
+                listOfNotNull(
+                    workspaceName?.let { instanceService.workspaceNameError(it, "workspaceName") },
+                    workspaceKey?.let { instanceService.workspaceKeyError(it, "workspaceKey") },
+                )
         if (errors.isNotEmpty()) {
             throw ValidationException(errors)
         }
         // Hashing is slow on purpose; keep it outside the transaction that holds the settings row lock.
         val passwordHash = passwordHasher.hash(password)
         return transactionalOperator.executeAndAwait {
-            instanceService.completeSetup(workspaceName)
+            instanceService.completeSetup(workspaceName, workspaceKey)
             val admin = userService.createAdmin(loginId, passwordHash)
             val sessionToken = sessionService.start(admin, client)
             auditService.record(AuditEventType.SETUP_COMPLETED, admin.id, client)

@@ -1,9 +1,6 @@
 import { Suspense } from "react";
-import { DialogTitle } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { IssueDetail } from "@/features/issues/components/issue-detail";
-import { IssueDialog } from "@/features/issues/components/issue-dialog";
-import { messages } from "@/messages";
+import { IssueDialog, IssueDialogSkeleton } from "@/features/issues/components/issue-dialog";
 
 type Params = Promise<{ key: string }>;
 
@@ -15,7 +12,7 @@ type Params = Promise<{ key: string }>;
 export default function IssueModalPage({ params }: { params: Params }) {
   return (
     <IssueDialog>
-      <Suspense fallback={<IssueSkeleton />}>
+      <Suspense fallback={<IssueDialogSkeleton />}>
         <InterceptedIssue params={params} />
       </Suspense>
     </IssueDialog>
@@ -24,17 +21,5 @@ export default function IssueModalPage({ params }: { params: Params }) {
 
 async function InterceptedIssue({ params }: { params: Params }) {
   const { key } = await params;
-  return <IssueDetail issueKey={key} inDialog />;
-}
-
-function IssueSkeleton() {
-  return (
-    <div className="flex flex-col gap-4 p-5 pt-10">
-      <DialogTitle className="sr-only">{messages.issues.loading}</DialogTitle>
-      <Skeleton className="h-7 w-2/3" />
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-5/6" />
-      <Skeleton className="h-4 w-1/2" />
-    </div>
-  );
+  return <IssueDetail issueKey={key} />;
 }

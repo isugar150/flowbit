@@ -2,20 +2,19 @@ import { CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 
-const CURRENT_STEP = 1;
-
 /**
  * Where the installer is in the real install sequence: the server is running (or this page
- * would not load), the administrator account is being created now, then the app opens.
+ * would not load), then the workspace, then the administrator account, then the app opens.
+ * `current` is the index of the step being filled in now.
  */
-export function SetupSteps() {
+export function SetupSteps({ current: currentStep }: { current: number }) {
   const { steps, stepsLabel, stepDone, stepCurrent } = messages.setup;
 
   return (
     <ol aria-label={stepsLabel} className="flex items-center gap-2 text-[0.8125rem] leading-5">
       {steps.map((step, index) => {
-        const done = index < CURRENT_STEP;
-        const current = index === CURRENT_STEP;
+        const done = index < currentStep;
+        const current = index === currentStep;
         return (
           <li
             key={step}

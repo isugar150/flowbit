@@ -33,6 +33,6 @@ export function removeWorkspaceLogo(): Promise<Workspace> {
 }
 
 /** Changes the prefix of every issue key (FB-12 → NEW-12). */
-export function setIssueKey(issueKey: string): Promise<Workspace> {
-  return apiFetch<Workspace>("/api/v1/admin/workspace", { method: "PATCH", body: { issueKey } });
+export function setWorkspaceKey(workspaceKey: string): Promise<Workspace> {
+  return apiFetch<Workspace>("/api/v1/admin/workspace", { method: "PATCH", body: { workspaceKey } });
 }

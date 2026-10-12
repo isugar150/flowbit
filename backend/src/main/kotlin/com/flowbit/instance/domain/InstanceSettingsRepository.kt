@@ -25,9 +25,9 @@ interface InstanceSettingsRepository : CoroutineCrudRepository<InstanceSettings,
     ): Int
 
     @Modifying
-    @Query("update instance_settings set issue_key = :issueKey, updated_at = :now where id = 1")
-    suspend fun updateIssueKey(
-        issueKey: String,
+    @Query("update instance_settings set workspace_key = :workspaceKey, updated_at = :now where id = 1")
+    suspend fun updateWorkspaceKey(
+        workspaceKey: String,
         now: Instant,
     ): Int
 }

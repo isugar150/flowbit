@@ -20,6 +20,15 @@ export function updateIssue(input: { number: number; changes: IssueChanges }): P
   return apiFetch<Issue>(`/api/v1/issues/${input.number}`, { method: "PATCH", body: input.changes });
 }
 
+/** Deletes the issue: it leaves the lists but can still be opened with its history, and restored. */
+export function deleteIssue(number: number): Promise<void> {
+  return apiFetch<void>(`/api/v1/issues/${number}`, { method: "DELETE" });
+}
+
+export function restoreIssue(number: number): Promise<Issue> {
+  return apiFetch<Issue>(`/api/v1/issues/${number}/restore`, { method: "POST" });
+}
+
 /** Adds a workspace label; a name that already exists returns that label. */
 export function createLabel(name: string): Promise<Label> {
   return apiFetch<Label>("/api/v1/labels", { method: "POST", body: { name } });
@@ -47,11 +56,15 @@ export function deleteAttachment(id: string): Promise<void> {
   return apiFetch<void>(`/api/v1/attachments/${id}`, { method: "DELETE" });
 }
 
-export function createDocument(input: { number: number; title: string }): Promise<IssueDocumentSummary> {
-  return apiFetch<IssueDocumentSummary>(`/api/v1/issues/${input.number}/documents`, {
-    method: "POST",
-    body: { title: input.title },
-  });
+/** Whose document: an issue (by number) or a project (by key). */
+export type DocumentOwner = { issueNumber: number } | { projectKey: string };
+
+export function createDocument(input: { owner: DocumentOwner; title: string }): Promise<IssueDocumentSummary> {
+  const path =
+    "issueNumber" in input.owner
+      ? `/api/v1/issues/${input.owner.issueNumber}/documents`
+      : `/api/v1/projects/${encodeURIComponent(input.owner.projectKey)}/documents`;
+  return apiFetch<IssueDocumentSummary>(path, { method: "POST", body: { title: input.title } });
 }
 
 export function updateDocument(input: { id: string; changes: { title?: string; content?: RichDoc | null } }): Promise<IssueDocument> {

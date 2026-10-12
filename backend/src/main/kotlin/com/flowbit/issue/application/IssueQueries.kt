@@ -21,6 +21,8 @@ data class IssuePerson(
 data class IssueMilestone(
     val id: UUID,
     val name: String,
+    /** When the milestone is meant to be reached, if a date was set. */
+    val targetDate: LocalDate? = null,
 )
 
 data class IssueLabel(
@@ -56,13 +58,20 @@ data class IssueView(
     val status: IssueStatus,
     val priority: IssuePriority,
     val assignee: IssuePerson?,
+    /** Set when the issue covers a span of days ending on [dueDate]. */
+    val startDate: LocalDate?,
     val dueDate: LocalDate?,
     val milestone: IssueMilestone?,
     val labels: List<IssueLabel>,
+    /** How many sub-issues the issue has, and how many of them are done. */
+    val subIssueCount: Int,
+    val subIssueDoneCount: Int,
     val createdBy: IssuePerson,
     val version: Int,
     val createdAt: Instant,
     val updatedAt: Instant,
+    /** When the issue was deleted; null for an issue in use. */
+    val deletedAt: Instant? = null,
     /** The body as raw editor JSON. Loaded for a single issue only, never in lists. */
     val content: String? = null,
 )
@@ -102,8 +111,12 @@ class IssueQueries(
     suspend fun list(
         viewer: Viewer,
         projectId: UUID?,
+        deleted: Boolean,
     ): List<IssueView> =
-        select("where $VISIBLE ${if (projectId != null) "and i.project_id = :projectId" else ""} order by i.number desc limit $LIST_LIMIT") {
+        select(
+            "where $VISIBLE and ${deletedIs(deleted)} ${if (projectId != null) "and i.project_id = :projectId" else ""} " +
+                "order by i.number desc limit $LIST_LIMIT",
+        ) {
             val spec = it.visibleTo(viewer)
             if (projectId != null) spec.bind("projectId", projectId) else spec
         }
@@ -112,14 +125,21 @@ class IssueQueries(
     suspend fun listForUser(
         viewer: Viewer,
         scope: MyIssueScope,
-    ): List<IssueView> = select("where $VISIBLE and i.${scope.column} = :viewerId order by i.updated_at desc limit $LIST_LIMIT") { it.visibleTo(viewer) }
+        deleted: Boolean,
+    ): List<IssueView> =
+        select("where $VISIBLE and ${deletedIs(deleted)} and i.${scope.column} = :viewerId order by i.updated_at desc limit $LIST_LIMIT") {
+            it.visibleTo(viewer)
+        }
+
+    /** Lists show either the issues in use or the deleted ones, never a mix. */
+    private fun deletedIs(deleted: Boolean) = if (deleted) "i.deleted_at is not null" else "i.deleted_at is null"
 
     /** The sub-issues of an issue that the viewer may see, oldest first. */
     suspend fun subIssues(
         viewer: Viewer,
         parentId: UUID,
     ): List<IssueView> =
-        select("where $VISIBLE and i.parent_id = :parentId order by i.number limit $LIST_LIMIT") {
+        select("where $VISIBLE and i.deleted_at is null and i.parent_id = :parentId order by i.number limit $LIST_LIMIT") {
             it.visibleTo(viewer).bind("parentId", parentId)
         }
 
@@ -199,16 +219,18 @@ class IssueQueries(
         bind(
             databaseClient.sql(
                 """
-                select i.id, i.number, i.title, i.description, i.status, i.priority, i.due_date,
-                       i.version, i.created_at, i.updated_at,
-                       (select issue_key from instance_settings where id = 1) as issue_prefix,
+                select i.id, i.number, i.title, i.description, i.status, i.priority, i.start_date, i.due_date,
+                       i.version, i.created_at, i.updated_at, i.deleted_at,
+                       (select workspace_key from instance_settings where id = 1) as issue_prefix,
                        p.key as project_key, p.name as project_name,
                        parent.number as parent_number, parent.title as parent_title,
+                       (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null) as sub_total,
+                       (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null and s.status = 'DONE') as sub_done,
                        a.id as assignee_id, a.login_id as assignee_login_id,
                        a.display_name as assignee_display_name, a.avatar_key as assignee_avatar_key,
                        c.id as creator_id, c.login_id as creator_login_id,
                        c.display_name as creator_display_name, c.avatar_key as creator_avatar_key,
-                       ms.id as milestone_id, ms.name as milestone_name,
+                       ms.id as milestone_id, ms.name as milestone_name, ms.target_date as milestone_target_date,
                        (select coalesce(json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color)
                                                  order by l.created_at, l.name), '[]')::text
                         from issue_labels il join labels l on l.id = il.label_id
@@ -251,16 +273,24 @@ class IssueQueries(
                 status = IssueStatus.valueOf(checkNotNull(row.get("status", String::class.java))),
                 priority = IssuePriority.valueOf(checkNotNull(row.get("priority", String::class.java))),
                 assignee = person("assignee"),
+                startDate = row.get("start_date", LocalDate::class.java),
                 dueDate = row.get("due_date", LocalDate::class.java),
                 milestone =
                     row.get("milestone_id", UUID::class.java)?.let { id ->
-                        IssueMilestone(id, checkNotNull(row.get("milestone_name", String::class.java)))
+                        IssueMilestone(
+                            id,
+                            checkNotNull(row.get("milestone_name", String::class.java)),
+                            row.get("milestone_target_date", LocalDate::class.java),
+                        )
                     },
                 labels = jsonMapper.readValue(checkNotNull(row.get("labels", String::class.java)), Array<IssueLabel>::class.java).toList(),
+                subIssueCount = checkNotNull(row.get("sub_total", Long::class.javaObjectType)).toInt(),
+                subIssueDoneCount = checkNotNull(row.get("sub_done", Long::class.javaObjectType)).toInt(),
                 createdBy = checkNotNull(person("creator")),
                 version = checkNotNull(row.get("version", Int::class.javaObjectType)),
                 createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
                 updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
+                deletedAt = row.get("deleted_at", OffsetDateTime::class.java)?.toInstant(),
             )
         }.all()
             .collectList()

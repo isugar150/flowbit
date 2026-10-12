@@ -110,24 +110,44 @@ class ProjectService(
         key: String,
     ): ProjectView = detail(access(user, key).project.id, user)
 
+    /**
+     * A key nobody uses yet, made from the name: the initials of several words ("Payment Rework"
+     * gives PR) or the start of one ("Billing" gives BILL). A name without Latin letters, such as
+     * a Korean one, gives P. A number is added when the key is taken or too short: PR2, P1.
+     */
+    private suspend fun freeKeyFor(name: String): String {
+        val words = name.uppercase(Locale.ROOT).split(Regex("[^A-Z0-9]+")).filter { it.isNotEmpty() }
+        val letters = if (words.size > 1) words.joinToString("") { it.take(1) } else words.firstOrNull().orEmpty().take(4)
+        val base = letters.dropWhile { it.isDigit() }.take(GENERATED_KEY_LENGTH).ifEmpty { "P" }
+        if (Project.KEY_PATTERN.matches(base) && !repository.existsByKey(base)) return base
+        var suffix = if (base.length < 2) 1 else 2
+        while (true) {
+            val candidate = "$base$suffix"
+            if (!repository.existsByKey(candidate)) return candidate
+            suffix++
+        }
+    }
+
     /** Any signed-in user may create a project and becomes its first manager. */
     @Transactional
     suspend fun create(
         user: AuthenticatedUser,
         rawName: String,
-        rawKey: String,
+        /** The short name in addresses. Left out, one is made from the project's name. */
+        rawKey: String?,
         rawDescription: String?,
         client: ClientInfo,
     ): ProjectView {
         val name = rawName.trim()
-        val key = rawKey.trim().uppercase(Locale.ROOT)
+        val givenKey = rawKey?.trim()?.uppercase(Locale.ROOT)?.ifEmpty { null }
         val description = rawDescription?.trim().orEmpty()
         val errors = detailErrors(name, description).toMutableList()
-        if (!Project.KEY_PATTERN.matches(key)) {
+        if (givenKey != null && !Project.KEY_PATTERN.matches(givenKey)) {
             errors += FieldError("key", "INVALID_FORMAT", "키는 영문 대문자로 시작하는 영문 대문자·숫자 2~10자여야 합니다")
         }
         if (errors.isNotEmpty()) throw ValidationException(errors)
-        if (repository.existsByKey(key)) throw keyTaken()
+        if (givenKey != null && repository.existsByKey(givenKey)) throw keyTaken()
+        val key = givenKey ?: freeKeyFor(name)
 
         val now = clock.instant()
         val project = Project(UuidV7.generate(now), key, name, description, user.id, null, now, now)
@@ -377,6 +397,9 @@ class ProjectService(
     private val AuthenticatedUser.isAdmin: Boolean
         get() = role == UserRole.ADMIN
 }
+
+/** Leaves room for a number after the letters within the ten characters a key may have. */
+private const val GENERATED_KEY_LENGTH = 5
 
 private val PROPERTY_FIELDS = listOf("status", "priority", "leadId", "startDate", "targetDate", "labels")
 

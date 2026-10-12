@@ -1,7 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
+import { createDocument } from "@/features/issues/api";
 import { useAutosave } from "@/lib/use-autosave";
 import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
@@ -24,6 +26,7 @@ export function ProjectOverviewEditor({
   /** Shown between the summary and the description: the row of project properties. */
   children?: React.ReactNode;
 }) {
+  const router = useRouter();
   const summary = useAutosave((description: string) => updateProject({ key: project.key, changes: { description } }));
   const content = useAutosave((doc: RichDoc | null) => updateProject({ key: project.key, changes: { content: doc } }));
   const status = content.status !== "idle" ? content.status : summary.status;
@@ -63,6 +66,19 @@ export function ProjectOverviewEditor({
             className="min-h-40"
             onChange={content.schedule}
             keepLocal={content.isDirty}
+            // "/문서" in the description makes a document on this project and leaves a link to it.
+            onCreateDocument={
+              canEdit
+                ? async () => {
+                    const document = await createDocument({
+                      owner: { projectKey: project.key },
+                      title: messages.issues.documents.untitled,
+                    });
+                    router.refresh();
+                    return { href: `/doc/${document.id}`, title: document.title };
+                  }
+                : undefined
+            }
           />
         ) : (
           <p className="text-muted-foreground">{m.noDescription}</p>

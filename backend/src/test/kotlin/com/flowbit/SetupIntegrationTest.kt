@@ -126,6 +126,21 @@ class SetupIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `설정에서 정한 이슈 키가 저장되고 형식이 틀리면 설정은 끝나지 않는다`() {
+        val rejected = client().setup("admin", PASSWORD, "우리 회사", "한글")
+
+        assertEquals(422, rejected.status)
+        @Suppress("UNCHECKED_CAST")
+        val errors = rejected.json()["errors"] as List<Map<String, String>>
+        assertEquals("workspaceKey", errors.single()["field"])
+        assertEquals(false, client().get("/api/v1/setup/status").json()["completed"])
+
+        val client = client()
+        assertEquals(201, client.setup("admin", PASSWORD, "우리 회사", " acme ").status)
+        assertEquals("ACME", client.get("/api/v1/workspace").json()["workspaceKey"])
+    }
+
+    @Test
     fun `워크스페이스 이름을 보내지 않으면 기본 이름을 쓴다`() {
         val client = client()
 

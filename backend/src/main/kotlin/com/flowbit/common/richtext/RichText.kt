@@ -120,7 +120,7 @@ class RichText(
     ) {
         PROJECTS("projects"),
         ISSUES("issues"),
-        ISSUE_DOCUMENTS("issue_documents"),
+        DOCUMENTS("documents"),
     }
 
     private companion object {

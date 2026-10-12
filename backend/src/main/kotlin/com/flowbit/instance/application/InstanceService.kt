@@ -24,7 +24,7 @@ data class Workspace(
     val name: String,
     val logoKey: String?,
     /** Prefix of every issue key: FB-12. */
-    val issueKey: String,
+    val workspaceKey: String,
 )
 
 @Service
@@ -38,21 +38,26 @@ class InstanceService(
 
     suspend fun defaults(): InstanceDefaults = settings().let { InstanceDefaults(it.defaultLocale, it.defaultTimezone) }
 
-    suspend fun workspace(): Workspace = settings().let { Workspace(it.organizationName, it.logoKey, it.issueKey) }
+    suspend fun workspace(): Workspace = settings().let { Workspace(it.organizationName, it.logoKey, it.workspaceKey) }
 
     /**
      * Marks setup as done. Locks the settings row so that of two concurrent callers
      * exactly one succeeds; the caller's transaction must also contain the work that setup performs.
-     * A workspace name, already validated with [workspaceNameError], replaces the default one.
+     * A workspace name and an issue key, already validated with [workspaceNameError] and
+     * [workspaceKeyError], replace the default ones.
      */
     @Transactional(propagation = Propagation.MANDATORY)
-    suspend fun completeSetup(workspaceName: String? = null) {
+    suspend fun completeSetup(
+        workspaceName: String? = null,
+        workspaceKey: String? = null,
+    ) {
         val settings = repository.findForUpdate()
         if (settings.isSetupCompleted) {
             throw setupAlreadyCompleted()
         }
         settings.completeSetup(clock.instant())
         if (workspaceName != null) settings.organizationName = workspaceName
+        if (workspaceKey != null) settings.workspaceKey = workspaceKey
         repository.save(settings)
     }
 
@@ -68,14 +73,23 @@ class InstanceService(
     }
 
     /** Changes the prefix of issue keys. Every issue is shown with the new one at once; numbers stay. */
-    suspend fun setIssueKey(rawKey: String): Workspace {
+    suspend fun setWorkspaceKey(rawKey: String): Workspace {
         val key = rawKey.trim().uppercase(Locale.ROOT)
-        if (!ISSUE_KEY_PATTERN.matches(key)) {
-            throw ValidationException("issueKey", "INVALID", "이슈 키는 영문 대문자로 시작하는 2~10자의 영문 대문자와 숫자여야 합니다")
-        }
-        repository.updateIssueKey(key, clock.instant())
+        workspaceKeyError(key, "workspaceKey")?.let { throw ValidationException(listOf(it)) }
+        repository.updateWorkspaceKey(key, clock.instant())
         return workspace()
     }
+
+    /** What is wrong with an upper-cased issue key, reported under [field]; null when it is fine. */
+    fun workspaceKeyError(
+        key: String,
+        field: String,
+    ): FieldError? =
+        if (WORKSPACE_KEY_PATTERN.matches(key)) {
+            null
+        } else {
+            FieldError(field, "INVALID", "워크스페이스 키는 영문 대문자로 시작하는 2~10자의 영문 대문자와 숫자여야 합니다")
+        }
 
     /** What is wrong with a trimmed workspace name, reported under [field]; null when it is fine. */
     fun workspaceNameError(
@@ -106,7 +120,7 @@ class InstanceService(
     }
 
     private companion object {
-        val ISSUE_KEY_PATTERN = Regex("^[A-Z][A-Z0-9]{1,9}$")
+        val WORKSPACE_KEY_PATTERN = Regex("^[A-Z][A-Z0-9]{1,9}$")
     }
 
     private suspend fun settings(): InstanceSettings = checkNotNull(repository.findById(InstanceSettings.SINGLETON_ID))

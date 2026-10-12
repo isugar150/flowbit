@@ -61,3 +61,8 @@ kotlin {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// A check run from the command line while the application is running from the IDE must not
+// overwrite the class files that application was started from: classes it loads later would then
+// come from a newer build and fail in odd ways. Such runs set FLOWBIT_BUILD_DIR to build elsewhere.
+System.getenv("FLOWBIT_BUILD_DIR")?.takeIf { it.isNotBlank() }?.let { layout.buildDirectory.set(file(it)) }

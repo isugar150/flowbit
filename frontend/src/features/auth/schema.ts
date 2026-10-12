@@ -31,6 +31,11 @@ export const setupSchema = z
       .trim()
       .min(1, messages.setup.workspaceNameRequired)
       .max(100, messages.setup.workspaceNameTooLong),
+    // Shown before every issue number: FB-12. Typed in any case, stored in capitals.
+    workspaceKey: z
+      .string()
+      .transform((value) => value.trim().toUpperCase())
+      .pipe(z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/, messages.setup.workspaceKeyInvalid)),
     loginId: newLoginId,
     password: newPassword,
     passwordConfirm: z.string().min(1, v.passwordConfirmRequired),

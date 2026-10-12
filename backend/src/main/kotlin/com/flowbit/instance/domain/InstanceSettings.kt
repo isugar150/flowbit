@@ -13,7 +13,7 @@ class InstanceSettings(
     /** File name of the workspace logo in storage, see ImageStorage. */
     var logoKey: String?,
     /** Prefix of every issue key: FB-12. */
-    var issueKey: String,
+    var workspaceKey: String,
     var defaultLocale: String,
     var defaultTimezone: String,
     var setupCompletedAt: Instant?,

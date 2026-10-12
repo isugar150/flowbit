@@ -227,14 +227,14 @@ class ProjectMemberStore(
                            p.status, p.priority, p.start_date, p.target_date, p.labels,
                            l.id as lead_id, l.login_id as lead_login_id,
                            l.display_name as lead_display_name, l.avatar_key as lead_avatar_key,
-                           (select count(*) from issues i where i.project_id = p.id and i.status <> 'CANCELED') as issue_count,
-                           (select count(*) from issues i where i.project_id = p.id and i.status = 'DONE') as done_count,
+                           (select count(*) from issues i where i.project_id = p.id and i.deleted_at is null and i.status <> 'CANCELED') as issue_count,
+                           (select count(*) from issues i where i.project_id = p.id and i.deleted_at is null and i.status = 'DONE') as done_count,
                            (
                                -- Finished means it has issues and all of them are done (or canceled).
                                select ms.name from milestones ms
                                where ms.project_id = p.id
-                                 and (not exists (select 1 from issues i where i.milestone_id = ms.id and i.status <> 'CANCELED')
-                                      or exists (select 1 from issues i where i.milestone_id = ms.id
+                                 and (not exists (select 1 from issues i where i.milestone_id = ms.id and i.deleted_at is null and i.status <> 'CANCELED')
+                                      or exists (select 1 from issues i where i.milestone_id = ms.id and i.deleted_at is null
                                                  and i.status not in ('DONE', 'CANCELED')))
                                order by ms.target_date nulls last, ms.created_at
                                limit 1

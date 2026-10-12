@@ -27,12 +27,17 @@ class Issue(
     var status: IssueStatus,
     var priority: IssuePriority,
     var assigneeId: UUID?,
+    /** The first day of the span the issue covers; only together with [dueDate], and never after it. */
+    var startDate: LocalDate?,
     var dueDate: LocalDate?,
     var milestoneId: UUID?,
     val createdBy: UUID,
     var version: Int,
     val createdAt: Instant,
     var updatedAt: Instant,
+    /** Set while the issue is deleted: out of the lists, still readable with its history, restorable. */
+    var deletedAt: Instant? = null,
+    var deletedBy: UUID? = null,
 ) {
     companion object {
         const val TITLE_MAX_LENGTH = 200
@@ -42,4 +47,6 @@ class Issue(
 
 interface IssueRepository : CoroutineCrudRepository<Issue, UUID> {
     suspend fun findByNumber(number: Int): Issue?
+
+    suspend fun findByParentId(parentId: UUID): List<Issue>
 }

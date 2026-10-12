@@ -55,6 +55,10 @@ function describe(item: IssueActivityItem): { action: string; change?: string } 
       return { action: m.documentAdded, change: text(to) };
     case "DOCUMENT_REMOVED":
       return { action: m.documentRemoved, change: text(from) };
+    case "DELETED":
+      return { action: m.deleted };
+    case "RESTORED":
+      return { action: m.restored };
     default:
       // A kind of entry this version of the page does not know yet.
       return { action: m.changed };

@@ -110,13 +110,14 @@ class ApiClient(
         loginId: String,
         password: String,
         workspaceName: String? = null,
+        workspaceKey: String? = null,
     ): ApiResponse =
         post(
             "/api/v1/setup",
             if (workspaceName == null) {
                 credentials(loginId, password)
             } else {
-                """{"loginId":"$loginId","password":"$password","workspaceName":"$workspaceName"}"""
+                """{"loginId":"$loginId","password":"$password","workspaceName":"$workspaceName","workspaceKey":"${workspaceKey.orEmpty()}"}"""
             },
         )
 

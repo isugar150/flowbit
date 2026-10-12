@@ -17,8 +17,8 @@ import type { IssueDocument } from "../types";
 const m = messages.issues.documents;
 
 /**
- * Title and body of an issue's document, edited in place and saved a moment after typing, the
- * same way an issue is. Deleting asks for a second press and goes back to the issue.
+ * Title and body of a document (of an issue or of a project), edited in place and saved a moment after typing, the
+ * same way an issue is. Deleting asks for a second press and goes back to the issue or the project.
  */
 export function DocumentEditor({ document }: { document: IssueDocument }) {
   const router = useRouter();
@@ -34,7 +34,7 @@ export function DocumentEditor({ document }: { document: IssueDocument }) {
   const remove = useMutation({
     mutationFn: deleteDocument,
     onSuccess: () => {
-      router.replace(`/issue/${document.issue.key}`);
+      router.replace(document.issue ? `/issue/${document.issue.key}` : `/project/${document.project?.key ?? ""}`);
       router.refresh();
     },
   });

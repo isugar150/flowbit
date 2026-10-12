@@ -3,13 +3,15 @@ import { BackendUnavailableError, fetchSetupCompleted, SESSION_COOKIE } from "@/
 import { safeNextPath } from "@/lib/safe-next-path";
 
 /**
- * Setup is finished exactly once and never undone, so once the backend has said "completed"
- * it is not asked again. (After wiping a development database, restart this server.)
+ * Setup is finished exactly once, so once the backend has said "completed" a signed-in request
+ * is not held up by asking again. A request without a session is rare (the sign-in page, a first
+ * visit) and always asks: that is how a database that was wiped and started over is noticed
+ * without restarting this server, and `/` and `/login` lead to `/setup` again.
  */
 let setupCompleted = false;
 
-async function isSetupCompleted(): Promise<boolean> {
-  if (!setupCompleted) setupCompleted = await fetchSetupCompleted();
+async function isSetupCompleted(hasSession: boolean): Promise<boolean> {
+  if (!setupCompleted || !hasSession) setupCompleted = await fetchSetupCompleted();
   return setupCompleted;
 }
 
@@ -36,8 +38,9 @@ export async function proxy(request: NextRequest) {
 
   if (pathname === "/session-expired" || pathname === "/unavailable") return NextResponse.next();
 
+  const hasSession = request.cookies.has(SESSION_COOKIE);
   try {
-    if (!(await isSetupCompleted())) {
+    if (!(await isSetupCompleted(hasSession))) {
       return pathname === "/setup" ? NextResponse.next() : redirectTo("/setup");
     }
   } catch (error) {
@@ -45,7 +48,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL("/unavailable", request.url));
   }
 
-  const hasSession = request.cookies.has(SESSION_COOKIE);
   if (pathname === "/setup") return redirectTo(hasSession ? "/" : "/login");
   if (pathname === "/login") {
     return hasSession ? redirectTo(safeNextPath(searchParams.get("next"))) : NextResponse.next();

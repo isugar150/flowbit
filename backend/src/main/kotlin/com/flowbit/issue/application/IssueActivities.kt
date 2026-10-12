@@ -26,6 +26,8 @@ enum class IssueActivityType {
     ATTACHMENT_REMOVED,
     DOCUMENT_ADDED,
     DOCUMENT_REMOVED,
+    DELETED,
+    RESTORED,
 }
 
 /** One thing that changed, before it is stored. Names in `detail` are the names at this moment. */
@@ -80,8 +82,10 @@ class IssueActivityStore(
         if (before.assignee?.id != after.assignee?.id) {
             events += IssueEvent(IssueActivityType.ASSIGNEE_CHANGED, mapOf("from" to name(before.assignee), "to" to name(after.assignee)))
         }
-        if (before.dueDate != after.dueDate) {
-            events += IssueEvent(IssueActivityType.DUE_DATE_CHANGED, mapOf("from" to before.dueDate?.toString(), "to" to after.dueDate?.toString()))
+        if (before.dueDate != after.dueDate || before.startDate != after.startDate) {
+            // One date, or "first day ~ last day" for a span.
+            fun dates(issue: IssueView) = issue.dueDate?.let { due -> issue.startDate?.let { "$it ~ $due" } ?: due.toString() }
+            events += IssueEvent(IssueActivityType.DUE_DATE_CHANGED, mapOf("from" to dates(before), "to" to dates(after)))
         }
         if (before.milestone?.id != after.milestone?.id) {
             events += IssueEvent(IssueActivityType.MILESTONE_CHANGED, mapOf("from" to before.milestone?.name, "to" to after.milestone?.name))

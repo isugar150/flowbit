@@ -3,7 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { BoxIcon, CircleDashedIcon, DiamondIcon, FileTextIcon, PlusIcon, SearchIcon, SignalIcon, TagIcon, UsersIcon, XIcon } from "lucide-react";
+import {
+  BoxIcon,
+  CircleDashedIcon,
+  DiamondIcon,
+  FileTextIcon,
+  PlusIcon,
+  SearchIcon,
+  SignalIcon,
+  TagIcon,
+  Trash2Icon,
+  UsersIcon,
+  XIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Kbd } from "@/components/ui/kbd";
@@ -12,14 +24,20 @@ import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
 import { PriorityIcon, STATUS_ORDER, StatusIcon, priorityLabel, statusLabel } from "../meta";
 import { NONE, PersonAvatar, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
+import { arrangeBySubIssues } from "../sub-issue-tree";
 import type { Issue, Label } from "../types";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import { projectOptions } from "./issue-properties";
+import { IssueMilestoneChart } from "./issue-timeline";
+import { IssueCalendarView, type IssueDates } from "./issue-calendar";
+import { IssueViewSwitch, useIssueView } from "./issue-views";
 import { LabelDot, LabelPill } from "./label-chip";
+import { SubIssueContextRow, SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
 import { NewIssueDialog } from "./new-issue-dialog";
 import { DueDate } from "@/components/dates";
 
@@ -41,7 +59,8 @@ const ALL_ICON = { className: "size-4 text-muted-foreground", "aria-hidden": tru
 const NONE_PARAM = "none";
 
 /**
- * The issues of one project, grouped by status, with the new-issue dialog and its `C` shortcut.
+ * A list of issues (a project's, all of them, or one person's) grouped by status, with the
+ * new-issue dialog and its `C` shortcut. It can also be shown as a timeline chart or a calendar.
  * The list can be narrowed by status, priority, assignee, label and milestone, and by words in
  * the title; what is chosen lives in the address.
  */
@@ -53,7 +72,13 @@ export function IssuesView({
   labels,
   projects,
   canEdit,
+  deleted = false,
+  empty,
 }: {
+  /** True when `issues` are the deleted ones: the list is then read-only, there to look things up. */
+  deleted?: boolean;
+  /** What to say when there are no issues at all, where the usual words do not fit ("내 이슈"). */
+  empty?: { title: string; description: string };
   /** The project whose issues these are; null on the list of every issue. */
   projectKey: string | null;
   /** For linking a new issue to a project, and for the project filter on the list of every issue. */
@@ -111,7 +136,9 @@ export function IssuesView({
       (filters.priority === ALL || issue.priority === filters.priority) &&
       matches(filters.assignee, issue.assignee?.id) &&
       (filters.label === ALL ||
-        (filters.label === NONE ? issue.labels.length === 0 : issue.labels.some((label) => label.id === filters.label))) &&
+        (filters.label === NONE
+          ? issue.labels.length === 0
+          : issue.labels.some((label) => label.id === filters.label))) &&
       matches(filters.milestone, issue.milestone?.id) &&
       (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle)),
   );
@@ -123,13 +150,28 @@ export function IssuesView({
           {
             key: "project" as const,
             label: m.projectFilter,
-            options: [all(m.allProjects, <BoxIcon {...ALL_ICON} />), ...projectOptions(projects.filter((project) => project.myRole))],
+            options: [
+              all(m.allProjects, <BoxIcon {...ALL_ICON} />),
+              ...projectOptions(projects.filter((project) => project.myRole)),
+            ],
           },
         ]
       : []),
-    { key: "status", label: m.statusFilter, options: [all(m.allStatuses, <CircleDashedIcon {...ALL_ICON} />), ...statusOptions] },
-    { key: "priority", label: m.priorityFilter, options: [all(m.allPriorities, <SignalIcon {...ALL_ICON} />), ...priorityOptions] },
-    { key: "assignee", label: m.assigneeFilter, options: [all(m.allAssignees, <UsersIcon {...ALL_ICON} />), ...assigneeOptions(members)] },
+    {
+      key: "status",
+      label: m.statusFilter,
+      options: [all(m.allStatuses, <CircleDashedIcon {...ALL_ICON} />), ...statusOptions],
+    },
+    {
+      key: "priority",
+      label: m.priorityFilter,
+      options: [all(m.allPriorities, <SignalIcon {...ALL_ICON} />), ...priorityOptions],
+    },
+    {
+      key: "assignee",
+      label: m.assigneeFilter,
+      options: [all(m.allAssignees, <UsersIcon {...ALL_ICON} />), ...assigneeOptions(members)],
+    },
     {
       key: "label",
       label: m.labelFilter,
@@ -149,56 +191,86 @@ export function IssuesView({
         ]
       : []),
   ];
+  const [view, setView] = useIssueView();
   const mutation = useRefreshingMutation(updateIssue);
+  // Deleted issues are only looked at: nothing is made or changed among them.
+  const writable = canEdit && !deleted;
+  // Dates a new issue starts with, when it is made from the calendar.
+  const [dialogDates, setDialogDates] = useState<IssueDates | null>(null);
+  const openDialog = (dates: IssueDates | null) => {
+    setDialogDates(dates);
+    setDialogOpen(true);
+  };
+  const deletedToggle = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={cn("max-md:h-11", deleted ? "bg-muted" : "text-muted-foreground")}
+      aria-pressed={deleted}
+      nativeButton={false}
+      render={<Link href={deleted ? pathname : `${pathname}?deleted=1`} />}
+    >
+      <Trash2Icon data-icon="inline-start" />
+      {deleted ? m.backToActive : m.showDeleted}
+    </Button>
+  );
   // An issue linked to a project the person can only view is read-only for them.
   const mayEdit = (issue: Issue) =>
     !issue.project || projects.find((project) => project.key === issue.project?.key)?.myRole !== "VIEWER";
 
   useEffect(() => {
-    if (!canEdit) return;
+    if (!writable) return;
     const onKeyDown = (event: KeyboardEvent) => {
       // `code` is the physical key, so this also works while a Korean input method is active.
       if (event.code !== "KeyC" || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       if (isTyping(event.target) || document.querySelector("[role=dialog]")) return;
       event.preventDefault();
+      setDialogDates(null);
       setDialogOpen(true);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [canEdit]);
+  }, [writable]);
 
-  const newIssueButton = canEdit ? (
-    <Button className="max-md:h-11" onClick={() => setDialogOpen(true)}>
+  const newIssueButton = writable ? (
+    <Button className="max-md:h-11" onClick={() => openDialog(null)}>
       <PlusIcon data-icon="inline-start" />
       {m.new}
       <Kbd className="max-md:hidden">C</Kbd>
     </Button>
   ) : null;
 
-  const groups = STATUS_ORDER.map((status) => ({ status, items: issues.filter((issue) => issue.status === status) })).filter(
-    (group) => group.items.length > 0,
-  );
+  const groups = STATUS_ORDER.map((status) => ({
+    status,
+    items: issues.filter((issue) => issue.status === status),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <>
-      {allIssues.length === 0 ? (
+      {allIssues.length === 0 && !deleted ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <FileTextIcon />
               </EmptyMedia>
-              <EmptyTitle>{m.emptyTitle}</EmptyTitle>
-              <EmptyDescription>{canEdit ? m.emptyDescription : m.emptyReadOnly}</EmptyDescription>
+              <EmptyTitle>{empty?.title ?? m.emptyTitle}</EmptyTitle>
+              <EmptyDescription>{empty?.description ?? (canEdit ? m.emptyDescription : m.emptyReadOnly)}</EmptyDescription>
             </EmptyHeader>
-            {newIssueButton ? <EmptyContent>{newIssueButton}</EmptyContent> : null}
+            <EmptyContent>
+              {newIssueButton}
+              {deletedToggle}
+            </EmptyContent>
           </Empty>
         </div>
       ) : (
         <div className="flex flex-col">
           <div className="flex flex-wrap items-center gap-2 px-4 pb-2">
             <div className="relative">
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <SearchIcon
+                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
               <input
                 type="search"
                 value={search}
@@ -242,17 +314,33 @@ export function IssuesView({
               </Button>
             ) : null}
             <span className="flex-1" />
+            {deletedToggle}
+            <IssueViewSwitch view={view} onChange={setView} />
             {newIssueButton}
           </div>
+          {deleted ? (
+            <p className="border-t bg-muted/50 px-5 py-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedNotice}</p>
+          ) : null}
           {issues.length === 0 ? (
-            <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">{m.noIssuesInFilter}</p>
+            <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">
+              {allIssues.length === 0 ? m.noDeletedIssues : m.noIssuesInFilter}
+            </p>
           ) : null}
           {mutation.isError ? (
             <div className="px-4 pb-2">
               <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert>
             </div>
           ) : null}
-          {groups.map((group) => (
+          {view === "milestone" ? (
+            <IssueMilestoneChart issues={issues} />
+          ) : view === "calendar" ? (
+            <IssueCalendarView
+              issues={issues}
+              canMove={mayEdit}
+              onMove={writable ? (issue, dates) => mutation.mutate({ number: issue.number, changes: dates }) : undefined}
+              onCreate={writable ? openDialog : undefined}
+            />
+          ) : groups.map((group) => (
             <section key={group.status} aria-label={statusLabel(group.status)}>
               <h2 className="flex h-9 items-center gap-2 border-y bg-muted px-5 text-[0.8125rem] leading-5 font-medium">
                 <StatusIcon status={group.status} />
@@ -260,78 +348,88 @@ export function IssuesView({
                 <span className="font-normal text-muted-foreground tabular-nums">{group.items.length}</span>
               </h2>
               <ul>
-                {group.items.map((issue) => (
-                  <li
-                    key={issue.id}
-                    data-presence-id={`issue-row:${issue.number}`}
-                    className="flex h-10 items-center gap-2 border-b pr-5 pl-3 hover:bg-muted max-md:h-12"
-                  >
-                    {canEdit && mayEdit(issue) ? (
-                      <ChipSelect
-                        iconOnly
-                        label={m.statusOf(issue.key)}
-                        value={issue.status}
-                        options={statusOptions}
-                        disabled={mutation.isPending}
-                        onChange={(status) =>
-                          mutation.mutate({ number: issue.number, changes: { status } })
-                        }
-                      />
-                    ) : (
-                      <span className="flex size-7 items-center justify-center">
-                        <StatusIcon status={issue.status} />
-                      </span>
-                    )}
-                    <span title={priorityLabel(issue.priority)} className="flex shrink-0">
-                      <PriorityIcon priority={issue.priority} />
-                      <span className="sr-only">{priorityLabel(issue.priority)}</span>
-                    </span>
-                    <span className="w-16 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
-                      {issue.key}
-                    </span>
-                    <Link
-                      href={`/issue/${issue.key}`}
-                      className="min-w-0 flex-1 truncate rounded-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                    >
-                      {issue.title}
-                    </Link>
-                    {projectKey === null && issue.project ? (
-                      <span className="hidden max-w-40 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground lg:block">
-                        {issue.project.name}
-                      </span>
-                    ) : null}
-                    {issue.labels.length > 0 ? (
-                      <span className="hidden shrink-0 items-center gap-1 sm:flex">
-                        {issue.labels.slice(0, 3).map((label) => (
-                          <LabelPill key={label.id} label={label} />
-                        ))}
-                      </span>
-                    ) : null}
-                    {issue.milestone ? (
-                      <span className="hidden max-w-40 shrink-0 items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground md:flex">
-                        <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{issue.milestone.name}</span>
-                      </span>
-                    ) : null}
-                    {issue.dueDate ? (
-                      <span className="hidden shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums sm:block">
-                        <DueDate value={issue.dueDate} />
-                      </span>
-                    ) : null}
-                    {issue.assignee ? (
-                      <span title={issue.assignee.displayName ?? issue.assignee.loginId} className="flex shrink-0">
-                        <PersonAvatar person={issue.assignee} />
-                        <span className="sr-only">{issue.assignee.displayName ?? issue.assignee.loginId}</span>
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
+                {arrangeBySubIssues(group.items).map((row) =>
+                  row.kind === "context" ? (
+                    <SubIssueContextRow
+                      key={`context-${row.parent.number}`}
+                      parent={row.parent}
+                      className="flex h-10 items-center gap-2 border-b pr-5 pl-12 max-md:h-12"
+                    />
+                  ) : (
+                    ((issue: Issue) => (
+                      <li
+                        key={issue.id}
+                        data-presence-id={`issue-row:${issue.number}`}
+                        className="flex h-10 items-center gap-2 border-b pr-5 pl-3 hover:bg-muted max-md:h-12"
+                      >
+                        <SubIssueIndent depth={row.depth} />
+                        {writable && mayEdit(issue) ? (
+                          <ChipSelect
+                            iconOnly
+                            label={m.statusOf(issue.key)}
+                            value={issue.status}
+                            options={statusOptions}
+                            disabled={mutation.isPending}
+                            onChange={(status) => mutation.mutate({ number: issue.number, changes: { status } })}
+                          />
+                        ) : (
+                          <span className="flex size-7 items-center justify-center">
+                            <StatusIcon status={issue.status} />
+                          </span>
+                        )}
+                        <span title={priorityLabel(issue.priority)} className="flex shrink-0">
+                          <PriorityIcon priority={issue.priority} />
+                          <span className="sr-only">{priorityLabel(issue.priority)}</span>
+                        </span>
+                        <span className="w-16 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
+                          {issue.key}
+                        </span>
+                        <Link
+                          href={`/issue/${issue.key}`}
+                          className="min-w-0 flex-1 truncate rounded-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        >
+                          {issue.title}
+                        </Link>
+                        <SubIssueProgress issue={issue} />
+                        {projectKey === null && issue.project ? (
+                          <span className="hidden max-w-40 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground lg:block">
+                            {issue.project.name}
+                          </span>
+                        ) : null}
+                        {issue.labels.length > 0 ? (
+                          <span className="hidden shrink-0 items-center gap-1 sm:flex">
+                            {issue.labels.slice(0, 3).map((label) => (
+                              <LabelPill key={label.id} label={label} />
+                            ))}
+                          </span>
+                        ) : null}
+                        {issue.milestone ? (
+                          <span className="hidden max-w-40 shrink-0 items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground md:flex">
+                            <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
+                            <span className="truncate">{issue.milestone.name}</span>
+                          </span>
+                        ) : null}
+                        {issue.dueDate ? (
+                          <span className="hidden shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums sm:block">
+                            <DueDate value={issue.dueDate} />
+                          </span>
+                        ) : null}
+                        {issue.assignee ? (
+                          <span title={issue.assignee.displayName ?? issue.assignee.loginId} className="flex shrink-0">
+                            <PersonAvatar person={issue.assignee} />
+                            <span className="sr-only">{issue.assignee.displayName ?? issue.assignee.loginId}</span>
+                          </span>
+                        ) : null}
+                      </li>
+                    ))(row.issue)
+                  ),
+                )}
               </ul>
             </section>
           ))}
         </div>
       )}
-      {canEdit ? (
+      {writable ? (
         <NewIssueDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
@@ -341,6 +439,7 @@ export function IssuesView({
           milestones={milestones}
           labels={labels}
           defaultMilestoneId={milestoneFilter === ALL || milestoneFilter === NONE ? null : milestoneFilter}
+          defaultDates={dialogDates}
         />
       ) : null}
     </>

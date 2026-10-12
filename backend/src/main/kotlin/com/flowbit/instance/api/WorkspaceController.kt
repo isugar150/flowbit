@@ -18,17 +18,17 @@ import org.springframework.web.bind.annotation.RestController
 data class WorkspaceResponse(
     val name: String,
     val logoUrl: String?,
-    val issueKey: String,
+    val workspaceKey: String,
 ) {
     companion object {
-        fun from(workspace: Workspace) = WorkspaceResponse(workspace.name, ImageStorage.urlOf(workspace.logoKey), workspace.issueKey)
+        fun from(workspace: Workspace) = WorkspaceResponse(workspace.name, ImageStorage.urlOf(workspace.logoKey), workspace.workspaceKey)
     }
 }
 
 /** Only the fields present change. */
 data class UpdateWorkspaceRequest(
     val name: String? = null,
-    val issueKey: String? = null,
+    val workspaceKey: String? = null,
 )
 
 /** Read by every signed-in user to draw the app frame. */
@@ -53,7 +53,7 @@ class AdminWorkspaceController(
         @RequestBody body: UpdateWorkspaceRequest,
     ): WorkspaceResponse {
         body.name?.let { instanceService.rename(it) }
-        body.issueKey?.let { instanceService.setIssueKey(it) }
+        body.workspaceKey?.let { instanceService.setWorkspaceKey(it) }
         return WorkspaceResponse.from(instanceService.workspace())
     }
 

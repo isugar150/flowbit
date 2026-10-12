@@ -36,7 +36,7 @@ export type Attachment = {
   createdAt: string;
 };
 
-/** A document that belongs to an issue, as listed on the issue. */
+/** A document as listed on the issue or the project it belongs to. */
 export type IssueDocumentSummary = {
   id: string;
   title: string;
@@ -46,7 +46,10 @@ export type IssueDocumentSummary = {
 /** GET /api/v1/documents/{id} */
 export type IssueDocument = IssueDocumentSummary & {
   content: RichDoc | null;
-  issue: { number: number; key: string; title: string };
+  /** The issue the document belongs to, or null when it belongs to a project. */
+  issue: { number: number; key: string; title: string } | null;
+  /** The project the document belongs to, or null when it belongs to an issue. */
+  project: { key: string; name: string } | null;
   canEdit: boolean;
 };
 
@@ -64,23 +67,33 @@ export type Issue = {
   status: IssueStatus;
   priority: IssuePriority;
   assignee: IssuePerson | null;
+  /** YYYY-MM-DD. The first day when the issue covers a span that ends on `dueDate`; null for a single date. */
+  startDate: string | null;
   /** YYYY-MM-DD */
   dueDate: string | null;
   /** The project the issue is linked to; null when it is on its own. */
   project: { key: string; name: string } | null;
-  milestone: { id: string; name: string } | null;
+  milestone: { id: string; name: string; /** YYYY-MM-DD */ targetDate?: string | null } | null;
   /** The issue this one is a sub-issue of. */
   parent: { number: number; key: string; title: string } | null;
   labels: Label[];
+  /** How many sub-issues the issue has, and how many of them are done. */
+  subIssueCount: number;
+  subIssueDoneCount: number;
   createdBy: IssuePerson;
   version: number;
   createdAt: string;
   updatedAt: string;
+  /** When the issue was deleted; null for an issue in use. */
+  deletedAt: string | null;
 };
 
 /** One issue with what its page shows (GET /api/v1/issues/{number}). */
 export type IssueDetail = Issue & {
+  /** Never true for a deleted issue. */
   canEdit: boolean;
+  /** On a deleted issue: whether the signed-in person may restore it. */
+  canRestore?: boolean;
   subIssues: Issue[];
   reactions: Reaction[];
   attachments: Attachment[];
@@ -93,6 +106,8 @@ export type NewIssueInput = {
   status: IssueStatus;
   priority: IssuePriority;
   assigneeId: string | null;
+  /** Only together with `dueDate`, and never after it. */
+  startDate: string | null;
   dueDate: string | null;
   milestoneId: string | null;
   labelIds: string[];
@@ -109,6 +124,8 @@ export type IssueChanges = Partial<{
   status: IssueStatus;
   priority: IssuePriority;
   assigneeId: string | null;
+  /** Only together with `dueDate`, and never after it. */
+  startDate: string | null;
   dueDate: string | null;
   milestoneId: string | null;
   labelIds: string[];
@@ -135,7 +152,9 @@ export type IssueActivityType =
   | "ATTACHMENT_ADDED"
   | "ATTACHMENT_REMOVED"
   | "DOCUMENT_ADDED"
-  | "DOCUMENT_REMOVED";
+  | "DOCUMENT_REMOVED"
+  | "DELETED"
+  | "RESTORED";
 
 export type IssueActivityItem = {
   id: string;

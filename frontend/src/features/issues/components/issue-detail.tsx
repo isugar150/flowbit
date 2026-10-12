@@ -1,34 +1,33 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeftIcon, CornerLeftUpIcon } from "lucide-react";
+import { CornerLeftUpIcon } from "lucide-react";
 import { Person } from "@/components/person";
-import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { DialogTitle } from "@/components/ui/dialog";
 import type { UserSummary } from "@/features/members/types";
 import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { getProjects, requireUser, serverGet } from "@/lib/current-user";
-import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { issueNumberOf } from "../meta";
 import type { IssueActivityFeed, IssueDetail as IssueDetailData, Label } from "../types";
 import { IssueActivity } from "./issue-activity";
 import { IssueAttachments } from "./issue-attachments";
 import { IssueBody } from "./issue-body";
+import { DeleteIssueButton, DeletedIssueBanner } from "./issue-deletion";
 import { IssueDocuments } from "./issue-documents";
-import { IssueProjectLink, IssueProperties } from "./issue-properties";
+import { IssueProperties } from "./issue-properties";
 import { IssueReactions } from "./issue-reactions";
 import { IssueSubIssues } from "./issue-sub-issues";
 
 const m = messages.issues;
 
 /**
- * One issue: what it says on the left, its properties in cards on the right. Shown in a dialog
- * over the page it was opened from, and as a page of its own when the address is opened directly.
- * `issueKey` is what the address carries, such as FB-12; only the number in it matters.
+ * One issue: what it says on the left, its properties on the right. Always shown inside
+ * IssueDialog; an issue has no page of its own. `issueKey` is what the address carries, such as
+ * FB-12; only the number in it matters.
  */
-export async function IssueDetail({ issueKey, inDialog = false }: { issueKey: string; inDialog?: boolean }) {
+export async function IssueDetail({ issueKey }: { issueKey: string }) {
   const number = issueNumberOf(issueKey);
   if (number === null) notFound();
   const [user, issue, activity, labels, projects] = await Promise.all([
@@ -53,31 +52,11 @@ export async function IssueDetail({ issueKey, inDialog = false }: { issueKey: st
   const canEdit = issue.canEdit;
 
   return (
-    <div
-      className={cn(
-        "flex flex-1 flex-col gap-8 lg:flex-row lg:items-start lg:gap-6",
-        inDialog ? "p-4 pt-10 sm:p-5 sm:pt-10" : "px-4 pt-2 pb-10",
-      )}
-    >
-      {/* Presence on an issue is about this issue, not the page behind it. */}
+    <div className="flex flex-1 flex-col gap-8 p-4 pt-10 sm:p-5 sm:pt-10 lg:flex-row lg:items-start lg:gap-6">
+      {/* Presence on an issue is about this issue, not the list behind it. */}
       <RealtimeScope topics={[`issue:${issue.number}`]} presence={`issue:${issue.number}`} priority={1} />
-      <article
-        className={cn(
-          "flex w-full min-w-0 flex-1 flex-col gap-5",
-          inDialog ? "px-1" : "mx-auto max-w-3xl px-2 pt-4 sm:px-6 lg:pt-8",
-        )}
-      >
-        {inDialog ? (
-          <DialogTitle className="sr-only">{`${issue.key} ${issue.title}`}</DialogTitle>
-        ) : (
-          <Link
-            href={issue.project ? `/project/${issue.project.key}/issues` : "/issues"}
-            className="flex w-fit items-center gap-1 rounded-md text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <ChevronLeftIcon className="size-4" aria-hidden="true" />
-            {m.backToList}
-          </Link>
-        )}
+      <article className="flex w-full min-w-0 flex-1 flex-col gap-5 px-1">
+        <DialogTitle className="sr-only">{`${issue.key} ${issue.title}`}</DialogTitle>
         {issue.parent ? (
           <Link
             href={`/issue/${issue.parent.key}`}
@@ -89,30 +68,31 @@ export async function IssueDetail({ issueKey, inDialog = false }: { issueKey: st
             <span className="truncate">{issue.parent.title}</span>
           </Link>
         ) : null}
+        <DeletedIssueBanner issue={issue} />
         <IssueBody issue={issue} canEdit={canEdit} />
         <IssueAttachments number={issue.number} attachments={issue.attachments} canEdit={canEdit} />
         <IssueReactions number={issue.number} reactions={issue.reactions} />
         <IssueSubIssues issue={issue} canEdit={canEdit} />
-        <IssueDocuments number={issue.number} documents={issue.documents} canEdit={canEdit} />
+        <IssueDocuments owner={{ issueNumber: issue.number }} documents={issue.documents} canEdit={canEdit} />
         {activity ? <IssueActivity number={issue.number} feed={activity} /> : null}
       </article>
-      <aside className={cn("flex w-full shrink-0 flex-col gap-2 lg:w-80", inDialog ? "lg:w-72" : "mx-auto max-w-3xl lg:mx-0")}>
-        <PropertyCard title={messages.projects.properties}>
-          <IssueProperties issue={issue} members={members ?? []} labels={labels} canEdit={canEdit} />
-        </PropertyCard>
-        <PropertyCard title={m.project}>
-          <IssueProjectLink issue={issue} projects={projects} milestones={milestones ?? []} canEdit={canEdit} />
-        </PropertyCard>
-        <PropertyCard title={m.createdBy}>
-          <dl className="flex flex-col">
-            <div className="px-1 py-1">
-              <Person person={issue.createdBy} />
-            </div>
-            <PropertyRow label={m.createdAt}>
-              <span className="tabular-nums">{created}</span>
-            </PropertyRow>
-          </dl>
-        </PropertyCard>
+      <aside className="flex w-full shrink-0 flex-col gap-6 px-2 lg:w-64 lg:pt-2">
+        <IssueProperties
+          issue={issue}
+          members={members ?? []}
+          labels={labels}
+          projects={projects}
+          milestones={milestones ?? []}
+          canEdit={canEdit}
+        />
+        <section className="flex flex-col gap-1">
+          <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.createdBy}</h3>
+          <div className="flex min-h-8 items-center justify-between gap-2">
+            <Person person={issue.createdBy} />
+            <span className="shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{created}</span>
+          </div>
+        </section>
+        <DeleteIssueButton issue={issue} />
       </aside>
     </div>
   );

@@ -35,7 +35,7 @@ abstract class IntegrationTest {
         // The three labels every installation starts with stay; the ones tests add go.
         execute("delete from labels where name not in ('버그', '기능', '중요')")
         execute(
-            "update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null, issue_key = 'FB', next_issue_number = 1",
+            "update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null, workspace_key = 'FB', next_issue_number = 1",
         )
         clock.reset()
         rateLimiter.reset()
