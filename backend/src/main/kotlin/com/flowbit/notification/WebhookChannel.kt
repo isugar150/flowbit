@@ -31,7 +31,7 @@ data class WebhookDelivery(
         get() = status != null && status in 200..299
 }
 
-/** The one person a per-recipient call is about. */
+/** The one person a call is about: someone who follows the issue or its project. */
 data class WebhookRecipient(
     val id: UUID,
     val loginId: String,
@@ -55,7 +55,7 @@ class WebhookSender(
     fun payload(
         notification: IssueNotification,
         deliveryId: UUID,
-        recipient: WebhookRecipient? = null,
+        recipient: WebhookRecipient,
     ): Map<String, Any?> {
         val message = texts.of(notification)
         return mapOf(
@@ -72,9 +72,7 @@ class WebhookSender(
                 ),
             "actor" to mapOf("id" to notification.actorId.toString(), "name" to notification.actorName),
             "changes" to notification.events.map { mapOf("type" to it.type, "detail" to it.detail) },
-            "recipientIds" to notification.recipientIds.map { it.toString() },
-            // Only in a call made for one person.
-            "recipient" to recipient?.let { mapOf("id" to it.id.toString(), "loginId" to it.loginId, "name" to it.name, "email" to it.email) },
+            "recipient" to mapOf("id" to recipient.id.toString(), "loginId" to recipient.loginId, "name" to recipient.name, "email" to recipient.email),
             "title" to message.title,
             "headline" to message.headline,
             "lines" to message.lines,
@@ -87,7 +85,7 @@ class WebhookSender(
         webhook: Webhook,
         notification: IssueNotification,
         deliveryId: UUID,
-        recipient: WebhookRecipient?,
+        recipient: WebhookRecipient,
     ): String {
         val values = values(notification, deliveryId, recipient)
         return PLACEHOLDER.replace(webhook.url) { match -> values[match.groupValues[1]]?.let(::urlEncode).orEmpty() }
@@ -98,7 +96,7 @@ class WebhookSender(
         webhook: Webhook,
         notification: IssueNotification,
         deliveryId: UUID,
-        recipient: WebhookRecipient? = null,
+        recipient: WebhookRecipient,
     ): String {
         val json = jsonMapper.writeValueAsString(payload(notification, deliveryId, recipient))
         if (webhook.bodyTemplate.isBlank()) return json
@@ -116,7 +114,7 @@ class WebhookSender(
     private fun values(
         notification: IssueNotification,
         deliveryId: UUID,
-        recipient: WebhookRecipient?,
+        recipient: WebhookRecipient,
     ): Map<String, String> {
         val message = texts.of(notification)
         return mapOf(
@@ -131,10 +129,10 @@ class WebhookSender(
             "issue.title" to notification.issueTitle,
             "issue.url" to message.url,
             "actor.name" to notification.actorName,
-            "recipient.id" to recipient?.id?.toString().orEmpty(),
-            "recipient.loginId" to recipient?.loginId.orEmpty(),
-            "recipient.name" to recipient?.name.orEmpty(),
-            "recipient.email" to recipient?.email.orEmpty(),
+            "recipient.id" to recipient.id.toString(),
+            "recipient.loginId" to recipient.loginId,
+            "recipient.name" to recipient.name,
+            "recipient.email" to recipient.email.orEmpty(),
         )
     }
 
@@ -146,7 +144,7 @@ class WebhookSender(
     suspend fun deliver(
         webhook: Webhook,
         notification: IssueNotification,
-        recipient: WebhookRecipient?,
+        recipient: WebhookRecipient,
         retry: Boolean,
     ): WebhookDelivery {
         val deliveryId = UUID.randomUUID()
@@ -264,8 +262,8 @@ object WebhookHeaders {
 }
 
 /**
- * Calls every enabled webhook that asked for this kind of change: once for the change, or, for a
- * webhook set to "per recipient", once for each subscriber (an API that messages one person at a time).
+ * Calls every enabled webhook that asked for this kind of change, once for each person the change
+ * is told to (an API that messages one person at a time). A change nobody follows calls nothing.
  */
 @Component
 class WebhookNotificationChannel(
@@ -279,22 +277,13 @@ class WebhookNotificationChannel(
     override suspend fun send(notification: IssueNotification) {
         val types = notification.events.map { it.type }.toSet()
         val wanted = webhooks.findEnabled().toList().filter { webhook -> webhook.eventTypeSet.let { it.isEmpty() || it.any(types::contains) } }
-        if (wanted.isEmpty()) return
+        if (wanted.isEmpty() || notification.recipientIds.isEmpty()) return
         val recipients =
-            if (wanted.any { it.perRecipient } && notification.recipientIds.isNotEmpty()) {
-                userRepository
-                    .findActiveByIds(
-                        notification.recipientIds,
-                    ).toList()
-                    .map { WebhookRecipient(it.id, it.loginId, it.displayName ?: it.loginId, it.email) }
-            } else {
-                emptyList()
-            }
+            userRepository
+                .findActiveByIds(notification.recipientIds)
+                .toList()
+                .map { WebhookRecipient(it.id, it.loginId, it.displayName ?: it.loginId, it.email) }
         for (webhook in wanted) {
-            if (!webhook.perRecipient) {
-                record(webhook, notification, sender.deliver(webhook, notification, null, retry = true))
-                continue
-            }
             // Someone without an address cannot be reached through an API that is addressed by e-mail.
             val needsEmail = "recipient.email" in webhook.url || "recipient.email" in webhook.bodyTemplate
             for (recipient in recipients) {

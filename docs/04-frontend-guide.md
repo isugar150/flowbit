@@ -95,7 +95,7 @@ frontend/
 - 사진 없는 아바타의 글자는 `lib/initials.ts`: 사람은 `initials()`(한글 이름은 뒤 두 글자), 24px 보다 작은 아바타는 `initial()`(한 글자), 사람이 아닌 것(워크스페이스)은 `mark()`(앞 글자).
 - 같은 폴더 안에서 페이지끼리 오가면(이슈 상세 ↔ 이슈 목록) 그 폴더에도 `loading.tsx` 가 있어야 한다(`project/[id]/issues/loading.tsx`). 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다.
 - 편집기 위에 띄우는 것(`/` 메뉴, 표 도구 모음)은 `position: fixed` 로 두되 좌표에서 `fixedOrigin()`(`components/editor/fixed-origin.ts`)을 뺀다. 대화상자는 `transform` 으로 가운데에 놓이기 때문에 그 안의 `fixed` 는 창이 아니라 대화상자 모서리가 기준이다. 빼지 않으면 새 이슈 창에서 메뉴가 엉뚱한 곳에 뜬다.
-- `@` 태그(D-101): `RichTextEditor` 에 `mentionables`(`mentionablesOf(members)`)를 주면 `@` 메뉴가 생긴다. `/` 메뉴와 같은 코드(`readSlash`, `menuItems`)를 쓴다. 블록은 `components/editor/mention.ts`, 서버 검증은 `RichText.kt` 의 `mention`. 주지 않으면 `@` 는 보통 글자다.
+- `@` 태그(D-101): `RichTextEditor` 에 `mentionables`(`mentionablesOf(members)`)를 주면 `@` 메뉴가 생긴다. `/` 메뉴와 같은 코드(`readSlash`, `menuItems`)를 쓴다. 블록은 `components/editor/mention.tsx`(React 노드 뷰: 칩 + 올리면 뜨는 사람 카드. 사람 정보는 `MentionPeopleContext` 로 받는다. 모양은 `globals.css` 가 아니라 컴포넌트의 Tailwind 클래스다), 서버 검증은 `RichText.kt` 의 `mention`. 주지 않으면 `@` 는 보통 글자다.
 - 댓글(`features/issues/components/issue-comments.tsx`)도 `RichTextEditor` 다. 읽을 때는 `editable={false}`, 보낸 뒤 비우기와 고치기 취소는 `key` 를 바꿔서 한다.
 - 편집기는 `RichTextEditor` 하나뿐이다(개요 설명, 이슈 본문, 새 이슈 창, 댓글). 블록이나 도구를 더하면 세 곳 모두에 생긴다.
 - 편집기 내용을 밖에서 바꿔야 하면(프리셋 적용 등) `key` 를 바꿔 새로 시작시킨다.

@@ -56,13 +56,13 @@ data class IssueActivityView(
 data class IssueChange(
     val issue: IssueView,
     val events: List<IssueEvent>,
-    /** Subscribers of the issue other than the person who made the change. */
+    /** Subscribers of the issue and of its project, other than the person who made the change. */
     val recipientIds: List<UUID>,
     /** The projects whose lists the change shows in: the one it is linked to, and the one it left. */
     val projectIds: List<UUID> = listOfNotNull(issue.project?.id),
 )
 
-/** The history of issues and who is subscribed to them (V11__issue_activity_and_subscriptions.sql). */
+/** The history of issues and who is subscribed to them (`issue_activities`, `issue_subscriptions`). */
 @Component
 class IssueActivityStore(
     private val databaseClient: DatabaseClient,
@@ -234,6 +234,32 @@ class IssueActivityStore(
                 """.trimIndent(),
             ).bind("issueId", issueId)
             .map { row -> person(row) }
+            .all()
+            .collectList()
+            .awaitSingle()
+
+    /**
+     * Whom a change to the issue is told to: its subscribers, and whoever follows the project it is
+     * linked to and may still enter that project. Active users only.
+     */
+    suspend fun recipientIds(issueId: UUID): List<UUID> =
+        databaseClient
+            .sql(
+                """
+                select u.id
+                from users u
+                where u.status = 'ACTIVE'
+                  and (exists (select 1 from issue_subscriptions s where s.issue_id = :issueId and s.user_id = u.id)
+                       or exists (
+                           select 1 from issues i join project_subscriptions ps on ps.project_id = i.project_id
+                           where i.id = :issueId and ps.user_id = u.id
+                             and (u.role = 'ADMIN'
+                                  or exists (select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = u.id))
+                       ))
+                order by u.login_id
+                """.trimIndent(),
+            ).bind("issueId", issueId)
+            .map { row -> checkNotNull(row.get("id", UUID::class.java)) }
             .all()
             .collectList()
             .awaitSingle()

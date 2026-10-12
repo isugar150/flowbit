@@ -1,6 +1,7 @@
--- The whole schema in one file. While Flowbit is still in development there is no installed
--- database to carry forward, so the earlier step-by-step migrations were folded into this one
--- (docs/09-decisions.md D-067). From the first release on, changes go in V2, V3, … again.
+-- The whole schema in one file: the baseline of the first production release. The step-by-step
+-- migrations written during development were folded into this one, once, before that release
+-- (docs/09-decisions.md D-067, D-104). This file is never edited again: every later change goes
+-- in a new file, V2, V3, ….
 
 -- ---------------------------------------------------------------------------------------------
 -- Installation and people
@@ -26,13 +27,22 @@ INSERT INTO instance_settings (id) VALUES (1);
 
 CREATE TABLE users (
     id                 uuid        PRIMARY KEY,
-    login_id           text        NOT NULL CHECK (login_id ~ '^[a-z0-9][a-z0-9._-]{3,31}$'),
+    -- A plain id or an e-mail address. Ids that come from a directory keep their own length, so
+    -- the minimum of four characters is enforced by the application, for local accounts only.
+    login_id           text        NOT NULL CHECK (login_id ~ '^[a-z0-9][a-z0-9._@+-]{0,253}$'),
+    -- Where notification mail goes; also signs in.
     email              text        CHECK (email = lower(email) AND char_length(email) <= 254),
     display_name       text        CHECK (char_length(display_name) BETWEEN 1 AND 50),
     -- File name of the uploaded profile image inside the storage directory, or null.
     avatar_key         text        CHECK (avatar_key ~ '^[0-9a-f-]{36}\.webp$'),
-    password_hash      text        NOT NULL,
-    role               text        NOT NULL CHECK (role IN ('ADMIN', 'MEMBER')),
+    -- Where the account's password is checked. Only local accounts have a password here.
+    auth_source        text        NOT NULL DEFAULT 'LOCAL' CHECK (auth_source IN ('LOCAL', 'LDAP', 'SSO')),
+    -- The provider's own identifier for the person (OIDC `sub`); null for local and LDAP accounts.
+    external_id        text,
+    password_hash      text,
+    -- Whether this person wants mail about the issues and projects they follow.
+    notify_email       boolean     NOT NULL DEFAULT true,
+    role              text        NOT NULL CHECK (role IN ('ADMIN', 'MEMBER')),
     status             text        NOT NULL CHECK (status IN ('ACTIVE', 'DISABLED')),
     locale             text        CHECK (locale IN ('ko', 'en')),
     timezone           text,
@@ -42,8 +52,11 @@ CREATE TABLE users (
     created_at         timestamptz NOT NULL DEFAULT now(),
     updated_at         timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT users_login_id_key UNIQUE (login_id),
-    CONSTRAINT users_email_key UNIQUE (email)
+    CONSTRAINT users_email_key UNIQUE (email),
+    CONSTRAINT users_password_hash_check CHECK ((auth_source = 'LOCAL') = (password_hash IS NOT NULL))
 );
+
+CREATE UNIQUE INDEX users_external_id_key ON users (auth_source, external_id) WHERE external_id IS NOT NULL;
 
 -- One row per signed-in browser. The cookie holds a random token; only its SHA-256 hash is stored.
 CREATE TABLE user_sessions (
@@ -72,6 +85,70 @@ CREATE TABLE audit_events (
 
 CREATE INDEX audit_events_occurred_at_idx ON audit_events (occurred_at);
 CREATE INDEX audit_events_actor_occurred_at_idx ON audit_events (actor_user_id, occurred_at);
+
+-- ---------------------------------------------------------------------------------------------
+-- Sign-in through an LDAP directory or a single sign-on provider (docs/features/M2b-ldap-and-sso.md)
+-- ---------------------------------------------------------------------------------------------
+
+-- One row each (id = 1), like instance_settings.
+CREATE TABLE ldap_settings (
+    id                     smallint    PRIMARY KEY CHECK (id = 1),
+    enabled                boolean     NOT NULL DEFAULT false,
+    -- ldap://host:389 or ldaps://host:636
+    url                    text        NOT NULL DEFAULT '',
+    start_tls              boolean     NOT NULL DEFAULT false,
+    -- The account used to look people up; empty for an anonymous search.
+    bind_dn                text        NOT NULL DEFAULT '',
+    bind_password          text        NOT NULL DEFAULT '',
+    base_dn                text        NOT NULL DEFAULT '',
+    -- {0} is replaced by what the person typed as their id.
+    user_filter            text        NOT NULL DEFAULT '(|(uid={0})(mail={0}))',
+    login_id_attribute     text        NOT NULL DEFAULT 'uid',
+    email_attribute        text        NOT NULL DEFAULT 'mail',
+    display_name_attribute text        NOT NULL DEFAULT 'cn',
+    -- Create the account at the first successful sign-in.
+    auto_provision         boolean     NOT NULL DEFAULT true,
+    updated_at             timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO ldap_settings (id) VALUES (1);
+
+CREATE TABLE sso_settings (
+    id             smallint    PRIMARY KEY CHECK (id = 1),
+    enabled        boolean     NOT NULL DEFAULT false,
+    -- Label of the button on the sign-in page.
+    display_name   text        NOT NULL DEFAULT 'SSO' CHECK (char_length(display_name) BETWEEN 1 AND 40),
+    issuer         text        NOT NULL DEFAULT '',
+    client_id      text        NOT NULL DEFAULT '',
+    client_secret  text        NOT NULL DEFAULT '',
+    scopes         text        NOT NULL DEFAULT 'openid profile email',
+    -- The claim that becomes the login id; `email` is used when it is missing.
+    login_id_claim text        NOT NULL DEFAULT 'preferred_username',
+    auto_provision boolean     NOT NULL DEFAULT true,
+    updated_at     timestamptz NOT NULL DEFAULT now(),
+    -- OIDC: everything is read from the issuer's configuration document.
+    -- OAUTH2: the addresses and the shape of the code exchange are spelled out below. Covers plain
+    -- OAuth 2.0 (token, then a user-info call) and in-house providers that answer the code exchange
+    -- with the person's profile.
+    protocol       text        NOT NULL DEFAULT 'OIDC' CHECK (protocol IN ('OIDC', 'OAUTH2')),
+    authorize_url  text        NOT NULL DEFAULT '',
+    token_url      text        NOT NULL DEFAULT '',
+    -- Empty: the answer of the code exchange is the profile.
+    userinfo_url   text        NOT NULL DEFAULT '',
+    -- How the client secret reaches the token address.
+    token_auth     text        NOT NULL DEFAULT 'BASIC' CHECK (token_auth IN ('BASIC', 'BEARER', 'BODY')),
+    token_format   text        NOT NULL DEFAULT 'FORM' CHECK (token_format IN ('FORM', 'JSON')),
+    -- Empty: the standard OAuth 2.0 parameters. Otherwise a body with {{placeholders}}.
+    token_body     text        NOT NULL DEFAULT '',
+    -- Where in the profile the values are; a dot goes into a nested object (kakao_account.email).
+    subject_field  text        NOT NULL DEFAULT 'sub',
+    email_field    text        NOT NULL DEFAULT 'email',
+    name_field     text        NOT NULL DEFAULT 'name',
+    -- How the button on the sign-in page looks.
+    button_style   text        NOT NULL DEFAULT 'DEFAULT' CHECK (button_style IN ('DEFAULT', 'NAVER_WORKS'))
+);
+
+INSERT INTO sso_settings (id) VALUES (1);
 
 -- ---------------------------------------------------------------------------------------------
 -- Projects
@@ -112,6 +189,17 @@ CREATE TABLE project_members (
 );
 
 CREATE INDEX project_members_user_id_idx ON project_members (user_id);
+
+-- People who follow a whole project: they are told about every change to its issues, the same
+-- way the subscribers of one issue are (docs/features/M7a-notification-channels.md, D-102).
+CREATE TABLE project_subscriptions (
+    project_id uuid        NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+    user_id    uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (project_id, user_id)
+);
+
+CREATE INDEX project_subscriptions_user_id_idx ON project_subscriptions (user_id);
 
 -- A short note on how the project is going, with a health value. The latest one is the project's health.
 CREATE TABLE project_updates (
@@ -229,7 +317,8 @@ CREATE TABLE issue_activities (
 CREATE INDEX issue_activities_issue_id_idx ON issue_activities (issue_id, seq);
 
 -- Who wants to hear about an issue. The author and the assignee are added automatically; anyone
--- who can see the issue may add or remove themselves. Notifications (mail, push) go to these people.
+-- who can see the issue may add or remove themselves. Notifications go to these people and to
+-- whoever follows the issue's project (project_subscriptions).
 CREATE TABLE issue_subscriptions (
     issue_id   uuid        NOT NULL REFERENCES issues (id) ON DELETE CASCADE,
     user_id    uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -238,6 +327,23 @@ CREATE TABLE issue_subscriptions (
 );
 
 CREATE INDEX issue_subscriptions_user_id_idx ON issue_subscriptions (user_id);
+
+-- Comments on issues (docs/features/M3-projects-and-issues.md "댓글"). The body is an editor
+-- document like an issue's; people tagged in it with @ are mention nodes inside `content`.
+CREATE TABLE issue_comments (
+    id         uuid        PRIMARY KEY,
+    issue_id   uuid        NOT NULL REFERENCES issues (id) ON DELETE CASCADE,
+    author_id  uuid        NOT NULL REFERENCES users (id),
+    content    jsonb       NOT NULL,
+    -- Plain text of `content`, for notifications and search.
+    body       text        NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    -- A deleted comment stays as a row and is never shown.
+    deleted_at timestamptz
+);
+
+CREATE INDEX issue_comments_issue_id_idx ON issue_comments (issue_id, created_at, id);
 
 -- Emoji reactions on an issue: one row per person and emoji.
 CREATE TABLE issue_reactions (
@@ -281,3 +387,67 @@ CREATE TABLE documents (
 CREATE INDEX documents_issue_id_idx ON documents (issue_id, created_at);
 CREATE INDEX documents_project_id_idx ON documents (project_id, created_at);
 CREATE INDEX documents_parent_id_idx ON documents (parent_id, created_at);
+
+-- ---------------------------------------------------------------------------------------------
+-- Notification channels: mail (SMTP), web push (Firebase Cloud Messaging) and outgoing API calls
+-- (webhooks). docs/features/M7a-notification-channels.md
+-- ---------------------------------------------------------------------------------------------
+
+-- One row (id = 1), like instance_settings. Passwords and keys are never returned by the API.
+CREATE TABLE notification_settings (
+    id                      smallint    PRIMARY KEY CHECK (id = 1),
+    smtp_enabled            boolean     NOT NULL DEFAULT false,
+    smtp_host               text        NOT NULL DEFAULT '',
+    smtp_port               integer     NOT NULL DEFAULT 587 CHECK (smtp_port BETWEEN 1 AND 65535),
+    smtp_security           text        NOT NULL DEFAULT 'STARTTLS' CHECK (smtp_security IN ('NONE', 'STARTTLS', 'SSL')),
+    smtp_username           text        NOT NULL DEFAULT '',
+    smtp_password           text        NOT NULL DEFAULT '',
+    smtp_from_address       text        NOT NULL DEFAULT '',
+    smtp_from_name          text        NOT NULL DEFAULT 'Flowbit',
+    push_enabled            boolean     NOT NULL DEFAULT false,
+    -- The service account key file (JSON) the server signs its FCM requests with.
+    fcm_service_account     text        NOT NULL DEFAULT '',
+    -- The web app's public configuration, handed to browsers so they can register for push.
+    fcm_api_key             text        NOT NULL DEFAULT '',
+    fcm_messaging_sender_id text        NOT NULL DEFAULT '',
+    fcm_app_id              text        NOT NULL DEFAULT '',
+    fcm_vapid_key           text        NOT NULL DEFAULT '',
+    updated_at              timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO notification_settings (id) VALUES (1);
+
+-- One row per browser that agreed to receive push notifications.
+CREATE TABLE push_tokens (
+    token        text        PRIMARY KEY CHECK (char_length(token) BETWEEN 1 AND 4096),
+    user_id      uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_agent   text,
+    created_at   timestamptz NOT NULL,
+    last_seen_at timestamptz NOT NULL
+);
+
+CREATE INDEX push_tokens_user_id_idx ON push_tokens (user_id);
+
+-- Outgoing API calls: each enabled row's address is called once for each person a change to an
+-- issue is told to (the subscribers of the issue and of its project).
+CREATE TABLE webhooks (
+    id              uuid        PRIMARY KEY,
+    name            text        NOT NULL CHECK (char_length(name) BETWEEN 1 AND 60),
+    enabled         boolean     NOT NULL DEFAULT true,
+    url             text        NOT NULL,
+    method          text        NOT NULL DEFAULT 'POST' CHECK (method IN ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')),
+    content_type    text        NOT NULL DEFAULT 'application/json',
+    -- A JSON object of header name to value, kept as text so the row maps onto a plain entity.
+    headers         text        NOT NULL DEFAULT '{}',
+    -- Empty means the standard JSON payload; otherwise text with {{placeholders}}.
+    body_template   text        NOT NULL DEFAULT '',
+    -- When set, the body is signed: X-Flowbit-Signature: sha256=<hmac>.
+    signing_secret  text        NOT NULL DEFAULT '',
+    -- Comma-separated IssueActivityType names; empty means every kind of change.
+    event_types     text        NOT NULL DEFAULT '',
+    last_status     integer,
+    last_error      text,
+    last_attempt_at timestamptz,
+    created_at      timestamptz NOT NULL,
+    updated_at      timestamptz NOT NULL
+);

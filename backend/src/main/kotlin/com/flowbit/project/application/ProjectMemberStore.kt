@@ -39,6 +39,8 @@ data class ProjectSummaryRow(
     /** Health of the latest project update, and when it was posted; null before the first update. */
     val health: ProjectHealth?,
     val healthUpdatedAt: Instant?,
+    /** Whether the reader follows the project: is told about every change to its issues. */
+    val subscribed: Boolean,
 )
 
 data class ProjectPerson(
@@ -116,6 +118,33 @@ class ProjectMemberStore(
     ) {
         databaseClient
             .sql("delete from project_members where project_id = :projectId and user_id = :userId")
+            .bind("projectId", projectId)
+            .bind("userId", userId)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
+    /** Following twice is the same as once. */
+    suspend fun subscribe(
+        projectId: UUID,
+        userId: UUID,
+    ) {
+        databaseClient
+            .sql("insert into project_subscriptions (project_id, user_id) values (:projectId, :userId) on conflict do nothing")
+            .bind("projectId", projectId)
+            .bind("userId", userId)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
+    suspend fun unsubscribe(
+        projectId: UUID,
+        userId: UUID,
+    ) {
+        databaseClient
+            .sql("delete from project_subscriptions where project_id = :projectId and user_id = :userId")
             .bind("projectId", projectId)
             .bind("userId", userId)
             .fetch()
@@ -238,7 +267,8 @@ class ProjectMemberStore(
                                order by ms.target_date nulls last, ms.created_at
                                limit 1
                            ) as current_milestone,
-                           latest.health, latest.created_at as health_updated_at
+                           latest.health, latest.created_at as health_updated_at,
+                           exists (select 1 from project_subscriptions ps where ps.project_id = p.id and ps.user_id = :userId) as subscribed
                     from projects p
                     left join lateral (
                         select u.health, u.created_at from project_updates u
@@ -283,6 +313,7 @@ class ProjectMemberStore(
                     currentMilestone = row.get("current_milestone", String::class.java),
                     health = row.get("health", String::class.java)?.let(ProjectHealth::valueOf),
                     healthUpdatedAt = row.get("health_updated_at", OffsetDateTime::class.java)?.toInstant(),
+                    subscribed = checkNotNull(row.get("subscribed", Boolean::class.javaObjectType)),
                 )
             }.all()
             .collectList()

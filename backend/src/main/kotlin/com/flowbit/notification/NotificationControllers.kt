@@ -87,7 +87,6 @@ data class WebhookResponse(
     val bodyTemplate: String,
     val signingSecretSet: Boolean,
     val eventTypes: List<String>,
-    val perRecipient: Boolean,
     val lastStatus: Int?,
     val lastError: String?,
     val lastAttemptAt: Instant?,
@@ -103,11 +102,10 @@ data class WebhookRequest(
     val bodyTemplate: String = "",
     val signingSecret: String? = null,
     val eventTypes: List<String> = emptyList(),
-    val perRecipient: Boolean = false,
     /** Only read by the test endpoint: the saved webhook whose signing secret to use. */
     val id: UUID? = null,
 ) {
-    fun toInput() = WebhookInput(name, enabled, url, method, contentType, headers, bodyTemplate, signingSecret, eventTypes, perRecipient)
+    fun toInput() = WebhookInput(name, enabled, url, method, contentType, headers, bodyTemplate, signingSecret, eventTypes)
 }
 
 data class TestResponse(
@@ -190,7 +188,7 @@ class AdminNotificationController(
         service.deleteWebhook(id)
     }
 
-    /** Calls the address in the body once with a made-up issue change, without saving anything. Always 200. */
+    /** Calls the address in the body once with a made-up issue change told to the caller, without saving anything. Always 200. */
     @PostMapping("/webhooks/test")
     suspend fun testWebhook(
         @AuthenticationPrincipal actor: AuthenticatedUser,
@@ -208,9 +206,8 @@ class AdminNotificationController(
                 events = listOf(IssueNotification.Event("STATUS_CHANGED", mapOf("from" to "BACKLOG", "to" to "IN_PROGRESS"))),
                 recipientIds = emptyList(),
             )
-        // A per-recipient webhook is tried on the administrator pressing the button.
-        val recipient =
-            if (webhook.perRecipient) WebhookRecipient(actor.id, actor.loginId, actor.loginId, service.mine(actor.id).email) else null
+        // Tried on the administrator pressing the button.
+        val recipient = WebhookRecipient(actor.id, actor.loginId, actor.loginId, service.mine(actor.id).email)
         val delivery = webhookSender.deliver(webhook, sample, recipient, retry = false)
         return if (delivery.ok) {
             TestResponse(true, "보냈습니다. 응답: HTTP ${delivery.status}")
@@ -256,7 +253,6 @@ class AdminNotificationController(
             bodyTemplate = webhook.bodyTemplate,
             signingSecretSet = webhook.signingSecret.isNotEmpty(),
             eventTypes = webhook.eventTypeSet.toList(),
-            perRecipient = webhook.perRecipient,
             lastStatus = webhook.lastStatus,
             lastError = webhook.lastError,
             lastAttemptAt = webhook.lastAttemptAt,

@@ -150,13 +150,14 @@ class NotificationsIntegrationTest : IntegrationTest() {
     // --- API 알림(웹훅) ---------------------------------------------------------------------------
 
     @Test
-    fun `API 알림은 구독자가 없어도 모든 이슈 변경을 표준 JSON 으로 보내고 서명한다`() {
+    fun `API 알림은 알림을 받는 사람마다 표준 JSON 으로 보내고 서명한다`() {
         val created = admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/standard", signingSecret = "hook-secret"))
         assertEquals(201, created.status)
         assertEquals(true, created.json()["signingSecretSet"])
         assertFalse(created.body.contains("hook-secret"))
 
-        admin.post("/api/v1/issues", """{"title":"배포 준비"}""")
+        // kim follows the issue as its assignee.
+        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeId":"$kimId"}""")
 
         val request = awaitReceived("/standard")
         val payload = JsonMapper.builder().build().readTree(request.body)
@@ -172,6 +173,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
                 .get("type")
                 .asString(),
         )
+        assertEquals("kimjm", payload.get("recipient").get("loginId").asString())
         assertEquals("issue.created", request.headers["x-flowbit-event"])
         assertEquals("Bearer abc", request.headers["authorization"])
         val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec("hook-secret".toByteArray(), "HmacSHA256")) }
@@ -186,7 +188,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
             webhookJson(path = "/chat", bodyTemplate = """{\"text\":\"{{text}}\",\"key\":\"{{ issue.key }}\",\"raw\":{{payload}},\"none\":\"{{nope}}\"}"""),
         )
 
-        admin.post("/api/v1/issues", """{"title":"따옴표 \" 와 역슬래시 \\"}""")
+        admin.post("/api/v1/issues", """{"title":"따옴표 \" 와 역슬래시 \\","assigneeId":"$kimId"}""")
 
         val body = JsonMapper.builder().build().readTree(awaitReceived("/chat").body)
         assertTrue(body.get("text").asString().startsWith("[FB-1] 따옴표 \" 와 역슬래시 \\ — "))
@@ -199,7 +201,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
     fun `고른 변경 종류에만 보내고 꺼 둔 것은 보내지 않는다`() {
         admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/status-only", eventTypes = """["STATUS_CHANGED"]"""))
         admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/off", enabled = false))
-        admin.post("/api/v1/issues", """{"title":"배포 준비"}""")
+        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeId":"$kimId"}""")
 
         admin.patch("/api/v1/issues/1", """{"status":"DONE"}""")
 
@@ -220,10 +222,9 @@ class NotificationsIntegrationTest : IntegrationTest() {
                 webhookJson(
                     url = "$outside/works/send?botId=42&email={{recipient.email}}&message={{text}}",
                     method = "GET",
-                ).replace("\"eventTypes\"", "\"perRecipient\":true,\"eventTypes\""),
+                ),
             )
         assertEquals(201, created.status)
-        assertEquals(true, created.json()["perRecipient"])
         kim.post("/api/v1/issues", """{"title":"결제 & 환불 #1","assigneeId":"$leeId"}""")
 
         admin.patch("/api/v1/issues/1", """{"status":"DONE"}""")
@@ -241,11 +242,45 @@ class NotificationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `프로젝트를 구독하면 그 프로젝트의 이슈 변경을 받고 아무도 구독하지 않은 변경은 보내지 않는다`() {
+        admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/followed"))
+        val pay = admin.post("/api/v1/projects", """{"name":"결제"}""").json()["id"]
+        val search = admin.post("/api/v1/projects", """{"name":"검색"}""").json()["id"]
+        admin.put("/api/v1/projects/$pay/members/$kimId", """{"role":"VIEWER"}""")
+        // Not a member: cannot follow what they cannot enter.
+        assertEquals(404, kim.put("/api/v1/projects/$search/subscription", "{}").status)
+        assertEquals(false, kim.get("/api/v1/projects/$pay").json()["subscribed"])
+
+        assertEquals(true, kim.put("/api/v1/projects/$pay/subscription", "{}").json()["subscribed"])
+        assertEquals(mapOf(pay to true, search to false), kim.get("/api/v1/projects").jsonList().associate { it["id"] to it["subscribed"] })
+        // Nobody follows the other project or an issue on its own.
+        admin.post("/api/v1/projects/$search/issues", """{"title":"검색 색인"}""")
+        admin.post("/api/v1/issues", """{"title":"혼자 쓰는 메모"}""")
+        admin.post("/api/v1/projects/$pay/issues", """{"title":"환불 처리"}""")
+
+        val request = awaitReceived("/followed")
+        Thread.sleep(300)
+        val payload = JsonMapper.builder().build().readTree(request.body)
+        assertEquals("FB-3", payload.get("issue").get("key").asString())
+        assertEquals("kimjm", payload.get("recipient").get("loginId").asString())
+        assertEquals(1, received.count { it.path == "/followed" })
+
+        // Someone taken off the project is no longer told, even though they never stopped following.
+        admin.delete("/api/v1/projects/$pay/members/$kimId")
+        admin.patch("/api/v1/issues/3", """{"status":"DONE"}""")
+        admin.put("/api/v1/projects/$pay/members/$kimId", """{"role":"VIEWER"}""")
+        assertEquals(false, kim.delete("/api/v1/projects/$pay/subscription").json()["subscribed"])
+        admin.patch("/api/v1/issues/3", """{"priority":"URGENT"}""")
+        Thread.sleep(500)
+        assertEquals(1, received.count { it.path == "/followed" })
+    }
+
+    @Test
     fun `잠깐 실패한 주소는 다시 시도하고 결과를 남긴다`() {
         failuresLeft = 1
         admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/flaky"))
 
-        admin.post("/api/v1/issues", """{"title":"배포 준비"}""")
+        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeId":"$kimId"}""")
 
         awaitTrue { count("select count(*) from webhooks where last_status = 200") == 1 }
         assertEquals(2, received.count { it.path == "/flaky" })

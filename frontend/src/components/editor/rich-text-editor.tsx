@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { BlockDragHandle } from "./block-drag-handle";
 import { fixedOrigin } from "./fixed-origin";
-import { Mention, type MentionPerson } from "./mention";
+import { Mention, MentionPeopleContext, type MentionPerson } from "./mention";
 import { PageLink } from "./page-link";
 import { tableExtensions } from "./table-extensions";
 import { TableToolbar } from "./table-toolbar";
@@ -115,7 +115,18 @@ function stableJson(value: unknown): string {
 }
 
 /** The menu at the cursor: blocks after "/", people after "@". */
-type SlashState = { kind: "slash" | "mention"; from: number; to: number; query: string; top: number; left: number };
+type SlashState = {
+  kind: "slash" | "mention";
+  from: number;
+  to: number;
+  query: string;
+  /** The edge the menu hangs from: its top, or its bottom when `above`. */
+  top: number;
+  left: number;
+  /** No room under the cursor: the menu grows upwards from the line instead. */
+  above: boolean;
+  maxHeight: number;
+};
 
 const MAX_MENTION_ITEMS = 8;
 
@@ -175,8 +186,10 @@ function readSlash(editor: Editor, probe: HTMLElement | null, withMentions: bool
   const match = slashMatch ?? (withMentions && parent !== "codeBlock" ? /(?:^|\s)@([^\s@]*)$/.exec(before) : null);
   if (!match) return null;
   const coords = editor.view.coordsAtPos($from.pos);
-  // Open below the line; flip above it when there is no room left under the cursor.
-  const top = coords.bottom + MENU_HEIGHT + 8 > window.innerHeight ? Math.max(8, coords.top - MENU_HEIGHT - 6) : coords.bottom + 6;
+  // Open below the line; flip above it when there is no room left under the cursor. Above, the
+  // menu is placed by its bottom edge, so a short list (two people) still sits next to the line.
+  const above = coords.bottom + MENU_HEIGHT + 8 > window.innerHeight;
+  const top = above ? coords.top - 6 : coords.bottom + 6;
   const origin = fixedOrigin(probe);
   return {
     kind: slashMatch ? "slash" : "mention",
@@ -185,6 +198,8 @@ function readSlash(editor: Editor, probe: HTMLElement | null, withMentions: bool
     query: match[1],
     top: top - origin.y,
     left: Math.max(8, coords.left) - origin.x,
+    above,
+    maxHeight: above ? Math.max(120, Math.min(MENU_HEIGHT, top - 8)) : MENU_HEIGHT,
   };
 }
 
@@ -254,6 +269,8 @@ export function RichTextEditor({
     onChangeRef.current = onChange;
   }, [onChange]);
 
+  // Tags in the text look their person up here, for the name on the chip and the card behind it.
+  const mentionPeople = useMemo(() => new Map((mentionables ?? []).map((person) => [person.id, person])), [mentionables]);
   const mentionablesRef = useRef(mentionables);
   useEffect(() => {
     mentionablesRef.current = mentionables;
@@ -496,7 +513,9 @@ export function RichTextEditor({
         interactedRef.current = true;
       }}
     >
-      <EditorContent editor={editor} />
+      <MentionPeopleContext value={mentionPeople}>
+        <EditorContent editor={editor} />
+      </MentionPeopleContext>
       {/* Marks the origin of fixed positioning for the menu and the table toolbar (see fixedOrigin). */}
       <span
         ref={(node) => {
@@ -572,7 +591,12 @@ export function RichTextEditor({
         <div
           role="listbox"
           aria-label={slash.kind === "mention" ? m.mentionMenu : m.slashMenu}
-          style={{ top: slash.top, left: slash.left, maxHeight: MENU_HEIGHT }}
+          style={{
+            top: slash.top,
+            left: slash.left,
+            maxHeight: slash.maxHeight,
+            transform: slash.above ? "translateY(-100%)" : undefined,
+          }}
           className="fixed z-50 flex w-56 flex-col overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
         >
           {items.map((item, index) => (

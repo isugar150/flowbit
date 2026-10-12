@@ -772,7 +772,7 @@ class IssueService(
     private suspend fun recipients(
         issueId: UUID,
         actor: AuthenticatedUser,
-    ): List<UUID> = activities.subscribers(issueId).map { it.id }.filter { it != actor.id }
+    ): List<UUID> = activities.recipientIds(issueId).filter { it != actor.id }
 
     /** The start of an issue's span: none without a due date, and never after it. */
     private fun spanStart(

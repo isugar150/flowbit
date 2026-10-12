@@ -83,7 +83,7 @@ interface PushTokenRepository : CoroutineCrudRepository<PushToken, String> {
     suspend fun deleteByToken(token: String): Int
 }
 
-/** An address that is called whenever an issue changes. */
+/** An address that is called once for each person a change to an issue is told to. */
 @Table("webhooks")
 class Webhook(
     @Id
@@ -100,8 +100,6 @@ class Webhook(
     var signingSecret: String,
     /** Comma-separated IssueActivityType names; empty means every kind of change. */
     var eventTypes: String,
-    /** Call the address once for each subscriber instead of once for the change. */
-    var perRecipient: Boolean,
     var lastStatus: Int?,
     var lastError: String?,
     var lastAttemptAt: Instant?,

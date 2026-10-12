@@ -10,6 +10,13 @@ export function updateProject(input: { id: string; changes: ProjectChanges }): P
   return apiFetch<Project>(`/api/v1/projects/${input.id}`, { method: "PATCH", body: input.changes });
 }
 
+/** Follow the project (be told about every change to its issues) or stop. Anyone who may enter it. */
+export function setProjectSubscribed(input: { id: string; subscribed: boolean }): Promise<Project> {
+  return apiFetch<Project>(`/api/v1/projects/${input.id}/subscription`, {
+    method: input.subscribed ? "PUT" : "DELETE",
+  });
+}
+
 export function putProjectMember(input: { id: string; userId: string; role: ProjectRole }): Promise<ProjectMember[]> {
   return apiFetch<ProjectMember[]>(`/api/v1/projects/${input.id}/members/${input.userId}`, {
     method: "PUT",

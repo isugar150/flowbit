@@ -15,6 +15,7 @@
 - **실시간 동기화(WebSocket)와 "보는 사람" 아바타가 구현됐다** (D-044, [02-architecture.md](02-architecture.md) "실시간 동기화"). 2026-10-13 에 에이전트가 두 계정으로 일부를 확인했다(아래 작업 기록). 편집 중인 글·커서 표시는 아직 아무도 확인하지 않았다.
 - **LDAP 연동, SSO(OpenID Connect) 연동, 이메일 아이디가 구현됐다** ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md), D-087~D-090). 관리자 설정의 "로그인 연동" 탭. 계정이 없으면 처음 로그인할 때 가입된다. 백엔드는 인메모리 LDAP·가짜 OIDC 서버로 테스트했고, **화면과 실제 LDAP·SSO 서버로는 아무도 확인하지 않았다.**
 - **알림 통로(메일 SMTP, Firebase 웹 푸시, API 알림)가 구현됐다** ([features/M7a-notification-channels.md](features/M7a-notification-channels.md), D-091~D-093). 관리자 설정의 "알림" 탭, 내 설정의 "알림". 백엔드는 가짜 SMTP·FCM·웹훅 서버로 테스트했고, **화면과 실제 서비스로는 확인하지 않았다.**
+- **알림은 구독한 사람에게만 간다** (D-102, 2026-10-13). 받는 사람 = 이슈 구독자 + 그 이슈의 프로젝트 구독자. 프로젝트 개요에 "구독" 버튼이 생겼고(`project_subscriptions`, `V6`), API 알림은 항상 받는 사람마다 한 번씩 부른다(전체 변경을 한 주소로 보내는 방식은 없앴다). **화면은 아무도 확인하지 않았다.**
 - 백엔드 테스트는 2026-10-12 기준 165개가 통과한다(`FLOWBIT_BUILD_DIR=build-check ./gradlew check`). 마이그레이션은 `V1`(스키마), `V2`(외부 로그인), `V3`(알림), `V4`(SSO 방식, API 알림 대상)이다. 위의 "96개"는 그 전 숫자다.
 - 개발 DB(`flowbit`)에는 사용자가 만든 관리자 계정이 있다. 지우지 않는다.
 
@@ -78,7 +79,8 @@
 
 - [x] 백엔드: `V3`, 메일·웹 푸시·API 알림 통로, 설정·내 알림 API, 통합 테스트 14개
 - [x] 프론트엔드: `/admin/notifications`, 내 설정의 알림, 서비스 워커
-- [ ] 화면 확인, 실제 SMTP·Firebase·메신저 주소로 확인
+- [x] 프로젝트 구독, API 알림을 받는 사람마다로만 (D-102, `V6`)
+- [ ] 화면 확인(프로젝트 개요의 구독 버튼 포함), 실제 SMTP·Firebase·메신저 주소로 확인
 
 ### M3. 프로젝트와 이슈
 
@@ -151,7 +153,7 @@
 
 - LDAP·SSO: (아이디가 같은 계정은 전환하기로 정해졌다, D-097) 이메일만 같은 계정도 이을지, LDAP 그룹으로 역할을 정할지, 디렉터리에서 사라진 사람을 자동으로 비활성화할지, SAML 이 필요한지. ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) "확인이 필요한 것")
 - hrm `/api/works/send` 에 쓸 만료되지 않는 토큰을 받을 수 있는지(문서에 없다). 없으면 API 알림의 고정 헤더로는 못 쓴다.
-- 알림: 첨부 파일·문서 변경도 알릴지(지금은 안 간다), 프로젝트에서 빠진 사람의 구독을 정리할지, 이메일 주소 확인 절차와 수신함이 필요한지. ([features/M7a-notification-channels.md](features/M7a-notification-channels.md) "확인이 필요한 것")
+- 알림: 첨부 파일·문서 변경도 알릴지(지금은 안 간다), 프로젝트에서 빠진 사람의 이슈 구독을 정리할지, 이메일 주소 확인 절차와 수신함이 필요한지, 프로젝트 구독을 자동으로 걸지(만든 사람·리드·새 구성원)와 구독자 목록을 보일지, 사람마다 받을 변경 종류를 고르게 할지. ([features/M7a-notification-channels.md](features/M7a-notification-channels.md) "확인이 필요한 것")
 - DB 에 평문으로 둔 비밀 값(LDAP 검색 계정 비밀번호, SSO 시크릿, SMTP 비밀번호, Firebase 서비스 계정 키, 웹훅 서명 값·헤더)을 암호화할지. 하려면 암호화 키를 환경 변수로 받아야 한다.
 
 ## 작업 기록
@@ -177,18 +179,39 @@
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
 
+### 2026-10-13 — 알림을 이슈별·프로젝트별 구독자에게만
+
+- 사용자 지시: 알림을 모든 사람에게 보내지 말고 이슈별·프로젝트별로 따로 보낼 것. 확인한 답: "프로젝트별"은 **사용자가 프로젝트를 구독**하는 것, 구독과 무관하게 전체 변경을 한 주소로 보내는 API 알림은 **없앤다** (D-102, [features/M7a-notification-channels.md](features/M7a-notification-channels.md) "범위").
+- 한 일:
+  - 백엔드: `V6__project_subscriptions.sql`(`project_subscriptions` 추가, `webhooks.per_recipient` 삭제). 받는 사람 계산을 `IssueActivityStore.recipientIds`(이슈 구독자 + 프로젝트 구독자 중 지금 들어갈 수 있는 사람)로. `PUT/DELETE /api/v1/projects/{id}/subscription`, 프로젝트 응답의 `subscribed`. `WebhookNotificationChannel` 은 항상 받는 사람마다 부른다. 표준 JSON 에서 `recipientIds` 를 빼고 `recipient` 를 항상 넣는다. `IssueAnnouncer` 는 받는 사람이 없으면 알림을 넘기지 않는다.
+  - 프런트: 프로젝트 개요 속성 카드의 "구독" 버튼(`project-subscribe-button.tsx`), API 알림 폼에서 "받는 사람마다" 체크와 Slack·Discord·Teams 예시 삭제, 안내 문구.
+- **백엔드를 다시 시작하면 `V6` 가 적용된다. 그때 "받는 사람마다"를 끄고 만들어 둔 API 알림 항목은 꺼진다**(`enabled = false`). 채널 웹훅 주소를 그대로 다시 켜면 같은 글이 받는 사람 수만큼 올라가므로, 한 사람에게 보내는 형태(`{{recipient.email}}` 등)로 고친 뒤 켠다.
+- 확인한 범위: `./gradlew check` 통과(170개, 실패 0. 프로젝트 구독 테스트 1개 추가, 웹훅 테스트 4개를 받는 사람이 있는 상황으로 고침), 프런트 typecheck·eslint. `next build` 는 하지 않았다. **화면은 보지 않았다**(다른 세션이 같은 저장소와 개발 서버를 쓰고 있었고, 에이전트는 개발 DB 계정으로 로그인할 수 없다).
+- 알아둘 것: 같은 시간에 다른 세션이 `build-check` 폴더로 빌드하고 있어 첫 실행이 `NoClassDefFoundError` 등으로 66개 실패했다(코드 문제가 아니다). 세션마다 `FLOWBIT_BUILD_DIR` 을 다른 폴더로 준다.
+- 화면에서 먼저 볼 것: ① 속성 카드 제목 옆 구독 버튼의 자리와 좁은 화면 ② 누른 뒤 "구독 취소"로 바뀌는지 ③ 관리자 알림 화면의 API 알림 폼.
+- 정하지 않은 것: 프로젝트 구독을 자동으로 걸지, 구독자 목록 표시, 사람마다 받을 변경 종류 고르기, 채널로 전체 흐름 보내기(필요하면 "프로젝트를 지정한 API 알림"으로).
+
 ### 2026-10-13 — 이슈 댓글과 `@` 태그
 
 - 사용자 지시: ① 이슈에 대한 코멘트 기능. ② 태그 기능도 필요하고, 태그하면 그 사용자에게 등록된 알림 수단 전부로 보낼 것. ③ 에디터에도 멘션을 넣을 것. (D-101, [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "지금 구현된 범위"의 댓글·`@` 태그)
 - 한 일:
   - 백엔드: `V5__issue_comments.sql`, `IssueCommentStore`(`issue/application/IssueComments.kt`), `IssueService.addComment/updateComment/removeComment/tag`, `POST /api/v1/issues/{번호}/comments`, `PATCH/DELETE /api/v1/comments/{id}`, 활동 응답의 `comments`. `RichText` 가 `mention` 블록을 받고 태그된 사람 id 를 돌려준다(`RichTextDocument.mentions`, `mentionsIn`). 알림 종류 `COMMENT_ADDED`·`MENTIONED`(활동 기록에는 쌓지 않는다), `IssueAnnouncer.commented`.
-  - 프런트: `components/editor/mention.ts`, `RichTextEditor` 의 `mentionables`(`@` 메뉴), `features/issues/components/issue-comments.tsx`(입력 칸, 댓글 한 건), `issue-activity.tsx` 가 활동과 댓글을 시간순으로 섞음. 이슈 본문과 새 이슈 창에도 `@`. API 알림의 "보낼 변경"에 댓글·본문 태그.
+  - 프런트: `components/editor/mention.tsx`, `RichTextEditor` 의 `mentionables`(`@` 메뉴), `features/issues/components/issue-comments.tsx`(입력 칸, 댓글 한 건), `issue-activity.tsx` 가 활동과 댓글을 시간순으로 섞음. 이슈 본문과 새 이슈 창에도 `@`. API 알림의 "보낼 변경"에 댓글·본문 태그.
 - 태그 알림의 방식: 태그된 사람을 그 이슈의 **구독자로 만든다.** 따로 보내는 경로는 없고, 구독자에게 가는 알림이 그 사람의 메일·푸시·"받는 사람마다" API 알림으로 간다. 그래서 태그된 뒤의 다른 변경도 계속 받는다(구독 취소로 끈다).
 - 확인한 범위: `FLOWBIT_BUILD_DIR=build-check ./gradlew check`(169개 통과: 댓글 권한·고치기·지우기, 태그하면 구독, 삭제된 이슈, 태그된 사람에게 메일 4개 추가), 프런트 typecheck·eslint. `next build` 는 하지 않았다(개발 서버가 떠 있었다). **화면은 보지 않았다**(같은 시간에 다른 세션이 개발 서버로 실시간을 시험하고 있었고, 에이전트는 개발 DB 계정으로 로그인할 수 없다).
 - **백엔드를 다시 시작하면 `V5` 가 적용된다.** 이미 적용됐을 수 있으니 `V5` 파일은 고치지 않는다(바꿀 것은 `V6` 으로).
 - 화면에서 먼저 볼 것: ① `@` 메뉴의 위치와 한글 이름 찾기(조합 중 입력), 대화상자 안에서의 위치 ② 댓글 입력 칸의 `Ctrl/⌘+Enter`(편집기의 줄바꿈보다 먼저 잡히는지) ③ 댓글이 여러 개일 때 읽기 전용 편집기가 댓글마다 하나씩 뜨는 것의 속도 ④ 댓글 고치기·취소·두 번 눌러 삭제 ⑤ 상대 화면에 댓글이 실시간으로 뜨는지 ⑥ 다크 모드의 태그 색.
 - 같은 날 고친 버그(사용자 지적): 이슈 옆 패널에서 라벨을 체크하면 라벨 목록이 창 왼쪽 위로 튀었다가 돌아왔다. 저장하는 동안 "+" 버튼이 `disabled` 가 되고 `disabled:hidden` 으로 숨겨져 목록의 기준점이 사라진 것이다. 목록이 열려 있는 동안에는 숨기지 않게 했다(`label-chip.tsx`). eslint 만 확인, 화면은 보지 않았다.
+- 같은 날 고친 버그(사용자 지적): 화면 아래쪽(댓글 입력 칸)에서 `@` 메뉴가 커서에서 한참 위에 떴다. 위로 뒤집을 때 메뉴의 최대 높이(320px)만큼 올려 윗변을 놓았기 때문에, 두 줄짜리 목록은 커서와 250px 떨어졌다. 뒤집으면 아랫변을 줄 바로 위에 붙이게 했다(`readSlash` 의 `above`, `translateY(-100%)`). `/` 메뉴도 항목이 적게 걸러졌을 때 같은 문제가 있었다. typecheck·eslint 만 확인.
+- 같은 날 바꾼 것(사용자 지시): 태그가 글자(`@이름`)로만 보이던 것을 **칩 모양**으로, 마우스를 올리면 **프로필 사진·이름·아이디 카드**가 뜨게. `mention.ts` → `mention.tsx`(React 노드 뷰 + `Tooltip` + `Person`), `MentionPerson.avatarUrl`. 처음에 `globals.css` 에 둔 `.mention` 스타일은 떠 있는 개발 서버에 실리지 않아 글자로만 보였던 것으로 보인다(전에도 같은 일이 있었다). 지웠다. typecheck·eslint 만 확인.
 - 정하지 않은 것: 프로젝트 개요·문서 안의 태그(알릴 종류가 없어 `@` 메뉴를 켜지 않았다), 태그만 받고 구독은 안 하는 선택, 댓글 스레드·이모지.
+
+### 2026-10-13 — 서버가 바로 종료되게
+
+- 사용자 지시: 종료 신호를 보내면 "Commencing graceful shutdown. Waiting for active requests to complete" 에서 멈춘다. 바로 종료되게 할 것.
+- 원인: 열린 실시간 WebSocket 연결이 끝나지 않는 요청이라 graceful shutdown 이 제한 시간(30초)까지 기다렸다.
+- 한 일: `application.yml` 에 `server.shutdown: immediate` (D-103, [02-architecture.md](02-architecture.md) "실시간 동기화").
+- 확인한 범위: **실행해 보지 않았다.** 백엔드는 사용자가 IDE 로 띄우고 있어 에이전트가 다시 시작하지 않았다. 다시 시작한 뒤 종료해 보면 된다.
 
 ### 2026-10-13 — 실시간을 두 계정으로 확인 (코드 변경 없음)
 

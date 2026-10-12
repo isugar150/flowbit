@@ -21,7 +21,7 @@ import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 
-/** A workspace-wide label that issues can carry, such as "버그" (V10__issue_labels.sql). */
+/** A workspace-wide label that issues can carry, such as "버그" (`labels`, `issue_labels`). */
 @Table("labels")
 class Label(
     @Id

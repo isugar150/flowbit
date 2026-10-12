@@ -25,7 +25,7 @@ data class CommentView(
     val canDelete: Boolean = false,
 )
 
-/** Comments on issues (V5__issue_comments.sql). A deleted comment stays as a row and is never read. */
+/** Comments on issues (`issue_comments`). A deleted comment stays as a row and is never read. */
 @Component
 class IssueCommentStore(
     private val databaseClient: DatabaseClient,

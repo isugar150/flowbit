@@ -325,7 +325,7 @@ data class CreateDocumentRequest(
     val title: String? = null,
 )
 
-/** Tells whoever shows an issue, or a list it is in, that it changed; and its subscribers through the notification channels. */
+/** Tells whoever shows an issue, or a list it is in, that it changed; and whoever follows it or its project through the notification channels. */
 @Component
 class IssueAnnouncer(
     private val issueService: IssueService,
@@ -348,8 +348,8 @@ class IssueAnnouncer(
         change: IssueChange,
     ) {
         touched(user, change.issue.number)
-        // Webhooks hear about every change; mail and push only reach the subscribers, if there are any.
-        if (change.events.isEmpty()) return
+        // Every channel only reaches the people who follow the issue or its project.
+        if (change.events.isEmpty() || change.recipientIds.isEmpty()) return
         notifications.dispatch(
             IssueNotification(
                 issueKey = change.issue.key,

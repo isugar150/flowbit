@@ -26,6 +26,9 @@ server:
   port: ${SERVER_PORT:8080}
   # The backend is only reached through the Next.js server, which sets X-Forwarded-* headers.
   forward-headers-strategy: native
+  # Stop at once. Graceful shutdown (the default) waits for open requests, and the realtime
+  # WebSocket connections never finish, so it sat there for the whole 30 second timeout.
+  shutdown: immediate
 
 flowbit:
   # The address people open Flowbit at. Used in the single sign-on redirect URI and in the links

@@ -104,6 +104,7 @@ B 의 브라우저 ◀── WebSocket {"type":"changed","topic":"project:FLOW"}
 - 서버 구현: WebFlux `WebSocketHandler` + 프로세스 안의 이벤트 버스(Reactor `Sinks`, `realtime/RealtimeHub.kt`). **Sink 에는 한 스레드(`realtime-hub`)가 차례로만 신호를 넣는다.** 여러 요청 스레드나 다른 신호를 처리하는 도중(연결이 닫히며 `leave` 가 불릴 때)에 직접 넣으면 Reactor 가 "serially" 오류를 내고 그 연결이 끊긴다(실제로 겪었다. `RealtimeIntegrationTest` 가 지킨다). 인스턴스가 하나이므로 이것으로 충분하다. 여러 인스턴스로 늘릴 때는 PostgreSQL `LISTEN/NOTIFY` 로 인스턴스 사이에 이벤트를 전달한다.
 - 프런트엔드: `features/realtime/realtime-provider.tsx`(연결 하나, `RealtimeScope`, `useViewers`), `features/realtime/components/presence-avatars.tsx`. `RealtimeProvider` 는 앱 틀(`app-shell.tsx`)에 있다. 새 화면이 실시간으로 갱신되어야 하면 그 화면에 `<RealtimeScope topics=[...] presence="..." />` 를 둔다.
 - **Next.js rewrite 와 WebSocket** (확인함): `next dev`/`next start` 모두 `/api` rewrite 로 WebSocket 업그레이드를 백엔드에 넘기고 `x-forwarded-host` 를 붙인다(`next/dist/server/lib/router-server.js` 의 `upgradeHandler`). 단, 운영 모드의 프록시는 30초 동안 오가는 것이 없으면 끊으므로 서버가 20초마다 `ping` 을 보낸다. 앞에 리버스 프록시(nginx 등)를 두면 `/api/v1/realtime` 에 `Upgrade`/`Connection` 헤더를 넘기도록 설정해야 한다.
+- 서버 종료: `server.shutdown: immediate` (D-103). 열린 WebSocket 연결은 끝나지 않는 요청이라, 기본값(graceful)으로는 종료 신호를 받고도 30초를 기다렸다. 서버가 내려가면 브라우저는 위의 "끊김" 규칙대로 다시 붙는다.
 - 알려진 한계: 구독할 때만 권한을 확인한다. 연결 중에 프로젝트에서 내보내진 사람은 다시 연결하거나 화면을 옮길 때까지 "바뀌었다"는 알림(내용 없음)과 보는 사람 목록을 계속 받는다.
 
 ## 외부 로그인 (LDAP, SSO)
@@ -128,7 +129,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 ```
 
 - `notification/` 패키지: `Notifications.kt`(`IssueNotification`, `NotificationChannel`, `NotificationDispatcher`), `NotificationText.kt`(세 통로가 함께 쓰는 문구), `MailChannel.kt`, `PushChannel.kt`, `WebhookChannel.kt`, `NotificationSettingsService.kt`, `NotificationControllers.kt`, `NotificationData.kt`(엔티티).
-- **받는 사람** = 그 이슈의 구독자에서 바꾼 사람 본인을 뺀 것. 서비스가 트랜잭션 안에서 계산해 `IssueChange.recipientIds` 로 돌려준다. 메일·푸시는 받는 사람이 없으면 아무것도 하지 않고, API 알림은 받는 사람과 무관하게 간다. **`@` 로 태그된 사람**(댓글, 이슈 본문)은 그 자리에서 구독자가 되므로 같은 계산에 들어간다(D-101). 댓글은 `IssueAnnouncer.commented` 가 알린다(목록은 다시 그리지 않고 그 이슈 화면만).
+- **받는 사람** = 그 이슈의 구독자와 **그 이슈가 연결된 프로젝트의 구독자**(지금도 그 프로젝트에 들어갈 수 있는 사람만)를 합친 것에서 바꾼 사람 본인을 뺀 것(D-102, `IssueActivityStore.recipientIds`). 서비스가 트랜잭션 안에서 계산해 `IssueChange.recipientIds` 로 돌려준다. 받는 사람이 없으면 어느 통로로도 보내지 않는다. 세 통로 모두 받는 사람에게만 가고, API 알림도 받는 사람마다 한 번씩 부른다(구독과 무관하게 전체로 나가는 알림은 없다). **`@` 로 태그된 사람**(댓글, 이슈 본문)은 그 자리에서 구독자가 되므로 같은 계산에 들어간다(D-101). 댓글은 `IssueAnnouncer.commented` 가 알린다(목록은 다시 그리지 않고 그 이슈 화면만).
 - **바뀐 일** = 활동 기록과 같은 종류와 값(`IssueActivityType`, `{from,to}`).
 - 통로를 더하려면 `NotificationChannel` 을 구현한 빈을 만든다. 통로는 스스로 켜져 있는지 확인하고, 필요한 것(주소, 토큰)을 직접 찾는다.
 - 디스크에 쌓지 않는다. 보내는 중에 서버가 꺼지면 그 알림은 사라진다. 재시도는 API 알림만 한다(5xx·무응답, 두 번 더).

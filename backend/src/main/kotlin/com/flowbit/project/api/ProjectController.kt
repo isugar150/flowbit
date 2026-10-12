@@ -57,6 +57,8 @@ data class ProjectResponse(
     val currentMilestone: String?,
     val health: ProjectHealth?,
     val healthUpdatedAt: Instant?,
+    /** Whether the caller follows the project. */
+    val subscribed: Boolean,
     /** The overview document as editor JSON; present only when one project is requested. */
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
@@ -83,6 +85,7 @@ data class ProjectResponse(
                 currentMilestone = view.currentMilestone,
                 health = view.health,
                 healthUpdatedAt = view.healthUpdatedAt,
+                subscribed = view.subscribed,
                 content = view.content,
             )
     }
@@ -207,6 +210,19 @@ class ProjectController(
         realtime.publish(RealtimeHub.PROJECTS, user.id)
         return ProjectResponse.from(project)
     }
+
+    /** Follow the project: be told about every change to its issues. Only the caller's own choice, so nobody else is told. */
+    @PutMapping("/{projectId}/subscription")
+    suspend fun subscribe(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+    ): ProjectResponse = ProjectResponse.from(projectService.setSubscribed(user, projectId, true))
+
+    @DeleteMapping("/{projectId}/subscription")
+    suspend fun unsubscribe(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+    ): ProjectResponse = ProjectResponse.from(projectService.setSubscribed(user, projectId, false))
 
     @GetMapping("/{projectId}/members")
     suspend fun members(

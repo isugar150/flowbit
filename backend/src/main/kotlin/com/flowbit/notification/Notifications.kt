@@ -22,7 +22,7 @@ data class IssueNotification(
     val actorName: String,
     /** IssueActivityType names, such as STATUS_CHANGED, with the same details the activity list shows. */
     val events: List<Event>,
-    /** Subscribers of the issue, without the person who made the change. May be empty. */
+    /** Subscribers of the issue and of its project, without the person who made the change. May be empty. */
     val recipientIds: List<UUID>,
 ) {
     data class Event(

@@ -60,6 +60,8 @@ data class ProjectView(
     val currentMilestone: String?,
     val health: ProjectHealth?,
     val healthUpdatedAt: Instant?,
+    /** Whether this person follows the project: is told about every change to its issues. */
+    val subscribed: Boolean,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
     val content: String? = null,
 )
@@ -286,6 +288,21 @@ class ProjectService(
         memberStore.remove(project.id, memberId)
     }
 
+    /**
+     * Follow or stop following a project: whoever follows it is told about every change to its
+     * issues through the notification channels. Open to everyone who may enter it, the view-only
+     * role included.
+     */
+    suspend fun setSubscribed(
+        user: AuthenticatedUser,
+        projectId: String,
+        subscribed: Boolean,
+    ): ProjectView {
+        val project = access(user, projectId).project
+        if (subscribed) memberStore.subscribe(project.id, user.id) else memberStore.unsubscribe(project.id, user.id)
+        return detail(project.id, user)
+    }
+
     /** The project and the caller's role in it, or "not found" when they may not enter. */
     suspend fun access(
         user: AuthenticatedUser,
@@ -355,6 +372,7 @@ class ProjectService(
         currentMilestone = row.currentMilestone,
         health = row.health,
         healthUpdatedAt = row.healthUpdatedAt,
+        subscribed = row.subscribed,
     )
 
     private fun effectiveRole(

@@ -35,6 +35,8 @@ export type Project = {
   /** Health of the latest project update and when it was posted; null before the first update. */
   health: ProjectHealth | null;
   healthUpdatedAt: string | null;
+  /** Whether the signed-in user follows the project: is told about every change to its issues. */
+  subscribed: boolean;
   /** The overview document. Only sent when a single project is requested; null in lists. */
   content: RichDoc | null;
 };
@@ -66,7 +68,12 @@ export type ProjectChanges = Partial<{
  */
 /** The people "@" offers in an editor: whoever could be given the issue. */
 export function mentionablesOf(members: ProjectMember[]): MentionPerson[] {
-  return members.map((member) => ({ id: member.userId, name: member.displayName ?? member.loginId, loginId: member.loginId }));
+  return members.map((member) => ({
+    id: member.userId,
+    name: member.displayName ?? member.loginId,
+    loginId: member.loginId,
+    avatarUrl: member.avatarUrl,
+  }));
 }
 
 export function usersAsMembers(users: UserSummary[] | null): ProjectMember[] {

@@ -60,7 +60,10 @@ export const WEBHOOK_EVENT_TYPES = [
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 export type WebhookMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-/** An outgoing API call (GET /api/v1/admin/notifications/webhooks). The signing secret is write-only. */
+/**
+ * An outgoing API call, made once for each person a change is told to
+ * (GET /api/v1/admin/notifications/webhooks). The signing secret is write-only.
+ */
 export type Webhook = {
   id: string;
   name: string;
@@ -72,8 +75,6 @@ export type Webhook = {
   bodyTemplate: string;
   signingSecretSet: boolean;
   eventTypes: WebhookEventType[];
-  /** Call the address once for each subscriber instead of once for the change. */
-  perRecipient: boolean;
   lastStatus: number | null;
   lastError: string | null;
   lastAttemptAt: string | null;

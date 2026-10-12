@@ -459,6 +459,9 @@ export const ko = {
     propLead: "리드",
     propDates: "기간",
     propLabels: "라벨",
+    subscribe: "구독",
+    unsubscribe: "구독 취소",
+    subscribeHint: "구독하면 이 프로젝트의 모든 이슈 변경을 알림으로 받습니다.",
     noLead: "리드 없음",
     noDates: "기간 설정",
     addLabel: "라벨 추가",
@@ -578,7 +581,7 @@ export const ko = {
     },
     mine: {
       title: "알림",
-      description: "내가 구독하는 이슈(내가 만든 이슈, 내가 담당자인 이슈, 직접 구독한 이슈)가 바뀌면 받는 알림입니다.",
+      description: "내가 구독하는 이슈(내가 만든 이슈, 내가 담당자인 이슈, 직접 구독한 이슈)와 구독한 프로젝트의 이슈가 바뀌면 받는 알림입니다.",
       email: "이메일 주소",
       emailHint: "알림 메일을 받을 주소입니다. 이 주소로도 로그인할 수 있습니다. 비워 두면 메일을 받지 않습니다.",
       notifyEmail: "메일로 알림 받기",
@@ -629,10 +632,9 @@ export const ko = {
     },
     webhooks: {
       title: "API 알림",
-      description: "이슈가 바뀔 때 지정한 주소를 호출. 사내 메신저, Slack, 자체 시스템 연동",
-      perRecipient: "받는 사람마다 한 번씩 호출",
-      perRecipientHint:
-        "끄면 변경 한 건에 한 번(채널에 올리는 용도). 켜면 그 이슈의 구독자마다 한 번씩 호출하고 {{recipient.email}} {{recipient.name}} {{recipient.loginId}} 를 쓸 수 있습니다(한 사람에게 메시지를 보내는 API 용도).",
+      description: "이슈가 바뀔 때 알림을 받는 사람마다 지정한 주소를 호출. 사내 메신저 봇, 자체 시스템 연동",
+      recipientsHint:
+        "그 이슈나 이슈의 프로젝트를 구독한 사람마다 한 번씩 호출합니다(바꾼 본인 제외). 누구에게 보낼지는 {{recipient.email}} {{recipient.name}} {{recipient.loginId}} 로 넣으세요. 구독한 사람이 없는 변경에는 호출하지 않습니다.",
       presetHrmWorks: "NAVER WORKS 메시지 (hrm)",
       noBody: "GET, DELETE 는 본문 없이 주소만 보냅니다. 값은 주소에 자리표시자로 넣으세요.",
       empty: "등록된 API 알림이 없습니다.",
@@ -653,12 +655,9 @@ export const ko = {
       headersHint: "한 줄에 하나씩 \"이름: 값\". 예: Authorization: Bearer abc123",
       bodyTemplate: "본문 템플릿",
       bodyTemplateHint:
-        "비워 두면 표준 JSON 을 보냅니다. 직접 쓰면 {{자리표시자}}가 값으로 바뀝니다: {{text}} {{title}} {{headline}} {{changes}} {{event}} {{issue.key}} {{issue.title}} {{issue.url}} {{issue.number}} {{actor.name}} {{deliveryId}} {{payload}}(표준 JSON 전체). JSON 본문에서는 따옴표 같은 문자가 자동으로 이스케이프됩니다.",
+        "비워 두면 표준 JSON 을 보냅니다. 직접 쓰면 {{자리표시자}}가 값으로 바뀝니다: {{text}} {{title}} {{headline}} {{changes}} {{event}} {{issue.key}} {{issue.title}} {{issue.url}} {{issue.number}} {{actor.name}} {{recipient.email}} {{recipient.name}} {{recipient.loginId}} {{deliveryId}} {{payload}}(표준 JSON 전체). JSON 본문에서는 따옴표 같은 문자가 자동으로 이스케이프됩니다.",
       presets: "예시 넣기",
       presetStandard: "표준 JSON",
-      presetSlack: "Slack",
-      presetDiscord: "Discord",
-      presetTeams: "Teams",
       signingSecret: "서명 비밀 값",
       signingSecretHint: "넣으면 본문의 HMAC-SHA256 을 X-Flowbit-Signature: sha256=… 헤더로 보냅니다. 받는 쪽에서 위조를 가려낼 수 있습니다.",
       signingSecretStored: "저장된 값이 있습니다. 바꿀 때만 입력하세요.",

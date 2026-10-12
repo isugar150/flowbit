@@ -50,7 +50,6 @@ data class WebhookInput(
     val bodyTemplate: String,
     val signingSecret: String?,
     val eventTypes: List<String>,
-    val perRecipient: Boolean = false,
 )
 
 /** What a browser needs to register for push: the Firebase web app's public configuration. */
@@ -232,7 +231,6 @@ class NotificationSettingsService(
             bodyTemplate = draft.bodyTemplate
             signingSecret = draft.signingSecret
             eventTypes = draft.eventTypes
-            perRecipient = draft.perRecipient
             updatedAt = clock.instant()
         }
         return webhookRepository.save(stored)
@@ -286,7 +284,6 @@ class NotificationSettingsService(
             bodyTemplate = input.bodyTemplate,
             signingSecret = input.signingSecret ?: stored?.signingSecret.orEmpty(),
             eventTypes = input.eventTypes.distinct().joinToString(","),
-            perRecipient = input.perRecipient,
             lastStatus = stored?.lastStatus,
             lastError = stored?.lastError,
             lastAttemptAt = stored?.lastAttemptAt,

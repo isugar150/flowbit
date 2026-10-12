@@ -48,7 +48,6 @@ type Form = {
   bodyTemplate: string;
   signingSecret: string;
   eventTypes: WebhookEventType[];
-  perRecipient: boolean;
 };
 
 const EMPTY: Form = {
@@ -61,42 +60,25 @@ const EMPTY: Form = {
   bodyTemplate: "",
   signingSecret: "",
   eventTypes: [],
-  perRecipient: false,
 };
 
 const METHODS: WebhookMethod[] = ["POST", "GET", "PUT", "PATCH", "DELETE"];
-const JSON_BODY = {
-  method: "POST",
-  contentType: "application/json",
-  perRecipient: false,
-} as const;
 
-/** Starting points for services people commonly point a webhook at. The first is Flowbit's own JSON. */
+/**
+ * Starting points. The first is Flowbit's own JSON. There are none for posting into a chat
+ * channel: every call is for one person, so a channel would get the same message once per person.
+ */
 const PRESETS: { label: string; values: Partial<Form> }[] = [
-  { label: w.presetStandard, values: { ...JSON_BODY, bodyTemplate: "" } },
   {
-    label: w.presetSlack,
-    values: { ...JSON_BODY, bodyTemplate: '{"text": "{{text}}"}' },
+    label: w.presetStandard,
+    values: { method: "POST", contentType: "application/json", bodyTemplate: "" },
   },
   {
-    label: w.presetDiscord,
-    values: { ...JSON_BODY, bodyTemplate: '{"content": "{{text}}"}' },
-  },
-  {
-    label: w.presetTeams,
-    values: {
-      ...JSON_BODY,
-      bodyTemplate:
-        '{"@type": "MessageCard", "@context": "https://schema.org/extensions", "summary": "{{title}}", "title": "{{title}}", "text": "{{headline}}\\n\\n{{changes}}"}',
-    },
-  },
-  {
-    // One NAVER WORKS message per subscriber through the company's hrm API. The bot id and the
+    // One NAVER WORKS message per person through the company's hrm API. The bot id and the
     // token are filled in by hand.
     label: w.presetHrmWorks,
     values: {
       method: "GET",
-      perRecipient: true,
       bodyTemplate: "",
       url: "https://hrm.motherk.link/api/works/send?botId=봇ID&email={{recipient.email}}&message={{text}}",
       headers: "Authorization: Bearer 토큰",
@@ -117,7 +99,6 @@ function formOf(webhook: Webhook): Form {
     bodyTemplate: webhook.bodyTemplate,
     signingSecret: "",
     eventTypes: webhook.eventTypes,
-    perRecipient: webhook.perRecipient,
   };
 }
 
@@ -343,14 +324,9 @@ function WebhookForm({
           checked={form.enabled}
           onChange={(v) => set("enabled", v)}
         />
-        <CheckSetting
-          id={`${prefix}-perRecipient`}
-          wide
-          label={w.perRecipient}
-          hint={w.perRecipientHint}
-          checked={form.perRecipient}
-          onChange={(v) => set("perRecipient", v)}
-        />
+        <FieldDescription className="sm:col-span-2">
+          {w.recipientsHint}
+        </FieldDescription>
         <fieldset className="flex flex-col gap-2 sm:col-span-2">
           <legend className="mb-1.5 text-sm font-medium">{w.eventTypes}</legend>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">

@@ -10,6 +10,7 @@ import type { Milestone } from "@/features/milestones/types";
 import { AddProjectMemberButton } from "@/features/projects/components/add-project-member-button";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { ProjectProperties } from "@/features/projects/components/project-properties";
+import { ProjectSubscribeButton } from "@/features/projects/components/project-subscribe-button";
 import { ProjectUpdates } from "@/features/projects/components/project-updates";
 import { HealthBadge } from "@/features/projects/meta";
 import type { ProjectMember, ProjectUpdate } from "@/features/projects/types";
@@ -84,7 +85,10 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
         />
       </div>
       <aside className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 lg:mx-0 lg:w-80">
-        <PropertyCard title={m.properties}>
+        <PropertyCard
+          title={m.properties}
+          action={<ProjectSubscribeButton projectId={project.id} subscribed={project.subscribed} />}
+        >
           <dl className="flex flex-col">
             <ProjectProperties
               project={project}
