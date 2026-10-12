@@ -94,6 +94,7 @@
 - [x] 모든 프로젝트를 목록에 표시, 들어갈 수 없는 프로젝트는 `/no-access/{key}` 에서 관리자 안내 (D-047). `GET /api/v1/projects/{key}/access`, 프런트 `loadProject`(lib/current-user.ts). `ProjectsIntegrationTest` 의 해당 테스트를 고쳤다(돌려 보지 못했다)
 - [x] 프로젝트 업데이트와 건강도 (D-048): `V8`, `ProjectUpdateService`/`ProjectUpdateController`, 개요의 "프로젝트 업데이트", 속성 카드와 목록의 건강도, `--success` 색
 - [x] 마일스톤 필터 고침: 개요의 `이슈 n/m` 링크로 오면 그 마일스톤만 보이게(필터를 주소에 둠), 거른 상태의 새 이슈에 마일스톤이 미리 골라지게(버튼·`C` 로 열 때도), "필터 초기화" 버튼
+- [x] 로그인 시 아이디·비밀번호가 주소(GET)에 들어가던 문제: 로그인·초기 설정 폼에 `method="post"`, `proxy.ts` 가 주소의 `password` 를 지움, 개발 서버를 사내망 주소로 열 수 있게 `FLOWBIT_DEV_ORIGINS`(`allowedDevOrigins`)
 - [ ] 프로젝트 업데이트: `ProjectUpdatesIntegrationTest`(권한, 최근 건강도가 목록에 반영) 작성
 - [ ] 마일스톤: `MilestonesIntegrationTest`(권한, 다른 프로젝트 마일스톤 거부, 진행률 계산, 삭제 시 이슈 유지)와 화면 확인
 - [ ] 실시간: 두 브라우저(다른 계정)로 확인, `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. **백엔드는 이 환경에서 컴파일하지 못했다**(JDK 25 없음, Maven Central 429). 사용자 PC 에서 `./gradlew check` 가 먼저다
@@ -133,6 +134,13 @@
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 로그인 정보가 주소에 들어가던 문제
+
+- 사용자 보고: `http://192.168.0.75:3000/login?loginId=…&password=…` 처럼 로그인 정보가 주소에 붙는다. POST 여야 한다.
+- 원인: 개발 서버를 `192.168.0.75` 로 열면 Next 16 이 localhost 가 아닌 호스트의 `/_next` 스크립트 요청을 403 으로 막는다(`allowedDevOrigins`). 스크립트가 없으니 폼이 브라우저 기본 동작(GET)으로 제출됐다. 로그인 API 자체(`POST /api/v1/auth/login`)는 처음부터 POST 다.
+- 고친 것: 위 체크리스트. 사용자는 `frontend/.env.local` 에 `FLOWBIT_DEV_ORIGINS=192.168.0.75` 를 넣고 개발 서버를 다시 시작해야 한다. 같은 원인으로 그 주소에서는 실시간 연결도 시작되지 않았을 수 있다.
+- 사용자의 비밀번호가 주소(브라우저 기록, 서버 로그)와 대화에 노출되어 비밀번호 변경을 권했다.
 
 ### 2026-10-12 — 마일스톤 필터 고침
 

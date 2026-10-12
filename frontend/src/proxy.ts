@@ -25,6 +25,15 @@ export async function proxy(request: NextRequest) {
   const { pathname, search, searchParams } = request.nextUrl;
   const redirectTo = (path: string) => NextResponse.redirect(new URL(path, request.url));
 
+  // A sign-in or setup form submitted by the browser before its script ran used to put the
+  // password in the address (GET). The forms now post, but should such an address ever arrive,
+  // drop the credentials at once so they do not stay in the address bar and history.
+  if (searchParams.has("password") || searchParams.has("passwordConfirm")) {
+    const clean = request.nextUrl.clone();
+    for (const name of ["password", "passwordConfirm", "loginId"]) clean.searchParams.delete(name);
+    return NextResponse.redirect(clean);
+  }
+
   if (pathname === "/session-expired" || pathname === "/unavailable") return NextResponse.next();
 
   try {

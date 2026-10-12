@@ -43,7 +43,9 @@ export function LoginForm() {
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+    // method="post": if the browser submits the form itself (its script has not loaded), the
+    // password goes in the request body, never in the address.
+    <form method="post" onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
       {formError ? <FormAlert>{formError}</FormAlert> : null}
       <FieldGroup>
         <LoginIdField id="loginId" registration={form.register("loginId")} error={errors.loginId?.message} autoFocus />
