@@ -89,6 +89,8 @@
 - [x] `/project/[key]` 의 "uncached data outside of `<Suspense>`" 오류: 프로젝트 레이아웃의 조회를 `<Suspense>` 안으로 옮기고 `project/[key]/loading.tsx` 추가 ([04-frontend-guide.md](04-frontend-guide.md) 규칙 추가)
 - [x] 날짜 선택을 달력 팝오버로 교체 (D-043): 이슈 기한은 `DateChip`, 프로젝트 기간은 `DateRangeChip`(첫 클릭 시작일, 두 번째 클릭 종료일). `react-day-picker` 추가
 - [x] 실시간 반영과 프레즌스 (D-044): 백엔드 `realtime` 모듈(`RealtimeHub`, `RealtimeWebSocketHandler`), `SessionService.isActive`, 프로젝트·이슈 컨트롤러의 알림, 프런트 `RealtimeProvider`·`RealtimeScope`·`PresenceAvatars`, 편집기·입력 칸의 원격 값 반영, `components/ui/tooltip.tsx`
+- [x] 마일스톤 (D-045): `V7`, `milestone` 모듈(API 4개), 이슈의 `milestoneId`, 개요의 마일스톤 목록과 진행률, 이슈 상세·새 이슈 창의 마일스톤 칩, 이슈 목록의 마일스톤 거르기(`?milestone=`)
+- [ ] 마일스톤: `MilestonesIntegrationTest`(권한, 다른 프로젝트 마일스톤 거부, 진행률 계산, 삭제 시 이슈 유지)와 화면 확인
 - [ ] 실시간: 두 브라우저(다른 계정)로 확인, `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. **백엔드는 이 환경에서 컴파일하지 못했다**(JDK 25 없음, Maven Central 429). 사용자 PC 에서 `./gradlew check` 가 먼저다
 - [ ] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 (달력 팝오버 포함) (사용자가 "작업 뒤 테스트하지 말 것"을 지정해 하지 않았다)
 
@@ -126,6 +128,12 @@
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 마일스톤
+
+- 사용자 지시: Linear 의 마일스톤처럼 기능 단위로 이슈를 묶고 진행률을 보여 주는 기능, 이슈를 마일스톤에 묶는 기능.
+- 한 일: 위 체크리스트. 지난 작업에서 `IssueController` 의 import 순서가 ktlint 규칙에 어긋나 있던 것도 고쳤다.
+- 확인한 범위: 프런트 typecheck, eslint. 백엔드는 이번에도 컴파일하지 못했다(JDK 25 없음, Maven Central 429). import 순서만 ktlint 규칙대로 스크립트로 확인했다.
 
 ### 2026-10-12 — 실시간 반영과 보는 사람 아바타
 

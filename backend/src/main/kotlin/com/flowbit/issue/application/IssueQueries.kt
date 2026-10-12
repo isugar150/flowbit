@@ -18,6 +18,11 @@ data class IssuePerson(
     val avatarKey: String?,
 )
 
+data class IssueMilestone(
+    val id: UUID,
+    val name: String,
+)
+
 /** An issue with the people on it resolved, ready to show. */
 data class IssueView(
     val id: UUID,
@@ -30,6 +35,7 @@ data class IssueView(
     val priority: IssuePriority,
     val assignee: IssuePerson?,
     val dueDate: LocalDate?,
+    val milestone: IssueMilestone?,
     val createdBy: IssuePerson,
     val version: Int,
     val createdAt: Instant,
@@ -98,10 +104,12 @@ class IssueQueries(
                            a.id as assignee_id, a.login_id as assignee_login_id,
                            a.display_name as assignee_display_name, a.avatar_key as assignee_avatar_key,
                            c.id as creator_id, c.login_id as creator_login_id,
-                           c.display_name as creator_display_name, c.avatar_key as creator_avatar_key
+                           c.display_name as creator_display_name, c.avatar_key as creator_avatar_key,
+                           ms.id as milestone_id, ms.name as milestone_name
                     from issues i
                     join users c on c.id = i.created_by
                     left join users a on a.id = i.assignee_id
+                    left join milestones ms on ms.id = i.milestone_id
                     where i.project_id = :projectId ${if (number != null) "and i.number = :number" else ""}
                     order by i.number desc
                     """.trimIndent(),
@@ -129,6 +137,10 @@ class IssueQueries(
                     priority = IssuePriority.valueOf(checkNotNull(row.get("priority", String::class.java))),
                     assignee = person("assignee"),
                     dueDate = row.get("due_date", LocalDate::class.java),
+                    milestone =
+                        row.get("milestone_id", UUID::class.java)?.let { id ->
+                            IssueMilestone(id, checkNotNull(row.get("milestone_name", String::class.java)))
+                        },
                     createdBy = checkNotNull(person("creator")),
                     version = checkNotNull(row.get("version", Int::class.javaObjectType)),
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),

@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { BoxIcon, CalendarIcon, HashIcon, ShieldIcon, UsersIcon } from "lucide-react";
 import { Person } from "@/components/person";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
+import { MilestonesSection } from "@/features/milestones/components/milestones-section";
+import type { Milestone } from "@/features/milestones/types";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { ProjectProperties } from "@/features/projects/components/project-properties";
 import type { Project, ProjectMember } from "@/features/projects/types";
@@ -22,13 +24,14 @@ function formatDate(iso: string, timeZone: string): string {
 export default async function ProjectOverviewPage({ params }: PageProps<"/project/[key]">) {
   const { key } = await params;
   const path = `/api/v1/projects/${encodeURIComponent(key)}`;
-  const [user, project, members, projects] = await Promise.all([
+  const [user, project, members, projects, milestones] = await Promise.all([
     requireUser(),
     serverGet<Project>(path),
     serverGet<ProjectMember[]>(`${path}/members`),
     getProjects(),
+    serverGet<Milestone[]>(`${path}/milestones`),
   ]);
-  if (!project || !members) notFound();
+  if (!project || !members || !milestones) notFound();
   const labelSuggestions = [...new Set(projects.flatMap((other) => other.labels))].sort((a, b) => a.localeCompare(b, "ko"));
   const role = messages.roles[project.myRole];
   const created = formatDate(project.createdAt, user.timezone);
@@ -66,6 +69,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
           </div>
         </dl>
         </ProjectOverviewEditor>
+        <MilestonesSection projectKey={project.key} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
       </div>
       <aside className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 lg:mx-0 lg:w-80">
         <PropertyCard title={m.properties}>

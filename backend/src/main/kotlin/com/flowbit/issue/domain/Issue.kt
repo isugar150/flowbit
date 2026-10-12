@@ -28,6 +28,7 @@ class Issue(
     var priority: IssuePriority,
     var assigneeId: UUID?,
     var dueDate: LocalDate?,
+    var milestoneId: UUID?,
     val createdBy: UUID,
     var version: Int,
     val createdAt: Instant,

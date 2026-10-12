@@ -1,5 +1,6 @@
-import { CircleSlashIcon, UserIcon } from "lucide-react";
+import { CircleSlashIcon, DiamondIcon, UserIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { initials } from "@/lib/initials";
 import { messages } from "@/messages";
@@ -59,6 +60,18 @@ export function assigneeOptions(members: ProjectMember[]): ChipOption<string>[] 
       value: member.userId,
       label: member.displayName ?? member.loginId,
       icon: <PersonAvatar person={member} />,
+    })),
+  ];
+}
+
+/** The project's milestones, plus "none". */
+export function milestoneOptions(milestones: Pick<Milestone, "id" | "name">[]): ChipOption<string>[] {
+  return [
+    { value: NONE, label: m.noMilestone, icon: <CircleSlashIcon className="size-4 text-muted-foreground" aria-hidden /> },
+    ...milestones.map((milestone) => ({
+      value: milestone.id,
+      label: milestone.name,
+      icon: <DiamondIcon className="size-4 text-muted-foreground" aria-hidden />,
     })),
   ];
 }

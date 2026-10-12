@@ -12,6 +12,7 @@ import com.flowbit.issue.domain.IssuePreset
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueRepository
 import com.flowbit.issue.domain.IssueStatus
+import com.flowbit.milestone.application.MilestoneService
 import com.flowbit.project.application.ProjectAccess
 import com.flowbit.project.application.ProjectService
 import kotlinx.coroutines.reactor.awaitSingle
@@ -33,6 +34,7 @@ data class NewIssue(
     val priority: IssuePriority?,
     val assigneeId: UUID?,
     val dueDate: LocalDate?,
+    val milestoneId: UUID? = null,
 )
 
 /**
@@ -71,6 +73,7 @@ class IssueService(
     private val queries: IssueQueries,
     private val entityTemplate: R2dbcEntityTemplate,
     private val richText: RichText,
+    private val milestoneService: MilestoneService,
     private val clock: Clock,
 ) {
     suspend fun list(
@@ -103,6 +106,7 @@ class IssueService(
         val errors = textErrors(title, description)
         if (errors.isNotEmpty()) throw ValidationException(errors)
         input.assigneeId?.let { requireAssignable(project.id, it) }
+        input.milestoneId?.let { requireMilestone(project.id, it) }
 
         val now = clock.instant()
         val issue =
@@ -117,6 +121,7 @@ class IssueService(
                 priority = input.priority ?: IssuePriority.NONE,
                 assigneeId = input.assigneeId,
                 dueDate = input.dueDate,
+                milestoneId = input.milestoneId,
                 createdBy = user.id,
                 version = 1,
                 createdAt = now,
@@ -153,6 +158,11 @@ class IssueService(
             if (assigneeId != null && assigneeId != issue.assigneeId) requireAssignable(project.id, assigneeId)
             issue.assigneeId = assigneeId
         }
+        if (patch.has("milestoneId")) {
+            val milestoneId = patch.uuid("milestoneId")
+            if (milestoneId != null && milestoneId != issue.milestoneId) requireMilestone(project.id, milestoneId)
+            issue.milestoneId = milestoneId
+        }
         issue.version += 1
         issue.updatedAt = clock.instant()
         repository.save(issue)
@@ -181,6 +191,16 @@ class IssueService(
     ) {
         if (!queries.isProjectMember(projectId, userId)) {
             throw ValidationException("assigneeId", "NOT_A_MEMBER", "담당자는 이 프로젝트의 구성원이어야 합니다")
+        }
+    }
+
+    /** Only milestones of the issue's own project. */
+    private suspend fun requireMilestone(
+        projectId: UUID,
+        milestoneId: UUID,
+    ) {
+        if (!milestoneService.belongsTo(projectId, milestoneId)) {
+            throw ValidationException("milestoneId", "NOT_IN_PROJECT", "이 프로젝트의 마일스톤이 아닙니다")
         }
     }
 

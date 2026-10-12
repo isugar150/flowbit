@@ -17,6 +17,7 @@
 | 프리셋: 고르면 본문에 목차가 깔린다(직접 쓴 내용이 있으면 덮지 않는다) | 구현, 화면 확인 |
 | 프로젝트 개요: 한 줄 요약과 설명 문서를 그 자리에서 씀 | 구현, 화면 확인 |
 | 프로젝트 속성 (개요 오른쪽 "속성" 카드): 상태, 우선순위, 리드, 기간(시작일 → 종료일), 라벨 | 구현, 화면 확인 안 함 |
+| 마일스톤: 프로젝트 개요에서 추가·이름 변경·목표일·삭제, 단계별 진행률. 이슈의 "마일스톤" 속성(새 이슈 창, 이슈 상세), 이슈 목록의 마일스톤 거르기 | 구현, 화면 확인 안 함 (아래 "마일스톤") |
 | 실시간 반영: 프로젝트(개요·속성·설정·구성원·이슈 목록)와 이슈 상세의 변경이 같은 화면을 연 다른 사람에게 바로 보인다. 오른쪽 위에 같은 화면을 보는 사람의 아바타(이름 툴팁) | 구현, 화면 확인 안 함 ([../02-architecture.md](../02-architecture.md) "실시간 동기화") |
 
 아직 없는 것:
@@ -46,6 +47,27 @@
 | `GET /api/v1/projects/{key}/issues/{number}` | 한 건. `content` 포함 |
 | `PATCH /api/v1/projects/{key}/issues/{number}` | 보낸 항목만 바뀐다. `assigneeId`, `dueDate`, `preset`, `content` 는 `null` 로 지운다 |
 | `PATCH /api/v1/projects/{key}` | `{ name?, description?, content?, status?, priority?, leadId?, startDate?, targetDate?, labels? }`. `content` 는 개요 문서. `leadId`, `startDate`, `targetDate` 는 `null` 로 지운다 |
+
+### 마일스톤
+
+사용자가 Linear 의 프로젝트 마일스톤처럼 만들어 달라고 지정했다 (D-045). 프로젝트 안의 **단계**이고, 이슈를 단계에 묶어 단계별 진행률을 본다. 할 일을 따로 적는 목록이 아니라 기존 이슈를 분류하는 것이다.
+
+- 마일스톤: 이름(1~80자), 목표일(선택). 프로젝트마다 여러 개. 순서는 목표일이 빠른 것부터, 목표일이 없으면 만든 순서로 뒤에.
+- 이슈는 마일스톤 **하나**에 속하거나 아무 데도 속하지 않는다. 다른 프로젝트의 마일스톤은 붙일 수 없다(422 `NOT_IN_PROJECT`, 필드 `milestoneId`).
+- 진행률 = 완료(`DONE`) 이슈 수 ÷ 취소(`CANCELED`)를 뺀 이슈 수. 이슈가 없으면 0%. 추정치(포인트)가 없어 개수로 센다.
+- 마일스톤을 지우면 이슈는 남고 마일스톤만 빠진다.
+- 권한: 프로젝트 구성원은 모두 보고, **편집 역할부터** 만들고 고치고 지운다.
+- 화면: 프로젝트 개요의 설명 아래 "마일스톤" 목록(진행률 막대와 %, `이슈 완료수/전체`, 목표일 칩, `…` 메뉴의 삭제). `이슈 n/m` 을 누르면 그 마일스톤으로 걸러진 이슈 목록(`/project/{key}/issues?milestone={id}`). 이슈 목록 위의 마일스톤 칩으로 거르고, 거른 상태에서 새 이슈를 만들면 그 마일스톤이 미리 골라져 있다. 목록의 줄에도 마일스톤 이름이 보인다(넓은 화면).
+- 바뀌면 실시간으로 `project:{KEY}` 를 알린다.
+
+| 메서드와 경로 | 설명 |
+|---|---|
+| `GET /api/v1/projects/{key}/milestones` | `[{ id, name, targetDate, issueCount, doneCount, createdAt }]`. `issueCount` 는 취소를 뺀 수 |
+| `POST /api/v1/projects/{key}/milestones` | `{ name, targetDate? }` → 201. 편집 역할부터 |
+| `PATCH /api/v1/projects/{key}/milestones/{id}` | `{ name?, targetDate? }`. `targetDate: null` 로 지운다 |
+| `DELETE /api/v1/projects/{key}/milestones/{id}` | → 204. 이슈는 마일스톤 없음이 된다 |
+
+이슈 API 에는 `milestoneId`(만들기, `PATCH`, `null` 로 지움)와 응답의 `milestone: { id, name } | null` 이 더해졌다. 오류: 404 `MILESTONE_NOT_FOUND`, 422 `VALIDATION_FAILED`(이름 비었음·너무 김).
 
 ### 프로젝트 속성
 
@@ -284,6 +306,7 @@
 ```
 projects (id, key unique, name, description, next_issue_number, created_by, archived_at, created_at, updated_at,
           status, priority, lead_id, start_date, target_date, labels text[])   -- 속성은 V6
+milestones (id, project_id, name, target_date, created_at, updated_at)        -- V7, issues.milestone_id 도 V7
 project_members (project_id, user_id, role: MANAGER | EDITOR | VIEWER, created_at)   PK (project_id, user_id)
 ```
 

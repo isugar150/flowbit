@@ -28,6 +28,7 @@ export type Issue = {
   assignee: IssuePerson | null;
   /** YYYY-MM-DD */
   dueDate: string | null;
+  milestone: { id: string; name: string } | null;
   createdBy: IssuePerson;
   version: number;
   createdAt: string;
@@ -42,9 +43,10 @@ export type NewIssueInput = {
   priority: IssuePriority;
   assigneeId: string | null;
   dueDate: string | null;
+  milestoneId: string | null;
 };
 
-/** Only the fields present are changed; null clears the assignee, due date or preset. */
+/** Only the fields present are changed; null clears the assignee, due date, preset or milestone. */
 export type IssueChanges = Partial<{
   title: string;
   content: RichDoc | null;
@@ -53,4 +55,5 @@ export type IssueChanges = Partial<{
   priority: IssuePriority;
   assigneeId: string | null;
   dueDate: string | null;
+  milestoneId: string | null;
 }>;

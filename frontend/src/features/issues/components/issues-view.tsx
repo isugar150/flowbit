@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FileTextIcon, PlusIcon } from "lucide-react";
+import { DiamondIcon, FileTextIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Kbd } from "@/components/ui/kbd";
 import { FormAlert } from "@/features/auth/components/form-alert";
+import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
 import { PresetIcon, PriorityIcon, STATUS_ORDER, StatusIcon, formatDueDate, presetLabel, priorityLabel, statusLabel } from "../meta";
-import { PersonAvatar, statusOptions } from "../options";
+import { NONE, PersonAvatar, milestoneOptions, statusOptions } from "../options";
 import type { Issue } from "../types";
 import { ChipSelect } from "./chip-select";
 import { NewIssueDialog } from "./new-issue-dialog";
@@ -25,20 +26,42 @@ function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
-/** The issues of one project, grouped by status, with the new-issue dialog and its `C` shortcut. */
+/** "Every milestone" in the filter; NONE is "no milestone". */
+const ALL = "__all__";
+
+/**
+ * The issues of one project, grouped by status, with the new-issue dialog and its `C` shortcut.
+ * When the project has milestones the list can be narrowed to one of them.
+ */
 export function IssuesView({
   projectKey,
-  issues,
+  issues: allIssues,
   members,
+  milestones,
+  initialMilestone,
   canEdit,
 }: {
   projectKey: string;
   issues: Issue[];
   members: ProjectMember[];
+  milestones: Milestone[];
+  /** Milestone id from `?milestone=`, set by the links on the project overview. */
+  initialMilestone?: string;
   /** False for the view-only role: the list is read-only and nothing can be created. */
   canEdit: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [milestoneFilter, setMilestoneFilter] = useState(
+    initialMilestone && milestones.some((milestone) => milestone.id === initialMilestone) ? initialMilestone : ALL,
+  );
+  const issues =
+    milestoneFilter === ALL
+      ? allIssues
+      : allIssues.filter((issue) => (issue.milestone?.id ?? NONE) === milestoneFilter);
+  const filterOptions = [
+    { value: ALL, label: m.allMilestones, icon: <DiamondIcon className="size-4 text-muted-foreground" aria-hidden /> },
+    ...milestoneOptions(milestones),
+  ];
   const mutation = useRefreshingMutation(updateIssue);
 
   useEffect(() => {
@@ -68,7 +91,7 @@ export function IssuesView({
 
   return (
     <>
-      {issues.length === 0 ? (
+      {allIssues.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <Empty>
             <EmptyHeader>
@@ -83,7 +106,15 @@ export function IssuesView({
         </div>
       ) : (
         <div className="flex flex-col">
-          <div className="flex items-center justify-end px-4 pb-2">{newIssueButton}</div>
+          <div className="flex items-center justify-end gap-2 px-4 pb-2">
+            {milestones.length > 0 ? (
+              <ChipSelect label={m.milestoneFilter} value={milestoneFilter} options={filterOptions} onChange={setMilestoneFilter} />
+            ) : null}
+            {newIssueButton}
+          </div>
+          {issues.length === 0 ? (
+            <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">{m.noIssuesInFilter}</p>
+          ) : null}
           {mutation.isError ? (
             <div className="px-4 pb-2">
               <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert>
@@ -134,6 +165,12 @@ export function IssuesView({
                         {presetLabel(issue.preset)}
                       </span>
                     ) : null}
+                    {issue.milestone ? (
+                      <span className="hidden max-w-40 shrink-0 items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground md:flex">
+                        <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{issue.milestone.name}</span>
+                      </span>
+                    ) : null}
                     {issue.dueDate ? (
                       <span className="hidden shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums sm:block">
                         {formatDueDate(issue.dueDate)}
@@ -153,7 +190,14 @@ export function IssuesView({
         </div>
       )}
       {canEdit ? (
-        <NewIssueDialog open={dialogOpen} onOpenChange={setDialogOpen} projectKey={projectKey} members={members} />
+        <NewIssueDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          projectKey={projectKey}
+          members={members}
+          milestones={milestones}
+          defaultMilestoneId={milestoneFilter === ALL || milestoneFilter === NONE ? null : milestoneFilter}
+        />
       ) : null}
     </>
   );

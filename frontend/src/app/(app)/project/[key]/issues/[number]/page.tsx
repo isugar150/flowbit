@@ -6,6 +6,7 @@ import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { IssueBody } from "@/features/issues/components/issue-body";
 import { IssueProperties } from "@/features/issues/components/issue-properties";
 import type { Issue } from "@/features/issues/types";
+import type { Milestone } from "@/features/milestones/types";
 import type { Project, ProjectMember } from "@/features/projects/types";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { requireUser, serverGet } from "@/lib/current-user";
@@ -18,13 +19,14 @@ export default async function IssuePage({ params }: PageProps<"/project/[key]/is
   const { key, number } = await params;
   if (!/^\d{1,9}$/.test(number)) notFound();
   const path = `/api/v1/projects/${encodeURIComponent(key)}`;
-  const [user, project, issue, members] = await Promise.all([
+  const [user, project, issue, members, milestones] = await Promise.all([
     requireUser(),
     serverGet<Project>(path),
     serverGet<Issue>(`${path}/issues/${number}`),
     serverGet<ProjectMember[]>(`${path}/members`),
+    serverGet<Milestone[]>(`${path}/milestones`),
   ]);
-  if (!project || !issue || !members) notFound();
+  if (!project || !issue || !members || !milestones) notFound();
   const created = new Intl.DateTimeFormat("sv-SE", { timeZone: user.timezone }).format(new Date(issue.createdAt));
 
   return (
@@ -47,6 +49,7 @@ export default async function IssuePage({ params }: PageProps<"/project/[key]/is
             projectKey={project.key}
             issue={issue}
             members={members}
+            milestones={milestones}
             canEdit={project.myRole !== "VIEWER"}
           />
         </PropertyCard>

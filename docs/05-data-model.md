@@ -108,6 +108,20 @@
 
 `project_members` 는 기본 키가 두 컬럼이라, `projects` 의 속성 컬럼은 배열(`labels`)이 있어서 Spring Data 리포지토리 대신 `ProjectMemberStore` 가 SQL 로 직접 다룬다.
 
+### `milestones` (`V7`)
+
+프로젝트 안의 단계. 이슈를 묶어 단계별 진행률을 본다 ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "마일스톤").
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `id` | `uuid` PK | |
+| `project_id` | `uuid` FK → `projects` (함께 삭제) | |
+| `name` | `text` | 1~80자 |
+| `target_date` | `date` null | 목표일 |
+| `created_at`, `updated_at` | `timestamptz` | |
+
+`issues.milestone_id`(`V7`): `uuid` null FK → `milestones`. 마일스톤을 지우면 null 이 된다. 같은 프로젝트의 마일스톤인지는 서비스가 확인한다.
+
 ### `issues` (`V4`), 문서 컬럼 (`V5`)
 
 | 컬럼 | 타입 | 설명 |

@@ -9,13 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
+import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createIssue } from "../api";
 import { PRESET_TEMPLATES } from "../meta";
-import { NONE, assigneeOptions, presetOptions, priorityOptions, statusOptions } from "../options";
+import { NONE, assigneeOptions, milestoneOptions, presetOptions, priorityOptions, statusOptions } from "../options";
 import type { IssuePreset, NewIssueInput } from "../types";
 import { ChipSelect } from "./chip-select";
 import { DateChip } from "./date-chips";
@@ -23,7 +24,14 @@ import { DateChip } from "./date-chips";
 const m = messages.issues;
 
 type Properties = Omit<NewIssueInput, "title" | "content">;
-const DEFAULT_PROPERTIES: Properties = { preset: null, status: "BACKLOG", priority: "NONE", assigneeId: null, dueDate: null };
+const DEFAULT_PROPERTIES: Properties = {
+  preset: null,
+  status: "BACKLOG",
+  priority: "NONE",
+  assigneeId: null,
+  dueDate: null,
+  milestoneId: null,
+};
 
 /**
  * New issue: a title, a body, and a row of chips for everything else. Only the title is
@@ -34,11 +42,16 @@ export function NewIssueDialog({
   onOpenChange,
   projectKey,
   members,
+  milestones,
+  defaultMilestoneId = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectKey: string;
   members: ProjectMember[];
+  milestones: Milestone[];
+  /** Pre-selected when the list is filtered to one milestone. */
+  defaultMilestoneId?: string | null;
 }) {
   const [title, setTitle] = useState("");
   const [properties, setProperties] = useState<Properties>(DEFAULT_PROPERTIES);
@@ -96,6 +109,7 @@ export function NewIssueDialog({
   const handleOpenChange = (next: boolean) => {
     if (next) {
       mutation.reset();
+      set("milestoneId", defaultMilestoneId);
       setTitleError(false);
       setLastCreated(null);
     }
@@ -185,6 +199,14 @@ export function NewIssueDialog({
               options={assigneeOptions(members)}
               onChange={(value) => set("assigneeId", value === NONE ? null : value)}
             />
+            {milestones.length > 0 ? (
+              <ChipSelect
+                label={m.milestone}
+                value={properties.milestoneId ?? NONE}
+                options={milestoneOptions(milestones)}
+                onChange={(value) => set("milestoneId", value === NONE ? null : value)}
+              />
+            ) : null}
             <ChipSelect
               label={m.preset}
               value={properties.preset ?? NONE}

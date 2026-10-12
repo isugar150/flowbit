@@ -3,6 +3,7 @@ package com.flowbit.issue.api
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonRawValue
 import com.flowbit.auth.application.AuthenticatedUser
+import com.flowbit.issue.application.IssueMilestone
 import com.flowbit.issue.application.IssuePatch
 import com.flowbit.issue.application.IssuePerson
 import com.flowbit.issue.application.IssueService
@@ -11,8 +12,8 @@ import com.flowbit.issue.application.NewIssue
 import com.flowbit.issue.domain.IssuePreset
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueStatus
-import com.flowbit.realtime.RealtimeHub
 import com.flowbit.media.application.ImageStorage
+import com.flowbit.realtime.RealtimeHub
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -53,6 +54,7 @@ data class IssueResponse(
     val priority: IssuePriority,
     val assignee: IssuePersonResponse?,
     val dueDate: LocalDate?,
+    val milestone: IssueMilestone?,
     val createdBy: IssuePersonResponse,
     val version: Int,
     val createdAt: Instant,
@@ -72,6 +74,7 @@ data class IssueResponse(
                 priority = issue.priority,
                 assignee = issue.assignee?.let(IssuePersonResponse::from),
                 dueDate = issue.dueDate,
+                milestone = issue.milestone,
                 createdBy = IssuePersonResponse.from(issue.createdBy),
                 version = issue.version,
                 createdAt = issue.createdAt,
@@ -89,6 +92,7 @@ data class CreateIssueRequest(
     val priority: IssuePriority? = null,
     val assigneeId: UUID? = null,
     val dueDate: LocalDate? = null,
+    val milestoneId: UUID? = null,
 )
 
 /**
@@ -118,7 +122,17 @@ class IssueController(
             issueService.create(
                 user,
                 key,
-                NewIssue(body.title, body.description, body.content, body.preset, body.status, body.priority, body.assigneeId, body.dueDate),
+                NewIssue(
+                    body.title,
+                    body.description,
+                    body.content,
+                    body.preset,
+                    body.status,
+                    body.priority,
+                    body.assigneeId,
+                    body.dueDate,
+                    body.milestoneId,
+                ),
             )
         realtime.publish("project:${issue.projectKey}", user.id)
         return IssueResponse.from(issue)
@@ -131,7 +145,7 @@ class IssueController(
         @PathVariable number: Int,
     ): IssueResponse = IssueResponse.from(issueService.get(user, key, number))
 
-    /** Only the fields present in the body change; `"assigneeId": null` and `"dueDate": null` clear them. */
+    /** Only the fields present in the body change; `null` clears `assigneeId`, `dueDate` and `milestoneId`. */
     @PatchMapping("/{number}")
     suspend fun update(
         @AuthenticationPrincipal user: AuthenticatedUser,

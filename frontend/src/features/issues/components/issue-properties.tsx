@@ -2,12 +2,13 @@
 
 import { PropertyRow } from "@/components/property-card";
 import { FormAlert } from "@/features/auth/components/form-alert";
+import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
-import { NONE, assigneeOptions, presetOptions, priorityOptions, statusOptions } from "../options";
+import { NONE, assigneeOptions, milestoneOptions, presetOptions, priorityOptions, statusOptions } from "../options";
 import type { Issue, IssueChanges } from "../types";
 import { ChipSelect } from "./chip-select";
 import { DateChip } from "./date-chips";
@@ -19,11 +20,13 @@ export function IssueProperties({
   projectKey,
   issue,
   members,
+  milestones,
   canEdit,
 }: {
   projectKey: string;
   issue: Issue;
   members: ProjectMember[];
+  milestones: Milestone[];
   canEdit: boolean;
 }) {
   const mutation = useRefreshingMutation(updateIssue);
@@ -59,6 +62,15 @@ export function IssueProperties({
             options={assigneeOptions(members)}
             disabled={locked}
             onChange={(value) => change({ assigneeId: value === NONE ? null : value })}
+          />
+        </PropertyRow>
+        <PropertyRow label={m.milestone}>
+          <ChipSelect
+            label={m.milestone}
+            value={issue.milestone?.id ?? NONE}
+            options={milestoneOptions(milestones)}
+            disabled={locked}
+            onChange={(value) => change({ milestoneId: value === NONE ? null : value })}
           />
         </PropertyRow>
         <PropertyRow label={m.preset}>
