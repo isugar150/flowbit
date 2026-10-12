@@ -10,7 +10,11 @@ import org.springframework.context.annotation.Import
 import org.springframework.r2dbc.core.DatabaseClient
 
 /** Starts the whole application on a random port against a PostgreSQL 18 container. */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    // Uploads made by tests stay inside the build directory.
+    properties = ["flowbit.storage.path=build/test-uploads"],
+)
 @Import(TestcontainersConfiguration::class, TestClockConfiguration::class)
 abstract class IntegrationTest {
     @Value("\${local.server.port}")
@@ -28,7 +32,7 @@ abstract class IntegrationTest {
     @BeforeEach
     fun resetState() {
         execute("truncate table audit_events, user_sessions, users cascade")
-        execute("update instance_settings set setup_completed_at = null")
+        execute("update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null")
         clock.reset()
         rateLimiter.reset()
     }

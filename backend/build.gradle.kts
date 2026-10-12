@@ -34,6 +34,9 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     // Argon2 implementation behind Spring Security's Argon2PasswordEncoder
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")
+    // Decodes uploads and re-encodes them as WebP (bundles the cwebp/dwebp binaries)
+    implementation("com.sksamuel.scrimage:scrimage-core:4.6.8")
+    implementation("com.sksamuel.scrimage:scrimage-webp:4.6.8")
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("org.postgresql:r2dbc-postgresql")
     testImplementation("org.springframework.boot:spring-boot-starter-data-r2dbc-test")

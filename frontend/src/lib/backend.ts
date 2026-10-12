@@ -1,4 +1,5 @@
 import type { Me } from "@/features/auth/types";
+import type { Workspace } from "@/features/settings/types";
 
 /**
  * Server-side calls to the backend, used by proxy.ts and server components. These go straight
@@ -34,6 +35,14 @@ export async function fetchSetupCompleted(): Promise<boolean> {
   if (!response.ok) throw new BackendUnavailableError(response.status);
   const body = (await response.json()) as { completed: boolean };
   return body.completed;
+}
+
+/** Name and logo of this installation. Needs a valid session. */
+export async function fetchWorkspace(cookieHeader: string): Promise<Workspace | null> {
+  const response = await get("/api/v1/workspace", cookieHeader);
+  if (response.status === 401) return null;
+  if (!response.ok) throw new BackendUnavailableError(response.status);
+  return (await response.json()) as Workspace;
 }
 
 /** The signed-in user for the given cookies, or null when there is no valid session. */

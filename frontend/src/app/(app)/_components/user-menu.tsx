@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
-import { ChevronsUpDownIcon, LogOutIcon } from "lucide-react";
+import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { logout } from "@/features/auth/api";
 import type { Me } from "@/features/auth/types";
+import { initials } from "@/lib/initials";
 import { messages } from "@/messages";
 
 const m = messages.userMenu;
@@ -37,9 +40,11 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
     },
   });
   const inSidebar = placement === "sidebar";
+  const name = user.displayName ?? user.loginId;
+  const isAdmin = user.role === "ADMIN";
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1">
       {mutation.isError ? (
         <p role="alert" className="px-2 text-[0.8125rem] leading-5 text-destructive">
           {m.logoutFailed}
@@ -50,13 +55,17 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
           render={
             <Button
               variant="ghost"
-              aria-label={`${m.label}: ${user.loginId}`}
-              className={inSidebar ? "w-full justify-between" : "max-w-48"}
+              aria-label={`${m.label}: ${name}`}
+              className={inSidebar ? "h-9 w-full justify-start px-2" : "h-9 max-w-48 px-2"}
             />
           }
         >
-          <span className="truncate">{user.loginId}</span>
-          <ChevronsUpDownIcon data-icon="inline-end" className="text-muted-foreground" />
+          <Avatar size="sm">
+            {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
+            <AvatarFallback>{initials(name)}</AvatarFallback>
+          </Avatar>
+          <span className="truncate">{name}</span>
+          <ChevronsUpDownIcon data-icon="inline-end" className="ml-auto text-muted-foreground" />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           side={inSidebar ? "top" : "bottom"}
@@ -65,9 +74,25 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
         >
           <DropdownMenuGroup>
             <DropdownMenuLabel className="flex flex-col gap-0.5">
-              <span className="truncate text-sm text-foreground">{user.loginId}</span>
-              <span className="font-normal">{user.role === "ADMIN" ? m.roleAdmin : m.roleMember}</span>
+              <span className="truncate text-sm text-foreground">{name}</span>
+              <span className="truncate font-normal">
+                {user.displayName ? `${user.loginId} · ` : ""}
+                {isAdmin ? m.roleAdmin : m.roleMember}
+              </span>
             </DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem render={<Link href="/settings/profile" />}>
+              <SettingsIcon />
+              {m.settings}
+            </DropdownMenuItem>
+            {isAdmin ? (
+              <DropdownMenuItem render={<Link href="/settings/workspace" />}>
+                <ShieldIcon />
+                {m.adminSettings}
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>

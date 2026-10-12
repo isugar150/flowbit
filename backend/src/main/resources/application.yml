@@ -1,6 +1,16 @@
 spring:
   application:
     name: flowbit
+  config:
+    # Read settings from a .env file when one exists: the repository root (when started from
+    # backend/) or the working directory. Real environment variables still win.
+    import:
+      - optional:file:../.env[.properties]
+      - optional:file:./.env[.properties]
+  webflux:
+    multipart:
+      # Hard stop for a single uploaded part; the application limit is flowbit.storage.max-upload-size.
+      max-disk-usage-per-part: 20MB
   # The application reads and writes over R2DBC.
   r2dbc:
     url: r2dbc:postgresql://${FLOWBIT_DB_HOST:localhost}:${FLOWBIT_DB_PORT:5432}/${FLOWBIT_DB_NAME:flowbit}
@@ -18,6 +28,10 @@ server:
   forward-headers-strategy: native
 
 flowbit:
+  storage:
+    # Where uploaded files are kept. Relative paths are resolved against the working directory.
+    path: ${FLOWBIT_STORAGE_PATH:./data/uploads}
+    max-upload-size: ${FLOWBIT_MAX_UPLOAD_SIZE:5MB}
   auth:
     max-failed-logins: 5
     lock-duration: 15m

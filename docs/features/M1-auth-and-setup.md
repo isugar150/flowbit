@@ -1,6 +1,6 @@
 # M1. 로그인 및 초기 설정
 
-상태: **범위와 초기 설정 방식은 확정.** 세부 수치(비밀번호 길이, 잠금 기준 등)는 제안이며 "확인이 필요한 것"에 모아 두었다.
+상태: **구현됨** (2026-10-12). 범위와 초기 설정 방식은 사용자가 확정했고, 사용자가 브라우저에서 초기 설정과 로그인을 직접 확인했다. 세부 수치(비밀번호 길이, 잠금 기준 등)는 제안값으로 구현했으며 "확인이 필요한 것"에 모아 두었다. 인수 기준 중 백엔드에서 확인되는 것은 통합 테스트가 있고, 화면 흐름의 자동 테스트(E2E)는 아직 없다.
 
 ## 목표
 
@@ -127,7 +127,7 @@ CSRF 쿠키를 발급한다. 204.
 
 ## 데이터
 
-`instance_settings`, `users`, `audit_events`, 세션 테이블. 정의는 [../05-data-model.md](../05-data-model.md) 의 "M1 테이블".
+`instance_settings`, `users`, `user_sessions`, `audit_events`. 정의는 [../05-data-model.md](../05-data-model.md) 의 "M1 테이블".
 
 ## 화면
 
@@ -188,7 +188,7 @@ CSRF 쿠키를 발급한다. 204.
 
 ## 구현 순서 (제안)
 
-1. 백엔드: 마이그레이션 (`instance_settings`, `users`, `audit_events`, 세션 테이블)
+1. 백엔드: 마이그레이션 (`instance_settings`, `users`, `user_sessions`, `audit_events`)
 2. 백엔드: 보안 설정 (세션, CSRF, 공개 경로, 401/403 을 Problem Details 로)
 3. 백엔드: `setup` 모듈 (status, setup)
 4. 백엔드: `auth` 모듈 (login, logout, 잠금, 횟수 제한), `user` 모듈 (`/me`)
@@ -200,7 +200,7 @@ CSRF 쿠키를 발급한다. 204.
 
 ## 확인이 필요한 것
 
-구현 전에 사용자에게 확인한다. 답을 받으면 이 문서와 [../09-decisions.md](../09-decisions.md) 를 고친다.
+아래 값은 제안값 그대로 구현되어 있다. 사용자가 다른 값을 원하면 `CredentialPolicy`, `application.yml` 의 `flowbit.auth.*`, 프론트엔드 `features/auth/schema.ts` 와 이 문서를 함께 고친다.
 
 1. 아이디 규칙 (4~32자, 영문 소문자·숫자·`._-`)
 2. 비밀번호 최소 길이(10자), 잠금 기준(5회/15분), 세션 수명(7일/최대 30일)

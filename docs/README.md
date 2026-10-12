@@ -7,10 +7,10 @@
 | 문서 | 내용 | 언제 읽나 |
 |---|---|---|
 | [PROGRESS.md](PROGRESS.md) | 현재 상태, 다음 작업, 열린 질문 | 매 작업 시작/종료 시 |
-| [01-product.md](01-product.md) | 제품 정의, 사용자, 용어, 범위 | 처음 한 번, 기능 판단이 필요할 때 |
-| [02-architecture.md](02-architecture.md) | 기술 스택과 버전, 저장소 구조, 시스템 구성 | 처음 한 번, 스캐폴딩할 때 |
-| [03-backend-guide.md](03-backend-guide.md) | Kotlin/Spring 코딩 규칙, 패키지 구조, 테스트 | 백엔드 작업 시 |
-| [04-frontend-guide.md](04-frontend-guide.md) | Next.js/shadcn 코딩 규칙, 디자인 원칙, 테스트 | 프론트엔드 작업 시 |
+| [01-product.md](01-product.md) | **제품과 UX의 기준** (Linear식 재설계): 철학, 개념, 내비게이션, 화면별 설계, 디자인 시스템, 사용자 플로우, 한국 사용자 특화 | 처음 한 번, 그리고 화면이나 기능을 만들 때마다 |
+| [02-architecture.md](02-architecture.md) | 기술 스택과 버전, 저장소 구조, 시스템 구성, 실시간 동기화, 환경 변수 | 처음 한 번, 구조를 건드릴 때 |
+| [03-backend-guide.md](03-backend-guide.md) | WebFlux·코루틴·R2DBC 규칙, 패키지 구조, 테스트 | 백엔드 작업 시 |
+| [04-frontend-guide.md](04-frontend-guide.md) | Next.js/shadcn 코딩 규칙, 속도·키보드 원칙, 문구, 접근성 | 프론트엔드 작업 시 |
 | [05-data-model.md](05-data-model.md) | 테이블 설계와 DB 규칙 | 스키마를 건드릴 때 |
 | [06-api-conventions.md](06-api-conventions.md) | REST 규칙, 오류 형식, 인증/CSRF | API를 만들거나 호출할 때 |
 | [07-skills-guide.md](07-skills-guide.md) | `agent-skills/` 의 스킬을 어떤 작업에 쓰는지 | 작업 종류가 정해졌을 때 |

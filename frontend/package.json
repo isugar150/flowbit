@@ -7,9 +7,7 @@
                     "build":  "next build",
                     "start":  "next start",
                     "lint":  "eslint",
-                    "typecheck":  "next typegen \u0026\u0026 tsc --noEmit",
-                    "test":  "vitest run",
-                    "test:e2e":  "playwright test"
+                    "typecheck":  "next typegen \u0026\u0026 tsc --noEmit"
                 },
     "dependencies":  {
                          "@base-ui/react":  "^1.9.0",

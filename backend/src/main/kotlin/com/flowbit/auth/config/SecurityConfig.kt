@@ -61,6 +61,8 @@ class SecurityConfig {
                     .permitAll()
                     .pathMatchers(HttpMethod.POST, *PUBLIC_POST)
                     .permitAll()
+                    .pathMatchers("/api/v1/admin/**")
+                    .hasRole("ADMIN")
                     .anyExchange()
                     .authenticated()
             }.exceptionHandling { it.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDeniedHandler) }

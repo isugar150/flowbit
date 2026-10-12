@@ -20,6 +20,8 @@ class User(
     var status: UserStatus,
     var email: String?,
     var displayName: String?,
+    /** File name of the profile image in storage, see ImageStorage. */
+    var avatarKey: String?,
     var locale: String?,
     var timezone: String?,
     var failedLoginCount: Int,
@@ -57,6 +59,8 @@ class User(
     }
 
     companion object {
+        const val DISPLAY_NAME_MAX_LENGTH = 50
+
         fun newAdmin(
             id: UUID,
             loginId: String,
@@ -70,6 +74,7 @@ class User(
             status = UserStatus.ACTIVE,
             email = null,
             displayName = null,
+            avatarKey = null,
             locale = null,
             timezone = null,
             failedLoginCount = 0,

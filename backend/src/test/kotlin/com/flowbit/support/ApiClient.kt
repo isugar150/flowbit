@@ -10,6 +10,7 @@ data class ApiResponse(
     val status: Int,
     val body: String,
     val headers: Map<String, List<String>>,
+    val bytes: ByteArray = body.toByteArray(),
 ) {
     @Suppress("UNCHECKED_CAST")
     fun json(): Map<String, Any?> = mapper.readValue(body, Map::class.java) as Map<String, Any?>
@@ -41,16 +42,45 @@ class ApiClient(
     val sessionCookie: String?
         get() = cookies[SESSION_COOKIE]
 
-    fun get(path: String): ApiResponse = send("GET", path, null)
+    fun get(path: String): ApiResponse = send("GET", path, null, null)
 
     fun post(
         path: String,
         json: String? = null,
+    ): ApiResponse = change("POST", path, json?.toByteArray(), "application/json")
+
+    fun patch(
+        path: String,
+        json: String,
+    ): ApiResponse = change("PATCH", path, json.toByteArray(), "application/json")
+
+    fun delete(path: String): ApiResponse = change("DELETE", path, null, null)
+
+    /** Sends one file as the `file` part of a multipart/form-data PUT, the way the browser form does. */
+    fun putFile(
+        path: String,
+        fileName: String,
+        contentType: String,
+        content: ByteArray,
+    ): ApiResponse {
+        val boundary = "----flowbit-test-boundary"
+        val head =
+            "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\n" +
+                "Content-Type: $contentType\r\n\r\n"
+        val body = head.toByteArray() + content + "\r\n--$boundary--\r\n".toByteArray()
+        return change("PUT", path, body, "multipart/form-data; boundary=$boundary")
+    }
+
+    private fun change(
+        method: String,
+        path: String,
+        body: ByteArray?,
+        contentType: String?,
     ): ApiResponse {
         if (sendCsrfHeader && CSRF_COOKIE !in cookies) {
             get("/api/v1/auth/csrf")
         }
-        return send("POST", path, json)
+        return send(method, path, body, contentType)
     }
 
     fun setup(
@@ -75,7 +105,8 @@ class ApiClient(
     private fun send(
         method: String,
         path: String,
-        json: String?,
+        body: ByteArray?,
+        contentType: String?,
     ): ApiResponse {
         val builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
         if (cookies.isNotEmpty()) {
@@ -85,15 +116,15 @@ class ApiClient(
             cookies[CSRF_COOKIE]?.let { builder.header("X-XSRF-TOKEN", it) }
         }
         val publisher =
-            if (json == null) {
+            if (body == null) {
                 HttpRequest.BodyPublishers.noBody()
             } else {
-                builder.header("Content-Type", "application/json")
-                HttpRequest.BodyPublishers.ofString(json)
+                contentType?.let { builder.header("Content-Type", it) }
+                HttpRequest.BodyPublishers.ofByteArray(body)
             }
-        val response = http.send(builder.method(method, publisher).build(), HttpResponse.BodyHandlers.ofString())
+        val response = http.send(builder.method(method, publisher).build(), HttpResponse.BodyHandlers.ofByteArray())
         response.headers().allValues("Set-Cookie").forEach(::storeCookie)
-        return ApiResponse(response.statusCode(), response.body(), response.headers().map())
+        return ApiResponse(response.statusCode(), String(response.body()), response.headers().map(), response.body())
     }
 
     private fun storeCookie(header: String) {

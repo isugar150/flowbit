@@ -16,6 +16,17 @@
 | 삭제 | `DELETE` | 204 |
 | 본문 없는 동작 | `POST` | 204 |
 
+## 파일 업로드
+
+- `multipart/form-data` 로 보내고 파일은 `file` 파트에 담는다. 한 요청에 파일 하나.
+- 이미지는 서버가 WebP 로 바꾸고 크기를 줄여 저장한다. 응답에는 저장된 이미지의 주소(`/api/v1/files/<key>`)가 들어 있다.
+- 오류: 413 `FILE_TOO_LARGE`, 422 `UNSUPPORTED_IMAGE`, 422 `IMAGE_DIMENSIONS_TOO_LARGE`.
+- 자세한 규칙은 [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md).
+
+## 관리자 전용
+
+관리자만 쓸 수 있는 API 는 `/api/v1/admin/` 아래에 둔다. 보안 설정이 이 경로 전체에 관리자 역할을 요구하므로, 엔드포인트마다 권한 확인을 따로 쓰지 않아도 빠뜨릴 수 없다. 관리자가 아니면 403 `FORBIDDEN`.
+
 ## 목록 (M2 이후)
 
 - 커서 기반 페이지네이션: `?limit=50&cursor=...`
@@ -28,7 +39,7 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 
 ```json
 {
-  "type": "https://flowbit.dev/problems/validation-failed",
+  "type": "urn:flowbit:problem:validation-failed",
   "title": "입력값이 올바르지 않습니다",
   "status": 422,
   "code": "VALIDATION_FAILED",
@@ -55,11 +66,13 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 
 ## 인증
 
-- 세션 쿠키 방식이다. 토큰(JWT)을 브라우저 저장소에 두지 않는다.
+- 세션 쿠키 방식이다. 토큰(JWT)을 브라우저 저장소에 두지 않는다. 쿠키 이름은 `FLOWBIT_SESSION`, 값은 서버가 만든 무작위 토큰이고 서버는 그 해시를 `user_sessions` 테이블에서 찾는다.
 - 세션 쿠키 속성: `HttpOnly`, `SameSite=Lax`, HTTPS 일 때 `Secure`, `Path=/`.
-- 로그인 성공 시 세션 ID 를 새로 발급한다 (세션 고정 공격 방지).
-- 세션 수명: 마지막 사용 후 7일간 유효(사용할 때마다 연장), 최대 30일. (초안)
+- 로그인 성공 시 항상 새 세션을 만들고, 요청에 들어 있던 이전 세션은 끝낸다 (세션 고정 공격 방지).
+- 세션은 요청마다 DB 에서 확인한다. 로그아웃하거나 사용자가 비활성화되면 그 즉시 쓸 수 없다.
+- 세션 수명: 마지막 사용 후 7일간 유효(사용할 때마다 연장), 로그인 후 최대 30일. (수치는 제안값, `flowbit.auth.*`)
 - 인증이 필요 없는 엔드포인트는 다음뿐이다. 추가하려면 기능 명세에 명시한다.
+  - `GET /api/v1/health`
   - `GET /api/v1/setup/status`
   - `POST /api/v1/setup`
   - `POST /api/v1/auth/login`
@@ -69,13 +82,18 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 
 - 쿠키-헤더 이중 제출 방식이다. 백엔드가 `XSRF-TOKEN` 쿠키(자바스크립트로 읽을 수 있음)를 내려주고, 프론트엔드는 `GET` 이외의 모든 요청에 그 값을 `X-XSRF-TOKEN` 헤더로 보낸다.
 - 로그인과 초기 설정 요청에도 적용한다. 프론트엔드는 첫 변경 요청 전에 `GET /api/v1/auth/csrf` 로 토큰을 받아 둔다.
+- 헤더에는 쿠키 값을 그대로 넣는다. 토큰이 없거나 틀리면 403 `CSRF_TOKEN_INVALID`.
 - 이 처리는 `lib/api` 클라이언트가 자동으로 한다.
 
 ## 요청 횟수 제한
 
-로그인과 초기 설정 엔드포인트에는 IP 기준 제한을 건다. 초과 시 429 와 `Retry-After` 헤더를 돌려준다. 구체적인 수치는 기능 명세에서 정한다.
+로그인과 초기 설정 엔드포인트에는 IP 기준 제한을 건다. 초과 시 429 와 `Retry-After` 헤더를 돌려준다. 구체적인 수치는 기능 명세에서 정한다. 횟수는 서버 메모리에 있어서 재시작하면 초기화된다.
+
+## 실시간 (M3 부터)
+
+변경은 REST 로 하고, 다른 사용자에게 전파하는 것은 WebSocket `GET /api/v1/realtime` 으로 한다. 설계는 [02-architecture.md](02-architecture.md) "실시간 동기화".
 
 ## API 문서
 
-- springdoc-openapi 로 OpenAPI 문서를 자동 생성한다 (`/api/v1/openapi.json`, `local` 프로필에서만 Swagger UI 노출).
-- 프론트엔드 타입은 이 문서에서 생성한다. API 를 바꾸면 타입을 다시 생성해 같은 변경에 포함한다.
+- 아직 OpenAPI 문서를 만들지 않는다. 엔드포인트의 기준은 각 기능 명세의 "API" 절이고, 프론트엔드 타입은 `features/<기능>/types.ts` 에 직접 적는다.
+- 엔드포인트가 늘어나는 M3 에서 OpenAPI 생성(springdoc 의 WebFlux 지원 버전)과 타입 생성을 도입한다 (D-023).

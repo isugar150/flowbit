@@ -6,6 +6,10 @@
 .env.*
 !.env.example
 
+# 업로드한 파일 (FLOWBIT_STORAGE_PATH 기본 위치)
+/backend/data/
+/data/
+
 # OS
 .DS_Store
 Thumbs.db

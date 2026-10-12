@@ -25,7 +25,8 @@ async function csrfToken(forceRefresh = false): Promise<string | null> {
 }
 
 type Options = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** A plain value is sent as JSON. A FormData is sent as multipart, which is how files are uploaded. */
   body?: unknown;
 };
 
@@ -36,12 +37,15 @@ type Options = {
 export async function apiFetch<T>(path: string, { method = "GET", body }: Options = {}): Promise<T> {
   const request = async (refreshCsrf: boolean): Promise<Response> => {
     const headers = new Headers({ Accept: "application/json" });
-    if (body !== undefined) headers.set("Content-Type", "application/json");
+    const isForm = body instanceof FormData;
+    // For FormData the browser sets Content-Type itself, including the multipart boundary.
+    if (body !== undefined && !isForm) headers.set("Content-Type", "application/json");
     if (method !== "GET") {
       const token = await csrfToken(refreshCsrf);
       if (token) headers.set(CSRF_HEADER, token);
     }
-    return send(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const payload = body === undefined ? undefined : isForm ? body : JSON.stringify(body);
+    return send(path, { method, headers, body: payload });
   };
 
   let response = await request(false);

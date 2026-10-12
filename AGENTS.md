@@ -1,6 +1,6 @@
 # Flowbit — 에이전트 진입점
 
-Flowbit은 Jira와 같은 **프로젝트 관리 솔루션**이다. 단일 조직이 직접 설치해서 쓰는 형태(self-hosted)를 전제로 한다.
+Flowbit은 **Linear처럼 빠르고 단순한 이슈 트래커**다. 한국 사용자에게 맞춰 만들고, 단일 조직이 직접 설치해서 쓰는 형태(self-hosted)를 전제로 한다. 제품과 화면의 기준은 [docs/01-product.md](docs/01-product.md) 다.
 
 이 파일은 AI 에이전트가 작업을 시작할 때 가장 먼저 읽는 문서다. 상세 내용은 모두 `docs/` 에 있다.
 
@@ -19,9 +19,10 @@ Flowbit은 Jira와 같은 **프로젝트 관리 솔루션**이다. 단일 조직
 
 | 영역 | 선택 |
 |---|---|
-| 백엔드 | Spring Boot 4.x + Kotlin, JDK 25, Gradle(Kotlin DSL) |
-| DB | PostgreSQL 18 (`docker-compose.yml`), Flyway 마이그레이션, Spring Data JPA |
-| 프론트엔드 | Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui |
+| 백엔드 | Spring Boot 4.x **WebFlux** + Kotlin 코루틴, JDK 25, Gradle(Kotlin DSL) |
+| DB | PostgreSQL 18 (`docker-compose.yml`), Flyway 마이그레이션, Spring Data **R2DBC** (JPA·JDBC 등 블로킹 접근 금지) |
+| 프론트엔드 | Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui(Base UI), Pretendard, npm |
+| 실시간 | 변경은 REST, 다른 사용자에게 전파는 WebSocket (M3 부터) |
 | 배포 형태 | 단일 조직 설치형 (멀티 테넌시 없음) |
 | 1차 범위(M1) | 로그인 및 초기 설정 |
 

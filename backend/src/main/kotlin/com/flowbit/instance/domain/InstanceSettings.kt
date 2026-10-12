@@ -10,6 +10,8 @@ class InstanceSettings(
     @Id
     val id: Short,
     var organizationName: String,
+    /** File name of the workspace logo in storage, see ImageStorage. */
+    var logoKey: String?,
     var defaultLocale: String,
     var defaultTimezone: String,
     var setupCompletedAt: Instant?,
@@ -27,5 +29,6 @@ class InstanceSettings(
 
     companion object {
         const val SINGLETON_ID: Short = 1
+        const val ORGANIZATION_NAME_MAX_LENGTH = 100
     }
 }
