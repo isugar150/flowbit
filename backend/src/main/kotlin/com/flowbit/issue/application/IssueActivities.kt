@@ -28,6 +28,12 @@ enum class IssueActivityType {
     DOCUMENT_REMOVED,
     DELETED,
     RESTORED,
+
+    /** Announced like the others but not kept in the history: the comment itself is what the page shows. */
+    COMMENT_ADDED,
+
+    /** People were tagged with @ in the body. Announced only, like a comment. */
+    MENTIONED,
 }
 
 /** One thing that changed, before it is stored. Names in `detail` are the names at this moment. */

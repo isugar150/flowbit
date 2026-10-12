@@ -9,7 +9,7 @@
 | M2a | 설정 화면과 이미지 업로드 (M2 의 일부를 먼저) | 구현됨 (화면 확인 남음) | [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md) |
 | M2b | LDAP 연동, SSO(OpenID Connect) 연동, 이메일 아이디 | 구현됨 (화면·실제 서버 확인 남음) | [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) |
 | M2 | 구성원과 워크스페이스 설정 (나머지: 내 비밀번호 변경, 언어·시간대) | 초안 | 미작성 |
-| M3 | 프로젝트와 이슈 (구성원, 프로젝트 권한, 프리셋, 문서형 이슈, 목록, 댓글) | **1단계 구현됨, 2·3단계 핵심 구현됨**(이슈·편집기), 4단계 명세만 | [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) |
+| M3 | 프로젝트와 이슈 (구성원, 프로젝트 권한, 프리셋, 문서형 이슈, 목록, 댓글) | **1단계 구현됨, 2·3단계 핵심 구현됨**(이슈·편집기), 4단계는 댓글·`@` 태그 구현됨 | [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) |
 | M4 | 커맨드 팔레트와 단축키, 실행 취소 | 초안 | 미작성 |
 | M5 | 보드 | 초안 | 미작성 |
 | M6 | 사이클 | 초안 | 미작성 |

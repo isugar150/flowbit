@@ -1,3 +1,4 @@
+import type { MentionPerson } from "@/components/editor/mention";
 import type { RichDoc } from "@/components/editor/rich-text-editor";
 import type { IssuePerson, IssuePriority } from "@/features/issues/types";
 import type { UserSummary } from "@/features/members/types";
@@ -63,6 +64,11 @@ export type ProjectChanges = Partial<{
  * Everyone in the workspace in the shape of project members, for an issue that is in no project:
  * anyone can be assigned to it.
  */
+/** The people "@" offers in an editor: whoever could be given the issue. */
+export function mentionablesOf(members: ProjectMember[]): MentionPerson[] {
+  return members.map((member) => ({ id: member.userId, name: member.displayName ?? member.loginId, loginId: member.loginId }));
+}
+
 export function usersAsMembers(users: UserSummary[] | null): ProjectMember[] {
   return (users ?? []).map((person) => ({ ...person, userId: person.id, role: "EDITOR" }));
 }

@@ -2,6 +2,7 @@
 
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
+import type { MentionPerson } from "@/components/editor/mention";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { apiErrorMessage } from "@/lib/api/error-message";
@@ -10,7 +11,8 @@ import { messages } from "@/messages";
 import { setIssueSubscribed } from "../api";
 import { priorityLabel, statusLabel } from "../meta";
 import { PersonAvatar, personName } from "@/components/person";
-import type { IssueActivityFeed, IssueActivityItem, IssuePriority, IssueStatus } from "../types";
+import type { IssueActivityFeed, IssueActivityItem, IssueComment, IssuePriority, IssueStatus } from "../types";
+import { CommentComposer, CommentItem } from "./issue-comments";
 
 const m = messages.issues.activity;
 
@@ -65,11 +67,36 @@ function describe(item: IssueActivityItem): { action: string; change?: string } 
   }
 }
 
+type Entry = { at: string; event: IssueActivityItem; comment?: undefined } | { at: string; comment: IssueComment; event?: undefined };
+
+/** History entries and comments as one list, oldest first. */
+function entriesOf(feed: IssueActivityFeed): Entry[] {
+  const entries: Entry[] = [
+    ...feed.items.map((event) => ({ at: event.createdAt, event })),
+    ...feed.comments.map((comment) => ({ at: comment.createdAt, comment })),
+  ];
+  // Timestamps are ISO strings in UTC, so they sort as text; ties keep the order above.
+  return entries.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+}
+
 /**
- * The history of an issue, oldest first, with who follows it. The author and the assignee follow
- * automatically; anyone who can see the issue can follow or stop with the button.
+ * The history of an issue and its comments, mixed by time, oldest first, with who follows it and,
+ * for people who may edit the issue, where to write a comment. The author, the assignee, whoever
+ * comments and whoever is tagged with "@" follow automatically; anyone who can see the issue can
+ * follow or stop with the button.
  */
-export function IssueActivity({ number, feed }: { number: number; feed: IssueActivityFeed }) {
+export function IssueActivity({
+  number,
+  feed,
+  canComment,
+  mentionables,
+}: {
+  number: number;
+  feed: IssueActivityFeed;
+  canComment: boolean;
+  /** The people "@" offers in a comment. */
+  mentionables: MentionPerson[];
+}) {
   const mutation = useRefreshingMutation(setIssueSubscribed);
   const subscriberNames = feed.subscribers.map(personName).join(", ");
 
@@ -116,7 +143,9 @@ export function IssueActivity({ number, feed }: { number: number; feed: IssueAct
         </p>
       ) : null}
       <ol className="flex flex-col gap-2.5">
-        {feed.items.map((item) => {
+        {entriesOf(feed).map((entry) => {
+          if (entry.comment) return <CommentItem key={entry.comment.id} comment={entry.comment} mentionables={mentionables} />;
+          const item = entry.event;
           const { action, change } = describe(item);
           return (
             <li key={item.id} className="flex items-start gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
@@ -133,6 +162,7 @@ export function IssueActivity({ number, feed }: { number: number; feed: IssueAct
           );
         })}
       </ol>
+      {canComment ? <CommentComposer number={number} mentionables={mentionables} /> : null}
     </section>
   );
 }

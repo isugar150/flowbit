@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
 import { useAutosave } from "@/lib/use-autosave";
@@ -15,7 +16,16 @@ const m = messages.issues;
  * Title and body of one issue, edited in place by people who may edit. There is no edit mode
  * and no save button; what is typed is saved a moment later.
  */
-export function IssueBody({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
+export function IssueBody({
+  issue,
+  canEdit,
+  mentionables,
+}: {
+  issue: IssueDetail;
+  canEdit: boolean;
+  /** The people "@" offers in the body. */
+  mentionables: MentionPerson[];
+}) {
   const router = useRouter();
   const title = useAutosave(async (value: string) => {
     // An emptied title is not saved; the issue keeps its last title.
@@ -67,6 +77,7 @@ export function IssueBody({ issue, canEdit }: { issue: IssueDetail; canEdit: boo
           className="min-h-40"
           onChange={content.schedule}
           keepLocal={content.isDirty}
+          mentionables={mentionables}
           // "/문서" in the body makes a document on this issue and puts it there as a block.
           documents={issue.documents}
           onCreateDocument={

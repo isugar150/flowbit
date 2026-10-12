@@ -8,6 +8,7 @@ import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
+import com.flowbit.common.richtext.RichTextDocument
 import com.flowbit.issue.domain.Issue
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueRepository
@@ -79,6 +80,8 @@ class IssuePatch(
 
 data class IssueActivityFeed(
     val items: List<IssueActivityView>,
+    /** Oldest first; the page mixes them into `items` by time. */
+    val comments: List<CommentView>,
     val subscribers: List<IssuePerson>,
     /** Whether the caller is one of the subscribers. */
     val subscribed: Boolean,
@@ -95,6 +98,12 @@ data class IssueDetail(
     val reactions: List<ReactionSummary>,
     val attachments: List<AttachmentView>,
     val documents: List<DocumentSummary>,
+)
+
+/** A comment that was written or changed, with whom to tell about it. */
+data class CommentResult(
+    val comment: CommentView,
+    val change: IssueChange,
 )
 
 /** A document with what its page needs to know about the issue or the project it belongs to. */
@@ -141,6 +150,7 @@ class IssueService(
     private val milestoneService: MilestoneService,
     private val activities: IssueActivityStore,
     private val extras: IssueExtrasStore,
+    private val comments: IssueCommentStore,
     private val fileStorage: FileStorage,
     private val clock: Clock,
 ) {
@@ -272,7 +282,8 @@ class IssueService(
         // The author and the assignee follow the issue from the start.
         activities.subscribe(issue.id, user.id)
         input.assigneeId?.let { activities.subscribe(issue.id, it) }
-        return IssueChange(checkNotNull(detail(issue.number)), events, recipients(issue.id, user))
+        val mentioned = mentionEvents(tag(issue, document?.mentions.orEmpty(), user))
+        return IssueChange(checkNotNull(detail(issue.number)), events + mentioned, recipients(issue.id, user))
     }
 
     @Transactional
@@ -322,10 +333,14 @@ class IssueService(
         issue.updatedAt = clock.instant()
         repository.save(issue)
         if (labelIds != null) queries.replaceLabels(issue.id, labelIds)
+        // Only people tagged by this save hear about it, not everyone the body already named.
+        val newMentions =
+            document?.mentions?.takeIf { it.isNotEmpty() }?.let { it - richText.mentionsIn(richText.load(RichText.ContentTable.ISSUES, issue.id)) }
         if (patch.has("content")) richText.store(RichText.ContentTable.ISSUES, issue.id, document)
         val after = checkNotNull(detail(number))
-        val events = activities.diff(before, after)
-        activities.record(issue.id, user.id, events, issue.updatedAt)
+        val recorded = activities.diff(before, after)
+        activities.record(issue.id, user.id, recorded, issue.updatedAt)
+        val events = recorded + mentionEvents(tag(issue, newMentions.orEmpty(), user))
         // Whoever is given the issue follows it from then on.
         if (after.assignee != null && after.assignee.id != before.assignee?.id) activities.subscribe(issue.id, after.assignee.id)
         moveSubIssuesAlong(user, issue, oldProjectId, oldMilestoneId, 0)
@@ -371,10 +386,110 @@ class IssueService(
         user: AuthenticatedUser,
         number: Int,
     ): IssueActivityFeed {
-        val issue = access(user, number).issue
+        val access = access(user, number)
+        val issue = access.issue
         val subscribers = activities.subscribers(issue.id)
-        return IssueActivityFeed(activities.list(issue.id), subscribers, subscribers.any { it.id == user.id })
+        val shown = comments.list(issue.id).map { it.withRights(user, access) }
+        return IssueActivityFeed(activities.list(issue.id), shown, subscribers, subscribers.any { it.id == user.id })
     }
+
+    /**
+     * Writes a comment on an issue; needs the right to edit it. The author and the people tagged
+     * in it with @ follow the issue from then on, and every follower is told.
+     */
+    @Transactional
+    suspend fun addComment(
+        user: AuthenticatedUser,
+        number: Int,
+        content: Any?,
+    ): CommentResult {
+        val access = editable(access(user, number))
+        val issue = access.issue
+        val document = commentDocument(content)
+        val now = clock.instant()
+        val id = comments.add(issue.id, user.id, document, now)
+        activities.subscribe(issue.id, user.id)
+        val tagged = tag(issue, document.mentions, user)
+        val comment = checkNotNull(comments.find(id)).withRights(user, access)
+        return CommentResult(comment, IssueChange(checkNotNull(queries.find(number)), listOf(commentEvent(document, tagged)), recipients(issue.id, user)))
+    }
+
+    /** Only its author may change a comment. People newly tagged by the change are told; nobody else is told again. */
+    @Transactional
+    suspend fun updateComment(
+        user: AuthenticatedUser,
+        commentId: UUID,
+        content: Any?,
+    ): CommentResult {
+        val existing = comments.find(commentId) ?: throw commentNotFound()
+        val access = editable(accessById(user, existing.issueId))
+        if (existing.author.id != user.id) throw ForbiddenException("다른 사람의 댓글은 고칠 수 없습니다")
+        val document = commentDocument(content)
+        comments.update(commentId, document, clock.instant())
+        val tagged = tag(access.issue, document.mentions - richText.mentionsIn(existing.content), user)
+        val comment = checkNotNull(comments.find(commentId)).withRights(user, access)
+        val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged))
+        return CommentResult(comment, IssueChange(checkNotNull(queries.find(access.issue.number)), events, tagged.map { it.first }))
+    }
+
+    /** Its author or a workspace admin may delete a comment. Returns the number of the issue it was on. */
+    @Transactional
+    suspend fun removeComment(
+        user: AuthenticatedUser,
+        commentId: UUID,
+    ): Int {
+        val existing = comments.find(commentId) ?: throw commentNotFound()
+        val access = editable(accessById(user, existing.issueId))
+        if (existing.author.id != user.id && user.role != UserRole.ADMIN) throw ForbiddenException("다른 사람의 댓글은 지울 수 없습니다")
+        comments.delete(commentId, clock.instant())
+        return access.issue.number
+    }
+
+    private fun CommentView.withRights(
+        user: AuthenticatedUser,
+        access: IssueAccess,
+    ): CommentView {
+        val mine = author.id == user.id
+        return copy(canEdit = access.canEdit && mine, canDelete = access.canEdit && (mine || user.role == UserRole.ADMIN))
+    }
+
+    private fun commentDocument(content: Any?): RichTextDocument {
+        val document = content?.let { richText.parse(it) }
+        // A picture alone is a comment too.
+        if (document == null || (document.plainText.isBlank() && "\"image\"" !in document.json)) {
+            throw ValidationException("content", "REQUIRED", "댓글 내용을 입력하세요")
+        }
+        return document
+    }
+
+    private fun commentEvent(
+        document: RichTextDocument,
+        tagged: List<Pair<UUID, String>>,
+    ) = IssueEvent(
+        IssueActivityType.COMMENT_ADDED,
+        mapOf("text" to document.plainText.take(COMMENT_PREVIEW_LENGTH), "mentions" to tagged.map { it.second }),
+    )
+
+    private fun mentionEvents(tagged: List<Pair<UUID, String>>): List<IssueEvent> =
+        if (tagged.isEmpty()) emptyList() else listOf(IssueEvent(IssueActivityType.MENTIONED, mapOf("mentions" to tagged.map { it.second })))
+
+    /**
+     * Makes the people tagged with @ follow the issue, so the notification about it reaches them
+     * through every channel they have set up. Only people who could be given the issue count
+     * (members of its project, or anyone active for an issue on its own); tagging oneself does
+     * nothing. Returns who was tagged, with their names as of now.
+     */
+    private suspend fun tag(
+        issue: Issue,
+        userIds: Collection<UUID>,
+        actor: AuthenticatedUser,
+    ): List<Pair<UUID, String>> =
+        userIds.filter { it != actor.id }.mapNotNull { userId ->
+            val reachable = issue.projectId?.let { queries.isProjectMember(it, userId) } ?: queries.isActiveUser(userId)
+            if (!reachable) return@mapNotNull null
+            activities.subscribe(issue.id, userId)
+            userId to activities.displayName(userId)
+        }
 
     /** Follow or stop following an issue. Open to everyone who can see it, the view-only role included. */
     suspend fun setSubscribed(
@@ -698,6 +813,8 @@ class IssueService(
 
     private fun notFound() = NotFoundException("ISSUE_NOT_FOUND", "이슈를 찾을 수 없습니다")
 
+    private fun commentNotFound() = NotFoundException("COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다")
+
     private data class OwnerAccess(
         val issue: Issue?,
         val project: Project?,
@@ -720,5 +837,8 @@ class IssueService(
         private const val MAX_LABELS = 10
         private const val MAX_DEPTH = 50
         private const val FILE_NAME_MAX_LENGTH = 255
+
+        /** How much of a comment a notification quotes. */
+        private const val COMMENT_PREVIEW_LENGTH = 300
     }
 }

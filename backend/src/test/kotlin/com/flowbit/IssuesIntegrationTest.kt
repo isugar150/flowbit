@@ -578,6 +578,65 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals(403, editor.patch("/api/v1/admin/workspace", """{"workspaceKey":"X1"}""").status)
     }
 
+    @Test
+    fun `편집 역할은 댓글을 쓰고 글쓴이만 고치며 글쓴이와 관리자가 지운다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"댓글 확인"}""")
+
+        val written = editor.post("/api/v1/issues/1/comments", commentJson("확인했습니다"))
+        val id = written.json()["id"]
+
+        assertEquals(201, written.status)
+        assertEquals(true, written.json()["canEdit"])
+        assertEquals(403, viewer.post("/api/v1/issues/1/comments", commentJson("보기 역할")).status)
+        assertEquals(404, outsider.post("/api/v1/issues/1/comments", commentJson("밖의 사람")).status)
+        assertEquals(422, editor.post("/api/v1/issues/1/comments", """{"content":{"type":"doc","content":[{"type":"paragraph"}]}}""").status)
+        assertEquals(422, editor.post("/api/v1/issues/1/comments", "{}").status)
+        // Everyone who can see the issue reads the comment; only its author may change it.
+        val seen = commentsOf(viewer.get("/api/v1/issues/1/activity").json()).single()
+        assertEquals(id, seen["id"])
+        assertEquals(false, seen["canEdit"])
+        assertEquals(false, seen["canDelete"])
+        assertEquals(403, admin.patch("/api/v1/comments/$id", commentJson("남의 글")).status)
+        assertEquals(200, editor.patch("/api/v1/comments/$id", commentJson("다시 확인했습니다")).status)
+        assertTrue(text("select body from issue_comments").contains("다시 확인"))
+        assertEquals(403, viewer.delete("/api/v1/comments/$id").status)
+        assertEquals(204, admin.delete("/api/v1/comments/$id").status)
+        assertTrue(commentsOf(editor.get("/api/v1/issues/1/activity").json()).isEmpty())
+        assertEquals(404, editor.patch("/api/v1/comments/$id", commentJson("지워진 글")).status)
+    }
+
+    @Test
+    fun `댓글과 본문에서 태그된 프로젝트 구성원은 이슈를 구독하게 된다`() {
+        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"태그 확인"}""")
+        val mention = """{"type":"mention","attrs":{"id":"%s","label":"이름"}}"""
+        val tagging = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[${mention.format(editorId)},${mention.format(outsiderId)}]}]}}"""
+
+        assertEquals(201, admin.post("/api/v1/issues/1/comments", tagging).status)
+
+        // The person outside the project cannot see the issue, so tagging them does nothing.
+        assertEquals(setOf("admin", "editor"), subscribersOf(admin.get("/api/v1/issues/1/activity").json()))
+        assertEquals("@이름@이름", text("select body from issue_comments"))
+
+        admin.post("/api/v1/issues", """{"title":"본문 태그"}""")
+        assertEquals(200, admin.patch("/api/v1/issues/2", tagging).status)
+        assertEquals(setOf("admin", "editor", "outsider"), subscribersOf(admin.get("/api/v1/issues/2/activity").json()))
+        val bad = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"mention","attrs":{"id":"x","label":"이름"}}]}]}}"""
+        assertEquals(422, admin.post("/api/v1/issues/1/comments", bad).status)
+    }
+
+    @Test
+    fun `삭제된 이슈에는 댓글을 쓸 수 없다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"지울 이슈"}""")
+        editor.delete("/api/v1/issues/1")
+
+        assertEquals(403, editor.post("/api/v1/issues/1/comments", commentJson("늦은 댓글")).status)
+    }
+
+    private fun commentJson(text: String) = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"$text"}]}]}}"""
+
+    @Suppress("UNCHECKED_CAST")
+    private fun commentsOf(feed: Map<String, Any?>): List<Map<String, Any?>> = feed["comments"] as List<Map<String, Any?>>
+
     @Suppress("UNCHECKED_CAST")
     private fun activityOf(feed: Map<String, Any?>): List<Map<String, Any?>> = feed["items"] as List<Map<String, Any?>>
 

@@ -32,6 +32,7 @@ class NotificationText(
                 "CREATED" in types -> "이슈를 만들었습니다"
                 "DELETED" in types -> "이슈를 삭제했습니다"
                 "RESTORED" in types -> "이슈를 복원했습니다"
+                "COMMENT_ADDED" in types -> "댓글을 남겼습니다"
                 else -> "이슈를 고쳤습니다"
             }
         val path = "/issue/${notification.issueKey}"
@@ -63,6 +64,13 @@ class NotificationText(
             "ATTACHMENT_REMOVED" -> "파일 삭제: ${detail["from"]}"
             "DOCUMENT_ADDED" -> "문서 추가: ${detail["to"]}"
             "DOCUMENT_REMOVED" -> "문서 삭제: ${detail["from"]}"
+            // The comment's text, then who is tagged in it.
+            "COMMENT_ADDED" ->
+                listOfNotNull(
+                    detail["text"]?.toString()?.takeIf { it.isNotBlank() },
+                    names(detail["mentions"]).takeIf { it.isNotEmpty() }?.let { "언급: " + it.joinToString(", ") },
+                ).joinToString("\n").ifEmpty { null }
+            "MENTIONED" -> "본문에서 언급: " + names(detail["mentions"]).joinToString(", ")
             else -> event.type
         }
     }

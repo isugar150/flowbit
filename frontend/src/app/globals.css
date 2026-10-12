@@ -245,6 +245,15 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+  /* A person tagged with "@" (components/editor/mention.ts). */
+  .rich-text .tiptap .mention {
+    border-radius: 0.25rem;
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    padding: 0.0625rem 0.25rem;
+    color: var(--primary);
+    font-weight: 500;
+    white-space: nowrap;
+  }
   .rich-text .tiptap img {
     display: block;
     max-width: 100%;

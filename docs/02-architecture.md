@@ -128,7 +128,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 ```
 
 - `notification/` 패키지: `Notifications.kt`(`IssueNotification`, `NotificationChannel`, `NotificationDispatcher`), `NotificationText.kt`(세 통로가 함께 쓰는 문구), `MailChannel.kt`, `PushChannel.kt`, `WebhookChannel.kt`, `NotificationSettingsService.kt`, `NotificationControllers.kt`, `NotificationData.kt`(엔티티).
-- **받는 사람** = 그 이슈의 구독자에서 바꾼 사람 본인을 뺀 것. 서비스가 트랜잭션 안에서 계산해 `IssueChange.recipientIds` 로 돌려준다. 메일·푸시는 받는 사람이 없으면 아무것도 하지 않고, API 알림은 받는 사람과 무관하게 간다.
+- **받는 사람** = 그 이슈의 구독자에서 바꾼 사람 본인을 뺀 것. 서비스가 트랜잭션 안에서 계산해 `IssueChange.recipientIds` 로 돌려준다. 메일·푸시는 받는 사람이 없으면 아무것도 하지 않고, API 알림은 받는 사람과 무관하게 간다. **`@` 로 태그된 사람**(댓글, 이슈 본문)은 그 자리에서 구독자가 되므로 같은 계산에 들어간다(D-101). 댓글은 `IssueAnnouncer.commented` 가 알린다(목록은 다시 그리지 않고 그 이슈 화면만).
 - **바뀐 일** = 활동 기록과 같은 종류와 값(`IssueActivityType`, `{from,to}`).
 - 통로를 더하려면 `NotificationChannel` 을 구현한 빈을 만든다. 통로는 스스로 켜져 있는지 확인하고, 필요한 것(주소, 토큰)을 직접 찾는다.
 - 디스크에 쌓지 않는다. 보내는 중에 서버가 꺼지면 그 알림은 사라진다. 재시도는 API 알림만 한다(5xx·무응답, 두 번 더).

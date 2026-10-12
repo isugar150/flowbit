@@ -225,6 +225,20 @@ notifications (수신함)
 | `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`, `type` text, `detail` jsonb, `created_at` | 이슈의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨은 `{added,removed}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
 | `issue_subscriptions` | `issue_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 이슈를 구독하는 사람. 알림의 받는 사람 |
 
+### `issue_comments` (`V5`, D-101)
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `id` | uuid PK | |
+| `issue_id` | uuid, CASCADE | |
+| `author_id` | uuid → `users` | |
+| `content` | jsonb | 편집기 문서. 태그된 사람은 이 안의 `mention` 블록(`attrs.id` = 사용자 id, `attrs.label` = 그때의 이름)이다. 따로 표를 두지 않는다 |
+| `body` | text | `content` 에서 뽑은 글자(알림 문구, 검색용). 태그는 `@이름` |
+| `created_at`, `updated_at` | timestamptz | 고치면 `updated_at` 만 바뀐다(화면의 "수정됨") |
+| `deleted_at` | timestamptz null | 지운 댓글. 행은 남고 읽지 않는다 |
+
+인덱스 `(issue_id, created_at, id)`. `COMMENT_ADDED`·`MENTIONED` 는 알림에만 쓰는 종류이고 `issue_activities` 에는 쌓이지 않는다.
+
 마이그레이션이 기존 이슈마다 `CREATED` 한 줄을 넣고, 만든 사람과 담당자를 구독시켰다.
 
 ### 독립 이슈, 하위 이슈, 리액션, 첨부, 문서 (D-062~D-066)

@@ -202,6 +202,7 @@ class WebhookSender(
             "CREATED" in types -> "issue.created"
             "DELETED" in types -> "issue.deleted"
             "RESTORED" in types -> "issue.restored"
+            "COMMENT_ADDED" in types -> "issue.commented"
             else -> "issue.updated"
         }
     }

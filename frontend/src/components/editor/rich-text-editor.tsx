@@ -8,6 +8,7 @@ import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
+  AtSignIcon,
   CodeIcon,
   FileTextIcon,
   Heading1Icon,
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { BlockDragHandle } from "./block-drag-handle";
 import { fixedOrigin } from "./fixed-origin";
+import { Mention, type MentionPerson } from "./mention";
 import { PageLink } from "./page-link";
 import { tableExtensions } from "./table-extensions";
 import { TableToolbar } from "./table-toolbar";
@@ -42,6 +44,8 @@ type SlashItem = {
   label: string;
   /** Extra words that find this block, so typing "/h2" or "/todo" works as well as the Korean name. */
   keywords: string;
+  /** Shown after the label in muted text: what tells two people of the same name apart. */
+  hint?: string;
   icon: React.ReactNode;
   run: (editor: Editor, range: { from: number; to: number }, actions: SlashActions) => void;
 };
@@ -110,7 +114,10 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
-type SlashState = { from: number; to: number; query: string; top: number; left: number };
+/** The menu at the cursor: blocks after "/", people after "@". */
+type SlashState = { kind: "slash" | "mention"; from: number; to: number; query: string; top: number; left: number };
+
+const MAX_MENTION_ITEMS = 8;
 
 const MENU_HEIGHT = 320;
 
@@ -125,19 +132,54 @@ function matchingItems(query: string, withDocuments: boolean): SlashItem[] {
   );
 }
 
-/** Where the `/` menu should be, if the cursor sits right after "/word" in an ordinary paragraph. */
-function readSlash(editor: Editor, probe: HTMLElement | null): SlashState | null {
+/** What the menu offers: the blocks matching "/word", or the people matching "@name". */
+function menuItems(
+  state: Pick<SlashState, "kind" | "query">,
+  withDocuments: boolean,
+  people: MentionPerson[],
+): SlashItem[] {
+  if (state.kind === "slash") return matchingItems(state.query, withDocuments);
+  const needle = state.query.toLowerCase();
+  return people
+    .filter((person) => `${person.name} ${person.loginId}`.toLowerCase().includes(needle))
+    .slice(0, MAX_MENTION_ITEMS)
+    .map((person) => ({
+      id: person.id,
+      label: person.name,
+      keywords: person.loginId,
+      hint: person.name === person.loginId ? undefined : person.loginId,
+      icon: <AtSignIcon />,
+      run: (editor, range) =>
+        editor
+          .chain()
+          .focus()
+          .insertContentAt(range, [
+            { type: "mention", attrs: { id: person.id, label: person.name } },
+            { type: "text", text: " " },
+          ])
+          .run(),
+    }));
+}
+
+/**
+ * Where the menu should be, if the cursor sits right after "/word" in an ordinary paragraph, or,
+ * where people can be tagged, right after "@name".
+ */
+function readSlash(editor: Editor, probe: HTMLElement | null, withMentions: boolean): SlashState | null {
   const { selection } = editor.state;
   const { $from } = selection;
-  if (!selection.empty || $from.parent.type.name !== "paragraph") return null;
+  if (!selection.empty) return null;
+  const parent = $from.parent.type.name;
   const before = $from.parent.textBetween(0, $from.parentOffset, undefined, "￼");
-  const match = /(?:^|\s)\/([^\s/]*)$/.exec(before);
+  const slashMatch = parent === "paragraph" ? /(?:^|\s)\/([^\s/]*)$/.exec(before) : null;
+  const match = slashMatch ?? (withMentions && parent !== "codeBlock" ? /(?:^|\s)@([^\s@]*)$/.exec(before) : null);
   if (!match) return null;
   const coords = editor.view.coordsAtPos($from.pos);
   // Open below the line; flip above it when there is no room left under the cursor.
   const top = coords.bottom + MENU_HEIGHT + 8 > window.innerHeight ? Math.max(8, coords.top - MENU_HEIGHT - 6) : coords.bottom + 6;
   const origin = fixedOrigin(probe);
   return {
+    kind: slashMatch ? "slash" : "mention",
     from: $from.pos - match[1].length - 1,
     to: $from.pos,
     query: match[1],
@@ -152,7 +194,8 @@ function readSlash(editor: Editor, probe: HTMLElement | null): SlashState | null
  * Type `/` for a menu of blocks; markdown shortcuts also work (`## `, `- `, `1. `, `[] `, `> `).
  * Pictures can be chosen from the menu, pasted or dropped in; they are uploaded first and the
  * document only keeps their address. With the cursor in a table, a toolbar for it appears. A grip
- * to the left of the block under the pointer drags that block to another place.
+ * to the left of the block under the pointer drags that block to another place. Where `mentionables`
+ * is given, typing `@` offers those people and tags the chosen one.
  * Content goes in and out as JSON, never HTML. To replace the content from outside (for example
  * when a form is cleared), give the component a new `key` so it starts again.
  *
@@ -170,6 +213,7 @@ export function RichTextEditor({
   keepLocal,
   onCreateDocument,
   documents,
+  mentionables,
 }: {
   initialContent: RichDoc | null;
   /**
@@ -180,6 +224,8 @@ export function RichTextEditor({
   onCreateDocument?: (title: string) => Promise<{ id: string; title: string }>;
   /** The documents the text may hold as blocks, for their current titles. */
   documents?: { id: string; title: string }[];
+  /** The people `@` offers to tag. Without them `@` is ordinary text. */
+  mentionables?: MentionPerson[];
   /** True while this editor has edits the server has not stored yet. */
   keepLocal?: () => boolean;
   /** Called with the document after each edit, or null when it has been emptied. */
@@ -208,12 +254,17 @@ export function RichTextEditor({
     onChangeRef.current = onChange;
   }, [onChange]);
 
+  const mentionablesRef = useRef(mentionables);
+  useEffect(() => {
+    mentionablesRef.current = mentionables;
+  }, [mentionables]);
+
   const updateSlash = (editor: Editor) => {
-    const next = editor.isEditable ? readSlash(editor, probeRef.current) : null;
+    const next = editor.isEditable ? readSlash(editor, probeRef.current, Boolean(mentionablesRef.current?.length)) : null;
     // After Escape the menu stays closed until the "/" it belonged to is gone.
     const visible = next && dismissedAtRef.current === next.from ? null : next;
     if (!next) dismissedAtRef.current = null;
-    if (visible?.query !== slashRef.current?.query) {
+    if (visible?.query !== slashRef.current?.query || visible?.kind !== slashRef.current?.kind) {
       indexRef.current = 0;
       setActiveIndex(0);
     }
@@ -322,6 +373,7 @@ export function RichTextEditor({
       Image.configure({ allowBase64: false }),
       ...tableExtensions,
       PageLink,
+      Mention,
     ],
     editorProps: {
       attributes: { "aria-label": ariaLabel, role: "textbox", "aria-multiline": "true" },
@@ -343,7 +395,7 @@ export function RichTextEditor({
       handleKeyDown: (view, event) => {
         const state = slashRef.current;
         if (!state || event.isComposing) return false;
-        const items = matchingItems(state.query, Boolean(createDocumentRef.current));
+        const items = menuItems(state, Boolean(createDocumentRef.current), mentionablesRef.current ?? []);
         if (event.key === "Escape") {
           // Only the menu closes: a dialog around the editor must not take this Escape as its own.
           event.stopPropagation();
@@ -425,7 +477,7 @@ export function RichTextEditor({
     }
   }, [editor, initialContent]);
 
-  const items = slash ? matchingItems(slash.query, Boolean(onCreateDocument)) : [];
+  const items = slash ? menuItems(slash, Boolean(onCreateDocument), mentionables ?? []) : [];
 
   return (
     <div
@@ -519,7 +571,7 @@ export function RichTextEditor({
       {slash && editor && items.length > 0 ? (
         <div
           role="listbox"
-          aria-label={m.slashMenu}
+          aria-label={slash.kind === "mention" ? m.mentionMenu : m.slashMenu}
           style={{ top: slash.top, left: slash.left, maxHeight: MENU_HEIGHT }}
           className="fixed z-50 flex w-56 flex-col overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
         >
@@ -544,7 +596,8 @@ export function RichTextEditor({
               )}
             >
               {item.icon}
-              {item.label}
+              <span className="truncate">{item.label}</span>
+              {item.hint ? <span className="truncate text-muted-foreground">{item.hint}</span> : null}
             </button>
           ))}
         </div>

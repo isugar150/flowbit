@@ -171,9 +171,25 @@ export type IssueActivityItem = {
   createdAt: string;
 };
 
+/** A comment on an issue. */
+export type IssueComment = {
+  id: string;
+  content: RichDoc;
+  author: IssuePerson;
+  createdAt: string;
+  /** Later than `createdAt` once the comment has been edited. */
+  updatedAt: string;
+  /** Whether the signed-in person may change it (its author). */
+  canEdit: boolean;
+  /** Whether the signed-in person may delete it (its author or a workspace admin). */
+  canDelete: boolean;
+};
+
 /** GET /api/v1/issues/{number}/activity */
 export type IssueActivityFeed = {
   items: IssueActivityItem[];
+  /** Oldest first; shown mixed into `items` by time. */
+  comments: IssueComment[];
   subscribers: IssuePerson[];
   /** Whether the signed-in person follows the issue. */
   subscribed: boolean;

@@ -318,6 +318,8 @@ class NotificationSettingsService(
                 "DOCUMENT_REMOVED",
                 "DELETED",
                 "RESTORED",
+                "COMMENT_ADDED",
+                "MENTIONED",
             )
         private val METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE")
         private const val DEFAULT_CONTENT_TYPE = "application/json"

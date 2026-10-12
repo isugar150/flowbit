@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonRawValue
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ValidationException
 import com.flowbit.issue.application.AttachmentView
+import com.flowbit.issue.application.CommentView
 import com.flowbit.issue.application.DocumentDetail
 import com.flowbit.issue.application.DocumentOwner
 import com.flowbit.issue.application.DocumentSummary
@@ -197,8 +198,37 @@ data class IssueActivityItemResponse(
     val createdAt: Instant,
 )
 
+data class CommentResponse(
+    val id: UUID,
+    @get:JsonRawValue
+    val content: String,
+    val author: IssuePersonResponse,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+    val canEdit: Boolean,
+    val canDelete: Boolean,
+) {
+    companion object {
+        fun from(comment: CommentView) =
+            CommentResponse(
+                comment.id,
+                comment.content,
+                IssuePersonResponse.from(comment.author),
+                comment.createdAt,
+                comment.updatedAt,
+                comment.canEdit,
+                comment.canDelete,
+            )
+    }
+}
+
+data class CommentRequest(
+    val content: Map<String, Any?>? = null,
+)
+
 data class IssueActivityResponse(
     val items: List<IssueActivityItemResponse>,
+    val comments: List<CommentResponse>,
     val subscribers: List<IssuePersonResponse>,
     val subscribed: Boolean,
 ) {
@@ -209,6 +239,7 @@ data class IssueActivityResponse(
                     feed.items.map {
                         IssueActivityItemResponse(it.id, it.type, it.detail, IssuePersonResponse.from(it.actor), it.createdAt)
                     },
+                comments = feed.comments.map(CommentResponse::from),
                 subscribers = feed.subscribers.map(IssuePersonResponse::from),
                 subscribed = feed.subscribed,
             )
@@ -308,6 +339,14 @@ class IssueAnnouncer(
     ) {
         realtime.publish(RealtimeHub.ISSUES, user.id)
         change.projectIds.forEach { realtime.publish("project:$it", user.id) }
+        commented(user, change)
+    }
+
+    /** A comment was written or changed: the issue's page reads again, and whoever `change` names is told. */
+    suspend fun commented(
+        user: AuthenticatedUser,
+        change: IssueChange,
+    ) {
         touched(user, change.issue.number)
         // Webhooks hear about every change; mail and push only reach the subscribers, if there are any.
         if (change.events.isEmpty()) return
@@ -479,6 +518,19 @@ class IssueController(
         return DocumentSummaryResponse.from(document)
     }
 
+    /** Writes a comment (`content` is an editor document). It is read back with the activity. */
+    @PostMapping("/{number}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    suspend fun comment(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+        @RequestBody body: CommentRequest,
+    ): CommentResponse {
+        val result = issueService.addComment(user, number, body.content)
+        announcer.commented(user, result.change)
+        return CommentResponse.from(result.comment)
+    }
+
     private suspend fun subscription(
         user: AuthenticatedUser,
         number: Int,
@@ -597,6 +649,34 @@ class AttachmentController(
         @PathVariable id: UUID,
     ) {
         announcer.touched(user, issueService.removeAttachment(user, id))
+    }
+}
+
+/** Comments on issues. Its author changes a comment; its author or a workspace admin deletes it. */
+@RestController
+@RequestMapping("/api/v1/comments")
+class CommentController(
+    private val issueService: IssueService,
+    private val announcer: IssueAnnouncer,
+) {
+    @PatchMapping("/{id}")
+    suspend fun update(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+        @RequestBody body: CommentRequest,
+    ): CommentResponse {
+        val result = issueService.updateComment(user, id, body.content)
+        announcer.commented(user, result.change)
+        return CommentResponse.from(result.comment)
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun delete(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+    ) {
+        announcer.touched(user, issueService.removeComment(user, id))
     }
 }
 

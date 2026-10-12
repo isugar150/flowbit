@@ -5,6 +5,7 @@ import type {
   Issue,
   IssueActivityFeed,
   IssueChanges,
+  IssueComment,
   IssueDocument,
   IssueDocumentSummary,
   Label,
@@ -39,6 +40,19 @@ export function setIssueSubscribed(input: { number: number; subscribed: boolean 
   return apiFetch<IssueActivityFeed>(`/api/v1/issues/${input.number}/subscription`, {
     method: input.subscribed ? "PUT" : "DELETE",
   });
+}
+
+/** Writes a comment; the people tagged in it with "@" are told through their notification channels. */
+export function createComment(input: { number: number; content: RichDoc }): Promise<IssueComment> {
+  return apiFetch<IssueComment>(`/api/v1/issues/${input.number}/comments`, { method: "POST", body: { content: input.content } });
+}
+
+export function updateComment(input: { id: string; content: RichDoc }): Promise<IssueComment> {
+  return apiFetch<IssueComment>(`/api/v1/comments/${input.id}`, { method: "PATCH", body: { content: input.content } });
+}
+
+export function deleteComment(id: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/comments/${id}`, { method: "DELETE" });
 }
 
 /** Adds the signed-in person's emoji to the issue, or takes it back when it is already there. */

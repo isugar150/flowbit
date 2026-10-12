@@ -6,7 +6,7 @@ import { Person } from "@/components/person";
 import { DialogTitle } from "@/components/ui/dialog";
 import type { UserSummary } from "@/features/members/types";
 import type { Milestone } from "@/features/milestones/types";
-import { usersAsMembers, type ProjectMember } from "@/features/projects/types";
+import { mentionablesOf, usersAsMembers, type ProjectMember } from "@/features/projects/types";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { getProjects, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
@@ -48,6 +48,8 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
   ]);
   const created = new Intl.DateTimeFormat("sv-SE", { timeZone: user.timezone }).format(new Date(issue.createdAt));
   const canEdit = issue.canEdit;
+  // Whoever could be given the issue can be tagged in it.
+  const mentionables = mentionablesOf(members ?? []);
 
   return (
     <div className="flex flex-1 flex-col gap-8 p-4 pt-10 sm:p-5 sm:pt-10 lg:flex-row lg:items-start lg:gap-6">
@@ -68,11 +70,11 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
           </Link>
         ) : null}
         <DeletedIssueBanner issue={issue} />
-        <IssueBody issue={issue} canEdit={canEdit} />
+        <IssueBody issue={issue} canEdit={canEdit} mentionables={mentionables} />
         <IssueAttachments number={issue.number} attachments={issue.attachments} canEdit={canEdit} />
         <IssueReactions number={issue.number} reactions={issue.reactions} readOnly={Boolean(issue.deletedAt)} />
         <IssueSubIssues issue={issue} canEdit={canEdit} />
-        {activity ? <IssueActivity number={issue.number} feed={activity} /> : null}
+        {activity ? <IssueActivity number={issue.number} feed={activity} canComment={canEdit} mentionables={mentionables} /> : null}
       </article>
       <aside className="flex w-full shrink-0 flex-col gap-6 px-2 lg:w-64 lg:pt-2">
         <IssueProperties

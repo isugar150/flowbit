@@ -12,6 +12,8 @@ import java.util.UUID
 data class RichTextDocument(
     val json: String,
     val plainText: String,
+    /** The people tagged in it with @, each once, in the order they first appear. */
+    val mentions: List<UUID> = emptyList(),
 )
 
 /**
@@ -35,12 +37,28 @@ class RichText(
         if (root["type"] != "doc") throw invalid(field)
         val text = StringBuilder()
         val nodes = intArrayOf(0)
-        visit(root, 0, text, nodes, field)
+        val mentions = linkedSetOf<UUID>()
+        visit(root, 0, text, nodes, mentions, field)
         val json = jsonMapper.writeValueAsString(root)
         if (json.length > MAX_JSON_LENGTH) {
             throw ValidationException(field, "TOO_LONG", "내용이 너무 깁니다")
         }
-        return RichTextDocument(json, text.toString().trim())
+        return RichTextDocument(json, text.toString().trim(), mentions.toList())
+    }
+
+    /** The people tagged in a stored document (raw JSON, as [load] returns it). */
+    fun mentionsIn(json: String?): Set<UUID> {
+        val found = linkedSetOf<UUID>()
+
+        fun walk(node: Any?) {
+            val map = node as? Map<*, *> ?: return
+            if (map["type"] == "mention") {
+                ((map["attrs"] as? Map<*, *>)?.get("id") as? String)?.let { id -> runCatching { UUID.fromString(id) }.getOrNull() }?.let(found::add)
+            }
+            (map["content"] as? List<*>)?.forEach(::walk)
+        }
+        if (json != null) walk(jsonMapper.readValue(json, Map::class.java))
+        return found
     }
 
     /** Stores a document (or clears it with null) in the `content` column of one row. */
@@ -74,6 +92,7 @@ class RichText(
         depth: Int,
         text: StringBuilder,
         nodes: IntArray,
+        mentions: MutableSet<UUID>,
         field: String,
     ) {
         val type = node["type"] as? String ?: throw invalid(field)
@@ -100,6 +119,15 @@ class RichText(
                 val title = attrs["title"]
                 if (title != null && (title !is String || title.length > MAX_PAGE_TITLE_LENGTH)) throw invalid(field)
             }
+            "mention" -> {
+                val id = attrs?.get("id") as? String ?: throw invalid(field)
+                if (!DOCUMENT_ID.matches(id)) throw invalid(field)
+                val label = attrs["label"] as? String ?: throw invalid(field)
+                if (label.length > MAX_MENTION_LABEL_LENGTH) throw invalid(field)
+                mentions += UUID.fromString(id)
+                text.append('@').append(label)
+                return
+            }
             "tableCell", "tableHeader" -> {
                 if (attrs?.get("align") !in CELL_ALIGN || attrs?.get("verticalAlign") !in CELL_VERTICAL_ALIGN) throw invalid(field)
                 if (!isSpan(attrs?.get("colspan")) || !isSpan(attrs?.get("rowspan"))) throw invalid(field)
@@ -110,7 +138,7 @@ class RichText(
             return
         }
         (node["content"] as? List<*>)?.forEach { child ->
-            visit(child as? Map<*, *> ?: throw invalid(field), depth + 1, text, nodes, field)
+            visit(child as? Map<*, *> ?: throw invalid(field), depth + 1, text, nodes, mentions, field)
         }
         if (type in BLOCK_TYPES && text.isNotEmpty() && text.last() != '\n') text.append('\n')
     }
@@ -139,7 +167,7 @@ class RichText(
         val NODE_TYPES =
             BLOCK_TYPES +
                 setOf("doc", "text", "bulletList", "orderedList", "taskList", "hardBreak") +
-                setOf("image", "table", "tableRow", "tableHeader", "tableCell", "pageLink")
+                setOf("image", "table", "tableRow", "tableHeader", "tableCell", "pageLink", "mention")
         val MARK_TYPES = setOf("bold", "italic", "strike", "code", "underline", "link")
 
         /** Only images uploaded here (ImageStorage keys); an outside address could track readers. */
@@ -148,6 +176,9 @@ class RichText(
         /** A page block points at a document by its id; the title in it is only what to show until the real one loads. */
         val DOCUMENT_ID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
         const val MAX_PAGE_TITLE_LENGTH = 200
+
+        /** A mention points at a person by id; the label is their name when they were tagged. */
+        const val MAX_MENTION_LABEL_LENGTH = 100
         val CELL_ALIGN = setOf(null, "left", "center", "right")
         val CELL_VERTICAL_ALIGN = setOf(null, "top", "middle", "bottom")
         const val MAX_SPAN = 100

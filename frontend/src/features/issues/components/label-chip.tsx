@@ -71,7 +71,10 @@ export function LabelChip({
                 disabled={disabled}
                 aria-label={`${m.editLabels}: ${selected.map((label) => label.name).join(", ") || m.noLabels}`}
                 title={m.editLabels}
-                className="flex size-6 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:hidden aria-expanded:bg-muted max-md:size-9"
+                // Hidden for people who may not edit, but never while its list is open: the button is
+                // also disabled for the moment a change is being saved, and a hidden anchor would
+                // send the open list to the corner of the window.
+                className="flex size-6 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:bg-muted max-md:size-9 [&:disabled:not([aria-expanded=true])]:hidden"
               />
             }
           >

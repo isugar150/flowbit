@@ -13,7 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import type { Milestone } from "@/features/milestones/types";
 import type { UserSummary } from "@/features/members/types";
-import { usersAsMembers, type ProjectMember, type ProjectSummary } from "@/features/projects/types";
+import { mentionablesOf, usersAsMembers, type ProjectMember, type ProjectSummary } from "@/features/projects/types";
 import { apiFetch } from "@/lib/api/client";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
@@ -236,6 +236,7 @@ export function NewIssueDialog({
               initialContent={null}
               placeholder={m.descriptionPlaceholder}
               ariaLabel={m.descriptionLabel}
+              mentionables={mentionablesOf(members)}
               // -ml/pl: the scroll box reaches into the left padding so the block grip is not clipped.
               className="-ml-4 max-h-[45dvh] min-h-28 overflow-y-auto overscroll-contain pl-4 md:max-h-[55dvh] md:min-h-64"
               onChange={(doc) => {

@@ -118,6 +118,25 @@ class NotificationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `댓글에서 태그된 사람은 구독하지 않던 이슈여도 메일을 받는다`() {
+        saveSmtp()
+        kim.patch("/api/v1/me/notifications", """{"email":"kim@example.com","notifyEmail":true}""")
+        admin.post("/api/v1/issues", """{"title":"배포 일정"}""")
+
+        val comment =
+            """
+            {"content":{"type":"doc","content":[{"type":"paragraph","content":[
+              {"type":"mention","attrs":{"id":"$kimId","label":"김지민"}},{"type":"text","text":" 확인 부탁드립니다"}]}]}}
+            """.trimIndent()
+        assertEquals(201, admin.post("/api/v1/issues/1/comments", comment).status)
+
+        assertTrue(mail.waitForIncomingEmail(10_000, 1))
+        val message = mail.receivedMessages.single()
+        assertEquals("kim@example.com", message.allRecipients.single().toString())
+        assertEquals("[FB-1] 배포 일정", message.subject)
+    }
+
+    @Test
     fun `메일이 꺼져 있으면 보내지 않고 테스트 메일은 저장하지 않은 설정으로 보낸다`() {
         val test = admin.post("/api/v1/admin/notifications/smtp/test", smtpJson(enabled = false, testTo = "someone@example.com"))
         val refused = admin.post("/api/v1/admin/notifications/smtp/test", smtpJson(port = 1, testTo = "someone@example.com"))
