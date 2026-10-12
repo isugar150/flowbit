@@ -180,6 +180,15 @@
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
 
+### 2026-10-13 — 배포 스크립트 (`script/`)
+
+- 사용자 지시: 쓰던 "무중단 + git" 스크립트에서 무중단만 빼고 이 프로젝트의 `script/` 폴더에 넣을 것. 설정한 경로에서 git pull → 빌드 → 바로 배포. 앱의 env 파일을 스크립트 경로에 넣으면 알아서 읽게 (D-105, [02-architecture.md](02-architecture.md) "스크립트 배포").
+- 한 일: `script/deploy.sh`, `startup.sh`, `shutdown.sh`, `common.sh`, `app.env`. 루트 `.gitattributes`(`/script/*` 는 LF), `.gitignore`(`script/app/`, `logs/`, `data/`, `*.pid`, `app.local.env`), README, `.env.example` 안내. 스크립트는 실행 권한(100755)으로 git 에 올려 두었다(스테이징만, 커밋은 하지 않았다).
+- 원본과 다른 점: nginx 전환·두 포트·릴리스 폴더가 없다. 프런트는 정적 파일 복사가 아니라 Next.js standalone 서버(`node server.js`)를 띄운다. `git pull` 은 원본 그대로다.
+- 확인한 범위: `bash -n`, 그리고 **리눅스 컨테이너에서 가짜 `java`·`node`·`git`·`npm`·`gradlew` 로** 다음을 돌려 봤다: `.env` 읽기(공백·`$`·따옴표·CRLF), 시작·이미 떠 있음·부분 종료·전체 종료, 배포(둘 다, 프런트만), 중복 실행 잠금, 빌드 실패 시 서버 유지. **실제 서버에서 진짜 빌드(Gradle, `next build`)와 헬스체크로는 돌려 보지 않았다.**
+- 첫 배포에서 먼저 볼 것: ① 서버의 JDK 가 25 인지(없으면 Gradle 이 내려받으려 한다) ② `next build` 뒤 `.next/standalone/server.js` 가 맨 위에 생기는지(저장소 루트에 lockfile 이 있으면 `frontend/` 아래로 들어가고, 스크립트가 그 경우 멈추고 알려 준다) ③ 백엔드 헬스체크가 90회 안에 통과하는지(첫 기동은 Flyway 때문에 더 걸린다) ④ `FLOWBIT_STORAGE_PATH` 를 절대 경로로 줬는지.
+- 없는 것: 자동 롤백(바로 앞 빌드가 `.prev` 로 남을 뿐), 재부팅 뒤 자동 시작, DB 백업.
+
 ### 2026-10-13 — Flyway 마이그레이션을 하나로 (운영 배포 준비)
 
 - 사용자 지시: 운영 배포를 위해 Flyway DDL 을 전부 합칠 것. 일회성이다. 개발 DB 는 사용자가 지운다 (D-104).

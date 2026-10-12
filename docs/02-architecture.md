@@ -52,6 +52,7 @@ flowbit/
 ├─ backend/               Spring Boot(WebFlux) 애플리케이션
 │   └─ data/uploads/       올린 이미지의 기본 저장 위치 (git 추적 안 함)
 ├─ frontend/              Next.js 애플리케이션
+├─ script/                서버에서 git pull → 빌드 → 재시작하는 배포 스크립트 ("스크립트 배포")
 ├─ docker/postgres/init/  DB 볼륨이 처음 만들어질 때 실행되는 SQL
 ├─ docker-compose.yml     로컬 개발용 PostgreSQL 18, `app` 프로필로 백엔드·프런트 컨테이너
 └─ .env.example           환경 변수 예시
@@ -186,3 +187,33 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 - `next.config.ts` 에 `output: "standalone"` 을 두었다. `next dev`, `next start` 에는 영향이 없다.
 - 운영에서는 `.env` 에 `FLOWBIT_DB_PASSWORD` 를 바꾸고, `FLOWBIT_PUBLIC_URL` 을 실제 주소로 준다. 앞에 HTTPS 리버스 프록시(nginx 등)를 둘 때는 `Upgrade`/`Connection` 헤더를 넘긴다("실시간 동기화").
 - 아직 없는 것: 이미지 레지스트리에 올리기, CI 에서 이미지 빌드, Spring 프로필(`prod`).
+
+## 스크립트 배포 (D-105)
+
+Docker 없이 서버 한 대에서 프로세스로 띄우는 방법이다. 저장소를 서버에 받아 두고 `script/deploy.sh` 를 돌리면 **git pull → 빌드 → 내리기 → 바꾸기 → 올리기**를 한다. 무중단이 아니다: 내리고 올리는 사이(수 초~수십 초)에는 접속이 끊긴다. 두 번째 인스턴스, nginx 전환, 릴리스 폴더는 없다.
+
+```bash
+cd /app/flowbit/script        # 저장소를 /app/flowbit 에 받았다면
+cp ../.env.example .env       # 앱 설정. 값을 고친다 (DB 비밀번호, FLOWBIT_PUBLIC_URL, FLOWBIT_STORAGE_PATH …)
+./deploy.sh                   # 무엇을 배포할지 묻는다. ./deploy.sh 1 | 2 | 3 으로 바로 고를 수 있다
+./shutdown.sh                 # 내리기 (인자: backend | frontend, 없으면 둘 다)
+./startup.sh                  # 마지막으로 빌드한 것을 올리기
+```
+
+| 파일 | 내용 |
+|---|---|
+| `deploy.sh` | 1 백엔드+프런트, 2 백엔드, 3 프런트. 원격에 새 커밋이 있으면 바뀐 파일을 먼저 보여 준다. **고른 것을 전부 빌드한 뒤에 내리므로 빌드가 실패하면 돌던 서버는 그대로다.** 동시에 두 번 돌지 않게 잠근다(`/tmp/flowbit.deploy.lock`) |
+| `startup.sh`, `shutdown.sh` | 백엔드(`java -jar`), 프런트(`node server.js`)를 pid 파일로 올리고 내린다. pid 파일을 잃어도 그 포트를 듣는 java·node 프로세스를 찾아 내린다 |
+| `common.sh` | 위 셋이 함께 쓰는 함수. 직접 실행하지 않는다 |
+| `app.env` | **스크립트의 설정**(경로, JVM 옵션, 헬스체크, 종료 대기). git 이 추적하므로 서버에서는 고치지 않고, 바꿀 줄만 `script/app.local.env`(git 추적 안 함)에 적는다 |
+| `.env` | **앱의 설정**. `.env.example` 과 같은 키. `script/` 에 두면 스크립트가 읽어 백엔드·프런트 프로세스와 프런트 빌드에 환경 변수로 넘긴다. git 추적 안 함 |
+
+- 서버에 필요한 것: git, JDK 25, Node.js 22 와 npm, curl, bash, `flock`(util-linux), 그리고 PostgreSQL 18(이 스크립트는 DB 를 띄우지 않는다).
+- 포트는 `.env` 에서 정한다: `SERVER_PORT`(백엔드, 기본 8080), `FLOWBIT_WEB_PORT`(프런트, 기본 3000). `BACKEND_URL` 을 적지 않으면 `http://127.0.0.1:<SERVER_PORT>` 로 정해져 프런트 빌드와 실행에 함께 쓰인다.
+- `.env` 는 셸 스크립트로 실행하지 않고 `KEY=VALUE` 줄로만 읽는다. 비밀번호에 `$` 나 공백이 있어도 적힌 그대로 들어간다. 값 양끝의 따옴표는 뗀다.
+- 실행 파일은 `script/app/backend/app.jar`, `script/app/frontend/` 에 복사해 두고 거기서 돈다. 바로 앞 빌드는 `app.jar.prev`, `frontend.prev` 로 하나만 남는다(새 것이 뜨지 않을 때 손으로 되돌리는 용도. 자동 롤백은 없다).
+- 로그는 `script/logs/backend.log`, `frontend.log`. 시작할 때마다 새 파일이고 바로 앞 것은 `.prev`.
+- 백엔드는 `script/` 에서 실행된다. `FLOWBIT_STORAGE_PATH` 가 상대 경로면 `script/data/uploads` 가 되므로 **운영에서는 백업되는 절대 경로를 준다.**
+- 떴는지 확인: 백엔드는 `GET /api/v1/health` 가 2xx(DB 까지 확인), 프런트는 포트가 응답하면 된 것으로 본다.
+- 프런트는 기본으로 `0.0.0.0:3000` 을 듣는다(`FRONT_HOST`). 앞에 nginx 를 둘 때는 `127.0.0.1` 로 바꾸고 `/` 전체를 프런트로 넘긴다(`Upgrade`/`Connection` 헤더 포함, "실시간 동기화"). 백엔드 포트는 밖에 열 필요가 없다.
+- 서버를 재부팅하면 자동으로 뜨지 않는다. 필요하면 `startup.sh` 를 부르는 systemd 유닛이나 cron `@reboot` 을 서버에 둔다(저장소에는 없다).

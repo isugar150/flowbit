@@ -53,6 +53,18 @@ docker compose --profile app up -d --build
 
 http://localhost:3000 에서 초기 설정부터 한다. 포트는 `.env` 의 `FLOWBIT_WEB_PORT` 로 바꾼다. 올린 이미지는 `uploads` 볼륨에, DB 는 `postgres-data` 볼륨에 있다. 자세한 내용은 [docs/02-architecture.md](docs/02-architecture.md) "Docker 이미지".
 
+## 서버에 스크립트로 배포하기
+
+Docker 없이 서버에서 git pull → 빌드 → 재시작을 한다 (무중단 아님). 서버에 git, JDK 25, Node.js 22, PostgreSQL 18 이 있어야 한다.
+
+```bash
+cd script
+cp ../.env.example .env   # 앱 설정을 고친다
+./deploy.sh               # 1 백엔드+프런트, 2 백엔드, 3 프런트
+```
+
+`./shutdown.sh`, `./startup.sh` 로 내리고 올린다. 자세한 내용은 [docs/02-architecture.md](docs/02-architecture.md) "스크립트 배포".
+
 ## 설정
 
 기본값으로 바로 실행된다. 바꾸려면 `.env.example` 을 저장소 루트에 `.env` 로 복사해 고친다. `docker compose` 와 백엔드가 이 파일을 읽는다. 프론트엔드의 `BACKEND_URL` 은 환경 변수나 `frontend/.env.local` 로 준다. 변수 목록은 [docs/02-architecture.md](docs/02-architecture.md).
