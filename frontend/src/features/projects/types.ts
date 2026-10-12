@@ -12,6 +12,8 @@ export type Project = {
   name: string;
   /** One-line summary. */
   description: string;
+  /** The uploaded icon; null shows the default box. */
+  iconUrl: string | null;
   /** What the signed-in user may do in this project. */
   myRole: ProjectRole;
   memberCount: number;

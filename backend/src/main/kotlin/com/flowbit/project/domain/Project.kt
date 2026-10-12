@@ -72,6 +72,17 @@ class Project(
 }
 
 interface ProjectRepository : CoroutineCrudRepository<Project, UUID> {
+    @Modifying
+    @Query("update projects set icon_key = :iconKey, updated_at = :now where id = :id")
+    suspend fun updateIconKey(
+        id: UUID,
+        iconKey: String?,
+        now: Instant,
+    ): Int
+
+    @Query("select icon_key from projects where id = :id")
+    suspend fun findIconKey(id: UUID): String?
+
     @Query("select * from projects where key = :key and archived_at is null")
     suspend fun findActiveByKey(key: String): Project?
 

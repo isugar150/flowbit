@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BoxIcon, ChevronDownIcon, LayoutGridIcon } from "lucide-react";
+import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
+import { ProjectIcon } from "@/components/project-icon";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import type { ProjectSummary } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
@@ -70,7 +71,7 @@ export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary
                 return (
                   <li key={project.id}>
                     <NavItem href={href} current={pathname === href || pathname.startsWith(`${href}/`)}>
-                      <BoxIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <ProjectIcon iconUrl={project.iconUrl} />
                       <span className="truncate">{project.name}</span>
                     </NavItem>
                   </li>

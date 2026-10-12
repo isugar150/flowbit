@@ -230,6 +230,8 @@ export const ko = {
     issuesEmptyTitle: "이슈 기능은 아직 준비 중입니다",
     issuesEmptyDescription: "다음 단계에서 이 프로젝트에 버그, 고도화, 기능 요청을 문서로 등록할 수 있게 됩니다.",
     settingsTitle: "프로젝트 정보",
+    iconLabel: "프로젝트 아이콘",
+    iconAlt: "현재 프로젝트 아이콘",
     settingsDescription: "이름은 프로젝트 구성원 모두에게 보입니다. 요약과 설명은 개요에서 바로 씁니다.",
     save: "저장",
     saving: "저장하는 중",

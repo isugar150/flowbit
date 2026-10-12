@@ -201,6 +201,8 @@
 | `POST /api/v1/projects` | `{ name, key, description? }` → 201 | 로그인 |
 | `GET /api/v1/projects/{key}` | 프로젝트와 내 역할 | 프로젝트 구성원 |
 | `PATCH /api/v1/projects/{key}` | `{ name?, description? }` (속성은 위 "프로젝트 속성") | 관리 |
+| `PUT /api/v1/projects/{key}/icon` | multipart `file` 하나. 256px 정사각 WebP 로 바꿔 저장(M2a 의 변환·저장). 응답은 프로젝트(`iconUrl`) | 관리 |
+| `DELETE /api/v1/projects/{key}/icon` | 기본 아이콘으로 되돌림 | 관리 |
 | `GET /api/v1/projects/{key}/members` | 프로젝트 구성원과 역할 | 프로젝트 구성원 |
 | `PUT /api/v1/projects/{key}/members/{userId}` | `{ role }`. 없으면 추가, 있으면 역할 변경 | 관리 |
 | `DELETE /api/v1/projects/{key}/members/{userId}` | 내보내기 → 204 | 관리 |
@@ -214,7 +216,7 @@
 | 사이드바 "프로젝트" | 내가 들어갈 수 있는 프로젝트 목록, `+` 로 새 프로젝트 |
 | `/` (전체 프로젝트) | Linear 의 프로젝트 목록처럼 표로 보인다 (D-046): 이름 + 현재 마일스톤(◆), 건강도(D-048), 우선순위, 리드, 목표일, 이슈 수(취소 제외), 상태 아이콘 + 진행률(완료 ÷ 취소 제외 이슈). 줄 전체가 링크. 좁은 화면에서는 이름과 상태만. 머리 오른쪽에 "새 프로젝트" |
 | `/project/{key}` | 프로젝트 머리(키, 이름, 설명). 이슈 목록 자리에는 아직 빈 상태 안내 |
-| `/project/{key}/settings` | 이름·설명 고치기, 구성원 추가·역할 변경·내보내기 (관리 역할만) |
+| `/project/{key}/settings` | 프로젝트 아이콘 올리기·지우기, 이름 고치기, 구성원 추가·역할 변경·내보내기 (관리 역할만). 아이콘은 사이드바, 전체 프로젝트 표, 경로 표시, 개요 머리에 보인다. 없으면 기본 상자 아이콘 |
 | `/admin/members` | 워크스페이스 구성원 목록, 추가, 역할 변경, 비활성화, 비밀번호 재설정 (관리자만) |
 
 ### 인수 기준 (1단계)

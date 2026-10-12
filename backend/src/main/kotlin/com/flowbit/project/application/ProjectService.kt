@@ -11,6 +11,9 @@ import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.common.web.ClientInfo
+import com.flowbit.media.application.ImageProcessor
+import com.flowbit.media.application.ImageSpec
+import com.flowbit.media.application.ImageStorage
 import com.flowbit.project.domain.Project
 import com.flowbit.project.domain.ProjectHealth
 import com.flowbit.project.domain.ProjectPriority
@@ -36,6 +39,8 @@ data class ProjectView(
     val key: String,
     val name: String,
     val description: String,
+    /** File name of the uploaded icon in storage; null for the default icon. */
+    val iconKey: String?,
     /**
      * What this person may do here. Workspace administrators act as managers everywhere. Null in
      * the project list for a project the person has not been added to: they see it but cannot enter.
@@ -82,6 +87,8 @@ class ProjectService(
     private val userService: UserService,
     private val auditService: AuditService,
     private val richText: RichText,
+    private val imageProcessor: ImageProcessor,
+    private val imageStorage: ImageStorage,
     private val clock: Clock,
 ) {
     /** Every active project; `myRole` is null for those the user may not enter. */
@@ -219,6 +226,32 @@ class ProjectService(
         user: AuthenticatedUser,
     ): ProjectView = view(memberStore.summary(projectId, user.id), user).copy(content = richText.load(RichText.ContentTable.PROJECTS, projectId))
 
+    /** Replaces the project icon with the upload, converted to a 256px square WebP. Managers only. */
+    suspend fun replaceIcon(
+        user: AuthenticatedUser,
+        key: String,
+        upload: ByteArray,
+    ): ProjectView {
+        val project = manage(user, key)
+        val previous = repository.findIconKey(project.id)
+        val iconKey = imageStorage.store(imageProcessor.toWebp(upload, ImageSpec.PROJECT_ICON))
+        repository.updateIconKey(project.id, iconKey, clock.instant())
+        imageStorage.delete(previous)
+        return detail(project.id, user)
+    }
+
+    /** Back to the default icon. Managers only. */
+    suspend fun removeIcon(
+        user: AuthenticatedUser,
+        key: String,
+    ): ProjectView {
+        val project = manage(user, key)
+        val previous = repository.findIconKey(project.id)
+        repository.updateIconKey(project.id, null, clock.instant())
+        imageStorage.delete(previous)
+        return detail(project.id, user)
+    }
+
     suspend fun members(
         user: AuthenticatedUser,
         key: String,
@@ -288,6 +321,7 @@ class ProjectService(
         key = row.key,
         name = row.name,
         description = row.description,
+        iconKey = row.iconKey,
         myRole = effectiveRole(row.memberRole, user),
         memberCount = row.memberCount,
         createdAt = row.createdAt,

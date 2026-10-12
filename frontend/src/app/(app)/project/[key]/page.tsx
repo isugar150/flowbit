@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
-import { BoxIcon, CalendarIcon, HashIcon, ShieldIcon, UsersIcon } from "lucide-react";
+import { CalendarIcon, HashIcon, ShieldIcon, UsersIcon } from "lucide-react";
 import { Person } from "@/components/person";
+import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { MilestonesSection } from "@/features/milestones/components/milestones-section";
 import type { Milestone } from "@/features/milestones/types";
@@ -43,9 +44,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
     <div className="flex flex-1 flex-col gap-8 px-4 pt-2 pb-10 lg:flex-row lg:items-start lg:gap-6">
       <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-1 flex-col gap-6 px-2 pt-8 sm:px-6 lg:pt-14">
         <div className="flex flex-col gap-3">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-            <BoxIcon className="size-5" aria-hidden="true" />
-          </span>
+          <ProjectIcon iconUrl={project.iconUrl} size="lg" />
           <h2 className="text-2xl leading-8 font-semibold">{project.name}</h2>
         </div>
         <ProjectOverviewEditor project={project} canEdit={project.myRole !== "VIEWER"}>

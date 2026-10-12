@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonRawValue
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.web.ClientInfo
+import com.flowbit.media.api.UploadReader
 import com.flowbit.media.application.ImageStorage
 import com.flowbit.project.application.ProjectEntry
 import com.flowbit.project.application.ProjectMemberRow
@@ -16,6 +17,8 @@ import com.flowbit.project.domain.ProjectRole
 import com.flowbit.project.domain.ProjectStatus
 import com.flowbit.realtime.RealtimeHub
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.codec.multipart.FilePart
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
@@ -38,6 +42,8 @@ data class ProjectResponse(
     val key: String,
     val name: String,
     val description: String,
+    /** The uploaded icon; null for the default one. */
+    val iconUrl: String?,
     /** Null for a project in the list that the caller may not enter. */
     val myRole: ProjectRole?,
     val memberCount: Int,
@@ -65,6 +71,7 @@ data class ProjectResponse(
                 key = view.key,
                 name = view.name,
                 description = view.description,
+                iconUrl = ImageStorage.urlOf(view.iconKey),
                 myRole = view.myRole,
                 memberCount = view.memberCount,
                 createdAt = view.createdAt,
@@ -136,6 +143,7 @@ data class PutProjectMemberRequest(
 @RequestMapping("/api/v1/projects")
 class ProjectController(
     private val projectService: ProjectService,
+    private val uploadReader: UploadReader,
     private val realtime: RealtimeHub,
 ) {
     @GetMapping
@@ -171,6 +179,28 @@ class ProjectController(
         @RequestBody body: Map<String, Any?>,
     ): ProjectResponse {
         val project = projectService.update(user, key, body)
+        realtime.publish("project:${project.key}", user.id)
+        return ProjectResponse.from(project)
+    }
+
+    /** Multipart with one `file` part; any common image format, stored as WebP. Managers only. */
+    @PutMapping("/{key}/icon", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    suspend fun replaceIcon(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+        @RequestPart("file") file: FilePart,
+    ): ProjectResponse {
+        val project = projectService.replaceIcon(user, key, uploadReader.read(file))
+        realtime.publish("project:${project.key}", user.id)
+        return ProjectResponse.from(project)
+    }
+
+    @DeleteMapping("/{key}/icon")
+    suspend fun removeIcon(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+    ): ProjectResponse {
+        val project = projectService.removeIcon(user, key)
         realtime.publish("project:${project.key}", user.id)
         return ProjectResponse.from(project)
     }

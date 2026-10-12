@@ -95,6 +95,8 @@
 - [x] 프로젝트 업데이트와 건강도 (D-048): `V8`, `ProjectUpdateService`/`ProjectUpdateController`, 개요의 "프로젝트 업데이트", 속성 카드와 목록의 건강도, `--success` 색
 - [x] 마일스톤 필터 고침: 개요의 `이슈 n/m` 링크로 오면 그 마일스톤만 보이게(필터를 주소에 둠), 거른 상태의 새 이슈에 마일스톤이 미리 골라지게(버튼·`C` 로 열 때도), "필터 초기화" 버튼
 - [x] 로그인 시 아이디·비밀번호가 주소(GET)에 들어가던 문제: 로그인·초기 설정 폼에 `method="post"`, `proxy.ts` 가 주소의 `password` 를 지움, 개발 서버를 사내망 주소로 열 수 있게 `FLOWBIT_DEV_ORIGINS`(`allowedDevOrigins`)
+- [x] 프로젝트 아이콘 (D-049): `V9`(`projects.icon_key`), `PUT/DELETE /api/v1/projects/{key}/icon`, 설정 화면의 올리기, `components/project-icon.tsx` 를 사이드바·목록·경로·개요에 사용
+- [ ] 프로젝트 아이콘: 통합 테스트(관리 역할만, 이전 파일 삭제)
 - [ ] 프로젝트 업데이트: `ProjectUpdatesIntegrationTest`(권한, 최근 건강도가 목록에 반영) 작성
 - [ ] 마일스톤: `MilestonesIntegrationTest`(권한, 다른 프로젝트 마일스톤 거부, 진행률 계산, 삭제 시 이슈 유지)와 화면 확인
 - [ ] 실시간: 두 브라우저(다른 계정)로 확인, `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. **백엔드는 이 환경에서 컴파일하지 못했다**(JDK 25 없음, Maven Central 429). 사용자 PC 에서 `./gradlew check` 가 먼저다
@@ -134,6 +136,12 @@
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 프로젝트 아이콘
+
+- 사용자 지시: 프로젝트 설정에서 프로젝트 아이콘을 올릴 수 있게.
+- 한 일: 위 체크리스트. 워크스페이스 로고의 올리기 화면 조각(`ImageUploadField`)과 백엔드 변환(`ImageProcessor`, `ImageStorage`)을 그대로 썼다.
+- 확인한 범위: 프런트 typecheck, eslint. 백엔드는 컴파일하지 못했다(JDK 25 없음).
 
 ### 2026-10-12 — 로그인 정보가 주소에 들어가던 문제
 

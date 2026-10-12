@@ -26,6 +26,9 @@ data class ImageSpec(
         /** Shown at up to 64px; stored at 256px so it stays sharp on high-density screens. */
         val AVATAR = ImageSpec(256, 256, ImageFit.COVER)
         val LOGO = ImageSpec(512, 512, ImageFit.INSIDE)
+
+        /** A square icon shown at up to 36px; cropped to fill, like an avatar. */
+        val PROJECT_ICON = ImageSpec(256, 256, ImageFit.COVER)
     }
 }
 

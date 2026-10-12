@@ -1,7 +1,7 @@
 import { Suspense } from "react";
-import { BoxIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PillTabs } from "@/components/pill-tabs";
+import { ProjectIcon } from "@/components/project-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
@@ -35,7 +35,7 @@ async function ProjectNav({ params }: { params: LayoutProps<"/project/[key]">["p
       {/* Anything in this project changing re-renders it for everyone who has it open. */}
       <RealtimeScope topics={[`project:${project.key}`]} presence={`project:${project.key}`} />
       <PageHeader
-        crumbs={[{ label: m.all, href: "/" }, { label: project.name, icon: <BoxIcon /> }]}
+        crumbs={[{ label: m.all, href: "/" }, { label: project.name, icon: <ProjectIcon iconUrl={project.iconUrl} /> }]}
         actions={<PresenceAvatars />}
       />
       <PillTabs

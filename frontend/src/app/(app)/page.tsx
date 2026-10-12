@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BoxIcon, DiamondIcon, LayoutGridIcon, LockIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { ProjectIcon } from "@/components/project-icon";
 import { PillTabs } from "@/components/pill-tabs";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { PriorityIcon, formatDueDate, priorityLabel } from "@/features/issues/meta";
@@ -108,7 +109,7 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
           {locked ? (
             <LockIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           ) : (
-            <BoxIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <ProjectIcon iconUrl={project.iconUrl} />
           )}
           <Link
             href={locked ? `/no-access/${project.key}` : `/project/${project.key}`}

@@ -31,3 +31,18 @@ export function postProjectUpdate(input: {
     body: { health: input.health, body: input.body },
   });
 }
+
+function fileForm(file: File): FormData {
+  const form = new FormData();
+  form.append("file", file);
+  return form;
+}
+
+/** Managers only. The server converts the image to a 256px square WebP. */
+export function uploadProjectIcon(key: string, file: File): Promise<Project> {
+  return apiFetch<Project>(`/api/v1/projects/${key}/icon`, { method: "PUT", body: fileForm(file) });
+}
+
+export function removeProjectIcon(key: string): Promise<Project> {
+  return apiFetch<Project>(`/api/v1/projects/${key}/icon`, { method: "DELETE" });
+}

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { SettingsSection } from "@/components/settings-section";
 import type { UserSummary } from "@/features/members/types";
 import { ProjectDetailsForm } from "@/features/projects/components/project-details-form";
+import { ProjectIconField } from "@/features/projects/components/project-icon-field";
 import { ProjectMembersPanel } from "@/features/projects/components/project-members-panel";
 import type { ProjectMember } from "@/features/projects/types";
 import { loadProject, requireUser, serverGet } from "@/lib/current-user";
@@ -25,6 +26,7 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10">
       <SettingsSection title={m.settingsTitle} description={m.settingsDescription}>
+        {canManage ? <ProjectIconField projectKey={project.key} iconUrl={project.iconUrl} /> : null}
         <ProjectDetailsForm project={project} canManage={canManage} />
       </SettingsSection>
       <SettingsSection title={m.membersTitle} description={m.membersDescription}>

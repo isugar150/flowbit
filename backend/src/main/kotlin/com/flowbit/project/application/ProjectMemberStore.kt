@@ -20,6 +20,8 @@ data class ProjectSummaryRow(
     val key: String,
     val name: String,
     val description: String,
+    /** File name of the uploaded icon in storage, see ImageStorage. */
+    val iconKey: String?,
     /** Null when the reader is a workspace administrator who is not a member. */
     val memberRole: ProjectRole?,
     val memberCount: Int,
@@ -220,7 +222,7 @@ class ProjectMemberStore(
             databaseClient
                 .sql(
                     """
-                    select p.id, p.key, p.name, p.description, p.created_at, pm.role as member_role,
+                    select p.id, p.key, p.name, p.description, p.icon_key, p.created_at, pm.role as member_role,
                            (select count(*) from project_members m where m.project_id = p.id) as member_count,
                            p.status, p.priority, p.start_date, p.target_date, p.labels,
                            l.id as lead_id, l.login_id as lead_login_id,
@@ -260,6 +262,7 @@ class ProjectMemberStore(
                     key = checkNotNull(row.get("key", String::class.java)),
                     name = checkNotNull(row.get("name", String::class.java)),
                     description = checkNotNull(row.get("description", String::class.java)),
+                    iconKey = row.get("icon_key", String::class.java),
                     memberRole = row.get("member_role", String::class.java)?.let(ProjectRole::valueOf),
                     memberCount = checkNotNull(row.get("member_count", Long::class.javaObjectType)).toInt(),
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
