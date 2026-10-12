@@ -16,6 +16,7 @@
 | 문서 편집기: `/` 메뉴(제목 1~3, 글머리·번호 목록, 체크리스트, 코드 블록, 인용, 구분선), 마크다운 입력, 자동 저장 | 구현, 화면 확인 |
 | 프리셋: 고르면 본문에 목차가 깔린다(직접 쓴 내용이 있으면 덮지 않는다) | 구현, 화면 확인 |
 | 프로젝트 개요: 한 줄 요약과 설명 문서를 그 자리에서 씀 | 구현, 화면 확인 |
+| 프로젝트 속성 (개요 오른쪽 "속성" 카드): 상태, 우선순위, 리드, 기간(시작일 → 종료일), 라벨 | 구현, 화면 확인 안 함 |
 
 아직 없는 것:
 
@@ -43,7 +44,22 @@
 | `POST /api/v1/projects/{key}/issues` | `{ title, content?, preset?, status?, priority?, assigneeId?, dueDate? }` → 201. 제목만 필수 |
 | `GET /api/v1/projects/{key}/issues/{number}` | 한 건. `content` 포함 |
 | `PATCH /api/v1/projects/{key}/issues/{number}` | 보낸 항목만 바뀐다. `assigneeId`, `dueDate`, `preset`, `content` 는 `null` 로 지운다 |
-| `PATCH /api/v1/projects/{key}` | `{ name?, description?, content? }`. `content` 는 개요 문서 |
+| `PATCH /api/v1/projects/{key}` | `{ name?, description?, content?, status?, priority?, leadId?, startDate?, targetDate?, labels? }`. `content` 는 개요 문서. `leadId`, `startDate`, `targetDate` 는 `null` 로 지운다 |
+
+### 프로젝트 속성
+
+사용자가 Linear 의 프로젝트 화면을 보여 주며 지정했다 (D-042). 개요 오른쪽 "속성" 카드에서 그 자리에서 바꾸고, **편집 역할부터** 바꿀 수 있다.
+
+| 속성 | 값 | 기본 |
+|---|---|---|
+| 상태 `status` | 백로그 `BACKLOG` / 계획됨 `PLANNED` / 진행 중 `IN_PROGRESS` / 완료 `COMPLETED` / 취소 `CANCELED` (고정 5개) | 백로그 |
+| 우선순위 `priority` | 이슈와 같은 값: 없음 / 긴급 / 높음 / 보통 / 낮음 | 없음 |
+| 리드 `lead` | 프로젝트의 활성 구성원 한 명 또는 없음. 아니면 422 `NOT_A_MEMBER`(필드 `leadId`) | 없음 |
+| 기간 `startDate` → `targetDate` | 날짜 두 개, 각각 비울 수 있다. 시작일이 종료일보다 늦으면 422 `BEFORE_START`(필드 `targetDate`) | 없음 |
+| 라벨 `labels` | 자유 입력 태그. 1~30자, 최대 10개, 대소문자 무시하고 중복 제거. 입력할 때 다른 프로젝트에 쓰인 라벨을 제안한다 | 없음 |
+
+- 라벨은 아직 별도 표(색, 관리 화면)가 없다. 프로젝트의 `labels` 배열에 이름만 둔다. 라벨 관리가 필요해지면 표로 옮긴다.
+- 프로젝트 목록 API(`GET /api/v1/projects`)에도 이 속성들이 함께 온다. 목록 화면에 보여 주는 것은 아직 없다.
 
 - 담당자는 그 프로젝트의 활성 구성원이어야 한다 (422 `NOT_A_MEMBER`).
 - 문서(`content`)는 서버가 검증한다: 편집기가 제공하는 블록과 서식만 허용하고, 링크는 `http(s)`, `mailto`, 앱 안의 경로만 받는다. 어기면 422 `INVALID_DOCUMENT`. HTML 은 저장하지도 내보내지도 않는다.
@@ -146,7 +162,7 @@
 | `GET /api/v1/projects` | 내가 들어갈 수 있는 프로젝트 (관리자는 전부) | 로그인 |
 | `POST /api/v1/projects` | `{ name, key, description? }` → 201 | 로그인 |
 | `GET /api/v1/projects/{key}` | 프로젝트와 내 역할 | 프로젝트 구성원 |
-| `PATCH /api/v1/projects/{key}` | `{ name?, description? }` | 관리 |
+| `PATCH /api/v1/projects/{key}` | `{ name?, description? }` (속성은 위 "프로젝트 속성") | 관리 |
 | `GET /api/v1/projects/{key}/members` | 프로젝트 구성원과 역할 | 프로젝트 구성원 |
 | `PUT /api/v1/projects/{key}/members/{userId}` | `{ role }`. 없으면 추가, 있으면 역할 변경 | 관리 |
 | `DELETE /api/v1/projects/{key}/members/{userId}` | 내보내기 → 204 | 관리 |
@@ -265,7 +281,8 @@
 1단계 (마이그레이션 `V3`, 구현됨):
 
 ```
-projects (id, key unique, name, description, next_issue_number, created_by, archived_at, created_at, updated_at)
+projects (id, key unique, name, description, next_issue_number, created_by, archived_at, created_at, updated_at,
+          status, priority, lead_id, start_date, target_date, labels text[])   -- 속성은 V6
 project_members (project_id, user_id, role: MANAGER | EDITOR | VIEWER, created_at)   PK (project_id, user_id)
 ```
 

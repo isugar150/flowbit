@@ -6,9 +6,12 @@ import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.media.application.ImageStorage
 import com.flowbit.project.application.ProjectMemberRow
+import com.flowbit.project.application.ProjectPerson
 import com.flowbit.project.application.ProjectService
 import com.flowbit.project.application.ProjectView
+import com.flowbit.project.domain.ProjectPriority
 import com.flowbit.project.domain.ProjectRole
+import com.flowbit.project.domain.ProjectStatus
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 data class ProjectResponse(
@@ -33,6 +37,12 @@ data class ProjectResponse(
     val myRole: ProjectRole,
     val memberCount: Int,
     val createdAt: Instant,
+    val status: ProjectStatus,
+    val priority: ProjectPriority,
+    val lead: ProjectPersonResponse?,
+    val startDate: LocalDate?,
+    val targetDate: LocalDate?,
+    val labels: List<String>,
     /** The overview document as editor JSON; present only when one project is requested. */
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
@@ -40,7 +50,33 @@ data class ProjectResponse(
 ) {
     companion object {
         fun from(view: ProjectView) =
-            ProjectResponse(view.id, view.key, view.name, view.description, view.myRole, view.memberCount, view.createdAt, view.content)
+            ProjectResponse(
+                id = view.id,
+                key = view.key,
+                name = view.name,
+                description = view.description,
+                myRole = view.myRole,
+                memberCount = view.memberCount,
+                createdAt = view.createdAt,
+                status = view.status,
+                priority = view.priority,
+                lead = view.lead?.let(ProjectPersonResponse::from),
+                startDate = view.startDate,
+                targetDate = view.targetDate,
+                labels = view.labels,
+                content = view.content,
+            )
+    }
+}
+
+data class ProjectPersonResponse(
+    val id: UUID,
+    val loginId: String,
+    val displayName: String?,
+    val avatarUrl: String?,
+) {
+    companion object {
+        fun from(person: ProjectPerson) = ProjectPersonResponse(person.id, person.loginId, person.displayName, ImageStorage.urlOf(person.avatarKey))
     }
 }
 
