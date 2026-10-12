@@ -86,6 +86,7 @@
 - [x] 페이지 이동 속도: `proxy.ts` 의 백엔드 호출 제거, `/session-expired`, `(app)/loading.tsx`, `(app)/error.tsx`, 중복 조회 제거 (D-038, [04-frontend-guide.md](04-frontend-guide.md) "페이지 이동이 느려지지 않게 하는 규칙")
 - [ ] 위 변경의 화면 확인 (에이전트는 로그인할 수 없어 보지 못했다. lint, typecheck, `next build` 통과)
 - [x] 프로젝트 속성: 상태, 우선순위, 리드, 기간(시작일 → 종료일), 라벨. `V6` 마이그레이션, `PATCH /api/v1/projects/{key}` 확장, 개요의 속성 카드 (D-042, [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "프로젝트 속성")
+- [x] `/project/[key]` 의 "uncached data outside of `<Suspense>`" 오류: 프로젝트 레이아웃의 조회를 `<Suspense>` 안으로 옮기고 `project/[key]/loading.tsx` 추가 ([04-frontend-guide.md](04-frontend-guide.md) 규칙 추가)
 - [ ] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 (사용자가 "작업 뒤 테스트하지 말 것"을 지정해 하지 않았다)
 
 ## 화면을 직접 확인하는 방법 (사용자 계정 없이)
