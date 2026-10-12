@@ -1,5 +1,6 @@
-# 로컬 개발용 PostgreSQL.
-# 값은 .env 로 바꿀 수 있다 (.env.example 참고). 실행: docker compose up -d
+# 로컬 개발용 PostgreSQL. 값은 .env 로 바꿀 수 있다 (.env.example 참고).
+#   개발(DB 만):          docker compose up -d
+#   앱까지 컨테이너로:    docker compose --profile app up -d --build   → http://localhost:3000
 name: flowbit
 
 services:
@@ -27,5 +28,48 @@ services:
       timeout: 3s
       retries: 10
 
+  # 아래 둘은 --profile app 일 때만 뜬다. 개발할 때는 백엔드와 프런트를 직접 실행한다.
+  backend:
+    profiles: ["app"]
+    build: ./backend
+    image: flowbit-backend
+    container_name: flowbit-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLOWBIT_DB_HOST: postgres
+      # 컨테이너끼리는 PostgreSQL 의 원래 포트로 붙는다 (FLOWBIT_DB_PORT 는 호스트에 여는 포트)
+      FLOWBIT_DB_PORT: 5432
+      FLOWBIT_DB_NAME: ${FLOWBIT_DB_NAME:-flowbit}
+      FLOWBIT_DB_USER: ${FLOWBIT_DB_USER:-flowbit}
+      FLOWBIT_DB_PASSWORD: ${FLOWBIT_DB_PASSWORD:-flowbit}
+      FLOWBIT_MAX_UPLOAD_SIZE: ${FLOWBIT_MAX_UPLOAD_SIZE:-5MB}
+      FLOWBIT_PUBLIC_URL: ${FLOWBIT_PUBLIC_URL:-}
+      TZ: UTC
+    volumes:
+      # 올린 이미지. 백업 대상이다
+      - uploads:/var/lib/flowbit/uploads
+    # 포트를 열지 않는다. 브라우저는 프런트(Next.js)의 /api 를 거쳐서만 백엔드에 닿는다
+
+  frontend:
+    profiles: ["app"]
+    build:
+      context: ./frontend
+      args:
+        # /api rewrite 주소는 빌드할 때 고정된다. 아래 environment 와 같아야 한다
+        BACKEND_URL: http://backend:8080
+    image: flowbit-frontend
+    container_name: flowbit-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "${FLOWBIT_WEB_PORT:-3000}:3000"
+
 volumes:
   postgres-data:
+  uploads:

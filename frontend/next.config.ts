@@ -14,6 +14,8 @@ const devOrigins = (process.env.FLOWBIT_DEV_ORIGINS ?? "")
   .filter(Boolean);
 
 const nextConfig: NextConfig = {
+  // A self-contained server (.next/standalone) for the Docker image; `next dev` and `next start` are unaffected.
+  output: "standalone",
   cacheComponents: true,
   allowedDevOrigins: devOrigins,
   partialPrefetching: true,

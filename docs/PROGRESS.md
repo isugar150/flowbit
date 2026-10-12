@@ -154,6 +154,12 @@
 
 ## 작업 기록
 
+### 2026-10-12 — Dockerfile
+
+- 사용자 지시: Dockerfile 을 만들 것.
+- 한 일: `backend/Dockerfile`, `frontend/Dockerfile`, 각 `.dockerignore`, `next.config.ts` 의 `output: "standalone"`, `docker-compose.yml` 의 `app` 프로필(backend, frontend, `uploads` 볼륨), 문서(02 "Docker 이미지", D-100, README, `.env.example`).
+- 확인한 범위: `docker compose config` 검사만. **이미지는 빌드해 보지 않았다**(사용자 지시로 작업 뒤 테스트를 하지 않았고, 이 환경은 Maven Central 이 429 를 낸다). 처음 빌드할 때 확인이 필요하다.
+
 ### 2026-10-12 — 프론트엔드 최적화 (모듈화, 공통화, 속도)
 
 화면의 모양과 동작은 바꾸지 않았다. `npm run lint`, `npm run typecheck`, `npx next build` 통과. **브라우저로는 확인하지 않았다** (아래 "확인할 것").

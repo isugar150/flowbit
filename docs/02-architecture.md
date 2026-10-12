@@ -53,7 +53,7 @@ flowbit/
 │   └─ data/uploads/       올린 이미지의 기본 저장 위치 (git 추적 안 함)
 ├─ frontend/              Next.js 애플리케이션
 ├─ docker/postgres/init/  DB 볼륨이 처음 만들어질 때 실행되는 SQL
-├─ docker-compose.yml     로컬 개발용 PostgreSQL 18
+├─ docker-compose.yml     로컬 개발용 PostgreSQL 18, `app` 프로필로 백엔드·프런트 컨테이너
 └─ .env.example           환경 변수 예시
 ```
 
@@ -147,7 +147,8 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 | `FLOWBIT_MAX_UPLOAD_SIZE` | backend | `5MB` | 올릴 수 있는 파일 하나의 최대 크기 |
 | `SERVER_PORT` | backend | `8080` | 백엔드 포트 |
 | `FLOWBIT_PUBLIC_URL` | backend | 없음 | 사람들이 Flowbit 을 여는 주소(`https://flowbit.example.com`). **메일과 API 알림의 이슈 링크**에 쓴다(없으면 `/issue/FB-12` 같은 경로만 들어간다). SSO 리다이렉트 URI 에도 쓰는데, 그쪽은 비워 두면 요청의 `X-Forwarded-*` 로 알아낸다 |
-| `BACKEND_URL` | frontend | `http://localhost:8080` | Next.js 가 `/api` 를 넘기고 서버에서 직접 부를 백엔드 주소 |
+| `BACKEND_URL` | frontend | `http://localhost:8080` | Next.js 가 `/api` 를 넘기고 서버에서 직접 부를 백엔드 주소. Docker 이미지에서는 빌드 인자로도 준다 ("Docker 이미지") |
+| `FLOWBIT_WEB_PORT` | docker-compose (`app` 프로필) | `3000` | 프런트 컨테이너를 호스트에 여는 포트 |
 | `FLOWBIT_DEV_ORIGINS` | frontend (개발 서버만) | 없음 | `npm run dev` 를 localhost 가 아닌 주소(예: 사내망 `192.168.0.75`)로 열 때 허용할 호스트, 쉼표로 구분, `192.168.0.*` 같은 와일드카드 가능. 없으면 Next 16 이 그 주소에 `/_next` 스크립트를 403 으로 막아 화면이 동작하지 않는다(`next.config.ts` 의 `allowedDevOrigins`) |
 
 - 비밀 값은 저장소에 넣지 않는다. `.env.example` 에는 이름과 예시 값만 둔다.
@@ -165,4 +166,22 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 
 PostgreSQL 18 이미지는 볼륨을 `/var/lib/postgresql` 에 마운트한다 (17 이하의 `/var/lib/postgresql/data` 와 다르다).
 
-운영 배포 방식(Docker 이미지, 단일 compose 파일 등)은 미결정이다. [09-decisions.md](09-decisions.md) 참고.
+## Docker 이미지 (D-100)
+
+백엔드와 프런트엔드는 각각 Dockerfile 이 있다. `docker-compose.yml` 의 `app` 프로필로 DB 와 함께 띄운다.
+
+```bash
+docker compose --profile app up -d --build   # http://localhost:3000 (FLOWBIT_WEB_PORT)
+docker compose up -d                         # 개발: DB 만 (지금까지와 같다)
+```
+
+| 이미지 | 파일 | 내용 |
+|---|---|---|
+| `flowbit-backend` | `backend/Dockerfile` | JDK 25 로 `bootJar` 를 만들고(테스트는 빼고) JRE 25 위에서 실행. Ubuntu 기반(WebP 변환기가 glibc 를 쓴다). 비루트 사용자, 8080. 올린 파일은 `/var/lib/flowbit/uploads`(볼륨, **백업 대상**) |
+| `flowbit-frontend` | `frontend/Dockerfile` | `npm ci` → `next build`(standalone 출력) → `node server.js`. 비루트 사용자, 3000 |
+
+- **`BACKEND_URL` 은 프런트 이미지를 빌드할 때 고정된다.** `/api` rewrite 주소가 빌드 결과에 들어가기 때문이다. 빌드 인자 `BACKEND_URL` 과 실행할 때의 환경 변수 `BACKEND_URL`(서버 컴포넌트가 백엔드를 부르는 주소)을 같게 준다. compose 는 둘 다 `http://backend:8080`.
+- 백엔드는 포트를 열지 않는다. 브라우저는 프런트의 `/api`(WebSocket `/api/v1/realtime` 포함)를 거쳐서만 백엔드에 닿는다.
+- `next.config.ts` 에 `output: "standalone"` 을 두었다. `next dev`, `next start` 에는 영향이 없다.
+- 운영에서는 `.env` 에 `FLOWBIT_DB_PASSWORD` 를 바꾸고, `FLOWBIT_PUBLIC_URL` 을 실제 주소로 준다. 앞에 HTTPS 리버스 프록시(nginx 등)를 둘 때는 `Upgrade`/`Connection` 헤더를 넘긴다("실시간 동기화").
+- 아직 없는 것: 이미지 레지스트리에 올리기, CI 에서 이미지 빌드, Spring 프로필(`prod`).

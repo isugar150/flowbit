@@ -1,0 +1,8 @@
+# Only the Gradle files and src/ go into the build.
+.gradle
+build
+data
+.idea
+*.iml
+.env
+.env.*
