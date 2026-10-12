@@ -1,0 +1,29 @@
+# 로컬 개발용 PostgreSQL.
+# 값은 .env 로 바꿀 수 있다 (.env.example 참고). 실행: docker compose up -d
+name: flowbit
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: flowbit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${FLOWBIT_DB_NAME:-flowbit}
+      POSTGRES_USER: ${FLOWBIT_DB_USER:-flowbit}
+      POSTGRES_PASSWORD: ${FLOWBIT_DB_PASSWORD:-flowbit}
+      TZ: UTC
+    ports:
+      # 개발 PC 에서만 접근하도록 localhost 에만 연다
+      - "127.0.0.1:${FLOWBIT_DB_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 이미지부터 데이터 경로가 /var/lib/postgresql/<버전>/docker 로 바뀌어
+      # /var/lib/postgresql 전체를 마운트한다 (/var/lib/postgresql/data 가 아님)
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

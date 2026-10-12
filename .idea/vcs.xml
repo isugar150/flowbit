@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/addyosmani-web-quality-skills" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/anthropics-skills" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/emilkowalski-skills" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/jakubkrehel-skills" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/mengto-skills" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/pbakaus-impeccable" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/shadcn-ui-ui" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/superfuture-design-review" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills/wshobson-agents" vcs="Git" />
+  </component>
+</project>
