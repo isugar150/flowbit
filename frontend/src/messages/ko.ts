@@ -1,0 +1,75 @@
+/**
+ * UI copy. Korean is written first-hand, not translated: short 합니다체 and noun phrases,
+ * buttons name the action, errors say what to do next (docs/01-product.md section 7).
+ */
+export const ko = {
+  app: {
+    name: "Flowbit",
+    description: "빠르고 단순한 이슈 트래커",
+  },
+  common: {
+    showPassword: "비밀번호 보기",
+    hidePassword: "비밀번호 숨기기",
+    networkError: "서버에 연결하지 못했습니다. 네트워크를 확인하고 다시 시도하세요.",
+    serverError: "서버에서 문제가 생겼습니다. 잠시 후 다시 시도하세요.",
+    tooManyRequests: (seconds: number) => `시도가 너무 많습니다. ${seconds}초 뒤에 다시 시도하세요.`,
+  },
+  fields: {
+    loginId: "아이디",
+    password: "비밀번호",
+    passwordConfirm: "비밀번호 확인",
+  },
+  validation: {
+    loginIdRequired: "아이디를 입력하세요.",
+    loginIdTooShort: "아이디는 4자 이상이어야 합니다.",
+    loginIdTooLong: "아이디는 32자 이하여야 합니다.",
+    loginIdInvalid: "영문 소문자, 숫자, 마침표(.), 밑줄(_), 하이픈(-)만 쓸 수 있고 영문이나 숫자로 시작해야 합니다.",
+    passwordRequired: "비밀번호를 입력하세요.",
+    passwordTooShort: "비밀번호는 10자 이상이어야 합니다.",
+    passwordTooLong: "비밀번호는 128자 이하여야 합니다.",
+    passwordSameAsLoginId: "아이디와 같은 비밀번호는 쓸 수 없습니다.",
+    passwordConfirmRequired: "비밀번호를 한 번 더 입력하세요.",
+    passwordMismatch: "비밀번호가 서로 다릅니다.",
+  },
+  setup: {
+    title: "관리자 계정 만들기",
+    description: "이 계정이 Flowbit의 첫 관리자가 됩니다. 만든 뒤 바로 로그인됩니다.",
+    steps: ["서버 설치", "관리자 계정", "시작"],
+    stepsLabel: "설치 진행 단계",
+    stepDone: "완료",
+    stepCurrent: "지금",
+    loginIdHint: "영문 소문자와 숫자로 4~32자. 마침표(.), 밑줄(_), 하이픈(-)도 쓸 수 있습니다.",
+    passwordHint: "10자 이상. 길수록 안전합니다.",
+    submit: "관리자 계정 만들기",
+    submitting: "만드는 중",
+    alreadyCompleted: "초기 설정이 이미 끝났습니다.",
+    goToLogin: "로그인하러 가기",
+  },
+  login: {
+    title: "로그인",
+    description: "Flowbit 계정으로 로그인하세요.",
+    submit: "로그인",
+    submitting: "로그인하는 중",
+    invalidCredentials: "아이디 또는 비밀번호가 올바르지 않습니다.",
+  },
+  unavailable: {
+    title: "서버에 연결하지 못했습니다",
+    description: "Flowbit 서버가 응답하지 않습니다. 서버가 켜져 있는지 확인한 뒤 다시 시도하세요.",
+    retry: "다시 시도",
+  },
+  home: {
+    title: "설치가 끝났습니다",
+    description: (loginId: string) => `${loginId} 계정으로 로그인했습니다. 팀과 이슈 기능은 다음 버전에서 열립니다.`,
+  },
+  userMenu: {
+    label: "사용자 메뉴",
+    roleAdmin: "관리자",
+    roleMember: "구성원",
+    theme: "화면 테마",
+    themeLight: "밝게",
+    themeDark: "어둡게",
+    themeSystem: "기기 설정 따르기",
+    logout: "로그아웃",
+    logoutFailed: "로그아웃하지 못했습니다. 다시 시도하세요.",
+  },
+} as const;

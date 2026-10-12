@@ -19,6 +19,8 @@ services:
       # PostgreSQL 18 이미지부터 데이터 경로가 /var/lib/postgresql/<버전>/docker 로 바뀌어
       # /var/lib/postgresql 전체를 마운트한다 (/var/lib/postgresql/data 가 아님)
       - postgres-data:/var/lib/postgresql
+      # 볼륨이 처음 만들어질 때 한 번 실행된다 (E2E 테스트용 flowbit_e2e DB 생성)
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s

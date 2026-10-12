@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: flowbit
+  # The application reads and writes over R2DBC.
+  r2dbc:
+    url: r2dbc:postgresql://${FLOWBIT_DB_HOST:localhost}:${FLOWBIT_DB_PORT:5432}/${FLOWBIT_DB_NAME:flowbit}
+    username: ${FLOWBIT_DB_USER:flowbit}
+    password: ${FLOWBIT_DB_PASSWORD:flowbit}
+  # Flyway migrates the same database over JDBC at startup.
+  flyway:
+    url: jdbc:postgresql://${FLOWBIT_DB_HOST:localhost}:${FLOWBIT_DB_PORT:5432}/${FLOWBIT_DB_NAME:flowbit}
+    user: ${FLOWBIT_DB_USER:flowbit}
+    password: ${FLOWBIT_DB_PASSWORD:flowbit}
+
+server:
+  port: ${SERVER_PORT:8080}
+  # The backend is only reached through the Next.js server, which sets X-Forwarded-* headers.
+  forward-headers-strategy: native
+
+flowbit:
+  auth:
+    max-failed-logins: 5
+    lock-duration: 15m
+    session-idle-timeout: 7d
+    session-max-age: 30d
+    rate-limit-per-minute: 10

@@ -1,0 +1,155 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens. The reference for every value here is docs/01-product.md, section 5.
+ * Change the two together.
+ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: ui-monospace, "SFMono-Regular", "D2Coding", Menlo, Consolas, monospace;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 2.5);
+  --radius-4xl: calc(var(--radius) * 3);
+}
+
+:root {
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic",
+    "Segoe UI", sans-serif;
+
+  --background: #ffffff;
+  --foreground: #1a1f27;
+  --card: #ffffff;
+  --card-foreground: #1a1f27;
+  --popover: #ffffff;
+  --popover-foreground: #1a1f27;
+  --primary: #2b63e3;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f3f5;
+  --secondary-foreground: #1a1f27;
+  --muted: #f6f7f9;
+  --muted-foreground: #5f6b7a;
+  --accent: #eef3ff;
+  --accent-foreground: #1a1f27;
+  --destructive: #d92d20;
+  --border: #e6e8ec;
+  /* Input outlines keep 3:1 contrast against the page so the field boundary is visible. */
+  --input: #8a93a0;
+  --ring: #2b63e3;
+  --chart-1: #2b63e3;
+  --chart-2: #e5a000;
+  --chart-3: #12b76a;
+  --chart-4: #e8590c;
+  --chart-5: #9ba4b0;
+  /* Buttons and inputs 8px, cards and dialogs 12px. */
+  --radius: 0.5rem;
+  --sidebar: #f6f7f9;
+  --sidebar-foreground: #1a1f27;
+  --sidebar-primary: #2b63e3;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9ecf0;
+  --sidebar-accent-foreground: #1a1f27;
+  --sidebar-border: #e6e8ec;
+  --sidebar-ring: #2b63e3;
+}
+
+.dark {
+  --background: #131518;
+  --foreground: #f2f4f6;
+  --card: #1e2126;
+  --card-foreground: #f2f4f6;
+  --popover: #1e2126;
+  --popover-foreground: #f2f4f6;
+  --primary: #6e9bf5;
+  --primary-foreground: #0e1116;
+  --secondary: #24282e;
+  --secondary-foreground: #f2f4f6;
+  --muted: #1a1d21;
+  --muted-foreground: #9ba4b0;
+  --accent: #1f2a44;
+  --accent-foreground: #f2f4f6;
+  --destructive: #f97066;
+  --border: oklch(1 0 0 / 10%);
+  --input: #6b7480;
+  --ring: #6e9bf5;
+  --chart-1: #6e9bf5;
+  --chart-2: #f0b429;
+  --chart-3: #32d583;
+  --chart-4: #fd853a;
+  --chart-5: #6b7480;
+  --sidebar: #1a1d21;
+  --sidebar-foreground: #f2f4f6;
+  --sidebar-primary: #6e9bf5;
+  --sidebar-primary-foreground: #0e1116;
+  --sidebar-accent: #24282e;
+  --sidebar-accent-foreground: #f2f4f6;
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: #6e9bf5;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Body text 14/22 (docs/01-product.md "타이포그래피"). */
+    font-size: 0.875rem;
+    line-height: 1.375rem;
+    /* Korean: never break inside a word, but let long ids and URLs wrap. */
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+}
