@@ -15,6 +15,9 @@ data class ApiResponse(
     @Suppress("UNCHECKED_CAST")
     fun json(): Map<String, Any?> = mapper.readValue(body, Map::class.java) as Map<String, Any?>
 
+    @Suppress("UNCHECKED_CAST")
+    fun jsonList(): List<Map<String, Any?>> = mapper.readValue(body, List::class.java) as List<Map<String, Any?>>
+
     fun header(name: String): String? =
         headers.entries
             .firstOrNull { it.key.equals(name, ignoreCase = true) }
@@ -53,6 +56,11 @@ class ApiClient(
         path: String,
         json: String,
     ): ApiResponse = change("PATCH", path, json.toByteArray(), "application/json")
+
+    fun put(
+        path: String,
+        json: String,
+    ): ApiResponse = change("PUT", path, json.toByteArray(), "application/json")
 
     fun delete(path: String): ApiResponse = change("DELETE", path, null, null)
 

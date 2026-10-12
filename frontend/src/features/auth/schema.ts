@@ -10,7 +10,7 @@ export function normalizeLoginId(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
-const newLoginId = z
+export const newLoginId = z
   .string()
   .transform(normalizeLoginId)
   .pipe(
@@ -22,7 +22,7 @@ const newLoginId = z
       .regex(LOGIN_ID_PATTERN, v.loginIdInvalid),
   );
 
-const newPassword = z.string().min(1, v.passwordRequired).min(10, v.passwordTooShort).max(128, v.passwordTooLong);
+export const newPassword = z.string().min(1, v.passwordRequired).min(10, v.passwordTooShort).max(128, v.passwordTooLong);
 
 export const setupSchema = z
   .object({

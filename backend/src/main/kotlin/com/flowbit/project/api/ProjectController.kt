@@ -1,0 +1,124 @@
+package com.flowbit.project.api
+
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonRawValue
+import com.flowbit.auth.application.AuthenticatedUser
+import com.flowbit.common.web.ClientInfo
+import com.flowbit.media.application.ImageStorage
+import com.flowbit.project.application.ProjectMemberRow
+import com.flowbit.project.application.ProjectService
+import com.flowbit.project.application.ProjectView
+import com.flowbit.project.domain.ProjectRole
+import org.springframework.http.HttpStatus
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ServerWebExchange
+import java.time.Instant
+import java.util.UUID
+
+data class ProjectResponse(
+    val id: UUID,
+    val key: String,
+    val name: String,
+    val description: String,
+    val myRole: ProjectRole,
+    val memberCount: Int,
+    val createdAt: Instant,
+    /** The overview document as editor JSON; present only when one project is requested. */
+    @get:JsonRawValue
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val content: String?,
+) {
+    companion object {
+        fun from(view: ProjectView) =
+            ProjectResponse(view.id, view.key, view.name, view.description, view.myRole, view.memberCount, view.createdAt, view.content)
+    }
+}
+
+data class ProjectMemberResponse(
+    val userId: UUID,
+    val loginId: String,
+    val displayName: String?,
+    val avatarUrl: String?,
+    val role: ProjectRole,
+) {
+    companion object {
+        fun from(row: ProjectMemberRow) = ProjectMemberResponse(row.userId, row.loginId, row.displayName, ImageStorage.urlOf(row.avatarKey), row.role)
+    }
+}
+
+data class CreateProjectRequest(
+    val name: String,
+    val key: String,
+    val description: String? = null,
+)
+
+data class PutProjectMemberRequest(
+    val role: ProjectRole,
+)
+
+/** Access is decided inside ProjectService for every call; see its class comment. */
+@RestController
+@RequestMapping("/api/v1/projects")
+class ProjectController(
+    private val projectService: ProjectService,
+) {
+    @GetMapping
+    suspend fun list(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+    ): List<ProjectResponse> = projectService.list(user).map(ProjectResponse::from)
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    suspend fun create(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @RequestBody body: CreateProjectRequest,
+        exchange: ServerWebExchange,
+    ): ProjectResponse = ProjectResponse.from(projectService.create(user, body.name, body.key, body.description, ClientInfo.from(exchange)))
+
+    @GetMapping("/{key}")
+    suspend fun get(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+    ): ProjectResponse = ProjectResponse.from(projectService.get(user, key))
+
+    @PatchMapping("/{key}")
+    suspend fun update(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+        @RequestBody body: Map<String, Any?>,
+    ): ProjectResponse = ProjectResponse.from(projectService.update(user, key, body))
+
+    @GetMapping("/{key}/members")
+    suspend fun members(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+    ): List<ProjectMemberResponse> = projectService.members(user, key).map(ProjectMemberResponse::from)
+
+    @PutMapping("/{key}/members/{userId}")
+    suspend fun putMember(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+        @PathVariable userId: UUID,
+        @RequestBody body: PutProjectMemberRequest,
+    ): List<ProjectMemberResponse> = projectService.putMember(user, key, userId, body.role).map(ProjectMemberResponse::from)
+
+    @DeleteMapping("/{key}/members/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun removeMember(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+        @PathVariable userId: UUID,
+    ) {
+        projectService.removeMember(user, key, userId)
+    }
+}

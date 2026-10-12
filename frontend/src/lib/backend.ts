@@ -37,6 +37,17 @@ export async function fetchSetupCompleted(): Promise<boolean> {
   return body.completed;
 }
 
+/**
+ * GET a JSON resource on behalf of the signed-in user. Returns null when the backend says the
+ * user is signed out, may not see it, or it does not exist; the caller decides what that means.
+ */
+export async function fetchJson<T>(path: string, cookieHeader: string): Promise<T | null> {
+  const response = await get(path, cookieHeader);
+  if (response.status === 401 || response.status === 403 || response.status === 404) return null;
+  if (!response.ok) throw new BackendUnavailableError(response.status);
+  return (await response.json()) as T;
+}
+
 /** Name and logo of this installation. Needs a valid session. */
 export async function fetchWorkspace(cookieHeader: string): Promise<Workspace | null> {
   const response = await get("/api/v1/workspace", cookieHeader);

@@ -61,19 +61,21 @@ class User(
     companion object {
         const val DISPLAY_NAME_MAX_LENGTH = 50
 
-        fun newAdmin(
+        fun create(
             id: UUID,
             loginId: String,
             passwordHash: String,
+            role: UserRole,
+            displayName: String?,
             now: Instant,
         ) = User(
             id = id,
             loginId = loginId,
             passwordHash = passwordHash,
-            role = UserRole.ADMIN,
+            role = role,
             status = UserStatus.ACTIVE,
             email = null,
-            displayName = null,
+            displayName = displayName,
             avatarKey = null,
             locale = null,
             timezone = null,

@@ -21,6 +21,15 @@ open class ApiException(
     val retryAfter: Duration? = null,
 ) : RuntimeException(message)
 
+class NotFoundException(
+    code: String,
+    message: String,
+) : ApiException(HttpStatus.NOT_FOUND, code, message)
+
+class ForbiddenException(
+    message: String = "이 작업을 할 권한이 없습니다",
+) : ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", message)
+
 class ConflictException(
     code: String,
     message: String,
@@ -28,7 +37,9 @@ class ConflictException(
 
 class ValidationException(
     fieldErrors: List<FieldError>,
-) : ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "입력값이 올바르지 않습니다", fieldErrors)
+) : ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "입력값이 올바르지 않습니다", fieldErrors) {
+    constructor(field: String, code: String, message: String) : this(listOf(FieldError(field, code, message)))
+}
 
 class UnauthenticatedException(
     code: String = "UNAUTHENTICATED",

@@ -30,6 +30,8 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  --color-warning: var(--warning);
+  --color-urgent: var(--urgent);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -74,6 +76,9 @@
   --accent: #eef3ff;
   --accent-foreground: #1a1f27;
   --destructive: #d92d20;
+  /* Issue state colours (docs/01-product.md section 5): in progress, urgent. */
+  --warning: #b77a00;
+  --urgent: #d9480f;
   --border: #e6e8ec;
   /* Input outlines keep 3:1 contrast against the page so the field boundary is visible. */
   --input: #8a93a0;
@@ -85,33 +90,37 @@
   --chart-5: #9ba4b0;
   /* Buttons and inputs 8px, cards and dialogs 12px. */
   --radius: 0.5rem;
-  --sidebar: #f6f7f9;
+  /* The app background the sidebar sits on; the content panel (--background) is inset on top of it. */
+  --sidebar: #f3f4f6;
   --sidebar-foreground: #1a1f27;
   --sidebar-primary: #2b63e3;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9ecf0;
+  --sidebar-accent: #e5e7eb;
   --sidebar-accent-foreground: #1a1f27;
   --sidebar-border: #e6e8ec;
   --sidebar-ring: #2b63e3;
 }
 
 .dark {
-  --background: #131518;
-  --foreground: #f2f4f6;
-  --card: #1e2126;
-  --card-foreground: #f2f4f6;
-  --popover: #1e2126;
-  --popover-foreground: #f2f4f6;
+  /* Near-black neutrals: app background darkest, content panel one step up, cards one more. */
+  --background: #131416;
+  --foreground: #f2f3f5;
+  --card: #18191c;
+  --card-foreground: #f2f3f5;
+  --popover: #1c1d20;
+  --popover-foreground: #f2f3f5;
   --primary: #6e9bf5;
   --primary-foreground: #0e1116;
-  --secondary: #24282e;
-  --secondary-foreground: #f2f4f6;
-  --muted: #1a1d21;
-  --muted-foreground: #9ba4b0;
+  --secondary: #232427;
+  --secondary-foreground: #f2f3f5;
+  --muted: #1b1c1f;
+  --muted-foreground: #9a9da5;
   --accent: #1f2a44;
-  --accent-foreground: #f2f4f6;
+  --accent-foreground: #f2f3f5;
   --destructive: #f97066;
-  --border: oklch(1 0 0 / 10%);
+  --warning: #f0b429;
+  --urgent: #fd853a;
+  --border: oklch(1 0 0 / 8%);
   --input: #6b7480;
   --ring: #6e9bf5;
   --chart-1: #6e9bf5;
@@ -119,14 +128,128 @@
   --chart-3: #32d583;
   --chart-4: #fd853a;
   --chart-5: #6b7480;
-  --sidebar: #1a1d21;
-  --sidebar-foreground: #f2f4f6;
+  --sidebar: #0c0d0e;
+  --sidebar-foreground: #f2f3f5;
   --sidebar-primary: #6e9bf5;
   --sidebar-primary-foreground: #0e1116;
-  --sidebar-accent: #24282e;
-  --sidebar-accent-foreground: #f2f4f6;
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-accent: #1c1d20;
+  --sidebar-accent-foreground: #f2f3f5;
+  --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: #6e9bf5;
+}
+
+/*
+ * Documents written in the block editor (components/editor/rich-text-editor.tsx).
+ * Sizes follow the type scale in docs/01-product.md section 5.
+ */
+@layer components {
+  .rich-text .tiptap {
+    outline: none;
+    min-height: inherit;
+  }
+  .rich-text .tiptap > * + * {
+    margin-top: 0.5rem;
+  }
+  .rich-text .tiptap h1,
+  .rich-text .tiptap h2,
+  .rich-text .tiptap h3 {
+    font-weight: 600;
+    margin-top: 1.25rem;
+  }
+  .rich-text .tiptap > :first-child {
+    margin-top: 0;
+  }
+  .rich-text .tiptap h1 {
+    font-size: 1.375rem;
+    line-height: 1.875rem;
+  }
+  .rich-text .tiptap h2 {
+    font-size: 1.125rem;
+    line-height: 1.625rem;
+  }
+  .rich-text .tiptap h3 {
+    font-size: 0.9375rem;
+    line-height: 1.375rem;
+  }
+  .rich-text .tiptap ul:not([data-type="taskList"]) {
+    list-style: disc;
+    padding-left: 1.375rem;
+  }
+  .rich-text .tiptap ol {
+    list-style: decimal;
+    padding-left: 1.375rem;
+  }
+  .rich-text .tiptap li > * + * {
+    margin-top: 0.25rem;
+  }
+  .rich-text .tiptap ul[data-type="taskList"] {
+    list-style: none;
+    padding-left: 0;
+  }
+  .rich-text .tiptap ul[data-type="taskList"] > li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .rich-text .tiptap ul[data-type="taskList"] > li > label {
+    display: flex;
+    height: 1.375rem;
+    flex-shrink: 0;
+    align-items: center;
+  }
+  .rich-text .tiptap ul[data-type="taskList"] > li > label input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--primary);
+  }
+  .rich-text .tiptap ul[data-type="taskList"] > li > div {
+    min-width: 0;
+    flex: 1;
+  }
+  .rich-text .tiptap ul[data-type="taskList"] > li[data-checked="true"] > div {
+    color: var(--muted-foreground);
+    text-decoration: line-through;
+  }
+  .rich-text .tiptap code {
+    border-radius: 0.25rem;
+    background: var(--muted);
+    padding: 0.0625rem 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+  }
+  .rich-text .tiptap pre {
+    overflow-x: auto;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--muted);
+    padding: 0.625rem 0.75rem;
+  }
+  .rich-text .tiptap pre code {
+    background: none;
+    padding: 0;
+  }
+  .rich-text .tiptap blockquote {
+    border-left: 2px solid var(--border);
+    padding-left: 0.75rem;
+    color: var(--muted-foreground);
+  }
+  .rich-text .tiptap hr {
+    border-top: 1px solid var(--border);
+    margin-block: 1rem;
+  }
+  .rich-text .tiptap a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  /* Hint shown in the first line while the document is empty. */
+  .rich-text .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+    color: var(--muted-foreground);
+  }
 }
 
 @layer base {

@@ -17,6 +17,12 @@ enum class AuditEventType {
     LOGIN_FAILED,
     ACCOUNT_LOCKED,
     LOGOUT,
+    MEMBER_CREATED,
+    MEMBER_ROLE_CHANGED,
+    MEMBER_DISABLED,
+    MEMBER_ENABLED,
+    MEMBER_PASSWORD_RESET,
+    PROJECT_CREATED,
 }
 
 /** Append-only record of security-relevant events. Never pass passwords or other secrets in `detail`. */

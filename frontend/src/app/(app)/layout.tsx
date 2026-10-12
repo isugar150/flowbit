@@ -1,6 +1,5 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { getCurrentUser, getWorkspace } from "@/lib/current-user";
+import { getProjects, getWorkspace, requireUser } from "@/lib/current-user";
 import { AppShell, AppShellSkeleton } from "./_components/app-shell";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -12,11 +11,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 async function SignedInShell({ children }: { children: React.ReactNode }) {
-  const [user, workspace] = await Promise.all([getCurrentUser(), getWorkspace()]);
-  // proxy.ts already redirects signed-out visitors; this covers a session that ended in between.
-  if (!user || !workspace) redirect("/login");
+  // Three independent reads, sent together.
+  const [user, workspace, projects] = await Promise.all([requireUser(), getWorkspace(), getProjects()]);
   return (
-    <AppShell user={user} workspace={workspace}>
+    <AppShell user={user} workspace={workspace} projects={projects}>
       {children}
     </AppShell>
   );

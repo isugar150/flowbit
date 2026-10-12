@@ -35,6 +35,14 @@ npm run dev
 
 Windows 에서는 `./gradlew` 대신 `.\gradlew.bat` 을 쓴다. `JAVA_HOME` 이 JDK 17 미만이면 Gradle 이 실행되지 않는다.
 
+화면이 느리게 느껴지면 개발 모드 때문일 수 있다. 개발 모드는 처음 여는 화면마다 컴파일하느라 1~2초가 걸린다. 실제 속도는 아래처럼 빌드해서 본다.
+
+```bash
+cd frontend
+npm run build
+npm run start
+```
+
 ## 설정
 
 기본값으로 바로 실행된다. 바꾸려면 `.env.example` 을 저장소 루트에 `.env` 로 복사해 고친다. `docker compose` 와 백엔드가 이 파일을 읽는다. 프론트엔드의 `BACKEND_URL` 은 환경 변수나 `frontend/.env.local` 로 준다. 변수 목록은 [docs/02-architecture.md](docs/02-architecture.md).
@@ -63,3 +71,5 @@ npm run typecheck
 ```bash
 docker compose down -v
 ```
+
+그 뒤 프론트엔드 서버도 다시 시작한다(초기 설정이 끝났다는 것을 기억하고 있다).

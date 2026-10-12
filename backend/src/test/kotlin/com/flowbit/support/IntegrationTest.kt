@@ -31,7 +31,7 @@ abstract class IntegrationTest {
 
     @BeforeEach
     fun resetState() {
-        execute("truncate table audit_events, user_sessions, users cascade")
+        execute("truncate table audit_events, user_sessions, issues, project_members, projects, users cascade")
         execute("update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null")
         clock.reset()
         rateLimiter.reset()

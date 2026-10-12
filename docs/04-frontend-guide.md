@@ -13,6 +13,12 @@ frontend/
 │  ├─ app/
 │  │  ├─ (public)/           로그인 없이 보는 화면: setup, login, unavailable
 │  │  ├─ (app)/              로그인 후 화면. layout 이 사용자를 확인하고 AppShell(사이드바)을 그린다
+│  │  │  ├─ settings/        내 설정 (개인이 정하는 것: 프로필, 화면 테마)
+│  │  │  ├─ admin/           관리자 설정 (워크스페이스, 구성원). 내 설정과 섞지 않는다
+│  │  │  ├─ project/[key]/   프로젝트
+│  │  │  ├─ loading.tsx      페이지를 옮길 때 바로 보이는 스켈레톤
+│  │  │  └─ error.tsx        데이터를 못 불러왔을 때
+│  │  ├─ session-expired/    쓸 수 없게 된 세션 쿠키를 지우고 로그인으로 보낸다
 │  │  ├─ layout.tsx          lang="ko", Providers
 │  │  └─ globals.css         디자인 토큰 (기준: docs/01-product.md 5장)
 │  ├─ components/
@@ -46,6 +52,31 @@ frontend/
 - 목록은 캐시에서 즉시 그리고 뒤에서 새로 고친다. 스켈레톤은 캐시가 없는 첫 로딩에만 쓴다.
 - 변경 요청은 자동 재시도하지 않는다(`mutations: { retry: false }`). 로그인 재시도는 잠금 횟수에 들어간다.
 - **다른 사람의 변경은 WebSocket 이벤트로 받아 같은 캐시에 합친다** (M3 부터, [02-architecture.md](02-architecture.md) "실시간 동기화"). 화면은 캐시만 보므로 내 변경과 남의 변경이 같은 경로로 그려진다. 연결은 `(app)` 레이아웃에서 하나만 열고, 끊겨도 화면이 멈추지 않아야 한다.
+
+### 페이지 이동이 느려지지 않게 하는 규칙 (2026-10-12 측정 후 정함)
+
+- **`proxy.ts` 에서 백엔드를 부르지 않는다.** 모든 페이지 요청 앞에서 실행되므로 여기서 쓰는 시간은 전부 대기 시간이 된다. 세션 쿠키가 있는지만 보고, 쿠키가 실제로 유효한지는 페이지가 데이터를 읽을 때(`requireUser`) 확인한다. 초기 설정 완료 여부는 한 번 확인하면 메모리에 둔다.
+- 유효하지 않은 쿠키는 `requireUser` 가 `/session-expired` 로 보내고, 거기서 쿠키를 지운 뒤 로그인으로 간다. 서버 컴포넌트에서 `redirect("/login")` 을 직접 쓰지 않는다(쿠키가 남아 있으면 proxy 가 다시 돌려보내 무한히 돈다).
+- 한 요청 안에서 같은 데이터를 두 번 가져오지 않는다. 여러 곳에서 쓰는 조회는 `lib/current-user.ts` 에 React `cache()` 로 감싸 둔다(`getCurrentUser`, `getWorkspace`, `getProjects`). 서로 무관한 조회는 `Promise.all` 로 함께 보낸다.
+- `(app)/loading.tsx` 가 있어서 링크를 누르면 내용 영역이 바로 스켈레톤으로 바뀐다. 데이터를 오래 읽는 구역을 새로 만들면 그 구역에 맞는 `loading.tsx` 를 둔다.
+- 개발 모드(`npm run dev`)는 처음 여는 화면마다 1~2초 컴파일하고 링크 미리 가져오기도 하지 않는다. 속도를 판단할 때는 `npm run build && npm run start` 로 본다. 측정값: `/login` 응답이 개발 모드 약 75ms, 프로덕션 약 13ms.
+
+## 화면을 만들 때 쓰는 조각 (D-039)
+
+| 조각 | 파일 | 쓰는 곳 |
+|---|---|---|
+| 경로 표시 | `components/page-header.tsx` | 모든 화면의 맨 위. 마지막 항목이 그 화면의 `<h1>` 이다 |
+| 알약 탭 | `components/pill-tabs.tsx` | 한 대상의 여러 보기(개요 / 이슈 / 설정) |
+| 속성 카드 | `components/property-card.tsx` | 오른쪽 열의 카드와 그 안의 "이름: 값" 줄 |
+| 속성 칩 | `features/issues/components/chip-select.tsx`, `due-date-chip.tsx` | 값을 보여 주고 눌러서 바꾸는 둥근 칩 |
+| 문서 편집기 | `components/editor/rich-text-editor.tsx` | 프로젝트 설명, 이슈 본문 |
+| 자동 저장 | `lib/use-autosave.ts`, `components/editor/save-status.tsx` | 저장 버튼 없이 저장하는 모든 곳 |
+
+- **자주 고치는 내용은 설정 화면에 넣지 않는다.** 보이는 그 자리에서 고치고 자동 저장한다(프로젝트 요약·설명, 이슈 제목·본문). 설정 화면에는 드물게 바꾸는 것(이름, 구성원)만 둔다.
+- 편집기에 새 블록을 추가하려면 세 곳을 함께 고친다: 편집기의 `/` 메뉴(`SLASH_ITEMS`), 백엔드의 허용 목록(`RichText.kt` 의 `NODE_TYPES`), 글꼴·간격(`globals.css` 의 `.rich-text`).
+- 편집기 내용을 밖에서 바꿔야 하면(프리셋 적용 등) `key` 를 바꿔 새로 시작시킨다.
+- 대화상자는 열릴 때 커서가 갈 곳을 `DialogContent` 의 `initialFocus` 로 지정한다. 입력란의 `autoFocus` 는 Base UI 대화상자 안에서 믿을 수 없다.
+- 한 글자 단축키(`C`)는 `event.code` 로 판단하고, 입력란에 포커스가 있거나 대화상자가 열려 있으면 무시한다(`issues-view.tsx` 참고).
 
 ## 키보드
 

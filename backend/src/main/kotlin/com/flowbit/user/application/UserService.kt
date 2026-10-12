@@ -11,6 +11,7 @@ import com.flowbit.media.application.ImageStorage
 import com.flowbit.user.domain.User
 import com.flowbit.user.domain.UserRepository
 import com.flowbit.user.domain.UserRole
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.stereotype.Service
@@ -43,10 +44,12 @@ class UserService(
     ): User {
         val now = clock.instant()
         // Ids are assigned here, so `save` would issue an UPDATE; insert explicitly.
-        return entityTemplate.insert(User.newAdmin(UuidV7.generate(now), loginId, passwordHash, now)).awaitSingle()
+        return entityTemplate.insert(User.create(UuidV7.generate(now), loginId, passwordHash, UserRole.ADMIN, null, now)).awaitSingle()
     }
 
     suspend fun findActive(userId: UUID): User? = repository.findById(userId)?.takeIf { it.isActive }
+
+    suspend fun activeUsers(): List<User> = repository.findActiveOrdered().toList()
 
     /** Profile of an active user. A deleted or disabled account is treated as signed out. */
     suspend fun profile(userId: UUID): UserProfile = profileOf(requireActive(userId))
@@ -72,9 +75,7 @@ class UserService(
         requireActive(userId)
         val displayName = rawDisplayName?.trim()?.takeIf { it.isNotEmpty() }
         if (displayName != null && displayName.length > User.DISPLAY_NAME_MAX_LENGTH) {
-            throw ValidationException(
-                listOf(FieldError("displayName", "TOO_LONG", "이름은 ${User.DISPLAY_NAME_MAX_LENGTH}자 이하여야 합니다")),
-            )
+            throw ValidationException(listOf(displayNameTooLong()))
         }
         repository.updateDisplayName(userId, displayName, clock.instant())
         return profile(userId)
@@ -100,4 +101,8 @@ class UserService(
     }
 
     private suspend fun requireActive(userId: UUID): User = findActive(userId) ?: throw UnauthenticatedException()
+
+    companion object {
+        fun displayNameTooLong() = FieldError("displayName", "TOO_LONG", "이름은 ${User.DISPLAY_NAME_MAX_LENGTH}자 이하여야 합니다")
+    }
 }

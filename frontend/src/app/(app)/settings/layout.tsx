@@ -1,17 +1,13 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/current-user";
+import { UserIcon } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { messages } from "@/messages";
-import { SettingsNav } from "./_components/settings-nav";
 
-export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-
+/** Personal settings: things each person decides for themselves. Administration lives under /admin. */
+export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-5 py-8 sm:px-8">
-      <h1 className="text-xl leading-7 font-semibold">{messages.settings.title}</h1>
-      <SettingsNav isAdmin={user.role === "ADMIN"} />
-      {children}
-    </div>
+    <>
+      <PageHeader crumbs={[{ label: messages.settings.title, icon: <UserIcon /> }]} />
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-10">{children}</div>
+    </>
   );
 }

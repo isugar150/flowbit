@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +13,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -28,7 +25,6 @@ const m = messages.userMenu;
 
 export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" | "header" }) {
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
   const [signedOut, setSignedOut] = useState(false);
   const mutation = useMutation({
     mutationFn: logout,
@@ -56,7 +52,11 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
             <Button
               variant="ghost"
               aria-label={`${m.label}: ${name}`}
-              className={inSidebar ? "h-9 w-full justify-start px-2" : "h-9 max-w-48 px-2"}
+              className={
+                inSidebar
+                  ? "h-8 w-full justify-start px-2 text-[0.8125rem] hover:bg-sidebar-accent aria-expanded:bg-sidebar-accent"
+                  : "h-9 max-w-48 px-2 text-[0.8125rem]"
+              }
             />
           }
         >
@@ -83,25 +83,16 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem render={<Link href="/settings/profile" />}>
+            <DropdownMenuItem render={<Link href="/settings" />}>
               <SettingsIcon />
               {m.settings}
             </DropdownMenuItem>
             {isAdmin ? (
-              <DropdownMenuItem render={<Link href="/settings/workspace" />}>
+              <DropdownMenuItem render={<Link href="/admin/workspace" />}>
                 <ShieldIcon />
                 {m.adminSettings}
               </DropdownMenuItem>
             ) : null}
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>{m.theme}</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={theme ?? "light"} onValueChange={(value) => setTheme(String(value))}>
-              <DropdownMenuRadioItem value="light">{m.themeLight}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="dark">{m.themeDark}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="system">{m.themeSystem}</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>

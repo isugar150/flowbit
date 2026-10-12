@@ -87,11 +87,49 @@
 
 이미지 자체는 DB 가 아니라 파일로 저장한다(`FLOWBIT_STORAGE_PATH/images/`). DB 에는 위의 `*_key` 컬럼에 파일 이름만 둔다. 규칙은 [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md). 이슈 첨부처럼 한 대상에 이미지가 여러 개 붙게 되면 그때 별도 테이블을 만든다.
 
+### `projects`, `project_members` (`V3`, M3 1단계)
+
+| 테이블.컬럼 | 타입 | 설명 |
+|---|---|---|
+| `projects.id` | `uuid` PK | |
+| `projects.key` | `text` unique | 이슈 키의 접두어. `^[A-Z][A-Z0-9]{1,9}$`. 만든 뒤 바꾸지 않는다 |
+| `projects.name` | `text` | 1~80자 |
+| `projects.description` | `text` | 500자 이하, 기본 빈 문자열 |
+| `projects.next_issue_number` | `int` | 다음에 발급할 이슈 번호. 2단계에서 쓴다 |
+| `projects.created_by` | `uuid` FK → `users` | |
+| `projects.archived_at` | `timestamptz` null | 보관 기능용. 아직 쓰지 않는다 |
+| `project_members.project_id`, `user_id` | `uuid` | 복합 기본 키. 프로젝트나 사용자가 지워지면 함께 지워진다 |
+| `project_members.role` | `text` | `MANAGER` \| `EDITOR` \| `VIEWER` |
+
+`project_members` 는 기본 키가 두 컬럼이라 Spring Data 리포지토리 대신 `ProjectMemberStore` 가 SQL 로 직접 다룬다.
+
+### `issues` (`V4`), 문서 컬럼 (`V5`)
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `id` | `uuid` PK | |
+| `project_id` | `uuid` FK → `projects` (함께 삭제) | |
+| `number` | `int` | 프로젝트 안의 일련번호. `(project_id, number)` 유일. `projects.next_issue_number` 를 한 문장으로 증가시켜 발급 |
+| `title` | `text` | 1~200자 |
+| `content` | `jsonb` null | 본문. 편집기 문서(JSON). `V5` |
+| `description` | `text` | 본문에서 뽑은 글자. 미리 보기와 검색용. 서버가 채운다 |
+| `preset` | `text` null | `BUG` \| `ENHANCEMENT` \| `FEATURE` |
+| `status` | `text` | `BACKLOG` \| `READY` \| `IN_PROGRESS` \| `DONE` \| `CANCELED` |
+| `priority` | `text` | `NONE` \| `URGENT` \| `HIGH` \| `MEDIUM` \| `LOW` |
+| `assignee_id` | `uuid` null FK → `users` (지워지면 null) | 프로젝트의 활성 구성원만 |
+| `due_date` | `date` null | |
+| `created_by` | `uuid` FK → `users` | |
+| `version` | `int` | 바뀔 때마다 1 증가. 충돌 감지와 실시간 순서 판단에 쓸 예정 |
+
+`projects.content jsonb` (`V5`): 프로젝트 개요의 설명 문서. `projects.description` 은 한 줄 요약이다.
+
+`content` 컬럼은 엔티티에 매핑하지 않는다. `RichText` 가 SQL 로 직접 읽고 쓴다(목록 조회에 큰 문서가 딸려 오지 않게 하려는 것이기도 하다).
+
 ## 이후 마일스톤의 모델 (초안)
 
 방향만 적어 둔다. 각 마일스톤을 시작할 때 기능 명세에서 확정하고 이 문서에 반영한다.
 
-개념의 정의는 [01-product.md](01-product.md) 2장 (Linear식: 팀이 이슈의 집, 프로젝트는 목표, 사이클은 자동 반복).
+이슈·프리셋·상태·댓글의 모델 초안은 [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) 의 "데이터 모델"이 기준이다. 아래 그림은 팀 개념이 있던 때의 것이고, **`teams` 는 `projects` 로 읽는다** (D-032).
 
 ```
 teams ──< team_members >── users
