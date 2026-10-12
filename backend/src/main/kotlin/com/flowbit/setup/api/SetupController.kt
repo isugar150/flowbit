@@ -23,6 +23,8 @@ data class SetupStatusResponse(
 data class SetupRequest(
     val loginId: String,
     val password: String,
+    /** Omitted or blank keeps the default name. */
+    val workspaceName: String? = null,
 )
 
 @RestController
@@ -45,7 +47,7 @@ class SetupController(
     ): MeResponse {
         val client = ClientInfo.from(exchange)
         rateLimiter.check("setup", client.ipAddress, properties.rateLimitPerMinute)
-        val result = setupService.complete(body.loginId, body.password, client)
+        val result = setupService.complete(body.loginId, body.password, body.workspaceName, client)
         sessionCookies.write(exchange, result.sessionToken)
         return MeResponse.from(userService.profileOf(result.admin))
     }

@@ -1,75 +1,86 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronRightIcon } from "lucide-react";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";
+import { PropertyRow } from "@/components/property-card";
 import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import type { Milestone } from "@/features/milestones/types";
-import type { ProjectMember } from "@/features/projects/types";
+import type { UserSummary } from "@/features/members/types";
+import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
+import { apiFetch } from "@/lib/api/client";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createIssue } from "../api";
-import { PRESET_TEMPLATES } from "../meta";
-import { NONE, assigneeOptions, milestoneOptions, presetOptions, priorityOptions, statusOptions } from "../options";
-import type { IssuePreset, NewIssueInput } from "../types";
+import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
+import type { Label, NewIssueInput } from "../types";
 import { ChipSelect } from "./chip-select";
 import { DateChip } from "./date-chips";
+import { projectOptions } from "./issue-properties";
+import { LabelChip } from "./label-chip";
 
 const m = messages.issues;
 
 type Properties = Omit<NewIssueInput, "title" | "content">;
 const DEFAULT_PROPERTIES: Properties = {
-  preset: null,
   status: "BACKLOG",
   priority: "NONE",
   assigneeId: null,
   dueDate: null,
   milestoneId: null,
+  labelIds: [],
+  projectKey: null,
 };
 
 /**
- * New issue: a title, a body, and a row of chips for everything else. Only the title is
- * required. Ctrl/⌘+Enter creates it from anywhere in the form.
+ * New issue: a title and a body on the left, the properties in a column on the right (below on
+ * a narrow screen), the same arrangement as the issue page. Only the title is required.
+ * Ctrl/⌘+Enter creates it from anywhere in the form.
  */
 export function NewIssueDialog({
   open,
   onOpenChange,
-  projectKey,
-  members,
-  milestones,
+  projects,
+  defaultProjectKey,
+  members: defaultMembers,
+  milestones: defaultMilestones,
+  labels,
   defaultMilestoneId = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectKey: string;
+  /** Projects the issue can be linked to. */
+  projects: ProjectSummary[];
+  /** The project the dialog was opened in; null on the list of every issue. */
+  defaultProjectKey: string | null;
+  /** Who can be assigned and the milestones, for `defaultProjectKey` (everyone and none when it is null). */
   members: ProjectMember[];
   milestones: Milestone[];
+  /** Every label in the workspace. */
+  labels: Label[];
   /** Pre-selected when the list is filtered to one milestone. */
   defaultMilestoneId?: string | null;
 }) {
   const [title, setTitle] = useState("");
   const [properties, setProperties] = useState<Properties>(DEFAULT_PROPERTIES);
-  // The body lives in the editor. `body` is what the editor starts from; a new `revision`
-  // restarts the editor with it (applying a preset, clearing after "create more").
-  const [body, setBody] = useState<{ revision: number; initial: RichDoc | null }>({ revision: 0, initial: null });
+  // The body lives in the editor; a new `revision` restarts it empty (after "create more").
+  const [revision, setRevision] = useState(0);
   const content = useRef<RichDoc | null>(null);
-  const bodyTouched = useRef(false);
   const [createMore, setCreateMore] = useState(false);
   const [titleError, setTitleError] = useState(false);
   const [lastCreated, setLastCreated] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  const resetBody = (preset: IssuePreset | null) => {
-    const initial = preset ? PRESET_TEMPLATES[preset] : null;
-    content.current = initial;
-    bodyTouched.current = false;
-    setBody((current) => ({ revision: current.revision + 1, initial }));
+  const resetBody = () => {
+    content.current = null;
+    setRevision((current) => current + 1);
   };
 
   // Every time the dialog opens (button, `C`), start from the list's current milestone filter and
@@ -79,7 +90,7 @@ export function NewIssueDialog({
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setProperties((current) => ({ ...current, milestoneId: defaultMilestoneId }));
+      setProperties((current) => ({ ...current, projectKey: defaultProjectKey, milestoneId: defaultMilestoneId }));
       setTitleError(false);
       setLastCreated(null);
     }
@@ -88,25 +99,45 @@ export function NewIssueDialog({
   const mutation = useRefreshingMutation(createIssue, (issue) => {
     setTitle("");
     if (createMore) {
-      // Keep what the next issue is likely to share (status, preset, assignee); start a fresh body.
-      resetBody(properties.preset);
+      // Keep what the next issue is likely to share (status, labels, assignee); start a fresh body.
+      resetBody();
       setLastCreated(issue.key);
       titleRef.current?.focus();
     } else {
-      setProperties(DEFAULT_PROPERTIES);
-      resetBody(null);
+      setProperties({ ...DEFAULT_PROPERTIES, projectKey: defaultProjectKey });
+      resetBody();
       onOpenChange(false);
     }
   });
 
+  // Who can be assigned and which milestones exist follow the chosen project. For the project the
+  // dialog was opened in they came with the page; for another one they are fetched.
+  const projectKey = properties.projectKey;
+  const other = projectKey !== defaultProjectKey;
+  const fetched = useQuery({
+    queryKey: ["new-issue-project", projectKey],
+    enabled: open && other,
+    queryFn: async (): Promise<{ members: ProjectMember[]; milestones: Milestone[] }> => {
+      if (projectKey === null) {
+        const users = await apiFetch<UserSummary[]>("/api/v1/users");
+        return { members: users.map((person) => ({ ...person, userId: person.id, role: "EDITOR" })), milestones: [] };
+      }
+      const path = `/api/v1/projects/${encodeURIComponent(projectKey)}`;
+      const [members, milestones] = await Promise.all([
+        apiFetch<ProjectMember[]>(`${path}/members`),
+        apiFetch<Milestone[]>(`${path}/milestones`),
+      ]);
+      return { members, milestones };
+    },
+  });
+  const members = other ? (fetched.data?.members ?? []) : defaultMembers;
+  const milestones = other ? (fetched.data?.milestones ?? []) : defaultMilestones;
+  // An assignee or a milestone belongs to a project; changing the project starts those over.
+  const setProject = (key: string | null) =>
+    setProperties((current) => ({ ...current, projectKey: key, assigneeId: null, milestoneId: null }));
+
   const set = <K extends keyof Properties>(key: K, value: Properties[K]) =>
     setProperties((current) => ({ ...current, [key]: value }));
-
-  const setPreset = (preset: IssuePreset | null) => {
-    set("preset", preset);
-    // Lay down the preset's outline unless the person has already written something of their own.
-    if (!bodyTouched.current) resetBody(preset);
-  };
 
   const submit = () => {
     if (mutation.isPending) return;
@@ -116,7 +147,7 @@ export function NewIssueDialog({
       return;
     }
     setLastCreated(null);
-    mutation.mutate({ projectKey, issue: { title, content: content.current, ...properties } });
+    mutation.mutate({ title, content: content.current, ...properties });
   };
 
   const resetMutation = mutation.reset;
@@ -127,7 +158,7 @@ export function NewIssueDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* The dialog exists to type a title: put the cursor there as it opens. */}
-      <DialogContent className="gap-0 p-0 sm:max-w-2xl" initialFocus={titleRef}>
+      <DialogContent className="gap-0 p-0 sm:max-w-2xl md:max-w-4xl" initialFocus={titleRef}>
         <DialogTitle className="sr-only">{m.newTitle}</DialogTitle>
         <DialogDescription className="sr-only">{m.emptyDescription}</DialogDescription>
         <form
@@ -145,13 +176,18 @@ export function NewIssueDialog({
           className="flex flex-col"
         >
           <div className="flex items-center gap-1 px-4 pt-3.5 text-[0.8125rem] leading-5">
-            <Badge variant="secondary" className="tabular-nums">
-              {projectKey}
-            </Badge>
-            <ChevronRightIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            {projectKey ? (
+              <>
+                <Badge variant="secondary" className="max-w-48 truncate">
+                  {projects.find((project) => project.key === projectKey)?.name ?? projectKey}
+                </Badge>
+                <ChevronRightIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              </>
+            ) : null}
             <span className="font-medium">{m.new}</span>
           </div>
-          <div className="flex flex-col gap-2 px-4 pt-3 pb-2">
+          <div className="flex flex-col md:flex-row">
+          <div className="flex min-w-0 flex-1 flex-col gap-2 px-4 pt-3 pb-3">
             <input
               ref={titleRef}
               value={title}
@@ -177,57 +213,76 @@ export function NewIssueDialog({
               </p>
             ) : null}
             <RichTextEditor
-              key={body.revision}
-              initialContent={body.initial}
+              key={revision}
+              initialContent={null}
               placeholder={m.descriptionPlaceholder}
               ariaLabel={m.descriptionLabel}
-              className="max-h-[45dvh] min-h-28 overflow-y-auto overscroll-contain"
+              // -ml/pl: the scroll box reaches into the left padding so the block grip is not clipped.
+              className="-ml-4 max-h-[45dvh] min-h-28 overflow-y-auto overscroll-contain pl-4 md:max-h-[55dvh] md:min-h-64"
               onChange={(doc) => {
                 content.current = doc;
-                bodyTouched.current = true;
               }}
             />
+          </div>
+          <aside className="shrink-0 border-t px-3 py-2.5 md:w-64 md:border-t-0 md:border-l">
+            <h3 className="px-1 py-1 text-[0.8125rem] leading-5 font-medium text-muted-foreground">{messages.projects.properties}</h3>
+            <dl className="flex flex-col">
+              <PropertyRow label={m.status}>
+                <ChipSelect label={m.status} value={properties.status} options={statusOptions} onChange={(value) => set("status", value)} />
+              </PropertyRow>
+              <PropertyRow label={m.priority}>
+                <ChipSelect
+                  label={m.priority}
+                  value={properties.priority}
+                  options={priorityOptions}
+                  onChange={(value) => set("priority", value)}
+                />
+              </PropertyRow>
+              <PropertyRow label={m.assignee}>
+                <ChipSelect
+                  label={m.assignee}
+                  value={properties.assigneeId ?? NONE}
+                  options={assigneeOptions(members)}
+                  onChange={(value) => set("assigneeId", value === NONE ? null : value)}
+                />
+              </PropertyRow>
+              <PropertyRow label={m.project}>
+                <ChipSelect
+                  label={m.project}
+                  value={projectKey ?? NONE}
+                  options={projectOptions(projects, projectKey)}
+                  onChange={(value) => setProject(value === NONE ? null : value)}
+                />
+              </PropertyRow>
+              {milestones.length > 0 ? (
+                <PropertyRow label={m.milestone}>
+                  <ChipSelect
+                    label={m.milestone}
+                    value={properties.milestoneId ?? NONE}
+                    options={milestoneOptions(milestones)}
+                    onChange={(value) => set("milestoneId", value === NONE ? null : value)}
+                  />
+                </PropertyRow>
+              ) : null}
+              <PropertyRow label={m.labels}>
+                <LabelChip labels={labels} value={properties.labelIds} onChange={(value) => set("labelIds", value)} />
+              </PropertyRow>
+              <PropertyRow label={m.dueDate}>
+                <DateChip
+                  label={m.dueDate}
+                  placeholder={m.noDueDate}
+                  value={properties.dueDate}
+                  onChange={(value) => set("dueDate", value)}
+                />
+              </PropertyRow>
+            </dl>
+          </aside>
           </div>
           {mutation.isError ? (
             <div className="px-4 pb-2">
               <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert>
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3">
-            <ChipSelect label={m.status} value={properties.status} options={statusOptions} onChange={(value) => set("status", value)} />
-            <ChipSelect
-              label={m.priority}
-              value={properties.priority}
-              options={priorityOptions}
-              onChange={(value) => set("priority", value)}
-            />
-            <ChipSelect
-              label={m.assignee}
-              value={properties.assigneeId ?? NONE}
-              options={assigneeOptions(members)}
-              onChange={(value) => set("assigneeId", value === NONE ? null : value)}
-            />
-            {milestones.length > 0 ? (
-              <ChipSelect
-                label={m.milestone}
-                value={properties.milestoneId ?? NONE}
-                options={milestoneOptions(milestones)}
-                onChange={(value) => set("milestoneId", value === NONE ? null : value)}
-              />
-            ) : null}
-            <ChipSelect
-              label={m.preset}
-              value={properties.preset ?? NONE}
-              options={presetOptions}
-              onChange={(value) => setPreset(value === NONE ? null : value)}
-            />
-            <DateChip
-              label={m.dueDate}
-              placeholder={m.dueDate}
-              value={properties.dueDate}
-              onChange={(value) => set("dueDate", value)}
-            />
-          </div>
           <div className="flex flex-wrap items-center justify-end gap-3 border-t px-4 py-2.5">
             {lastCreated ? (
               <p role="status" className="mr-auto text-[0.8125rem] leading-5 text-muted-foreground">

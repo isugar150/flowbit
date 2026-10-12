@@ -2,4 +2,6 @@
 export type Workspace = {
   name: string;
   logoUrl: string | null;
+  /** Prefix of every issue key: FB-12. */
+  issueKey: string;
 };

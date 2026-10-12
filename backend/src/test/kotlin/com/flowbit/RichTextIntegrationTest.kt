@@ -85,6 +85,39 @@ class RichTextIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `표와 올린 이미지가 든 문서를 받아들이고 글자를 뽑는다`() {
+        val cell = """"content":[{"type":"paragraph","content":[{"type":"text","text":"값"}]}]"""
+        val document =
+            """{"type":"doc","content":[
+                {"type":"image","attrs":{"src":"/api/v1/files/0b6f2c1e-8a41-4c57-9f0e-2d6a1b3c4d5e.webp","alt":null}},
+                {"type":"table","content":[{"type":"tableRow","content":[
+                    {"type":"tableHeader","attrs":{"colspan":2,"rowspan":1,"colwidth":[120,80],"align":"center","verticalAlign":"middle"},$cell},
+                    {"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null,"align":null,"verticalAlign":null},$cell}]}]}
+            ]}"""
+
+        val created = editor.post("/api/v1/projects/PAY/issues", """{"title":"표","content":$document}""")
+
+        assertEquals(201, created.status)
+        assertEquals("값\n값", created.json()["description"])
+    }
+
+    @Test
+    fun `밖의 이미지 주소나 잘못된 칸 속성이 든 문서는 거부한다`() {
+        val outsideImage = """{"type":"doc","content":[{"type":"image","attrs":{"src":"https://example.com/pixel.png"}}]}"""
+        val noSource = """{"type":"doc","content":[{"type":"image"}]}"""
+        val badAlign =
+            """{"type":"doc","content":[{"type":"table","content":[{"type":"tableRow","content":[
+                {"type":"tableCell","attrs":{"align":"center; background:url(x)"}}]}]}]}"""
+        val badSpan =
+            """{"type":"doc","content":[{"type":"table","content":[{"type":"tableRow","content":[
+                {"type":"tableCell","attrs":{"colspan":100000}}]}]}]}"""
+
+        listOf(outsideImage, noSource, badAlign, badSpan).forEach { document ->
+            assertEquals(422, editor.patch("/api/v1/projects/PAY", """{"content":$document}""").status, document)
+        }
+    }
+
+    @Test
     fun `안전한 링크는 받아들인다`() {
         val document =
             """{"type":"doc","content":[{"type":"paragraph","content":[
@@ -100,7 +133,7 @@ class RichTextIntegrationTest : IntegrationTest() {
         assertEquals(201, created.status)
         assertEquals("배경\n환불이 느리다\n3초 안에 끝난다", created.json()["description"])
         assertEquals("doc", (created.json()["content"] as Map<*, *>)["type"])
-        assertEquals("doc", (viewer.get("/api/v1/projects/PAY/issues/1").json()["content"] as Map<*, *>)["type"])
+        assertEquals("doc", (viewer.get("/api/v1/issues/1").json()["content"] as Map<*, *>)["type"])
         assertNull(viewer.get("/api/v1/projects/PAY/issues").jsonList().single()["content"])
     }
 
@@ -109,12 +142,12 @@ class RichTextIntegrationTest : IntegrationTest() {
         editor.post("/api/v1/projects/PAY/issues", """{"title":"환불 흐름","priority":"HIGH","content":$DOCUMENT}""")
         val shorter = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"다시 씀"}]}]}"""
 
-        val updated = editor.patch("/api/v1/projects/PAY/issues/1", """{"content":$shorter}""").json()
+        val updated = editor.patch("/api/v1/issues/1", """{"content":$shorter}""").json()
 
         assertEquals("다시 씀", updated["description"])
         assertEquals("HIGH", updated["priority"])
         assertEquals(1, ((updated["content"] as Map<*, *>)["content"] as List<*>).size)
-        assertEquals(422, editor.patch("/api/v1/projects/PAY/issues/1", """{"content":{"type":"doc","content":[{"type":"iframe"}]}}""").status)
+        assertEquals(422, editor.patch("/api/v1/issues/1", """{"content":{"type":"doc","content":[{"type":"iframe"}]}}""").status)
     }
 
     private fun createMember(loginId: String): String =

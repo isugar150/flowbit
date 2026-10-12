@@ -32,6 +32,7 @@ export function ProjectOverviewEditor({
   return (
     <div className="flex flex-col gap-6">
       {canEdit ? (
+        <div data-presence-id="summary" className="-mt-3">
         <input
           ref={summaryInput}
           defaultValue={project.description}
@@ -41,13 +42,14 @@ export function ProjectOverviewEditor({
           autoComplete="off"
           onChange={(event) => summary.schedule(event.target.value)}
           onBlur={() => void summary.flush()}
-          className="-mt-3 w-full bg-transparent text-[0.9375rem] leading-[1.375rem] text-muted-foreground outline-none placeholder:text-muted-foreground/70 focus:text-foreground"
+          className="block w-full bg-transparent text-[0.9375rem] leading-[1.375rem] text-muted-foreground outline-none placeholder:text-muted-foreground/70 focus:text-foreground"
         />
+        </div>
       ) : project.description ? (
         <p className="-mt-3 text-[0.9375rem] leading-[1.375rem] text-muted-foreground">{project.description}</p>
       ) : null}
       {children}
-      <section className="flex flex-col gap-2">
+      <section data-presence-id="description" className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.descriptionTitle}</h3>
           <SaveStatus status={status} />

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
+import { ChevronDownIcon, CircleDotIcon, CircleUserRoundIcon, LayoutGridIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import type { ProjectSummary } from "@/features/projects/types";
@@ -40,6 +40,18 @@ export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary
   return (
     <nav aria-label={m.title} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2 py-1">
       <ul className="flex flex-col gap-px">
+        <li>
+          <NavItem href="/my-issues" current={pathname === "/my-issues" || pathname.startsWith("/my-issues/")}>
+            <CircleUserRoundIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+            {messages.myIssues.title}
+          </NavItem>
+        </li>
+        <li>
+          <NavItem href="/issues" current={pathname === "/issues"}>
+            <CircleDotIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+            {messages.issues.all}
+          </NavItem>
+        </li>
         <li>
           <NavItem href="/" current={pathname === "/"}>
             <LayoutGridIcon className="size-4 text-muted-foreground" aria-hidden="true" />

@@ -32,7 +32,7 @@ export function ThemeSetting() {
   return (
     <FieldSet>
       <FieldLegend variant="label">{m.themeLabel}</FieldLegend>
-      <RadioGroup value={hydrated ? (theme ?? "light") : null} onValueChange={(value) => setTheme(String(value))}>
+      <RadioGroup value={hydrated ? (theme ?? "system") : null} onValueChange={(value) => setTheme(String(value))}>
         {OPTIONS.map((option) => (
           <Field key={option.value} orientation="horizontal">
             <RadioGroupItem id={`theme-${option.value}`} value={option.value} />

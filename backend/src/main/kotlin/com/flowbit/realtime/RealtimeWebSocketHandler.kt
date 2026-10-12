@@ -3,6 +3,7 @@ package com.flowbit.realtime
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.auth.application.SessionService
 import com.flowbit.common.error.NotFoundException
+import com.flowbit.issue.application.IssueService
 import com.flowbit.media.application.ImageStorage
 import com.flowbit.project.application.ProjectService
 import com.flowbit.user.application.UserService
@@ -29,12 +30,14 @@ import java.util.concurrent.atomic.AtomicReference
  * `GET /api/v1/realtime` (WebSocket). Writes stay on REST; this only tells the browser that
  * something it shows has changed, and who else is looking at the same page.
  *
- * Browser → server: `{"type":"subscribe","topics":["project:FLOW","issue:FLOW-12"],"presence":"issue:FLOW-12"}`.
+ * Browser → server: `{"type":"subscribe","topics":["project:FLOW","issue:12"],"presence":"issue:12"}`.
  * Every message replaces the previous subscription. Topics the user may not read are dropped.
+ * `{"type":"focus","target":"description"}` says which part of that page the person is pointing
+ * at or typing in (null for none); the others on the page see it in the presence list.
  *
  * Server → browser:
  * - `{"type":"changed","topic":"project:FLOW","actorId":"…"}`
- * - `{"type":"presence","key":"issue:FLOW-12","viewers":[{id, loginId, displayName, avatarUrl}]}`
+ * - `{"type":"presence","key":"issue:12","viewers":[{id, loginId, displayName, avatarUrl, focus}]}`
  * - `{"type":"ping"}` every 20 seconds, so proxies with an idle timeout keep the connection.
  *
  * The handshake is authenticated by the session cookie like any request (SecurityConfig). The
@@ -44,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference
 class RealtimeWebSocketHandler(
     private val hub: RealtimeHub,
     private val projectService: ProjectService,
+    private val issueService: IssueService,
     private val sessionService: SessionService,
     private val userService: UserService,
     private val jsonMapper: JsonMapper,
@@ -80,11 +84,18 @@ class RealtimeWebSocketHandler(
                     mono {
                         val request = runCatching { jsonMapper.readValue(text, ClientMessage::class.java) }.getOrNull()
                         if (request?.type == "subscribe") {
-                            val readable = request.topics.orEmpty().take(MAX_TOPICS).filter { canRead(user, it) }.toSet()
+                            val readable =
+                                request.topics
+                                    .orEmpty()
+                                    .take(MAX_TOPICS)
+                                    .filter { canRead(user, it) }
+                                    .toSet()
                             val key = request.presence?.takeIf { canRead(user, it) }
                             topics.set(readable)
                             presenceKey.set(key)
                             hub.setPresence(session.id, key, viewer)
+                        } else if (request?.type == "focus") {
+                            hub.setFocus(session.id, request.target?.takeIf { it.length <= MAX_TARGET_LENGTH })
                         }
                     }
                 }.then()
@@ -121,19 +132,22 @@ class RealtimeWebSocketHandler(
             .doFinally { hub.leave(session.id) }
     }
 
-    /** `project:KEY` and `issue:KEY-12` are readable by whoever may enter the project. */
+    /**
+     * `project:KEY` is readable by whoever may enter the project, `issue:12` by whoever may see
+     * that issue, and `issues` (some issue changed, with no detail) by every signed-in person.
+     */
     private suspend fun canRead(
         user: AuthenticatedUser,
         topic: String,
     ): Boolean {
-        val projectKey =
-            when {
-                topic.startsWith("project:") -> topic.removePrefix("project:")
-                topic.startsWith("issue:") -> ISSUE_KEY.matchEntire(topic.removePrefix("issue:"))?.groupValues?.get(1)
-                else -> null
-            } ?: return false
+        if (topic == RealtimeHub.ISSUES) return true
+        if (topic.startsWith("issue:")) {
+            val number = topic.removePrefix("issue:").takeIf { ISSUE_NUMBER.matches(it) }?.toInt() ?: return false
+            return issueService.canRead(user, number)
+        }
+        if (!topic.startsWith("project:")) return false
         return try {
-            projectService.access(user, projectKey)
+            projectService.access(user, topic.removePrefix("project:"))
             true
         } catch (_: NotFoundException) {
             false
@@ -162,11 +176,13 @@ class RealtimeWebSocketHandler(
         val type: String? = null,
         val topics: List<String>? = null,
         val presence: String? = null,
+        val target: String? = null,
     )
 
     private companion object {
         const val MAX_TOPICS = 20
-        val ISSUE_KEY = Regex("^([A-Z][A-Z0-9]{1,9})-\\d{1,9}$")
+        const val MAX_TARGET_LENGTH = 100
+        val ISSUE_NUMBER = Regex("^\\d{1,9}$")
         val PING_INTERVAL: Duration = Duration.ofSeconds(20)
         val SESSION_CHECK_INTERVAL: Duration = Duration.ofSeconds(60)
         val SESSION_ENDED = CloseStatus(4401, "session ended")
@@ -176,6 +192,5 @@ class RealtimeWebSocketHandler(
 @Configuration(proxyBeanMethods = false)
 class RealtimeConfig {
     @Bean
-    fun realtimeHandlerMapping(handler: RealtimeWebSocketHandler): HandlerMapping =
-        SimpleUrlHandlerMapping(mapOf("/api/v1/realtime" to handler), -1)
+    fun realtimeHandlerMapping(handler: RealtimeWebSocketHandler): HandlerMapping = SimpleUrlHandlerMapping(mapOf("/api/v1/realtime" to handler), -1)
 }

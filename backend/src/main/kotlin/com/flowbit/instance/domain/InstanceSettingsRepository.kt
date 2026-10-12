@@ -23,4 +23,11 @@ interface InstanceSettingsRepository : CoroutineCrudRepository<InstanceSettings,
         logoKey: String?,
         now: Instant,
     ): Int
+
+    @Modifying
+    @Query("update instance_settings set issue_key = :issueKey, updated_at = :now where id = 1")
+    suspend fun updateIssueKey(
+        issueKey: String,
+        now: Instant,
+    ): Int
 }

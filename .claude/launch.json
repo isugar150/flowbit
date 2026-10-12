@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "frontend-e2e",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd frontend && BACKEND_URL=http://localhost:8081 exec npx next start -p 3100"],
+      "port": 3100
     }
   ]
 }

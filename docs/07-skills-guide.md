@@ -12,7 +12,7 @@
 
 ## 저장소 목록
 
-`agent-skills/` 는 git 에 포함하지 않는다(`.gitignore`). 폴더가 없으면 아래 명령으로 다시 받는다. 커밋은 2026-10-12 에 받은 시점이다.
+`agent-skills/` 는 git 에 포함하지 않는다(`.gitignore`). 폴더가 없으면 아래 명령으로 다시 받는다. 커밋은 2026-10-12 에 받은 시점이다 (`shadcn-ui-ui` 는 같은 날 다시 받으면서 `993eb2c` 로 올라갔다).
 
 | 폴더 | 원본 | 받은 커밋 | 성격 |
 |---|---|---|---|
@@ -21,7 +21,7 @@
 | `addyosmani-web-quality-skills` | https://github.com/addyosmani/web-quality-skills.git | `afa8da9` | 웹 품질(성능, 접근성) |
 | `superfuture-design-review` | https://github.com/Superfuture/design-review.git | `d4d2609` | 디자인 비평 |
 | `emilkowalski-skills` | https://github.com/emilkowalski/skills.git | `2d22863` | UI 완성도, 애니메이션 |
-| `shadcn-ui-ui` | https://github.com/shadcn-ui/ui.git | `02cad61` | shadcn/ui 원본 저장소와 공식 스킬 |
+| `shadcn-ui-ui` | https://github.com/shadcn-ui/ui.git | `993eb2c` | shadcn/ui 원본 저장소와 공식 스킬 |
 | `pbakaus-impeccable` | https://github.com/pbakaus/impeccable.git | `c63b8dd` | 프론트엔드 디자인 전반 |
 | `wshobson-agents` | https://github.com/wshobson/agents.git | `46891e7` | 백엔드/DB/테스트 등 개발 전반의 스킬과 에이전트 정의 |
 | `jakubkrehel-skills` | https://github.com/jakubkrehel/skills.git | `c0588bb` | 인터페이스 다듬기와 리뷰 |

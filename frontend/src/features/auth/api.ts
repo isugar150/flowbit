@@ -1,8 +1,8 @@
 import { apiFetch } from "@/lib/api/client";
-import type { Credentials, Me } from "./types";
+import type { Credentials, Me, SetupRequest } from "./types";
 
-export function completeSetup(credentials: Credentials): Promise<Me> {
-  return apiFetch<Me>("/api/v1/setup", { method: "POST", body: credentials });
+export function completeSetup(request: SetupRequest): Promise<Me> {
+  return apiFetch<Me>("/api/v1/setup", { method: "POST", body: request });
 }
 
 export function login(credentials: Credentials): Promise<Me> {

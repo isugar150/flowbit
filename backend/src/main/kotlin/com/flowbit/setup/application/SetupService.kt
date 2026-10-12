@@ -31,26 +31,30 @@ class SetupService(
     suspend fun isCompleted(): Boolean = instanceService.isSetupCompleted()
 
     /**
-     * Creates the first administrator, signs them in, and closes setup for good.
+     * Creates the first administrator, names the workspace, signs the administrator in, and closes setup for good.
      * Succeeds at most once, even when called concurrently.
      */
     suspend fun complete(
         rawLoginId: String,
         password: String,
+        rawWorkspaceName: String?,
         client: ClientInfo,
     ): SetupResult {
         if (instanceService.isSetupCompleted()) {
             throw instanceService.setupAlreadyCompleted()
         }
         val loginId = CredentialPolicy.normalizeLoginId(rawLoginId)
-        val errors = CredentialPolicy.validate(loginId, password)
+        val workspaceName = rawWorkspaceName?.trim()?.ifEmpty { null }
+        val errors =
+            CredentialPolicy.validate(loginId, password) +
+                listOfNotNull(workspaceName?.let { instanceService.workspaceNameError(it, "workspaceName") })
         if (errors.isNotEmpty()) {
             throw ValidationException(errors)
         }
         // Hashing is slow on purpose; keep it outside the transaction that holds the settings row lock.
         val passwordHash = passwordHasher.hash(password)
         return transactionalOperator.executeAndAwait {
-            instanceService.completeSetup()
+            instanceService.completeSetup(workspaceName)
             val admin = userService.createAdmin(loginId, passwordHash)
             val sessionToken = sessionService.start(admin, client)
             auditService.record(AuditEventType.SETUP_COMPLETED, admin.id, client)

@@ -29,6 +29,9 @@ data class ImageSpec(
 
         /** A square icon shown at up to 36px; cropped to fill, like an avatar. */
         val PROJECT_ICON = ImageSpec(256, 256, ImageFit.COVER)
+
+        /** A picture inside an editor document; wide enough for a full-width column on a dense screen. */
+        val CONTENT = ImageSpec(1600, 1600, ImageFit.INSIDE)
     }
 }
 

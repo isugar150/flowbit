@@ -124,6 +124,17 @@ class SettingsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `본문에 넣을 이미지를 올리면 1600px 안으로 줄인 WebP 의 주소를 받는다`() {
+        val response = admin.postFile("/api/v1/images", "shot.png", "image/png", image("png", 3200, 1600))
+
+        assertEquals(201, response.status)
+        val file = admin.get(response.json()["url"] as String)
+        assertEquals(200, file.status)
+        assertEquals(ImageDimensions(1600, 800), ImageDimensions.read(file.bytes))
+        assertEquals(401, client().postFile("/api/v1/images", "shot.png", "image/png", image("png", 64, 64)).status)
+    }
+
+    @Test
     fun `로그인하지 않으면 이미지를 올리거나 볼 수 없다`() {
         val url = admin.putFile("/api/v1/me/avatar", "a.png", "image/png", image("png", 300, 300)).json()["avatarUrl"] as String
         val anonymous = client()

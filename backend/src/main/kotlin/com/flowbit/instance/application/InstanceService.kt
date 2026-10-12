@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
+import java.util.Locale
 
 data class InstanceDefaults(
     val locale: String,
@@ -22,6 +23,8 @@ data class InstanceDefaults(
 data class Workspace(
     val name: String,
     val logoKey: String?,
+    /** Prefix of every issue key: FB-12. */
+    val issueKey: String,
 )
 
 @Service
@@ -35,19 +38,21 @@ class InstanceService(
 
     suspend fun defaults(): InstanceDefaults = settings().let { InstanceDefaults(it.defaultLocale, it.defaultTimezone) }
 
-    suspend fun workspace(): Workspace = settings().let { Workspace(it.organizationName, it.logoKey) }
+    suspend fun workspace(): Workspace = settings().let { Workspace(it.organizationName, it.logoKey, it.issueKey) }
 
     /**
      * Marks setup as done. Locks the settings row so that of two concurrent callers
      * exactly one succeeds; the caller's transaction must also contain the work that setup performs.
+     * A workspace name, already validated with [workspaceNameError], replaces the default one.
      */
     @Transactional(propagation = Propagation.MANDATORY)
-    suspend fun completeSetup() {
+    suspend fun completeSetup(workspaceName: String? = null) {
         val settings = repository.findForUpdate()
         if (settings.isSetupCompleted) {
             throw setupAlreadyCompleted()
         }
         settings.completeSetup(clock.instant())
+        if (workspaceName != null) settings.organizationName = workspaceName
         repository.save(settings)
     }
 
@@ -56,17 +61,33 @@ class InstanceService(
     /** Administrators only; enforced by the `/api/v1/admin` rule in SecurityConfig. */
     suspend fun rename(rawName: String): Workspace {
         val name = rawName.trim()
-        val error =
-            when {
-                name.isEmpty() -> FieldError("name", "REQUIRED", "워크스페이스 이름을 입력하세요")
-                name.length > InstanceSettings.ORGANIZATION_NAME_MAX_LENGTH ->
-                    FieldError("name", "TOO_LONG", "워크스페이스 이름은 ${InstanceSettings.ORGANIZATION_NAME_MAX_LENGTH}자 이하여야 합니다")
-                else -> null
-            }
+        val error = workspaceNameError(name, "name")
         if (error != null) throw ValidationException(listOf(error))
         repository.updateOrganizationName(name, clock.instant())
         return workspace()
     }
+
+    /** Changes the prefix of issue keys. Every issue is shown with the new one at once; numbers stay. */
+    suspend fun setIssueKey(rawKey: String): Workspace {
+        val key = rawKey.trim().uppercase(Locale.ROOT)
+        if (!ISSUE_KEY_PATTERN.matches(key)) {
+            throw ValidationException("issueKey", "INVALID", "이슈 키는 영문 대문자로 시작하는 2~10자의 영문 대문자와 숫자여야 합니다")
+        }
+        repository.updateIssueKey(key, clock.instant())
+        return workspace()
+    }
+
+    /** What is wrong with a trimmed workspace name, reported under [field]; null when it is fine. */
+    fun workspaceNameError(
+        name: String,
+        field: String,
+    ): FieldError? =
+        when {
+            name.isEmpty() -> FieldError(field, "REQUIRED", "워크스페이스 이름을 입력하세요")
+            name.length > InstanceSettings.ORGANIZATION_NAME_MAX_LENGTH ->
+                FieldError(field, "TOO_LONG", "워크스페이스 이름은 ${InstanceSettings.ORGANIZATION_NAME_MAX_LENGTH}자 이하여야 합니다")
+            else -> null
+        }
 
     /** Replaces the workspace logo with the upload, converted to WebP no larger than 512px. */
     suspend fun replaceLogo(upload: ByteArray): Workspace {
@@ -82,6 +103,10 @@ class InstanceService(
         repository.updateLogoKey(null, clock.instant())
         imageStorage.delete(previous)
         return workspace()
+    }
+
+    private companion object {
+        val ISSUE_KEY_PATTERN = Regex("^[A-Z][A-Z0-9]{1,9}$")
     }
 
     private suspend fun settings(): InstanceSettings = checkNotNull(repository.findById(InstanceSettings.SINGLETON_ID))

@@ -5,14 +5,15 @@ import { PageHeader } from "@/components/page-header";
 import { ProjectIcon } from "@/components/project-icon";
 import { PillTabs } from "@/components/pill-tabs";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { PriorityIcon, formatDueDate, priorityLabel } from "@/features/issues/meta";
+import { PriorityIcon, priorityLabel } from "@/features/issues/meta";
 import { PersonAvatar } from "@/features/issues/options";
 import { milestoneProgress } from "@/features/milestones/types";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
-import { HealthBadge, ProjectStatusIcon, projectStatusLabel, timeAgo } from "@/features/projects/meta";
+import { HealthBadge, ProjectStatusIcon, projectStatusLabel } from "@/features/projects/meta";
 import type { ProjectSummary } from "@/features/projects/types";
 import { getProjects } from "@/lib/current-user";
 import { messages } from "@/messages";
+import { DueDate, TimeAgo } from "@/components/dates";
 
 const m = messages.projects;
 
@@ -133,7 +134,7 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
           <span className="flex min-w-0 items-center gap-1">
             <HealthBadge health={project.health} />
             <time dateTime={project.healthUpdatedAt} className="truncate text-muted-foreground">
-              · {timeAgo(project.healthUpdatedAt)}
+              · <TimeAgo iso={project.healthUpdatedAt} />
             </time>
           </span>
         ) : (
@@ -155,7 +156,7 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
         ) : null}
       </td>
       <td className={`${cell} ${wide} text-muted-foreground tabular-nums`}>
-        {project.targetDate ? formatDueDate(project.targetDate) : null}
+        {project.targetDate ? <DueDate value={project.targetDate} /> : null}
       </td>
       <td className={`${cell} ${wide} text-right font-medium tabular-nums`}>{project.issueCount}</td>
       <td className={`${cell} pr-5`}>

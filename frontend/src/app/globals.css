@@ -245,6 +245,65 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+  .rich-text .tiptap img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+  }
+  .rich-text .tiptap img.ProseMirror-selectednode {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  /* Wide tables scroll sideways inside their own box instead of stretching the page. */
+  .rich-text .tiptap .tableWrapper {
+    overflow-x: auto;
+  }
+  .rich-text .tiptap table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    overflow: hidden;
+  }
+  .rich-text .tiptap th,
+  .rich-text .tiptap td {
+    position: relative;
+    min-width: 3rem;
+    /* Stronger than --border, which is too faint for a grid on the dark theme. */
+    border: 1px solid color-mix(in oklab, var(--foreground) 20%, transparent);
+    padding: 0.375rem 0.625rem;
+    vertical-align: top;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .rich-text .tiptap th {
+    background: var(--muted);
+    font-weight: 600;
+  }
+  .rich-text .tiptap th > * + *,
+  .rich-text .tiptap td > * + * {
+    margin-top: 0.25rem;
+  }
+  /* Cells picked by dragging across them (what "merge cells" acts on). */
+  .rich-text .tiptap .selectedCell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    pointer-events: none;
+  }
+  .rich-text .tiptap .column-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    bottom: -2px;
+    width: 3px;
+    background: var(--primary);
+    pointer-events: none;
+  }
+  .rich-text .tiptap.resize-cursor {
+    cursor: col-resize;
+  }
   /* Hint shown in the first line while the document is empty. */
   .rich-text .tiptap p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
@@ -252,6 +311,38 @@
     height: 0;
     pointer-events: none;
     color: var(--muted-foreground);
+  }
+}
+
+/*
+ * Where someone else on the same page is pointing or typing (features/realtime/presence-focus.tsx
+ * sets these attributes). The name tag sits just above the outlined region.
+ */
+@layer components {
+  [data-presence-by] {
+    position: relative;
+    border-radius: 0.375rem;
+    outline: 2px solid var(--presence-color, var(--primary));
+    outline-offset: 3px;
+  }
+  [data-presence-by]::after {
+    content: attr(data-presence-by);
+    position: absolute;
+    right: -5px;
+    bottom: calc(100% + 3px);
+    z-index: 10;
+    max-width: 12rem;
+    overflow: hidden;
+    border-radius: 0.25rem 0.25rem 0 0;
+    background: var(--presence-color, var(--primary));
+    padding: 0 0.375rem;
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
   }
 }
 

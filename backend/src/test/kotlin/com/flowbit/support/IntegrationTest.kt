@@ -32,7 +32,11 @@ abstract class IntegrationTest {
     @BeforeEach
     fun resetState() {
         execute("truncate table audit_events, user_sessions, issues, project_members, projects, users cascade")
-        execute("update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null")
+        // The three labels every installation starts with stay; the ones tests add go.
+        execute("delete from labels where name not in ('버그', '기능', '중요')")
+        execute(
+            "update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null, issue_key = 'FB', next_issue_number = 1",
+        )
         clock.reset()
         rateLimiter.reset()
     }

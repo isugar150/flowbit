@@ -19,7 +19,11 @@ enum class IssuePreset { BUG, ENHANCEMENT, FEATURE }
 class Issue(
     @Id
     val id: UUID,
-    val projectId: UUID,
+    /** The project the issue is linked to, if any. The link can change; the number does not. */
+    var projectId: UUID?,
+    /** The issue this one is a sub-issue of. */
+    var parentId: UUID?,
+    /** Unique across the workspace; shown after the workspace's issue key: FB-12. */
     val number: Int,
     var title: String,
     var description: String,
@@ -41,8 +45,5 @@ class Issue(
 }
 
 interface IssueRepository : CoroutineCrudRepository<Issue, UUID> {
-    suspend fun findByProjectIdAndNumber(
-        projectId: UUID,
-        number: Int,
-    ): Issue?
+    suspend fun findByNumber(number: Int): Issue?
 }

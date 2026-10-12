@@ -26,6 +26,11 @@ export const newPassword = z.string().min(1, v.passwordRequired).min(10, v.passw
 
 export const setupSchema = z
   .object({
+    workspaceName: z
+      .string()
+      .trim()
+      .min(1, messages.setup.workspaceNameRequired)
+      .max(100, messages.setup.workspaceNameTooLong),
     loginId: newLoginId,
     password: newPassword,
     passwordConfirm: z.string().min(1, v.passwordConfirmRequired),

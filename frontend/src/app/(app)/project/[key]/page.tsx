@@ -3,8 +3,10 @@ import { CalendarIcon, HashIcon, ShieldIcon, UsersIcon } from "lucide-react";
 import { Person } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
+import type { UserSummary } from "@/features/members/types";
 import { MilestonesSection } from "@/features/milestones/components/milestones-section";
 import type { Milestone } from "@/features/milestones/types";
+import { AddProjectMemberButton } from "@/features/projects/components/add-project-member-button";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { ProjectProperties } from "@/features/projects/components/project-properties";
 import { ProjectUpdates } from "@/features/projects/components/project-updates";
@@ -36,6 +38,10 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
     serverGet<ProjectUpdate[]>(`${path}/updates`),
   ]);
   if (!members || !milestones || !updates) notFound();
+  // People who manage the project can add members right from the card; they need the list of everyone.
+  const canManage = project.myRole === "MANAGER";
+  const users = canManage ? ((await serverGet<UserSummary[]>("/api/v1/users")) ?? []) : [];
+  const candidates = users.filter((person) => !members.some((member) => member.userId === person.id));
   const labelSuggestions = [...new Set(projects.flatMap((other) => other.labels))].sort((a, b) => a.localeCompare(b, "ko"));
   const role = messages.roles[project.myRole];
   const created = formatDate(project.createdAt, user.timezone);
@@ -100,7 +106,10 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
             </PropertyRow>
           </dl>
         </PropertyCard>
-        <PropertyCard title={m.membersCardTitle}>
+        <PropertyCard
+          title={m.membersCardTitle}
+          action={canManage ? <AddProjectMemberButton projectKey={project.key} candidates={candidates} /> : undefined}
+        >
           <ul className="flex flex-col gap-2 px-1 py-1">
             {members.map((member) => (
               <li key={member.userId} className="flex items-center justify-between gap-2">

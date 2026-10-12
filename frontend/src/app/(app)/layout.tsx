@@ -2,10 +2,14 @@ import { Suspense } from "react";
 import { getProjects, getWorkspace, requireUser } from "@/lib/current-user";
 import { AppShell, AppShellSkeleton } from "./_components/app-shell";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+/** `modal` is the `@modal` slot: an issue opened from inside the app, as a dialog over the page. */
+export default function AppLayout({ children, modal }: LayoutProps<"/">) {
   return (
     <Suspense fallback={<AppShellSkeleton />}>
-      <SignedInShell>{children}</SignedInShell>
+      <SignedInShell>
+        {children}
+        {modal}
+      </SignedInShell>
     </Suspense>
   );
 }

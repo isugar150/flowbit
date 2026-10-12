@@ -133,18 +133,18 @@ class MilestoneService(
             .awaitSingle()
 
     private fun editable(access: ProjectAccess): ProjectAccess {
-        if (!access.role.canEdit) throw ForbiddenException("이 프로젝트의 마일스톤을 고칠 권한이 없습니다")
+        if (!access.role.canEdit) throw ForbiddenException("이 프로젝트의 목표를 고칠 권한이 없습니다")
         return access
     }
 
     private fun validName(raw: String): String {
         val name = raw.trim()
-        if (name.isEmpty()) throw ValidationException("name", "REQUIRED", "마일스톤 이름을 입력하세요")
+        if (name.isEmpty()) throw ValidationException("name", "REQUIRED", "목표 이름을 입력하세요")
         if (name.length > Milestone.NAME_MAX_LENGTH) {
-            throw ValidationException("name", "TOO_LONG", "마일스톤 이름은 ${Milestone.NAME_MAX_LENGTH}자 이하여야 합니다")
+            throw ValidationException("name", "TOO_LONG", "목표 이름은 ${Milestone.NAME_MAX_LENGTH}자 이하여야 합니다")
         }
         return name
     }
 
-    private fun notFound() = NotFoundException("MILESTONE_NOT_FOUND", "마일스톤을 찾을 수 없습니다")
+    private fun notFound() = NotFoundException("MILESTONE_NOT_FOUND", "목표를 찾을 수 없습니다")
 }

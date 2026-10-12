@@ -18,8 +18,8 @@ data class RichTextDocument(
  * Documents from the block editor (Tiptap/ProseMirror JSON).
  *
  * The client is not trusted to send a well-formed document: only the node and mark types the
- * editor offers are accepted, links may only point to web, mail or in-app addresses, and size is
- * capped. Nothing here is ever stored or served as HTML; the editor rebuilds the page from JSON.
+ * editor offers are accepted, links may only point to web, mail or in-app addresses, images may
+ * only be files this server stores, and size is capped. Nothing here is ever stored or served as HTML; the editor rebuilds the page from JSON.
  */
 @Component
 class RichText(
@@ -88,6 +88,17 @@ class RichText(
                 if (!SAFE_LINK.containsMatchIn(href)) throw invalid(field)
             }
         }
+        val attrs = node["attrs"] as? Map<*, *>
+        when (type) {
+            "image" -> {
+                val src = attrs?.get("src") as? String ?: throw invalid(field)
+                if (!STORED_IMAGE.matches(src)) throw invalid(field)
+            }
+            "tableCell", "tableHeader" -> {
+                if (attrs?.get("align") !in CELL_ALIGN || attrs?.get("verticalAlign") !in CELL_VERTICAL_ALIGN) throw invalid(field)
+                if (!isSpan(attrs?.get("colspan")) || !isSpan(attrs?.get("rowspan"))) throw invalid(field)
+            }
+        }
         if (type == "text") {
             text.append(node["text"] as? String ?: throw invalid(field))
             return
@@ -98,6 +109,9 @@ class RichText(
         if (type in BLOCK_TYPES && text.isNotEmpty() && text.last() != '\n') text.append('\n')
     }
 
+    /** A missing span means 1. */
+    private fun isSpan(value: Any?): Boolean = value == null || (value is Int && value in 1..MAX_SPAN)
+
     private fun invalid(field: String) = ValidationException(field, "INVALID_DOCUMENT", "문서 형식이 올바르지 않습니다")
 
     /** Tables that have a `content` column. An enum, so a table name never comes from input. */
@@ -106,6 +120,7 @@ class RichText(
     ) {
         PROJECTS("projects"),
         ISSUES("issues"),
+        ISSUE_DOCUMENTS("issue_documents"),
     }
 
     private companion object {
@@ -115,8 +130,17 @@ class RichText(
 
         val BLOCK_TYPES =
             setOf("paragraph", "heading", "codeBlock", "listItem", "taskItem", "blockquote", "horizontalRule")
-        val NODE_TYPES = BLOCK_TYPES + setOf("doc", "text", "bulletList", "orderedList", "taskList", "hardBreak")
+        val NODE_TYPES =
+            BLOCK_TYPES +
+                setOf("doc", "text", "bulletList", "orderedList", "taskList", "hardBreak") +
+                setOf("image", "table", "tableRow", "tableHeader", "tableCell")
         val MARK_TYPES = setOf("bold", "italic", "strike", "code", "underline", "link")
+
+        /** Only images uploaded here (ImageStorage keys); an outside address could track readers. */
+        val STORED_IMAGE = Regex("^/api/v1/files/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp$")
+        val CELL_ALIGN = setOf(null, "left", "center", "right")
+        val CELL_VERTICAL_ALIGN = setOf(null, "top", "middle", "bottom")
+        const val MAX_SPAN = 100
 
         /** Web and mail links, and paths inside this app. Rules out `javascript:` and other schemes. */
         val SAFE_LINK = Regex("^(https?://|mailto:|/(?!/)|#)", RegexOption.IGNORE_CASE)

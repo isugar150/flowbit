@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { lastLocalWriteAt } from "@/lib/api/client";
+import { PresenceFocus } from "./presence-focus";
 
 /** Someone with the same page open (GET /api/v1/realtime, "presence"). */
 export type Viewer = {
@@ -10,6 +11,8 @@ export type Viewer = {
   loginId: string;
   displayName: string | null;
   avatarUrl: string | null;
+  /** The `data-presence-id` of the part of the page they are pointing at or typing in, if any. */
+  focus: string | null;
 };
 
 /** What one part of the page wants to hear about. See RealtimeScope. */
@@ -29,6 +32,8 @@ type RealtimeContextValue = {
   register: (scope: Scope) => () => void;
   /** Others on the current page; the signed-in user is left out. */
   viewers: Viewer[];
+  /** Tells the others which part of the page this person is on (null: none). */
+  sendFocus: (target: string | null) => void;
 };
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null);
@@ -53,6 +58,7 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
   const nextScopeId = useRef(0);
   const socket = useRef<WebSocket | null>(null);
   const presenceKey = useRef<string | null>(null);
+  const focusTarget = useRef<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewers, setViewers] = useState<Viewer[]>([]);
 
@@ -74,7 +80,18 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
       setViewers([]);
     }
     const ws = socket.current;
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "subscribe", topics, presence }));
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "subscribe", topics, presence }));
+      // A subscription starts with no focus on the server; say again where this person is.
+      if (focusTarget.current) ws.send(JSON.stringify({ type: "focus", target: focusTarget.current }));
+    }
+  }, []);
+
+  const sendFocus = useCallback((target: string | null) => {
+    if (target === focusTarget.current) return;
+    focusTarget.current = target;
+    const ws = socket.current;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "focus", target }));
   }, []);
 
   useEffect(() => {
@@ -142,10 +159,15 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
   );
 
   const value = useMemo(
-    () => ({ register, viewers: viewers.filter((viewer) => viewer.id !== userId) }),
-    [register, viewers, userId],
+    () => ({ register, sendFocus, viewers: viewers.filter((viewer) => viewer.id !== userId) }),
+    [register, sendFocus, viewers, userId],
   );
-  return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
+  return (
+    <RealtimeContext.Provider value={value}>
+      {children}
+      <PresenceFocus />
+    </RealtimeContext.Provider>
+  );
 }
 
 /**
@@ -174,4 +196,9 @@ export function RealtimeScope({
 
 export function useViewers(): Viewer[] {
   return useContext(RealtimeContext)?.viewers ?? [];
+}
+
+export function useSendFocus(): (target: string | null) => void {
+  const send = useContext(RealtimeContext)?.sendFocus;
+  return useCallback((target: string | null) => send?.(target), [send]);
 }

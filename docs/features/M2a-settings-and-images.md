@@ -28,7 +28,7 @@ M2(구성원과 워크스페이스 설정)의 일부를 먼저 만든 것이다.
 
 | 경로 | 내용 | 접근 |
 |---|---|---|
-| `/settings` | **내 설정**: 프로필 사진, 이름, 화면 테마(밝게 / 어둡게 / 기기 설정 따르기) | 로그인한 사용자 |
+| `/settings` | **내 설정**: 프로필 사진, 이름, 화면 테마(밝게 / 어둡게 / 기기 설정 따르기, 기본은 기기 설정 따르기) | 로그인한 사용자 |
 | `/admin/workspace` | **관리자 설정**: 로고, 워크스페이스 이름 | 관리자. 구성원이 들어오면 홈으로 이동 |
 | `/admin/members` | **관리자 설정**: 구성원 관리 ([M3-projects-and-issues.md](M3-projects-and-issues.md)) | 관리자 |
 
@@ -76,6 +76,7 @@ M2(구성원과 워크스페이스 설정)의 일부를 먼저 만든 것이다.
 | `PATCH /api/v1/admin/workspace` | `{ "name": "..." }`. 1~100자. **관리자** | 워크스페이스 |
 | `PUT /api/v1/admin/workspace/logo` | `multipart/form-data`, `file` 파트. **관리자** | 워크스페이스 |
 | `DELETE /api/v1/admin/workspace/logo` | 로고 삭제. **관리자** | 워크스페이스 |
+| `POST /api/v1/images` | `multipart/form-data`, `file` 파트. 편집기 본문에 넣을 이미지. 1600px 안으로 줄인 WebP. 로그인한 누구나 (D-052) | 201 `{ "url": "/api/v1/files/<key>" }` |
 | `GET /api/v1/files/{key}` | 저장된 이미지. `image/webp`, 1년 캐시(`private, immutable`) | 파일 |
 
 - `/api/v1/admin/**` 는 관리자 역할이 아니면 403 `FORBIDDEN`. 이후의 관리자 전용 API 도 이 경로 아래에 둔다.

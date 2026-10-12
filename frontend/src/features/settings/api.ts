@@ -31,3 +31,8 @@ export function uploadWorkspaceLogo(file: File): Promise<Workspace> {
 export function removeWorkspaceLogo(): Promise<Workspace> {
   return apiFetch<Workspace>("/api/v1/admin/workspace/logo", { method: "DELETE" });
 }
+
+/** Changes the prefix of every issue key (FB-12 → NEW-12). */
+export function setIssueKey(issueKey: string): Promise<Workspace> {
+  return apiFetch<Workspace>("/api/v1/admin/workspace", { method: "PATCH", body: { issueKey } });
+}

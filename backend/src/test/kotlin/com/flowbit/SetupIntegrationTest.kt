@@ -117,6 +117,36 @@ class SetupIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `설정에서 정한 워크스페이스 이름이 저장된다`() {
+        val client = client()
+
+        assertEquals(201, client.setup("admin", PASSWORD, "  우리 회사  ").status)
+
+        assertEquals("우리 회사", client.get("/api/v1/workspace").json()["name"])
+    }
+
+    @Test
+    fun `워크스페이스 이름을 보내지 않으면 기본 이름을 쓴다`() {
+        val client = client()
+
+        assertEquals(201, client.setup("admin", PASSWORD).status)
+
+        assertEquals("Flowbit", client.get("/api/v1/workspace").json()["name"])
+    }
+
+    @Test
+    fun `너무 긴 워크스페이스 이름은 거부하고 설정은 끝나지 않는다`() {
+        val response = client().setup("admin", PASSWORD, "가".repeat(101))
+
+        assertEquals(422, response.status)
+        @Suppress("UNCHECKED_CAST")
+        val errors = response.json()["errors"] as List<Map<String, String>>
+        assertEquals("workspaceName", errors.single()["field"])
+        assertEquals(0, count("select count(*) from users"))
+        assertEquals(false, client().get("/api/v1/setup/status").json()["completed"])
+    }
+
+    @Test
     fun `아이디와 같은 비밀번호는 거부한다`() {
         val response = client().setup("administrator", "Administrator")
 

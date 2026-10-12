@@ -92,18 +92,39 @@ B 의 브라우저 ◀── WebSocket {"type":"changed","topic":"project:FLOW"}
 
 - **변경은 REST, 전파는 WebSocket.** 쓰기는 REST API 로 하고(검증, 권한, 오류 형식이 한 곳에 있다), 컨트롤러가 서비스의 트랜잭션이 커밋된 뒤 `RealtimeHub.publish(topic, actorId)` 를 부른다. WebSocket 으로 쓰기 명령을 받지 않는다.
 - 엔드포인트: `GET /api/v1/realtime` (WebSocket 업그레이드, `realtime/RealtimeWebSocketHandler.kt`). 다른 요청과 똑같이 세션 쿠키로 인증하고(로그인 안 됐으면 401), `Origin` 이 Flowbit 자신(`X-Forwarded-Host`, `Host`, 요청 URI 중 하나)인지 확인한다. 60초마다 세션이 살아 있는지 확인하고(세션을 연장하지 않는다), 끝났으면 코드 4401 로 닫는다.
-- **주제(topic)**: `project:{KEY}`(프로젝트 정보·속성·개요·구성원, 그 프로젝트의 이슈 목록), `issue:{KEY}-{N}`(이슈 한 건). 프로젝트에 들어갈 수 있는 사람만 구독된다. 이슈를 고치면 `project:` 와 `issue:` 둘 다 알린다.
+- **주제(topic)**: `project:{KEY}`(프로젝트 정보·속성·개요·구성원, 그 프로젝트의 이슈 목록), `issue:{번호}`(이슈 한 건, 그 이슈를 볼 수 있는 사람만), `issues`(어떤 이슈든 바뀜. 내용 없이 알리기만 하며 로그인한 누구나. 전체 이슈·내 이슈 화면이 듣는다). 이슈를 고치면 `issues`, 연결된(그리고 떠난) 프로젝트의 `project:`, `issue:` 를 알리고, 하위 이슈면 상위 이슈의 `issue:` 도 알린다 (D-062).
 - **메시지**
-  - 브라우저 → 서버: `{"type":"subscribe","topics":[...],"presence":"issue:FLOW-12"}`. 보낼 때마다 이전 구독을 바꾼다.
-  - 서버 → 브라우저: `{"type":"changed","topic","actorId"}`, `{"type":"presence","key","viewers":[{id,loginId,displayName,avatarUrl}]}`, `{"type":"ping"}`(20초마다).
+  - 브라우저 → 서버: `{"type":"subscribe","topics":[...],"presence":"issue:12"}`. 보낼 때마다 이전 구독을 바꾼다. `{"type":"focus","target":"description"}`(없으면 `null`)로 그 화면의 어느 부분을 가리키고 있는지 알린다.
+  - 서버 → 브라우저: `{"type":"changed","topic","actorId"}`, `{"type":"presence","key","viewers":[{id,loginId,displayName,avatarUrl,focus}]}`, `{"type":"ping"}`(20초마다).
 - **받는 쪽**: 이벤트에 바뀐 값을 싣지 않는다. 받으면 그 화면을 `router.refresh()` 로 다시 그린다(연달아 오면 250ms 로 묶는다). 화면은 서버 컴포넌트가 데이터를 읽는 구조라, 자기 변경 뒤에 하는 것과 같은 방법이 가장 단순하고 어긋나지 않는다. 이 탭이 3초 안에 쓴 변경의 메아리는 건너뛴다(같은 사람의 다른 탭은 반영된다).
 - **편집 중인 글**: 문서 편집기와 제목·요약 입력은 서버에서 새 값이 오면 바꿔 보여 준다. 단, **그 칸에 아직 저장되지 않은 입력이 있으면 덮지 않는다**(`useAutosave().isDirty`). 동시에 고치면 나중에 저장한 쪽이 이긴다. 충돌 알림과 한 글자씩 합치는 공동 편집(CRDT)은 아직 없다.
 - **프레즌스**: 각 화면이 `presence` 키를 알리고(프로젝트 화면은 `project:KEY`, 이슈 상세는 `issue:KEY-N`), 서버는 같은 키를 보는 사람이 바뀔 때마다 그 목록을 보낸다. 화면 오른쪽 위(경로 표시 줄)에 **나를 뺀** 사람들의 아바타가 겹쳐 보이고, 마우스를 올리거나 키보드로 초점을 주면 이름이 보인다. 한 사람이 탭을 여러 개 열어도 한 번만 보인다.
+- **가리키는 위치** (D-053): 화면의 고칠 수 있는 부분에 `data-presence-id` 를 단다(속성 줄은 `property:<이름>`, 개요의 `summary`·`description`·`update`, 마일스톤 `milestone:<id>`, 이슈의 `title`·`body`). `features/realtime/presence-focus.tsx` 가 키보드 초점이 있는 부분(없으면 마우스가 올라간 부분)을 120ms 뒤에 `focus` 로 보내고, 다른 사람이 가리키는 부분에는 `data-presence-by`(이름)를 붙인다. 모양(사람별 색 테두리 + 이름표)은 `globals.css`. 서버는 값을 100자까지만 받고 뜻을 해석하지 않는다. 화면을 옮기면 지워진다. 글 안의 커서 위치(몇 번째 글자)까지는 보여 주지 않는다. 새 화면에 고칠 수 있는 부분을 만들면 감싸는 요소(입력 칸 자체가 아니라 `div`)에 `data-presence-id` 를 단다.
 - 끊김: 지수 백오프(1초 → 최대 30초)로 다시 붙고, 다시 붙으면 놓친 변경이 있을 수 있으니 한 번 다시 그린다. 연결이 없어도 앱은 REST 만으로 동작한다.
 - 서버 구현: WebFlux `WebSocketHandler` + 프로세스 안의 이벤트 버스(Reactor `Sinks`, `realtime/RealtimeHub.kt`). 인스턴스가 하나이므로 이것으로 충분하다. 여러 인스턴스로 늘릴 때는 PostgreSQL `LISTEN/NOTIFY` 로 인스턴스 사이에 이벤트를 전달한다.
 - 프런트엔드: `features/realtime/realtime-provider.tsx`(연결 하나, `RealtimeScope`, `useViewers`), `features/realtime/components/presence-avatars.tsx`. `RealtimeProvider` 는 앱 틀(`app-shell.tsx`)에 있다. 새 화면이 실시간으로 갱신되어야 하면 그 화면에 `<RealtimeScope topics=[...] presence="..." />` 를 둔다.
 - **Next.js rewrite 와 WebSocket** (확인함): `next dev`/`next start` 모두 `/api` rewrite 로 WebSocket 업그레이드를 백엔드에 넘기고 `x-forwarded-host` 를 붙인다(`next/dist/server/lib/router-server.js` 의 `upgradeHandler`). 단, 운영 모드의 프록시는 30초 동안 오가는 것이 없으면 끊으므로 서버가 20초마다 `ping` 을 보낸다. 앞에 리버스 프록시(nginx 등)를 두면 `/api/v1/realtime` 에 `Upgrade`/`Connection` 헤더를 넘기도록 설정해야 한다.
 - 알려진 한계: 구독할 때만 권한을 확인한다. 연결 중에 프로젝트에서 내보내진 사람은 다시 연결하거나 화면을 옮길 때까지 "바뀌었다"는 알림(내용 없음)과 보는 사람 목록을 계속 받는다.
+
+## 알림 (메일, 웹 푸시를 붙일 자리)
+
+이슈가 바뀌면 그 이슈를 **구독하는 사람**에게 알린다. 지금은 알릴 통로가 하나도 없고(아무것도 보내지 않는다), 통로를 꽂을 자리만 있다 (D-061).
+
+```
+IssueController ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(IssueNotification)
+                                   │  등록된 NotificationChannel 빈을 차례로 부른다
+                                   ├─▶ (앞으로) SmtpNotificationChannel      : 메일
+                                   └─▶ (앞으로) FcmNotificationChannel       : Firebase 웹 푸시
+```
+
+- `notification/Notifications.kt`: `IssueNotification`(이슈 키·제목, 프로젝트 키, 바꾼 사람, 바뀐 일 목록, 받는 사람 id 목록), `NotificationChannel`(구현할 인터페이스), `NotificationDispatcher`.
+- **받는 사람** = 그 이슈의 구독자에서 바꾼 사람 본인을 뺀 것. 서비스가 트랜잭션 안에서 계산해 `IssueChange.recipientIds` 로 돌려준다.
+- **바뀐 일** = 활동 기록과 같은 종류와 값(`IssueActivityType`, `{from,to}`). 메일 본문이나 푸시 문구는 통로가 이것으로 만든다.
+- 통로는 요청 처리 중에(커밋 뒤) 불린다. 통로 하나가 실패해도 요청과 다른 통로는 실패하지 않고 로그만 남는다.
+- **SMTP 를 붙일 때**: `NotificationChannel` 을 구현한 빈을 만들고, 받는 사람의 주소는 `users.email`(지금은 비어 있다. 입력 화면이 필요하다)에서 읽는다. 메일 서버 설정은 환경 변수로 받는다.
+- **Firebase 웹 푸시를 붙일 때**: 브라우저가 받은 FCM 토큰을 저장할 테이블(사용자 id, 토큰, 만든 때)과 등록 API, 프런트의 서비스 워커가 필요하다. 통로는 받는 사람의 토큰으로 보낸다.
+- 보내는 일이 느려지거나(메일 서버 지연) 재시도가 필요해지면, 통로를 직접 부르는 대신 알림을 테이블에 쌓고 따로 내보내는 방식(아웃박스)으로 바꾼다. 그때 같은 테이블이 앱 안의 수신함도 된다.
+- 사용자별 알림 끄기·종류 고르기는 아직 없다. 구독이 유일한 스위치다.
 
 ## 환경과 설정
 

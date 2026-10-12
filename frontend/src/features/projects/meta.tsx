@@ -80,7 +80,10 @@ export const healthOptions: ChipOption<ProjectHealth>[] = PROJECT_HEALTHS.map((h
   icon: <HealthIcon health={health} />,
 }));
 
-/** "3분 전", "어제", "2주 전": how long ago, in the reader's words. */
+/**
+ * "3분 전", "어제", "2주 전": how long ago, in the reader's words.
+ * Reads the clock, so render it through `<TimeAgo>` (components/dates.tsx), never directly.
+ */
 export function timeAgo(iso: string, now = Date.now()): string {
   const seconds = Math.round((new Date(iso).getTime() - now) / 1000);
   const format = new Intl.RelativeTimeFormat("ko", { numeric: "auto" });

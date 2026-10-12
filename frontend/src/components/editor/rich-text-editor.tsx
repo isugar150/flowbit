@@ -1,23 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
   CodeIcon,
+  FileTextIcon,
   Heading1Icon,
   Heading2Icon,
   Heading3Icon,
+  ImageIcon,
   ListChecksIcon,
   ListIcon,
   ListOrderedIcon,
   MinusIcon,
   QuoteIcon,
+  TableIcon,
+  XIcon,
 } from "lucide-react";
+import { fileProblem, settingsErrorMessage } from "@/features/settings/error-message";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
+import { BlockDragHandle } from "./block-drag-handle";
+import { fixedOrigin } from "./fixed-origin";
+import { tableExtensions } from "./table-extensions";
+import { TableToolbar } from "./table-toolbar";
+import { uploadEditorImage } from "./upload-image";
 
 const m = messages.editor;
 
@@ -30,10 +41,16 @@ type SlashItem = {
   /** Extra words that find this block, so typing "/h2" or "/todo" works as well as the Korean name. */
   keywords: string;
   icon: React.ReactNode;
-  run: (editor: Editor, range: { from: number; to: number }) => void;
+  run: (editor: Editor, range: { from: number; to: number }, actions: SlashActions) => void;
 };
 
+/** What a block needs from the editor component beyond the document itself. */
+type SlashActions = { pickImage: () => void; createDocument: () => void };
+
 const block = (editor: Editor, range: { from: number; to: number }) => editor.chain().focus().deleteRange(range);
+
+/** Offered only where the editor was given a way to make documents (an issue's body). */
+const DOCUMENT_ITEM = "document";
 
 /** Blocks offered by the `/` menu. Only blocks the backend accepts (RichText.kt) may be listed here. */
 const SLASH_ITEMS: SlashItem[] = [
@@ -45,6 +62,33 @@ const SLASH_ITEMS: SlashItem[] = [
   { id: "task", label: m.taskList, keywords: "todo task check 할 일 체크", icon: <ListChecksIcon />, run: (e, r) => block(e, r).toggleTaskList().run() },
   { id: "code", label: m.codeBlock, keywords: "code 코드", icon: <CodeIcon />, run: (e, r) => block(e, r).setCodeBlock().run() },
   { id: "quote", label: m.blockquote, keywords: "quote 인용", icon: <QuoteIcon />, run: (e, r) => block(e, r).setBlockquote().run() },
+  {
+    id: "table",
+    label: m.table,
+    keywords: "table grid 표 테이블",
+    icon: <TableIcon />,
+    run: (e, r) => block(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+  },
+  {
+    id: "image",
+    label: m.image,
+    keywords: "image picture photo img 이미지 사진 그림",
+    icon: <ImageIcon />,
+    run: (e, r, actions) => {
+      block(e, r).run();
+      actions.pickImage();
+    },
+  },
+  {
+    id: DOCUMENT_ITEM,
+    label: m.document,
+    keywords: "document doc page 문서 페이지",
+    icon: <FileTextIcon />,
+    run: (e, r, actions) => {
+      block(e, r).run();
+      actions.createDocument();
+    },
+  },
   { id: "rule", label: m.divider, keywords: "hr divider line 구분선", icon: <MinusIcon />, run: (e, r) => block(e, r).setHorizontalRule().run() },
 ];
 
@@ -68,13 +112,19 @@ type SlashState = { from: number; to: number; query: string; top: number; left: 
 
 const MENU_HEIGHT = 320;
 
-function matchingItems(query: string): SlashItem[] {
+const imageFiles = (list: FileList | null | undefined): File[] =>
+  Array.from(list ?? []).filter((file) => file.type.startsWith("image/"));
+
+function matchingItems(query: string, withDocuments: boolean): SlashItem[] {
   const needle = query.toLowerCase();
-  return SLASH_ITEMS.filter((item) => `${item.label} ${item.keywords}`.toLowerCase().includes(needle));
+  return SLASH_ITEMS.filter(
+    (item) =>
+      (withDocuments || item.id !== DOCUMENT_ITEM) && `${item.label} ${item.keywords}`.toLowerCase().includes(needle),
+  );
 }
 
 /** Where the `/` menu should be, if the cursor sits right after "/word" in an ordinary paragraph. */
-function readSlash(editor: Editor): SlashState | null {
+function readSlash(editor: Editor, probe: HTMLElement | null): SlashState | null {
   const { selection } = editor.state;
   const { $from } = selection;
   if (!selection.empty || $from.parent.type.name !== "paragraph") return null;
@@ -84,13 +134,23 @@ function readSlash(editor: Editor): SlashState | null {
   const coords = editor.view.coordsAtPos($from.pos);
   // Open below the line; flip above it when there is no room left under the cursor.
   const top = coords.bottom + MENU_HEIGHT + 8 > window.innerHeight ? Math.max(8, coords.top - MENU_HEIGHT - 6) : coords.bottom + 6;
-  return { from: $from.pos - match[1].length - 1, to: $from.pos, query: match[1], top, left: Math.max(8, coords.left) };
+  const origin = fixedOrigin(probe);
+  return {
+    from: $from.pos - match[1].length - 1,
+    to: $from.pos,
+    query: match[1],
+    top: top - origin.y,
+    left: Math.max(8, coords.left) - origin.x,
+  };
 }
 
 /**
  * The document editor used for project overviews and issue bodies.
  *
  * Type `/` for a menu of blocks; markdown shortcuts also work (`## `, `- `, `1. `, `[] `, `> `).
+ * Pictures can be chosen from the menu, pasted or dropped in; they are uploaded first and the
+ * document only keeps their address. With the cursor in a table, a toolbar for it appears. A grip
+ * to the left of the block under the pointer drags that block to another place.
  * Content goes in and out as JSON, never HTML. To replace the content from outside (for example
  * when a preset is applied), give the component a new `key` so it starts again.
  *
@@ -106,8 +166,14 @@ export function RichTextEditor({
   className,
   autoFocus,
   keepLocal,
+  onCreateDocument,
 }: {
   initialContent: RichDoc | null;
+  /**
+   * Makes a new document and says where it is. When given, the `/` menu offers "문서", which puts
+   * a link to the new document at the cursor.
+   */
+  onCreateDocument?: () => Promise<{ href: string; title: string }>;
   /** True while this editor has edits the server has not stored yet. */
   keepLocal?: () => boolean;
   /** Called with the document after each edit, or null when it has been emptied. */
@@ -120,6 +186,12 @@ export function RichTextEditor({
 }) {
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [probe, setProbe] = useState<HTMLSpanElement | null>(null);
+  const probeRef = useRef<HTMLSpanElement | null>(null);
+  const [uploading, setUploading] = useState(0);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<Editor | null>(null);
   // The key handler below is created once, so it reads the latest menu state through refs.
   const slashRef = useRef<SlashState | null>(null);
   const indexRef = useRef(0);
@@ -131,7 +203,7 @@ export function RichTextEditor({
   }, [onChange]);
 
   const updateSlash = (editor: Editor) => {
-    const next = editor.isEditable ? readSlash(editor) : null;
+    const next = editor.isEditable ? readSlash(editor, probeRef.current) : null;
     // After Escape the menu stays closed until the "/" it belonged to is gone.
     const visible = next && dismissedAtRef.current === next.from ? null : next;
     if (!next) dismissedAtRef.current = null;
@@ -141,6 +213,76 @@ export function RichTextEditor({
     }
     slashRef.current = visible;
     setSlash(visible);
+  };
+
+  /** Uploads the pictures one by one and places each at `position` (the cursor when not given). */
+  const insertImages = async (files: File[], position?: number) => {
+    const current = editorRef.current;
+    if (!current || files.length === 0) return;
+    interactedRef.current = true;
+    setImageError(null);
+    let at = position;
+    for (const file of files) {
+      const problem = fileProblem(file);
+      if (problem) {
+        setImageError(problem);
+        continue;
+      }
+      setUploading((count) => count + 1);
+      try {
+        const src = await uploadEditorImage(file);
+        if (current.isDestroyed) return;
+        const image = { type: "image", attrs: { src, alt: file.name } };
+        if (at === undefined) {
+          current.chain().focus().insertContent(image).run();
+        } else {
+          at = Math.min(at, current.state.doc.content.size);
+          current.chain().focus().insertContentAt(at, image).run();
+          at += 1;
+        }
+      } catch (error) {
+        setImageError(`${m.imageFailed} ${settingsErrorMessage(error)}`);
+      } finally {
+        setUploading((count) => count - 1);
+      }
+    }
+  };
+  const insertImagesRef = useRef(insertImages);
+  useEffect(() => {
+    insertImagesRef.current = insertImages;
+  });
+  const createDocumentRef = useRef(onCreateDocument);
+  useEffect(() => {
+    createDocumentRef.current = onCreateDocument;
+  }, [onCreateDocument]);
+  const insertDocumentLink = async () => {
+    const current = editorRef.current;
+    const create = createDocumentRef.current;
+    if (!current || !create) return;
+    interactedRef.current = true;
+    setImageError(null);
+    try {
+      const { href, title } = await create();
+      if (current.isDestroyed) return;
+      current
+        .chain()
+        .focus()
+        .insertContent([
+          { type: "text", text: title, marks: [{ type: "link", attrs: { href } }] },
+          { type: "text", text: " " },
+        ])
+        .run();
+    } catch (error) {
+      setImageError(settingsErrorMessage(error));
+    }
+  };
+  const insertDocumentLinkRef = useRef(insertDocumentLink);
+  useEffect(() => {
+    insertDocumentLinkRef.current = insertDocumentLink;
+  });
+  const slashActions: SlashActions = {
+    pickImage: () => fileInputRef.current?.click(),
+    createDocument: () => void insertDocumentLinkRef.current(),
   };
 
   const editor = useEditor({
@@ -154,13 +296,30 @@ export function RichTextEditor({
       TaskList,
       TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder: placeholder ?? "" }),
+      Image.configure({ allowBase64: false }),
+      ...tableExtensions,
     ],
     editorProps: {
       attributes: { "aria-label": ariaLabel, role: "textbox", "aria-multiline": "true" },
+      handlePaste: (_view, event) => {
+        const files = imageFiles(event.clipboardData?.files);
+        if (files.length === 0) return false;
+        void insertImagesRef.current(files);
+        return true;
+      },
+      handleDrop: (view, event, _slice, moved) => {
+        // `moved` is a block dragged within the document, which the editor handles itself.
+        const files = moved ? [] : imageFiles(event.dataTransfer?.files);
+        if (files.length === 0) return false;
+        event.preventDefault();
+        const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        void insertImagesRef.current(files, position);
+        return true;
+      },
       handleKeyDown: (view, event) => {
         const state = slashRef.current;
         if (!state || event.isComposing) return false;
-        const items = matchingItems(state.query);
+        const items = matchingItems(state.query, Boolean(createDocumentRef.current));
         if (event.key === "Escape") {
           dismissedAtRef.current = state.from;
           slashRef.current = null;
@@ -177,7 +336,13 @@ export function RichTextEditor({
         if (event.key === "Enter" || event.key === "Tab") {
           const item = items[Math.min(indexRef.current, items.length - 1)];
           const current = editorRef.current;
-          if (current) item.run(current, { from: state.from, to: state.to });
+          if (current) {
+            item.run(
+              current,
+              { from: state.from, to: state.to },
+              { pickImage: () => fileInputRef.current?.click(), createDocument: () => void insertDocumentLinkRef.current() },
+            );
+          }
           return true;
         }
         return false;
@@ -196,7 +361,6 @@ export function RichTextEditor({
       setSlash(null);
     },
   });
-  const editorRef = useRef<Editor | null>(null);
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
@@ -224,7 +388,7 @@ export function RichTextEditor({
     }
   }, [editor, initialContent]);
 
-  const items = slash ? matchingItems(slash.query) : [];
+  const items = slash ? matchingItems(slash.query, Boolean(onCreateDocument)) : [];
 
   return (
     <div
@@ -243,6 +407,49 @@ export function RichTextEditor({
       }}
     >
       <EditorContent editor={editor} />
+      {/* Marks the origin of fixed positioning for the menu and the table toolbar (see fixedOrigin). */}
+      <span
+        ref={(node) => {
+          probeRef.current = node;
+          setProbe(node);
+        }}
+        aria-hidden="true"
+        className="pointer-events-none fixed top-0 left-0 size-0"
+      />
+      {editor && editable ? <TableToolbar editor={editor} probe={probe} /> : null}
+      {editor && editable ? <BlockDragHandle editor={editor} container={probe?.parentElement ?? null} /> : null}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        multiple
+        hidden
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(event) => {
+          const files = imageFiles(event.target.files);
+          event.target.value = "";
+          void insertImages(files);
+        }}
+      />
+      {uploading > 0 ? (
+        <p role="status" className="mt-2 text-[0.8125rem] leading-5 text-muted-foreground">
+          {m.imageUploading}
+        </p>
+      ) : null}
+      {imageError ? (
+        <p role="alert" className="mt-2 flex items-start gap-1 text-[0.8125rem] leading-5 text-destructive">
+          <span className="min-w-0 flex-1">{imageError}</span>
+          <button
+            type="button"
+            aria-label={m.dismiss}
+            onClick={() => setImageError(null)}
+            className="flex size-5 shrink-0 items-center justify-center rounded hover:bg-destructive/10 [&>svg]:size-3.5"
+          >
+            <XIcon />
+          </button>
+        </p>
+      ) : null}
       {slash && editor && items.length > 0 ? (
         <div
           role="listbox"
@@ -259,7 +466,7 @@ export function RichTextEditor({
               // Keep the cursor in the document: a click must not move focus to the menu.
               onMouseDown={(event) => {
                 event.preventDefault();
-                item.run(editor, { from: slash.from, to: slash.to });
+                item.run(editor, { from: slash.from, to: slash.to }, slashActions);
               }}
               onMouseEnter={() => {
                 indexRef.current = index;

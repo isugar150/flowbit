@@ -11,8 +11,9 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { postProjectUpdate } from "../api";
-import { HealthBadge, healthOptions, timeAgo } from "../meta";
+import { HealthBadge, healthOptions } from "../meta";
 import type { ProjectHealth, ProjectUpdate } from "../types";
+import { TimeAgo } from "@/components/dates";
 
 const m = messages.projects;
 const BODY_MAX_LENGTH = 5000;
@@ -41,6 +42,7 @@ export function ProjectUpdates({
       </h3>
       {canEdit ? (
         <form
+          data-presence-id="update"
           className="flex flex-col gap-2 rounded-lg border p-3 has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-3 has-[textarea:focus-visible]:ring-ring/50"
           onSubmit={(event) => {
             event.preventDefault();
@@ -93,7 +95,7 @@ export function ProjectUpdates({
                   suppressHydrationWarning
                   className="text-muted-foreground"
                 >
-                  {timeAgo(update.createdAt)}
+                  <TimeAgo iso={update.createdAt} />
                 </time>
               </div>
               {update.body ? <p className="text-sm whitespace-pre-wrap">{update.body}</p> : null}

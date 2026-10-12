@@ -184,3 +184,36 @@ notifications (수신함)
 - 이슈에는 `version`(증가하는 정수)을 둔다. 낙관적 업데이트의 중복 제거와 실시간 이벤트의 순서 판단에 쓴다.
 - 이슈 변경 이력은 필드 단위로 남긴다. 실행 취소와 활동 기록이 이것을 쓴다.
 - 삭제는 `deleted_at` 으로 표시하고 일정 기간 뒤에 실제로 지운다(실행 취소가 가능해야 한다).
+
+### `labels`, `issue_labels` (V10, D-060)
+
+워크스페이스 전체가 함께 쓰는 이슈 라벨. 이슈 하나에 여러 개 붙는다(최대 10개).
+
+| 테이블 | 컬럼 | 설명 |
+|---|---|---|
+| `labels` | `id` uuid PK, `name` text(1~30자, 대소문자 무시하고 유일), `color` text(`#rrggbb`), `created_at` | 처음부터 `버그`, `기능`, `중요` 세 개가 들어 있다. 목록은 만든 순서 |
+| `issue_labels` | `issue_id`, `label_id` (둘이 PK, 둘 다 `ON DELETE CASCADE`) | 이슈와 라벨의 연결 |
+
+`issues.preset` 컬럼은 남아 있지만 화면에서 쓰지 않는다. 마이그레이션이 기존 프리셋 `BUG` → `버그`, `FEATURE` → `기능` 라벨로 옮겼다(`ENHANCEMENT` 는 대응하는 라벨이 없어 옮기지 않았다).
+
+### `issue_activities`, `issue_subscriptions` (V11, D-061)
+
+| 테이블 | 컬럼 | 설명 |
+|---|---|---|
+| `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`, `type` text, `detail` jsonb, `created_at` | 이슈의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨은 `{added,removed}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
+| `issue_subscriptions` | `issue_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 이슈를 구독하는 사람. 알림의 받는 사람 |
+
+마이그레이션이 기존 이슈마다 `CREATED` 한 줄을 넣고, 만든 사람과 담당자를 구독시켰다.
+
+### 독립 이슈, 하위 이슈, 리액션, 첨부, 문서 (V12, D-062~D-066)
+
+| 대상 | 내용 |
+|---|---|
+| `instance_settings.issue_key` | 모든 이슈 키의 앞부분(기본 `FB`). 관리자가 바꾼다. 형식은 프로젝트 키와 같다 |
+| `instance_settings.next_issue_number` | 다음 이슈 번호. 워크스페이스 전체에서 하나의 일련번호 |
+| `issues.project_id` | **null 허용**. 이슈가 연결된 프로젝트(없으면 독립 이슈). 바꿔도 번호는 그대로 |
+| `issues.number` | 워크스페이스 전체에서 유일(`issues_number_key`). 마이그레이션이 기존 이슈를 만든 순서대로 다시 매겼다. `projects.next_issue_number` 는 더 쓰지 않는다 |
+| `issues.parent_id` | 상위 이슈(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다 |
+| `issue_reactions` | `issue_id`, `user_id`, `emoji` (셋이 PK). 이모지는 서버가 정한 8개만 |
+| `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at` |
+| `issue_documents` | `id`, `issue_id`, `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at` |

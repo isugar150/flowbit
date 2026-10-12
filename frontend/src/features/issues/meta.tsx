@@ -102,7 +102,16 @@ function outline(sections: string[]): RichDoc {
   };
 }
 
-/** Due dates within the year are shown without it: 10-24. */
+/**
+ * Due dates within the year are shown without it: 10-24.
+ * Reads the clock, so render it through `<DueDate>` (components/dates.tsx), never directly.
+ */
 export function formatDueDate(dueDate: string, today = new Date()): string {
   return dueDate.startsWith(`${today.getFullYear()}-`) ? dueDate.slice(5) : dueDate;
+}
+
+/** The number in an issue key or address: "FB-12" and "12" are both 12. Null when there is none. */
+export function issueNumberOf(key: string): number | null {
+  const match = /(?:^|-)(\d{1,9})$/.exec(key);
+  return match ? Number(match[1]) : null;
 }

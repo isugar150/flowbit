@@ -7,8 +7,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { formatDueDate } from "../meta";
 import { chipClass } from "./chip-select";
+import { DueDate } from "@/components/dates";
 
 const m = messages.dates;
 
@@ -66,7 +66,7 @@ export function DateChip({
       >
         <CalendarIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className={cn("truncate tabular-nums", value ? null : "text-muted-foreground")}>
-          {value ? formatDueDate(value) : placeholder}
+          {value ? <DueDate value={value} /> : placeholder}
         </span>
       </PopoverTrigger>
       <PopoverContent className="w-auto">
@@ -140,9 +140,9 @@ export function DateRangeChip({
   const text =
     start || end ? (
       <>
-        <span className="tabular-nums">{start ? formatDueDate(start) : "…"}</span>
+        <span className="tabular-nums">{start ? <DueDate value={start} /> : "…"}</span>
         <ArrowRightIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className="tabular-nums">{end ? formatDueDate(end) : "…"}</span>
+        <span className="tabular-nums">{end ? <DueDate value={end} /> : "…"}</span>
       </>
     ) : (
       <span className="text-muted-foreground">{placeholder}</span>

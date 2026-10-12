@@ -6,7 +6,7 @@
 
 - **M1(로그인 및 초기 설정)이 구현되어 동작한다.** 사용자가 브라우저에서 초기 설정 → 로그아웃 → 로그인을 직접 확인했다 (2026-10-12).
 - 제품 방향은 **Linear식**이다 (D-020). 기준 문서는 [01-product.md](01-product.md). M2 이후의 화면은 아직 하나도 없다.
-- 백엔드는 **WebFlux + 코루틴 + R2DBC** 다 (D-019). `./gradlew check` 통과: ktlint, 테스트 87개(통합 80, 단위 7), PostgreSQL 18 Testcontainers.
+- 백엔드는 **WebFlux + 코루틴 + R2DBC** 다 (D-019). `./gradlew check` 통과: ktlint, 테스트 96개(통합 86, 단위 10), PostgreSQL 18 Testcontainers. **실시간·마일스톤·건강도·프로젝트 아이콘(`V7`~`V9`)까지 포함한 현재 코드로 2026-10-12 에 다시 통과를 확인했다.** 다만 그 기능들의 전용 통합 테스트는 아직 없다(아래 체크리스트).
 - 프론트엔드는 `npm run lint`, `npm run typecheck`, `npx next build` 통과. **자동 테스트는 없다** (Vitest, Playwright 는 설치만 됨).
 - **M2a(설정 화면과 이미지 업로드)가 구현됐다** ([features/M2a-settings-and-images.md](features/M2a-settings-and-images.md)). 백엔드는 테스트로 확인했고, **화면은 아무도 아직 확인하지 않았다** (에이전트는 사용자 계정의 비밀번호를 몰라 로그인 후 화면을 볼 수 없었다).
 - **M3 1단계(구성원 관리, 프로젝트, 프로젝트 권한)가 구현됐다** ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md)). 팀 개념은 없어지고 프로젝트로 합쳐졌다 (D-032). 2~4단계(프리셋, 문서형 이슈, 목록, 댓글)는 명세만 있다.
@@ -16,7 +16,7 @@
 
 ## 다음 작업
 
-**다음 차례는 M3 의 남은 것이다**: 이슈 라벨, 필터, 완료 조건 진행률, 댓글과 변경 이력, 낙관적 업데이트, 편집기의 이미지 블록 (명세의 "아직 없는 것"). 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
+**다음 차례는 M3 의 남은 것이다**: 이슈 라벨, 필터, 완료 조건 진행률, 댓글과 변경 이력, 낙관적 업데이트 (명세의 "아직 없는 것"). 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
 
 (이전 메모) M3 2단계(프리셋과 문서형 이슈 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
 
@@ -91,7 +91,7 @@
 - [x] 실시간 반영과 프레즌스 (D-044): 백엔드 `realtime` 모듈(`RealtimeHub`, `RealtimeWebSocketHandler`), `SessionService.isActive`, 프로젝트·이슈 컨트롤러의 알림, 프런트 `RealtimeProvider`·`RealtimeScope`·`PresenceAvatars`, 편집기·입력 칸의 원격 값 반영, `components/ui/tooltip.tsx`
 - [x] 마일스톤 (D-045): `V7`, `milestone` 모듈(API 4개), 이슈의 `milestoneId`, 개요의 마일스톤 목록과 진행률, 이슈 상세·새 이슈 창의 마일스톤 칩, 이슈 목록의 마일스톤 거르기(`?milestone=`)
 - [x] 전체 프로젝트(`/`)를 Linear 식 표로 (D-046): 프로젝트 목록 API 에 `issueCount`, `doneCount`, `currentMilestone` 추가
-- [x] 모든 프로젝트를 목록에 표시, 들어갈 수 없는 프로젝트는 `/no-access/{key}` 에서 관리자 안내 (D-047). `GET /api/v1/projects/{key}/access`, 프런트 `loadProject`(lib/current-user.ts). `ProjectsIntegrationTest` 의 해당 테스트를 고쳤다(돌려 보지 못했다)
+- [x] 모든 프로젝트를 목록에 표시, 들어갈 수 없는 프로젝트는 `/no-access/{key}` 에서 관리자 안내 (D-047). `GET /api/v1/projects/{key}/access`, 프런트 `loadProject`(lib/current-user.ts). `ProjectsIntegrationTest` 의 해당 테스트를 고쳤다(통과 확인)
 - [x] 프로젝트 업데이트와 건강도 (D-048): `V8`, `ProjectUpdateService`/`ProjectUpdateController`, 개요의 "프로젝트 업데이트", 속성 카드와 목록의 건강도, `--success` 색
 - [x] 마일스톤 필터 고침: 개요의 `이슈 n/m` 링크로 오면 그 마일스톤만 보이게(필터를 주소에 둠), 거른 상태의 새 이슈에 마일스톤이 미리 골라지게(버튼·`C` 로 열 때도), "필터 초기화" 버튼
 - [x] 로그인 시 아이디·비밀번호가 주소(GET)에 들어가던 문제: 로그인·초기 설정 폼에 `method="post"`, `proxy.ts` 가 주소의 `password` 를 지움, 개발 서버를 사내망 주소로 열 수 있게 `FLOWBIT_DEV_ORIGINS`(`allowedDevOrigins`)
@@ -99,7 +99,7 @@
 - [ ] 프로젝트 아이콘: 통합 테스트(관리 역할만, 이전 파일 삭제)
 - [ ] 프로젝트 업데이트: `ProjectUpdatesIntegrationTest`(권한, 최근 건강도가 목록에 반영) 작성
 - [ ] 마일스톤: `MilestonesIntegrationTest`(권한, 다른 프로젝트 마일스톤 거부, 진행률 계산, 삭제 시 이슈 유지)와 화면 확인
-- [ ] 실시간: 두 브라우저(다른 계정)로 확인, `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. **백엔드는 이 환경에서 컴파일하지 못했다**(JDK 25 없음, Maven Central 429). 사용자 PC 에서 `./gradlew check` 가 먼저다
+- [ ] 실시간: 두 브라우저(다른 계정)로 확인, `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. 백엔드 컴파일과 기존 테스트는 통과한다
 - [ ] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 (달력 팝오버 포함) (사용자가 "작업 뒤 테스트하지 말 것"을 지정해 하지 않았다)
 
 ## 화면을 직접 확인하는 방법 (사용자 계정 없이)
@@ -107,8 +107,8 @@
 개발 DB 의 계정은 사용자의 것이라 에이전트는 로그인할 수 없다. 대신 테스트 전용 DB 로 서버를 따로 띄운다.
 
 1. `flowbit_e2e` DB 를 비운다 (`docker compose exec -T postgres psql -U flowbit -d postgres` 에서 drop/create).
-2. 백엔드: `./gradlew bootJar` 뒤 환경 변수 `FLOWBIT_DB_NAME=flowbit_e2e`, `SERVER_PORT=8081`, `FLOWBIT_STORAGE_PATH=build/e2e-uploads` 로 jar 실행 (JDK 25 는 `~/.jdks/corretto-25.*`).
-3. 프론트엔드: `BACKEND_URL=http://localhost:8081` 로 `next build` 후 `next start -p 3100`. (개발 서버는 같은 폴더에서 두 개를 띄울 수 없다.)
+2. 백엔드: `./gradlew bootJar` 뒤 환경 변수 `FLOWBIT_DB_NAME=flowbit_e2e`, `SERVER_PORT=8081`, `FLOWBIT_STORAGE_PATH=build/e2e-uploads` 로 jar 실행.
+3. 프론트엔드: `BACKEND_URL=http://localhost:8081` 로 `next build` 후, 같은 환경 변수로 `next start -p 3100` (`proxy.ts` 가 실행 시점의 `BACKEND_URL` 로 초기 설정 여부를 묻는다). `.claude/launch.json` 의 `frontend-e2e` 가 이 실행 설정이다. (개발 서버는 같은 폴더에서 두 개를 띄울 수 없다.)
 4. `http://localhost:3100` 에서 초기 설정부터 한다. 데이터는 API 로 넣는 편이 빠르다.
 5. 끝나면 두 서버를 끄고, **`BACKEND_URL` 없이 `next build` 를 다시 한다** (rewrite 주소가 빌드에 들어가기 때문).
 
@@ -124,7 +124,7 @@
 - 개발 DB 를 지우고 초기 설정부터 다시 하려면 **Next 서버도 다시 시작**해야 한다. `proxy.ts` 가 "초기 설정 완료"를 메모리에 기억한다.
 - Next 개발 서버를 켠 채로 `providers.tsx` 같은 최상위 클라이언트 모듈을 새로 만들면 "No QueryClient set" 오류가 날 수 있다. 개발 서버를 다시 시작하면 사라진다.
 - 프론트엔드에 `npm install` 로 패키지를 추가할 때 peer 충돌이 나면 `@types/node` 버전부터 확인한다 (Vitest 가 22 이상을 요구해서 22 로 맞췄다).
-- Gradle 은 JDK 17 이상으로 실행해야 한다. 이 PC 의 기본 `JAVA_HOME` 은 JDK 11 이라, 에이전트는 `JAVA_HOME` 을 `~/.jdks/corretto-21.0.12.1` 로 지정해서 실행했다.
+- 이 PC(macOS)의 JDK 25 는 `~/Library/Java/JavaVirtualMachines/corretto-25.0.4.1/Contents/Home` 에 있다. Gradle 을 돌릴 때 `JAVA_HOME` 을 이 경로로 지정한다.
 - 같은 저장소를 다른 세션이나 에디터가 동시에 고치고 있을 수 있다. 문서를 통째로 다시 쓰기 전에 현재 내용을 다시 읽는다.
 
 ## 열린 질문
@@ -136,6 +136,106 @@
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 독립 이슈, 하위 이슈, 이모지, 파일 첨부, 이슈 문서, 구성원 추가 버튼
+
+- 사용자 지시: Linear 이슈 화면처럼 ① 이모지와 파일 첨부 ② 하위 이슈 ③ 에디터에서 페이지 추가 ④ 속성의 "프로젝트"에서 프로젝트와 그 하위 목표를 고르게, **이슈는 독립적이고 연결만** ⑤ 프로젝트 개요의 구성원 카드에 관리자용 "+" 버튼.
+- 사용자에게 물어 정한 것: 이슈 키는 워크스페이스 키 하나, 권한은 연결된 프로젝트를 따름, "페이지"는 이슈에 딸린 문서.
+- 한 일 (D-062~D-066):
+  - 백엔드: `V12`, `IssueService`·`IssueQueries`·`IssueController` 를 번호 기준으로 다시 씀, `IssueExtras.kt`(리액션·첨부·문서), `FileStorage`, `ProjectService.accessById`, 워크스페이스 `issueKey`, 실시간 주제 `issue:{번호}`·`issues`. 테스트 8개 추가(전체 통과).
+  - 프런트: `/issue/[key]`, `(app)/@modal/(.)issue/[key]`(앱 전체에서 대화상자), `/issues`, `/doc/[id]`, 이슈 상세의 새 구역들(`issue-reactions`, `issue-attachments`, `issue-sub-issues`, `issue-documents`), "프로젝트" 카드(`IssueProjectLink`), 새 이슈 창의 프로젝트 선택, 편집기 `/문서`, 사이드바 "전체 이슈", 관리자 설정의 이슈 키, `add-project-member-button.tsx`.
+  - 없앤 것: `/project/[key]/issues/[number]` 와 프로젝트 수준의 `@modal`.
+- 확인한 범위: `./gradlew check`, typecheck, eslint, `next build`. **화면은 보지 않았다.** 이번 변경은 범위가 커서 화면에서 깨진 곳이 있을 수 있다. 먼저 볼 곳: 이슈를 눌렀을 때의 대화상자, 프로젝트 바꾸기, 새 이슈 창의 프로젝트 선택, 파일 올리기·내려받기.
+- **기존 이슈 번호가 바뀐다.** `V12` 가 만든 순서대로 `FB-1` 부터 다시 매긴다. 옛 주소(`/project/KEY/issues/N`)는 더 열리지 않는다.
+- 개발용 백엔드를 다시 시작하면 `V10`~`V12` 가 적용된다.
+
+### 2026-10-12 — 이슈 활동 기록과 구독
+
+- 사용자 지시: 이슈의 히스토리를 Linear 처럼 기록. 담당자와 등록자는 자동 구독, 관련 없는 사람도 구독 가능. 나중에 SMTP 와 Firebase 웹 푸시를 붙일 것을 감안.
+- 한 일 (D-061): `V11`(`issue_activities`, `issue_subscriptions`), `IssueActivities.kt`(기록·합치기·구독), `IssueService` 가 변경 전후를 비교해 기록하고 `IssueChange` 를 돌려줌, 활동·구독 API, `notification/Notifications.kt`(통로 인터페이스와 디스패처), 프런트 `issue-activity.tsx`. 테스트 3개 추가.
+- 확인한 범위: `./gradlew check`, typecheck, eslint, `next build`. 화면은 보지 않았다.
+- **알림은 실제로 아무것도 보내지 않는다.** 붙이는 방법은 [02-architecture.md](02-architecture.md) "알림". SMTP 는 `users.email` 입력 화면이, 웹 푸시는 토큰 테이블과 서비스 워커가 먼저 필요하다.
+- 댓글은 만들지 않았다(사용자 화면 사진에는 있었지만 지시에 없었다).
+
+### 2026-10-12 — 내 이슈, 이슈 라벨(프리셋 대체)
+
+- 사용자 지시: ① 왼쪽 메뉴에 "내 이슈"와 그 페이지 (Linear 화면 참고). ② 이슈 속성에서 프리셋을 지우고 라벨을 추가. 기본 버그·기능·중요, 사용자가 라벨을 더할 수 있게 (Linear 라벨 메뉴 참고).
+- 한 일:
+  - D-059: `GET /api/v1/me/issues`(`IssueQueries.listForUser`), `/my-issues`·`/my-issues/created`, `my-issues-list.tsx`, 사이드바 메뉴.
+  - D-060: `V10`(`labels`, `issue_labels`, 기본 3개, 기존 프리셋 옮기기), `label/Labels.kt`(목록·추가 API), 이슈의 `labelIds`/`labels`, `label-chip.tsx`, 새 이슈 창·이슈 상세·목록·필터에서 프리셋 제거. 테스트 5개 추가.
+- 확인한 범위: `./gradlew check`, typecheck, eslint, `next build`. 화면은 보지 않았다.
+- 알아둘 것: 프리셋 목차(새 이슈 본문에 제목이 깔리던 기능)도 함께 사라졌다. 라벨을 고치거나 지우는 화면은 없다. 내 이슈에서 이슈를 누르면 대화상자가 아니라 이슈 페이지로 간다(대화상자는 프로젝트 안에서만 뜬다).
+- 개발용 백엔드를 다시 시작하면 `V10` 이 적용된다.
+
+### 2026-10-12 — 편집기 블록 끌어 옮기기
+
+- 사용자 요청: 편집기의 블록을 드래그로 위아래로 옮기기.
+- 한 일 (D-058): `block-drag-handle.tsx`. 새 이슈 창의 편집기는 스크롤 상자라 손잡이가 잘리지 않게 왼쪽으로 16px 넓혔다(`-ml-4 pl-4`).
+- 확인한 범위: typecheck, eslint, `next build`. **화면은 보지 않았다.** 끌어 놓기는 실제로 해 봐야 아는 부분이 많다: 손잡이 위치, 표·이미지·목록을 옮길 때, 놓는 위치 표시선.
+
+### 2026-10-12 — "마일스톤"을 "목표"로, 속성 메뉴 닫기
+
+- 사용자 지시: 화면의 "마일스톤"을 "목표"로 바꿀 것 (D-057). 속성 메뉴에서 항목을 고르면 닫히게.
+- 한 일: `messages/ko.ts` 와 `MilestoneService`·`IssueService` 의 오류 문구. 코드 이름과 API 는 그대로. `chip-select.tsx` 의 선택 항목에 `closeOnClick`.
+- 확인한 범위: `./gradlew check`, typecheck, eslint, `next build`. 화면은 보지 않았다.
+
+### 2026-10-12 — 이슈 상세 대화상자, 이슈 필터
+
+- 사용자 지시: ① 이슈 상세를 새 페이지가 아니라 새 이슈 창처럼 대화상자로. ② 이슈 필터 항목을 더. ③ (보고) `/project/[key]/issues` 에서 "uncached data ... outside of `<Suspense>`" 오류.
+- 한 일: ① D-055: `@modal` 슬롯과 가로채기 경로, `issue-detail.tsx`(페이지·대화상자 공용), `issue-dialog.tsx`. ② D-056: `issues-view.tsx` 에 검색·상태·우선순위·담당자·프리셋 필터. ③ `issues/loading.tsx` 추가(이슈 상세 ↔ 목록 이동에 경계가 없었다).
+- 확인한 범위: typecheck, eslint, `next build`(가로채기 경로가 경로 목록에 나온다). **화면은 보지 않았다.** 가로채기 경로는 실제 동작(목록에서 눌렀을 때 대화상자, 닫기, 탭 이동 시 사라짐)을 사용자가 확인해야 한다.
+
+### 2026-10-12 — 새 이슈 창의 속성을 오른쪽으로
+
+- 사용자 지시: 이슈를 만들거나 고칠 때 속성을 편집기 아래가 아니라 프로젝트 개요처럼 오른쪽에서 고르게.
+- 한 일 (D-054): `new-issue-dialog.tsx` 를 두 열로(왼쪽 제목·본문, 오른쪽 `PropertyRow` 속성 열), 창 너비 확대. 이슈 상세는 이미 `lg`(1024px) 이상에서 오른쪽 카드라 그대로 뒀다.
+- 확인한 범위: typecheck, eslint, `next build`. 화면은 보지 않았다.
+
+### 2026-10-12 — 새 이슈 창의 `/` 메뉴 위치
+
+- 사용자 보고: 새 이슈 창에서 `/` 를 치면 메뉴가 커서가 아니라 화면 아래쪽에 뜬다. 이미지·표 항목도 안 보인다.
+- 원인: 메뉴가 `position: fixed` 인데 대화상자가 `transform` 으로 놓여 있어 좌표 기준이 창이 아니라 대화상자였다. 그만큼 밀려 내려가 목록 아래쪽(표, 이미지)이 화면 밖으로 잘렸다. 편집기는 처음부터 공통(`RichTextEditor`)이라 항목 자체는 있었다.
+- 고친 것: `fixed-origin.ts` 로 기준점을 재서 뺀다. 표 도구 모음도 같은 방식의 `fixed` 로 바꿨다(새 이슈 창의 편집기는 스크롤 상자라 `absolute` 면 맨 위 표의 도구 모음이 잘린다).
+- 확인한 범위: typecheck, eslint, `next build`. 화면은 보지 않았다.
+- 일반 파일(이미지가 아닌 것) 첨부는 없다. 사용자에게 필요한지 물었다.
+
+### 2026-10-12 — 마일스톤을 만들 때의 `Date.now()` 오류
+
+- 사용자 보고: 마일스톤을 새로 만들면 "Route /project/[key]: Next.js encountered the unstable value `Date.now()` while prerendering" 오류.
+- 원인: `timeAgo`(프로젝트 업데이트의 "3분 전")와 `formatDueDate`(올해면 연도 생략)가 렌더 중에 현재 시각을 읽었다. 마일스톤을 만들면 화면을 다시 그리면서(`router.refresh`) 서버 렌더가 이 코드를 지난다.
+- 고친 것: `components/dates.tsx` 의 `<TimeAgo>`, `<DueDate>` 를 만들어 부르는 곳 다섯 군데를 모두 바꿨다. 04 가이드에 규칙 추가.
+- 확인한 범위: typecheck, eslint, `next build`. **사용자 화면에서 오류가 사라졌는지는 확인하지 않았다**(사용자가 화면 테스트는 하지 않아도 된다고 했다). 어느 호출이 실제로 걸렸는지 특정하지 못해, 시각을 읽는 곳을 전부 고쳤다.
+
+### 2026-10-12 — 다크 모드의 표 테두리, 가리키는 위치 표시
+
+- 사용자 지시: ① 다크 모드에서 표 테두리가 안 보인다. ② A 가 무언가 고치려고 포인터를 올리면 B 화면에서 A 의 포인터가 여기 있다는 표시.
+- 한 일: ① 표 칸 테두리를 `--border`(다크에서 8% 흰색) 대신 글자색 20% 로. ② D-053: `RealtimeHub.setFocus`, WebSocket `focus` 메시지, 프레즌스 목록의 `focus`, 프런트 `presence-focus.tsx`, 고칠 수 있는 부분의 `data-presence-id`, `globals.css` 의 테두리·이름표. `RealtimeHubTest` 3개.
+- 확인한 범위: `./gradlew check`(96개), 프런트 typecheck·eslint·`next build`. **화면은 보지 않았다(사용자가 화면 테스트는 하지 않아도 된다고 했다).** 두 계정으로 실제 표시가 뜨는지, 이름표가 잘리는 곳은 없는지는 확인되지 않았다.
+- 개발용 백엔드를 다시 시작해야 동작한다.
+
+### 2026-10-12 — 초기 설정의 워크스페이스, 편집기의 이미지와 표
+
+- 사용자 지시: ① 초기 설정에서 워크스페이스 로고와 이름을 아이디·비밀번호와 함께 정하게. ② 편집기에 사진·이미지를 넣을 수 있게, 표 기능과 표 도구 모음(가운데 정렬, 셀 합치기 등).
+- 한 일 (D-051, D-052):
+  - 백엔드: `POST /api/v1/setup` 에 `workspaceName`, `POST /api/v1/images`(`ImageUploadController`, `ImageSpec.CONTENT`), `RichText` 가 `image`·`table`·`tableRow`·`tableHeader`·`tableCell` 을 받고 이미지 주소와 칸 속성을 검증. 테스트 6개 추가.
+  - 프런트: `/setup` 에 워크스페이스 구역(`logo-picker.tsx`), 편집기에 `@tiptap/extension-image`·`@tiptap/extension-table`, `table-extensions.ts`, `table-toolbar.tsx`, `upload-image.ts`, `globals.css` 의 표·이미지 모양.
+- 확인한 범위: `./gradlew check`(93개), 프런트 typecheck·eslint·`next build`. 화면은 테스트 전용 DB 서버(8081/3100)에서 직접 봤다: 초기 설정에서 이름과 로고를 넣고 시작 → 사이드바에 반영, 개요 편집기에서 `/table` 로 표 넣기, 가운데 정렬, 여러 칸 끌어 고른 뒤 합치기, 이미지 붙여넣기, 새로 고침 뒤 유지, 다크 모드.
+- 직접 보지 못한 것: `/` 메뉴의 "이미지"(파일 선택 창), 끌어다 놓기, 열 너비 조절, 세로 맞춤, 행·열 추가/삭제, 초기 설정의 로고 올리기 실패 화면, 모바일 폭.
+- 알아둘 것: 문서에서 지운 이미지의 파일은 저장소에 남는다(정리 기능 없음). 표 도구 모음은 표 바로 위에 떠서 그 위의 글 한 줄을 가릴 수 있다.
+- **개발용 백엔드(8080)는 예전 코드로 떠 있다.** 다시 시작해야 새 API(`/api/v1/images`, `workspaceName`)가 동작한다.
+
+### 2026-10-12 — 테마 기본값을 시스템 설정으로
+
+- 사용자 지시: 기본적으로 다크 모드 설정이 시스템을 따라가게.
+- 한 일: `providers.tsx` 의 `defaultTheme` 을 `light` → `system` (D-050). 내 설정의 테마 선택도 고른 적이 없으면 "기기 설정 따르기"가 선택된 것으로 보인다. 이미 밝게/어둡게를 고른 브라우저는 그대로다.
+- 스킬 저장소 9개를 `agent-skills/` 에 다시 받았다(이 PC 에 없었다).
+
+### 2026-10-12 — 밀린 백엔드 검사
+
+- 사용자가 JDK 25 를 설치해, 컴파일하지 못한 채 쌓여 있던 백엔드 변경(실시간, 마일스톤, 전체 프로젝트 표, 건강도, 프로젝트 아이콘)을 `./gradlew check` 로 확인했다.
+- 결과: 컴파일 오류 없음, 테스트 87개 모두 통과(`V7`~`V9` 마이그레이션도 Testcontainers 에서 적용됨). ktlint 위반 5건(`RealtimeWebSocketHandler.kt` 의 줄바꿈)만 있어 `ktlintFormat` 으로 고쳤다.
+- `backend/gradlew` 에 실행 권한이 없어(`100644`) `chmod +x` 했다.
+- 남은 것은 그대로다: 새 기능들의 전용 통합 테스트, 화면 확인.
 
 ### 2026-10-12 — 프로젝트 아이콘
 

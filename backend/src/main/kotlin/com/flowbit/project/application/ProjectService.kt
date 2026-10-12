@@ -293,6 +293,16 @@ class ProjectService(
         return ProjectAccess(project, role)
     }
 
+    /** The same for a project known by id; null when it is gone or the caller may not enter it. */
+    suspend fun accessById(
+        user: AuthenticatedUser,
+        projectId: UUID,
+    ): ProjectAccess? {
+        val project = repository.findById(projectId)?.takeIf { it.archivedAt == null } ?: return null
+        val role = effectiveRole(memberStore.roleOf(project.id, user.id), user) ?: return null
+        return ProjectAccess(project, role)
+    }
+
     private suspend fun manage(
         user: AuthenticatedUser,
         key: String,

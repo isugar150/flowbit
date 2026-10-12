@@ -18,14 +18,17 @@ import org.springframework.web.bind.annotation.RestController
 data class WorkspaceResponse(
     val name: String,
     val logoUrl: String?,
+    val issueKey: String,
 ) {
     companion object {
-        fun from(workspace: Workspace) = WorkspaceResponse(workspace.name, ImageStorage.urlOf(workspace.logoKey))
+        fun from(workspace: Workspace) = WorkspaceResponse(workspace.name, ImageStorage.urlOf(workspace.logoKey), workspace.issueKey)
     }
 }
 
+/** Only the fields present change. */
 data class UpdateWorkspaceRequest(
-    val name: String,
+    val name: String? = null,
+    val issueKey: String? = null,
 )
 
 /** Read by every signed-in user to draw the app frame. */
@@ -46,9 +49,13 @@ class AdminWorkspaceController(
     private val uploadReader: UploadReader,
 ) {
     @PatchMapping
-    suspend fun rename(
+    suspend fun update(
         @RequestBody body: UpdateWorkspaceRequest,
-    ): WorkspaceResponse = WorkspaceResponse.from(instanceService.rename(body.name))
+    ): WorkspaceResponse {
+        body.name?.let { instanceService.rename(it) }
+        body.issueKey?.let { instanceService.setIssueKey(it) }
+        return WorkspaceResponse.from(instanceService.workspace())
+    }
 
     @PutMapping("/logo", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     suspend fun replaceLogo(

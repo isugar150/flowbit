@@ -60,7 +60,8 @@ export function ChipSelect<T extends string>({
         <DropdownMenuGroup>
           <DropdownMenuRadioGroup value={value} onValueChange={(next) => onChange(next as T)}>
             {options.map((option) => (
-              <DropdownMenuRadioItem key={option.value} value={option.value}>
+              // Choosing is the whole point of opening the menu, so it closes (radio items stay open by default).
+              <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
                 {option.icon}
                 <span className="truncate">{option.label}</span>
               </DropdownMenuRadioItem>

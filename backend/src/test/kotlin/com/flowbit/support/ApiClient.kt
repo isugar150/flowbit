@@ -70,13 +70,28 @@ class ApiClient(
         fileName: String,
         contentType: String,
         content: ByteArray,
+    ): ApiResponse = sendFile("PUT", path, fileName, contentType, content)
+
+    fun postFile(
+        path: String,
+        fileName: String,
+        contentType: String,
+        content: ByteArray,
+    ): ApiResponse = sendFile("POST", path, fileName, contentType, content)
+
+    private fun sendFile(
+        method: String,
+        path: String,
+        fileName: String,
+        contentType: String,
+        content: ByteArray,
     ): ApiResponse {
         val boundary = "----flowbit-test-boundary"
         val head =
             "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\n" +
                 "Content-Type: $contentType\r\n\r\n"
         val body = head.toByteArray() + content + "\r\n--$boundary--\r\n".toByteArray()
-        return change("PUT", path, body, "multipart/form-data; boundary=$boundary")
+        return change(method, path, body, "multipart/form-data; boundary=$boundary")
     }
 
     private fun change(
@@ -94,7 +109,16 @@ class ApiClient(
     fun setup(
         loginId: String,
         password: String,
-    ): ApiResponse = post("/api/v1/setup", credentials(loginId, password))
+        workspaceName: String? = null,
+    ): ApiResponse =
+        post(
+            "/api/v1/setup",
+            if (workspaceName == null) {
+                credentials(loginId, password)
+            } else {
+                """{"loginId":"$loginId","password":"$password","workspaceName":"$workspaceName"}"""
+            },
+        )
 
     fun login(
         loginId: String,
