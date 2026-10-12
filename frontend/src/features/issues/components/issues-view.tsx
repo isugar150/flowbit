@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { DiamondIcon, FileTextIcon, PlusIcon } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { DiamondIcon, FileTextIcon, PlusIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Kbd } from "@/components/ui/kbd";
@@ -28,6 +29,8 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** "Every milestone" in the filter; NONE is "no milestone". */
 const ALL = "__all__";
+/** `?milestone=none` in the address stands for NONE. */
+const NONE_PARAM = "none";
 
 /**
  * The issues of one project, grouped by status, with the new-issue dialog and its `C` shortcut.
@@ -38,22 +41,32 @@ export function IssuesView({
   issues: allIssues,
   members,
   milestones,
-  initialMilestone,
   canEdit,
 }: {
   projectKey: string;
   issues: Issue[];
   members: ProjectMember[];
   milestones: Milestone[];
-  /** Milestone id from `?milestone=`, set by the links on the project overview. */
-  initialMilestone?: string;
   /** False for the view-only role: the list is read-only and nothing can be created. */
   canEdit: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [milestoneFilter, setMilestoneFilter] = useState(
-    initialMilestone && milestones.some((milestone) => milestone.id === initialMilestone) ? initialMilestone : ALL,
-  );
+  // The filter lives in the address (`?milestone=<id>` or `?milestone=none`), so the links on the
+  // project overview open the list already narrowed, and back/forward and sharing keep it.
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const param = searchParams.get("milestone");
+  const milestoneFilter =
+    param === NONE_PARAM ? NONE : param && milestones.some((milestone) => milestone.id === param) ? param : ALL;
+  const setMilestoneFilter = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === ALL) params.delete("milestone");
+    else params.set("milestone", value === NONE ? NONE_PARAM : value);
+    const query = params.toString();
+    // The list is already loaded; only the address changes, without asking the server again.
+    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+  };
+  const filtered = milestoneFilter !== ALL;
   const issues =
     milestoneFilter === ALL
       ? allIssues
@@ -106,10 +119,17 @@ export function IssuesView({
         </div>
       ) : (
         <div className="flex flex-col">
-          <div className="flex items-center justify-end gap-2 px-4 pb-2">
+          <div className="flex items-center gap-2 px-4 pb-2">
             {milestones.length > 0 ? (
               <ChipSelect label={m.milestoneFilter} value={milestoneFilter} options={filterOptions} onChange={setMilestoneFilter} />
             ) : null}
+            {filtered ? (
+              <Button variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" onClick={() => setMilestoneFilter(ALL)}>
+                <XIcon data-icon="inline-start" />
+                {m.clearFilter}
+              </Button>
+            ) : null}
+            <span className="flex-1" />
             {newIssueButton}
           </div>
           {issues.length === 0 ? (

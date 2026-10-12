@@ -155,6 +155,7 @@ export const ko = {
     noMilestone: "마일스톤 없음",
     allMilestones: "모든 마일스톤",
     milestoneFilter: "마일스톤으로 거르기",
+    clearFilter: "필터 초기화",
     noIssuesInFilter: "이 마일스톤에는 이슈가 없습니다.",
     noPreset: "프리셋 없음",
     noDueDate: "기한 없음",

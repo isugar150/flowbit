@@ -93,6 +93,7 @@
 - [x] 전체 프로젝트(`/`)를 Linear 식 표로 (D-046): 프로젝트 목록 API 에 `issueCount`, `doneCount`, `currentMilestone` 추가
 - [x] 모든 프로젝트를 목록에 표시, 들어갈 수 없는 프로젝트는 `/no-access/{key}` 에서 관리자 안내 (D-047). `GET /api/v1/projects/{key}/access`, 프런트 `loadProject`(lib/current-user.ts). `ProjectsIntegrationTest` 의 해당 테스트를 고쳤다(돌려 보지 못했다)
 - [x] 프로젝트 업데이트와 건강도 (D-048): `V8`, `ProjectUpdateService`/`ProjectUpdateController`, 개요의 "프로젝트 업데이트", 속성 카드와 목록의 건강도, `--success` 색
+- [x] 마일스톤 필터 고침: 개요의 `이슈 n/m` 링크로 오면 그 마일스톤만 보이게(필터를 주소에 둠), 거른 상태의 새 이슈에 마일스톤이 미리 골라지게(버튼·`C` 로 열 때도), "필터 초기화" 버튼
 - [ ] 프로젝트 업데이트: `ProjectUpdatesIntegrationTest`(권한, 최근 건강도가 목록에 반영) 작성
 - [ ] 마일스톤: `MilestonesIntegrationTest`(권한, 다른 프로젝트 마일스톤 거부, 진행률 계산, 삭제 시 이슈 유지)와 화면 확인
 - [ ] 실시간: 두 브라우저(다른 계정)로 확인, `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. **백엔드는 이 환경에서 컴파일하지 못했다**(JDK 25 없음, Maven Central 429). 사용자 PC 에서 `./gradlew check` 가 먼저다
@@ -132,6 +133,13 @@
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 마일스톤 필터 고침
+
+- 사용자 보고: 개요에서 마일스톤의 이슈를 눌러 이슈 탭으로 가도 그 마일스톤 것만 나오지 않는다. 거기서 새로 만들 때 마일스톤이 설정되어야 하고, 필터 초기화가 있어야 한다.
+- 원인: ① 필터가 `useState` 의 처음 값이라, Next 16 이 살려 둔 이전 화면 상태가 다시 쓰일 수 있었다. ② 새 이슈 창의 기본 마일스톤을 창의 `onOpenChange` 에서 넣었는데, 창은 밖에서(버튼, `C`) 열려 그 함수가 불리지 않았다.
+- 고친 것: 필터를 주소(`?milestone=`)로, 창이 열릴 때마다 기본 마일스톤을 넣도록, "필터 초기화" 버튼 추가. 04 가이드에 규칙 추가.
+- 확인한 범위: typecheck, eslint. 화면은 보지 않았다.
 
 ### 2026-10-12 — 건강도, 모든 프로젝트 표시
 

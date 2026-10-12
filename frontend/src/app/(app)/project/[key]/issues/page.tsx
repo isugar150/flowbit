@@ -5,8 +5,8 @@ import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { loadProject, serverGet } from "@/lib/current-user";
 
-export default async function ProjectIssuesPage({ params, searchParams }: PageProps<"/project/[key]/issues">) {
-  const [{ key }, { milestone }] = await Promise.all([params, searchParams]);
+export default async function ProjectIssuesPage({ params }: PageProps<"/project/[key]/issues">) {
+  const { key } = await params;
   const path = `/api/v1/projects/${encodeURIComponent(key)}`;
   const [project, issues, members, milestones] = await Promise.all([
     loadProject(key),
@@ -22,7 +22,6 @@ export default async function ProjectIssuesPage({ params, searchParams }: PagePr
       issues={issues}
       members={members}
       milestones={milestones}
-      initialMilestone={typeof milestone === "string" ? milestone : undefined}
       canEdit={project.myRole !== "VIEWER"}
     />
   );

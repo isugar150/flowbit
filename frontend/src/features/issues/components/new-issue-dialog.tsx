@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRightIcon } from "lucide-react";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +72,19 @@ export function NewIssueDialog({
     setBody((current) => ({ revision: current.revision + 1, initial }));
   };
 
+  // Every time the dialog opens (button, `C`), start from the list's current milestone filter and
+  // without the previous attempt's messages. Adjusted while rendering, since the dialog is opened
+  // from outside and its own onOpenChange does not run for that.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setProperties((current) => ({ ...current, milestoneId: defaultMilestoneId }));
+      setTitleError(false);
+      setLastCreated(null);
+    }
+  }
+
   const mutation = useRefreshingMutation(createIssue, (issue) => {
     setTitle("");
     if (createMore) {
@@ -106,18 +119,13 @@ export function NewIssueDialog({
     mutation.mutate({ projectKey, issue: { title, content: content.current, ...properties } });
   };
 
-  const handleOpenChange = (next: boolean) => {
-    if (next) {
-      mutation.reset();
-      set("milestoneId", defaultMilestoneId);
-      setTitleError(false);
-      setLastCreated(null);
-    }
-    onOpenChange(next);
-  };
+  const resetMutation = mutation.reset;
+  useEffect(() => {
+    if (open) resetMutation();
+  }, [open, resetMutation]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       {/* The dialog exists to type a title: put the cursor there as it opens. */}
       <DialogContent className="gap-0 p-0 sm:max-w-2xl" initialFocus={titleRef}>
         <DialogTitle className="sr-only">{m.newTitle}</DialogTitle>
