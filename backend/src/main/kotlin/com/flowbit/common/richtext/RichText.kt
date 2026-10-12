@@ -94,6 +94,12 @@ class RichText(
                 val src = attrs?.get("src") as? String ?: throw invalid(field)
                 if (!STORED_IMAGE.matches(src)) throw invalid(field)
             }
+            "pageLink" -> {
+                val id = attrs?.get("id") as? String ?: throw invalid(field)
+                if (!DOCUMENT_ID.matches(id)) throw invalid(field)
+                val title = attrs["title"]
+                if (title != null && (title !is String || title.length > MAX_PAGE_TITLE_LENGTH)) throw invalid(field)
+            }
             "tableCell", "tableHeader" -> {
                 if (attrs?.get("align") !in CELL_ALIGN || attrs?.get("verticalAlign") !in CELL_VERTICAL_ALIGN) throw invalid(field)
                 if (!isSpan(attrs?.get("colspan")) || !isSpan(attrs?.get("rowspan"))) throw invalid(field)
@@ -133,11 +139,15 @@ class RichText(
         val NODE_TYPES =
             BLOCK_TYPES +
                 setOf("doc", "text", "bulletList", "orderedList", "taskList", "hardBreak") +
-                setOf("image", "table", "tableRow", "tableHeader", "tableCell")
+                setOf("image", "table", "tableRow", "tableHeader", "tableCell", "pageLink")
         val MARK_TYPES = setOf("bold", "italic", "strike", "code", "underline", "link")
 
         /** Only images uploaded here (ImageStorage keys); an outside address could track readers. */
         val STORED_IMAGE = Regex("^/api/v1/files/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp$")
+
+        /** A page block points at a document by its id; the title in it is only what to show until the real one loads. */
+        val DOCUMENT_ID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+        const val MAX_PAGE_TITLE_LENGTH = 200
         val CELL_ALIGN = setOf(null, "left", "center", "right")
         val CELL_VERTICAL_ALIGN = setOf(null, "top", "middle", "bottom")
         const val MAX_SPAN = 100

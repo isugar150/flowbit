@@ -82,7 +82,15 @@ class SecurityConfig {
         )
 
     private companion object {
-        val PUBLIC_GET = arrayOf("/api/v1/health", "/api/v1/setup/status", "/api/v1/auth/csrf")
+        val PUBLIC_GET =
+            arrayOf(
+                "/api/v1/health",
+                "/api/v1/setup/status",
+                "/api/v1/auth/csrf",
+                "/api/v1/auth/methods",
+                "/api/v1/auth/sso/start",
+                "/api/v1/auth/sso/callback",
+            )
         val PUBLIC_POST = arrayOf("/api/v1/setup", "/api/v1/auth/login")
     }
 }

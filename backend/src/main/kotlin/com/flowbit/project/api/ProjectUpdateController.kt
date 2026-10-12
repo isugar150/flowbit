@@ -7,6 +7,7 @@ import com.flowbit.project.domain.ProjectHealth
 import com.flowbit.realtime.RealtimeHub
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -59,5 +60,16 @@ class ProjectUpdateController(
         // The project's health changes for everyone looking at the project.
         realtime.publish("project:$projectId", user.id)
         return ProjectUpdateResponse.from(update)
+    }
+
+    @DeleteMapping("/{updateId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun delete(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+        @PathVariable updateId: UUID,
+    ) {
+        updateService.delete(user, projectId, updateId)
+        realtime.publish("project:$projectId", user.id)
     }
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CornerLeftUpIcon } from "lucide-react";
+import { DocumentTitle } from "@/components/document-title";
 import { Person } from "@/components/person";
 import { DialogTitle } from "@/components/ui/dialog";
 import type { UserSummary } from "@/features/members/types";
@@ -15,7 +16,6 @@ import { IssueActivity } from "./issue-activity";
 import { IssueAttachments } from "./issue-attachments";
 import { IssueBody } from "./issue-body";
 import { DeleteIssueButton, DeletedIssueBanner } from "./issue-deletion";
-import { IssueDocuments } from "./issue-documents";
 import { IssueProperties } from "./issue-properties";
 import { IssueReactions } from "./issue-reactions";
 import { IssueSubIssues } from "./issue-sub-issues";
@@ -57,6 +57,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
       <RealtimeScope topics={[`issue:${issue.number}`]} presence={`issue:${issue.number}`} priority={1} />
       <article className="flex w-full min-w-0 flex-1 flex-col gap-5 px-1">
         <DialogTitle className="sr-only">{`${issue.key} ${issue.title}`}</DialogTitle>
+        <DocumentTitle title={`${issue.key} ${issue.title}`} />
         {issue.parent ? (
           <Link
             href={`/issue/${issue.parent.key}`}
@@ -71,9 +72,8 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
         <DeletedIssueBanner issue={issue} />
         <IssueBody issue={issue} canEdit={canEdit} />
         <IssueAttachments number={issue.number} attachments={issue.attachments} canEdit={canEdit} />
-        <IssueReactions number={issue.number} reactions={issue.reactions} />
+        <IssueReactions number={issue.number} reactions={issue.reactions} readOnly={Boolean(issue.deletedAt)} />
         <IssueSubIssues issue={issue} canEdit={canEdit} />
-        <IssueDocuments owner={{ issueNumber: issue.number }} documents={issue.documents} canEdit={canEdit} />
         {activity ? <IssueActivity number={issue.number} feed={activity} /> : null}
       </article>
       <aside className="flex w-full shrink-0 flex-col gap-6 px-2 lg:w-64 lg:pt-2">

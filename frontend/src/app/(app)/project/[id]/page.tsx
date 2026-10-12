@@ -3,7 +3,6 @@ import { CalendarIcon, ShieldIcon, UsersIcon } from "lucide-react";
 import { Person } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
-import { IssueDocuments } from "@/features/issues/components/issue-documents";
 import type { IssueDocumentSummary } from "@/features/issues/types";
 import type { UserSummary } from "@/features/members/types";
 import { MilestonesSection } from "@/features/milestones/components/milestones-section";
@@ -56,7 +55,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
           <ProjectIcon iconUrl={project.iconUrl} size="lg" />
           <h2 className="text-2xl leading-8 font-semibold">{project.name}</h2>
         </div>
-        <ProjectOverviewEditor project={project} canEdit={project.myRole !== "VIEWER"}>
+        <ProjectOverviewEditor project={project} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"}>
         <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem] leading-5">
           <div className="flex items-center gap-1.5">
             <ShieldIcon className="size-4 text-muted-foreground" aria-hidden="true" />
@@ -75,9 +74,14 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
           </div>
         </dl>
         </ProjectOverviewEditor>
-        <IssueDocuments owner={{ projectId: project.id }} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"} />
         <MilestonesSection projectId={project.id} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
-        <ProjectUpdates projectId={project.id} updates={updates} canEdit={project.myRole !== "VIEWER"} />
+        <ProjectUpdates
+          projectId={project.id}
+          updates={updates}
+          canEdit={project.myRole !== "VIEWER"}
+          canManage={canManage}
+          currentUserId={user.id}
+        />
       </div>
       <aside className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 lg:mx-0 lg:w-80">
         <PropertyCard title={m.properties}>

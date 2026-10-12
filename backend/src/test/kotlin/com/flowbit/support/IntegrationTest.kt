@@ -51,6 +51,13 @@ abstract class IntegrationTest {
         execute(
             "update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null, workspace_key = 'FB', next_issue_number = 1",
         )
+        execute("delete from webhooks")
+        execute("delete from notification_settings")
+        execute("insert into notification_settings (id) values (1)")
+        execute("delete from ldap_settings")
+        execute("insert into ldap_settings (id) values (1)")
+        execute("delete from sso_settings")
+        execute("insert into sso_settings (id) values (1)")
         clock.reset()
         rateLimiter.reset()
     }

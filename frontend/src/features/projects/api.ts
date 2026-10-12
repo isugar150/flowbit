@@ -32,6 +32,11 @@ export function postProjectUpdate(input: {
   });
 }
 
+/** The writer of the update or a manager of the project. */
+export function deleteProjectUpdate(input: { id: string; updateId: string }): Promise<void> {
+  return apiFetch<void>(`/api/v1/projects/${input.id}/updates/${input.updateId}`, { method: "DELETE" });
+}
+
 function fileForm(file: File): FormData {
   const form = new FormData();
   form.append("file", file);

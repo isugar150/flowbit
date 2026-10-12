@@ -32,9 +32,14 @@ data class DocumentSummary(
     val id: UUID,
     val issueId: UUID?,
     val projectId: UUID?,
+    /** The document this one sits inside; null for one made on the issue or the project itself. */
+    val parentId: UUID?,
     val title: String,
     val updatedAt: Instant,
 )
+
+/** How deep documents nest in a project: a document on the overview is level 1. An issue's stay at level 1. */
+const val MAX_DOCUMENT_DEPTH = 5
 
 /** What hangs on an issue besides its own fields: reactions, attached files, documents (V12). */
 @Component
@@ -130,14 +135,30 @@ class IssueExtrasStore(
 
     suspend fun documents(issueId: UUID): List<DocumentSummary> = documentsWhere("issue_id = :id order by created_at, id", issueId)
 
-    suspend fun projectDocuments(projectId: UUID): List<DocumentSummary> = documentsWhere("project_id = :id order by created_at, id", projectId)
+    suspend fun projectDocuments(projectId: UUID): List<DocumentSummary> =
+        documentsWhere("project_id = :id and parent_id is null order by created_at, id", projectId)
+
+    suspend fun childDocuments(documentId: UUID): List<DocumentSummary> = documentsWhere("parent_id = :id order by created_at, id", documentId)
+
+    /** The documents a document sits inside, the outermost first. */
+    suspend fun documentAncestors(documentId: UUID): List<DocumentSummary> {
+        val ancestors = mutableListOf<DocumentSummary>()
+        var parentId = findDocument(documentId)?.parentId
+        while (parentId != null && ancestors.size < MAX_DOCUMENT_DEPTH) {
+            val parent = findDocument(parentId) ?: break
+            ancestors.add(0, parent)
+            parentId = parent.parentId
+        }
+        return ancestors
+    }
 
     suspend fun findDocument(id: UUID): DocumentSummary? = documentsWhere("id = :id", id).firstOrNull()
 
-    /** Give exactly one of `issueId` and `projectId`: whose document this is. */
+    /** Give exactly one of `issueId` and `projectId`: whose document this is. `parentId` puts it inside another document. */
     suspend fun addDocument(
         issueId: UUID?,
         projectId: UUID?,
+        parentId: UUID?,
         title: String,
         userId: UUID,
         now: Instant,
@@ -146,19 +167,20 @@ class IssueExtrasStore(
         databaseClient
             .sql(
                 """
-                insert into documents (id, issue_id, project_id, title, created_by, created_at, updated_at)
-                values (:id, :issueId, :projectId, :title, :userId, :now, :now)
+                insert into documents (id, issue_id, project_id, parent_id, title, created_by, created_at, updated_at)
+                values (:id, :issueId, :projectId, :parentId, :title, :userId, :now, :now)
                 """.trimIndent(),
             ).bind("id", id)
             .let { if (issueId != null) it.bind("issueId", issueId) else it.bindNull("issueId", UUID::class.java) }
             .let { if (projectId != null) it.bind("projectId", projectId) else it.bindNull("projectId", UUID::class.java) }
+            .let { if (parentId != null) it.bind("parentId", parentId) else it.bindNull("parentId", UUID::class.java) }
             .bind("title", title)
             .bind("userId", userId)
             .bind("now", now)
             .fetch()
             .rowsUpdated()
             .awaitSingle()
-        return DocumentSummary(id, issueId, projectId, title, now)
+        return DocumentSummary(id, issueId, projectId, parentId, title, now)
     }
 
     /** Sets the title when one is given and marks the document as changed now. */
@@ -216,13 +238,14 @@ class IssueExtrasStore(
         id: UUID,
     ): List<DocumentSummary> =
         databaseClient
-            .sql("select id, issue_id, project_id, title, updated_at from documents where $where")
+            .sql("select id, issue_id, project_id, parent_id, title, updated_at from documents where $where")
             .bind("id", id)
             .map { row ->
                 DocumentSummary(
                     id = checkNotNull(row.get("id", UUID::class.java)),
                     issueId = row.get("issue_id", UUID::class.java),
                     projectId = row.get("project_id", UUID::class.java),
+                    parentId = row.get("parent_id", UUID::class.java),
                     title = checkNotNull(row.get("title", String::class.java)),
                     updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
                 )

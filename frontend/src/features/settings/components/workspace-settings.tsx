@@ -1,7 +1,7 @@
 "use client";
 
 import { FieldGroup } from "@/components/ui/field";
-import { initials } from "@/lib/initials";
+import { mark } from "@/lib/initials";
 import { messages } from "@/messages";
 import { removeWorkspaceLogo, renameWorkspace, setWorkspaceKey, uploadWorkspaceLogo } from "../api";
 import type { Workspace } from "../types";
@@ -18,7 +18,7 @@ export function WorkspaceSettings({ workspace }: { workspace: Workspace }) {
         label={m.imageLabel}
         imageUrl={workspace.logoUrl}
         imageAlt={m.imageAlt}
-        fallback={initials(workspace.name)}
+        fallback={mark(workspace.name)}
         shape="square"
         upload={uploadWorkspaceLogo}
         remove={removeWorkspaceLogo}

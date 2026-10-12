@@ -5,12 +5,14 @@ import { messages } from "@/messages";
 
 export function LoginIdField({
   id,
+  label = messages.fields.loginId,
   registration,
   error,
   hint,
   autoFocus,
 }: {
   id: string;
+  label?: string;
   registration: UseFormRegisterReturn;
   error?: string;
   hint?: string;
@@ -20,7 +22,7 @@ export function LoginIdField({
 
   return (
     <Field data-invalid={error ? true : undefined}>
-      <FieldLabel htmlFor={id}>{messages.fields.loginId}</FieldLabel>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Input
         id={id}
         type="text"

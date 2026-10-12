@@ -21,8 +21,13 @@ export const metadata: Metadata = { title: m.title };
 
 const headCell = "h-9 px-2 text-left text-[0.8125rem] leading-5 font-normal text-muted-foreground";
 const cell = "h-11 px-2 text-[0.8125rem] leading-5 max-md:h-14";
-/** Columns that only fit on wider screens; the name and the status always show. */
+/**
+ * Columns that only fit on wider screens; the name and the status always show. The name takes
+ * what is left, so the widest columns wait for the widest screens rather than squeeze it.
+ */
 const wide = "max-md:hidden";
+const wider = "max-lg:hidden";
+const widest = "max-xl:hidden";
 
 /**
  * All projects as a table, after Linear's project list: name with the current milestone,
@@ -65,16 +70,16 @@ export default async function HomePage() {
                 <th scope="col" className={`${headCell} pl-11`}>
                   {m.colName}
                 </th>
-                <th scope="col" className={`${headCell} ${wide} w-44`}>
+                <th scope="col" className={`${headCell} ${widest} w-44`}>
                   {m.propHealth}
                 </th>
                 <th scope="col" className={`${headCell} ${wide} w-24`}>
                   {m.propPriority}
                 </th>
-                <th scope="col" className={`${headCell} ${wide} w-36`}>
+                <th scope="col" className={`${headCell} ${wider} w-36`}>
                   {m.propLead}
                 </th>
-                <th scope="col" className={`${headCell} ${wide} w-28`}>
+                <th scope="col" className={`${headCell} ${wider} w-28`}>
                   {m.colTargetDate}
                 </th>
                 <th scope="col" className={`${headCell} ${wide} w-16 text-right`}>
@@ -129,7 +134,7 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
           ) : null}
         </div>
       </td>
-      <td className={`${cell} ${wide}`}>
+      <td className={`${cell} ${widest}`}>
         {project.health && project.healthUpdatedAt ? (
           <span className="flex min-w-0 items-center gap-1">
             <HealthBadge health={project.health} />
@@ -147,7 +152,7 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
           <span className="sr-only">{priorityLabel(project.priority)}</span>
         </span>
       </td>
-      <td className={`${cell} ${wide}`}>
+      <td className={`${cell} ${wider}`}>
         {lead ? (
           <span className="flex min-w-0 items-center gap-1.5">
             <PersonAvatar person={lead} />
@@ -155,7 +160,7 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
           </span>
         ) : null}
       </td>
-      <td className={`${cell} ${wide} text-muted-foreground tabular-nums`}>
+      <td className={`${cell} ${wider} text-muted-foreground tabular-nums`}>
         {project.targetDate ? <DueDate value={project.targetDate} /> : null}
       </td>
       <td className={`${cell} ${wide} text-right font-medium tabular-nums`}>{project.issueCount}</td>

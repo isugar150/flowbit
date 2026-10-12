@@ -13,12 +13,21 @@ const m = messages.issues.reactions;
 
 /**
  * Emoji on an issue. Each one shows how many people chose it; pressing it adds or takes back your
- * own. Open to everyone who can see the issue.
+ * own. Open to everyone who can see the issue. `readOnly` (a deleted issue) only shows them.
  */
-export function IssueReactions({ number, reactions }: { number: number; reactions: Reaction[] }) {
+export function IssueReactions({
+  number,
+  reactions,
+  readOnly = false,
+}: {
+  number: number;
+  reactions: Reaction[];
+  readOnly?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const mutation = useRefreshingMutation(toggleReaction);
   const toggle = (emoji: string) => mutation.mutate({ number, emoji });
+  if (readOnly && reactions.length === 0) return null;
 
   return (
     <div data-presence-id="reactions" className="flex flex-wrap items-center gap-1.5">
@@ -29,7 +38,7 @@ export function IssueReactions({ number, reactions }: { number: number; reaction
           title={reaction.names.join(", ")}
           aria-label={m.count(reaction.emoji, reaction.count)}
           aria-pressed={reaction.reacted}
-          disabled={mutation.isPending}
+          disabled={mutation.isPending || readOnly}
           onClick={() => toggle(reaction.emoji)}
           className={cn(
             "flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[0.8125rem] leading-5 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-9",
@@ -40,6 +49,7 @@ export function IssueReactions({ number, reactions }: { number: number; reaction
           <span className="tabular-nums">{reaction.count}</span>
         </button>
       ))}
+      {readOnly ? null : (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
@@ -70,6 +80,7 @@ export function IssueReactions({ number, reactions }: { number: number; reaction
           ))}
         </PopoverContent>
       </Popover>
+      )}
     </div>
   );
 }

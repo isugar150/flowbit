@@ -229,6 +229,11 @@ data class DocumentResponse(
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val project: IssueProject?,
     val canEdit: Boolean,
+    /** The documents it sits inside, the outermost first. */
+    val ancestors: List<DocumentSummaryResponse>,
+    /** The documents inside it (page blocks in its body). */
+    val children: List<DocumentSummaryResponse>,
+    val canAddChild: Boolean,
 ) {
     companion object {
         fun from(detail: DocumentDetail) =
@@ -240,6 +245,9 @@ data class DocumentResponse(
                 issue = detail.issue?.let { IssueParent(it.number, it.key, it.title) },
                 project = detail.project,
                 canEdit = detail.canEdit,
+                ancestors = detail.ancestors.map(DocumentSummaryResponse::from),
+                children = detail.children.map(DocumentSummaryResponse::from),
+                canAddChild = detail.canAddChild,
             )
     }
 }
@@ -301,7 +309,8 @@ class IssueAnnouncer(
         realtime.publish(RealtimeHub.ISSUES, user.id)
         change.projectIds.forEach { realtime.publish("project:$it", user.id) }
         touched(user, change.issue.number)
-        if (change.recipientIds.isEmpty() || change.events.isEmpty()) return
+        // Webhooks hear about every change; mail and push only reach the subscribers, if there are any.
+        if (change.events.isEmpty()) return
         notifications.dispatch(
             IssueNotification(
                 issueKey = change.issue.key,
@@ -614,6 +623,19 @@ class DocumentController(
         val document = issueService.updateDocument(user, id, IssuePatch(body))
         announcer.documentChanged(user, DocumentOwner(document.issue?.number, document.project?.id))
         return DocumentResponse.from(document)
+    }
+
+    /** Makes a document inside this one. Project documents only, five levels deep at most (409 `DOCUMENT_TOO_DEEP`). */
+    @PostMapping("/{id}/documents")
+    @ResponseStatus(HttpStatus.CREATED)
+    suspend fun createChild(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+        @RequestBody body: CreateDocumentRequest,
+    ): DocumentSummaryResponse {
+        val document = issueService.createChildDocument(user, id, body.title)
+        announcer.documentChanged(user, DocumentOwner(null, document.projectId))
+        return DocumentSummaryResponse.from(document)
     }
 
     @DeleteMapping("/{id}")

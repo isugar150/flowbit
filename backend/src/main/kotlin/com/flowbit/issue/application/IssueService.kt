@@ -2,6 +2,7 @@ package com.flowbit.issue.application
 
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.UuidV7
+import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.FieldError
 import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.NotFoundException
@@ -104,6 +105,12 @@ data class DocumentDetail(
     val issue: IssueView?,
     val project: IssueProject?,
     val canEdit: Boolean,
+    /** The documents it sits inside, the outermost first. */
+    val ancestors: List<DocumentSummary>,
+    /** The documents inside it. */
+    val children: List<DocumentSummary>,
+    /** Whether a document may be made inside it: the caller may edit, and it is not at the deepest level. */
+    val canAddChild: Boolean,
 )
 
 /** What a document belonged to: an issue (by number) or a project (by id). */
@@ -450,7 +457,7 @@ class IssueService(
         val issue = editable(access(user, number)).issue
         val title = documentTitle(rawTitle.orEmpty())
         val now = clock.instant()
-        val document = extras.addDocument(issue.id, null, title, user.id, now)
+        val document = extras.addDocument(issue.id, null, null, title, user.id, now)
         activities.record(issue.id, user.id, listOf(IssueEvent(IssueActivityType.DOCUMENT_ADDED, mapOf("to" to title))), now)
         return document
     }
@@ -460,7 +467,26 @@ class IssueService(
         user: AuthenticatedUser,
         projectId: String,
         rawTitle: String?,
-    ): DocumentSummary = extras.addDocument(null, editableProject(user, projectId).id, documentTitle(rawTitle.orEmpty()), user.id, clock.instant())
+    ): DocumentSummary = extras.addDocument(null, editableProject(user, projectId).id, null, documentTitle(rawTitle.orEmpty()), user.id, clock.instant())
+
+    /**
+     * A document inside another one. Only a project's documents nest, and only
+     * [MAX_DOCUMENT_DEPTH] levels deep; an issue's documents stay one level.
+     */
+    @Transactional
+    suspend fun createChildDocument(
+        user: AuthenticatedUser,
+        parentId: UUID,
+        rawTitle: String?,
+    ): DocumentSummary {
+        val parent = extras.findDocument(parentId) ?: throw notFound()
+        if (!ownerOf(user, parent).canEdit) throw noEditRight()
+        if (parent.issueId != null) throw ConflictException("DOCUMENT_TOO_DEEP", "이슈의 문서 안에는 문서를 만들 수 없습니다")
+        if (extras.documentAncestors(parent.id).size + 1 >= MAX_DOCUMENT_DEPTH) {
+            throw ConflictException("DOCUMENT_TOO_DEEP", "문서는 ${MAX_DOCUMENT_DEPTH}단계까지만 만들 수 있습니다")
+        }
+        return extras.addDocument(null, parent.projectId, parent.id, documentTitle(rawTitle.orEmpty()), user.id, clock.instant())
+    }
 
     suspend fun projectDocuments(
         user: AuthenticatedUser,
@@ -473,12 +499,16 @@ class IssueService(
     ): DocumentDetail {
         val document = extras.findDocument(documentId) ?: throw notFound()
         val owner = ownerOf(user, document)
+        val ancestors = extras.documentAncestors(document.id)
         return DocumentDetail(
             document = document,
             content = richText.load(RichText.ContentTable.DOCUMENTS, document.id),
             issue = owner.issue?.let { checkNotNull(queries.find(it.number)) },
             project = owner.project?.let { IssueProject(it.id, it.name) },
             canEdit = owner.canEdit,
+            ancestors = ancestors,
+            children = extras.childDocuments(document.id),
+            canAddChild = owner.canEdit && document.issueId == null && ancestors.size + 1 < MAX_DOCUMENT_DEPTH,
         )
     }
 

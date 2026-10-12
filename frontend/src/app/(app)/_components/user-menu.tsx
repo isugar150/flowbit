@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { logout } from "@/features/auth/api";
 import type { Me } from "@/features/auth/types";
-import { initials } from "@/lib/initials";
+import { initial } from "@/lib/initials";
 import { messages } from "@/messages";
 
 const m = messages.userMenu;
@@ -62,7 +62,7 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
         >
           <Avatar size="sm">
             {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
-            <AvatarFallback>{initials(name)}</AvatarFallback>
+            <AvatarFallback>{initial(name)}</AvatarFallback>
           </Avatar>
           <span className="truncate">{name}</span>
           <ChevronsUpDownIcon data-icon="inline-end" className="ml-auto text-muted-foreground" />

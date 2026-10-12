@@ -67,6 +67,22 @@ class RealtimeIntegrationTest : IntegrationTest() {
         b.close()
     }
 
+    @Test
+    fun `프로젝트에 들어오게 되거나 빠지면 그 프로젝트를 볼 수 없던 사람에게도 알린다`() {
+        remember("SEC", admin.post("/api/v1/projects", """{"name":"비공개"}""").json()["id"])
+        val b = Socket(editor)
+        b.send("""{"type":"subscribe","topics":["projects"]}""")
+        val editorId = admin.get("/api/v1/projects/${p("PAY")}/members").jsonList().single { it["loginId"] == "editor" }["userId"]
+
+        admin.put("/api/v1/projects/${p("SEC")}/members/$editorId", """{"role":"VIEWER"}""")
+        assertEquals("projects", b.awaitChanged())
+        admin.delete("/api/v1/projects/${p("SEC")}/members/$editorId")
+        assertEquals("projects", b.awaitChanged())
+        admin.post("/api/v1/projects", """{"name":"새 프로젝트"}""")
+        assertEquals("projects", b.awaitChanged())
+        b.close()
+    }
+
     private inner class Socket(
         client: ApiClient,
     ) : WebSocket.Listener {

@@ -11,14 +11,15 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { useAutosave } from "@/lib/use-autosave";
 import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
-import { deleteDocument, updateDocument } from "../api";
+import { createDocument, deleteDocument, updateDocument } from "../api";
 import type { IssueDocument } from "../types";
 
 const m = messages.issues.documents;
 
 /**
  * Title and body of a document (of an issue or of a project), edited in place and saved a moment after typing, the
- * same way an issue is. Deleting asks for a second press and goes back to the issue or the project.
+ * same way an issue is. Documents inside it sit in the body as page blocks. Deleting asks for a
+ * second press, takes the documents inside along, and goes back to where the document was.
  */
 export function DocumentEditor({ document }: { document: IssueDocument }) {
   const router = useRouter();
@@ -34,7 +35,10 @@ export function DocumentEditor({ document }: { document: IssueDocument }) {
   const remove = useMutation({
     mutationFn: deleteDocument,
     onSuccess: () => {
-      router.replace(document.issue ? `/issue/${document.issue.key}` : `/project/${document.project?.id ?? ""}`);
+      const parent = document.ancestors.at(-1);
+      router.replace(
+        parent ? `/doc/${parent.id}` : document.issue ? `/issue/${document.issue.key}` : `/project/${document.project?.id ?? ""}`,
+      );
       router.refresh();
     },
   });
@@ -89,6 +93,17 @@ export function DocumentEditor({ document }: { document: IssueDocument }) {
           className="min-h-64"
           onChange={content.schedule}
           keepLocal={content.isDirty}
+          documents={document.children}
+          // "/문서" makes a document inside this one. Only a project's documents nest, five levels deep.
+          onCreateDocument={
+            document.canAddChild
+              ? async (title) => {
+                  const child = await createDocument({ owner: { documentId: document.id }, title });
+                  router.refresh();
+                  return { id: child.id, title: child.title };
+                }
+              : undefined
+          }
         />
       </div>
     </article>

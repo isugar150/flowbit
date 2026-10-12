@@ -9,12 +9,15 @@ export type PillTab = {
   label: string;
 };
 
-/** The row of rounded tabs under the page header that switches between views of one thing. */
+/**
+ * The row of rounded tabs under the page header that switches between views of one thing. Stays
+ * in place under the header (h-11) while the page scrolls.
+ */
 export function PillTabs({ label, tabs }: { label: string; tabs: PillTab[] }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label={label} className="flex shrink-0 items-center gap-1.5 overflow-x-auto px-4 pb-2">
+    <nav aria-label={label} className="sticky top-11 z-30 flex shrink-0 items-center gap-1.5 overflow-x-auto bg-background px-4 pb-2">
       {tabs.map((tab) => {
         const current = pathname === tab.href;
         return (

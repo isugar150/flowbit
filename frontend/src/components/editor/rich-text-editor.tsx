@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { BlockDragHandle } from "./block-drag-handle";
 import { fixedOrigin } from "./fixed-origin";
+import { PageLink } from "./page-link";
 import { tableExtensions } from "./table-extensions";
 import { TableToolbar } from "./table-toolbar";
 import { uploadEditorImage } from "./upload-image";
@@ -49,7 +51,7 @@ type SlashActions = { pickImage: () => void; createDocument: () => void };
 
 const block = (editor: Editor, range: { from: number; to: number }) => editor.chain().focus().deleteRange(range);
 
-/** Offered only where the editor was given a way to make documents (an issue's body). */
+/** Offered only where the editor was given a way to make documents. */
 const DOCUMENT_ITEM = "document";
 
 /** Blocks offered by the `/` menu. Only blocks the backend accepts (RichText.kt) may be listed here. */
@@ -167,13 +169,17 @@ export function RichTextEditor({
   autoFocus,
   keepLocal,
   onCreateDocument,
+  documents,
 }: {
   initialContent: RichDoc | null;
   /**
-   * Makes a new document and says where it is. When given, the `/` menu offers "문서", which puts
-   * a link to the new document at the cursor.
+   * Makes a new document with this title and says which. When given, the `/` menu offers "문서":
+   * it asks for the title first, then puts the new document at the cursor as a block of its own.
+   * Without a title nothing is made.
    */
-  onCreateDocument?: () => Promise<{ href: string; title: string }>;
+  onCreateDocument?: (title: string) => Promise<{ id: string; title: string }>;
+  /** The documents the text may hold as blocks, for their current titles. */
+  documents?: { id: string; title: string }[];
   /** True while this editor has edits the server has not stored yet. */
   keepLocal?: () => boolean;
   /** Called with the document after each edit, or null when it has been emptied. */
@@ -255,30 +261,47 @@ export function RichTextEditor({
   useEffect(() => {
     createDocumentRef.current = onCreateDocument;
   }, [onCreateDocument]);
-  const insertDocumentLink = async () => {
+  // "/문서" first asks for the document's title, in a small field at the cursor.
+  const [naming, setNaming] = useState<{ top: number; left: number } | null>(null);
+  const [namingBusy, setNamingBusy] = useState(false);
+  const askDocumentTitle = () => {
     const current = editorRef.current;
-    const create = createDocumentRef.current;
-    if (!current || !create) return;
+    if (!current || !createDocumentRef.current) return;
     interactedRef.current = true;
     setImageError(null);
+    const coords = current.view.coordsAtPos(current.state.selection.from);
+    const origin = fixedOrigin(probeRef.current);
+    setNaming({ top: coords.bottom + 6 - origin.y, left: Math.max(8, coords.left) - origin.x });
+  };
+  /** Back to the text with nothing made: no title was given. */
+  const cancelNaming = () => {
+    setNaming(null);
+    editorRef.current?.commands.focus();
+  };
+  const insertDocument = async (rawTitle: string) => {
+    const current = editorRef.current;
+    const create = createDocumentRef.current;
+    const title = rawTitle.trim();
+    if (!current || !create || !title) {
+      cancelNaming();
+      return;
+    }
+    setNamingBusy(true);
     try {
-      const { href, title } = await create();
+      const document = await create(title);
       if (current.isDestroyed) return;
-      current
-        .chain()
-        .focus()
-        .insertContent([
-          { type: "text", text: title, marks: [{ type: "link", attrs: { href } }] },
-          { type: "text", text: " " },
-        ])
-        .run();
+      current.storage.pageLink.titles.set(document.id, document.title);
+      current.chain().focus().insertContent({ type: "pageLink", attrs: document }).run();
     } catch (error) {
       setImageError(settingsErrorMessage(error));
+    } finally {
+      setNamingBusy(false);
+      setNaming(null);
     }
   };
-  const insertDocumentLinkRef = useRef(insertDocumentLink);
+  const insertDocumentLinkRef = useRef(askDocumentTitle);
   useEffect(() => {
-    insertDocumentLinkRef.current = insertDocumentLink;
+    insertDocumentLinkRef.current = askDocumentTitle;
   });
   const slashActions: SlashActions = {
     pickImage: () => fileInputRef.current?.click(),
@@ -294,10 +317,11 @@ export function RichTextEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true, defaultProtocol: "https" } }),
       TaskList,
-      TaskItem.configure({ nested: true }),
+      TaskItem.configure({ nested: true, a11y: { checkboxLabel: (node) => m.taskItemLabel(node.textContent) } }),
       Placeholder.configure({ placeholder: placeholder ?? "" }),
       Image.configure({ allowBase64: false }),
       ...tableExtensions,
+      PageLink,
     ],
     editorProps: {
       attributes: { "aria-label": ariaLabel, role: "textbox", "aria-multiline": "true" },
@@ -321,6 +345,8 @@ export function RichTextEditor({
         if (!state || event.isComposing) return false;
         const items = matchingItems(state.query, Boolean(createDocumentRef.current));
         if (event.key === "Escape") {
+          // Only the menu closes: a dialog around the editor must not take this Escape as its own.
+          event.stopPropagation();
           dismissedAtRef.current = state.from;
           slashRef.current = null;
           setSlash(null);
@@ -369,6 +395,17 @@ export function RichTextEditor({
     editor?.setEditable(editable);
   }, [editor, editable]);
 
+  // Page blocks show the documents' current titles and open them inside the app.
+  const router = useRouter();
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.storage.pageLink.configure({
+      open: (id) => router.push(`/doc/${id}`),
+      untitled: m.untitledDocument,
+      documents: documents ?? [],
+    });
+  }, [editor, documents, router]);
+
   const keepLocalRef = useRef(keepLocal);
   useEffect(() => {
     keepLocalRef.current = keepLocal;
@@ -392,7 +429,8 @@ export function RichTextEditor({
 
   return (
     <div
-      className={cn("rich-text relative", className)}
+      // "rich-text-editable": tables leave room above for their toolbar (globals.css).
+      className={cn("rich-text relative", editable && "rich-text-editable", className)}
       onPointerDownCapture={() => {
         interactedRef.current = true;
       }}
@@ -449,6 +487,34 @@ export function RichTextEditor({
             <XIcon />
           </button>
         </p>
+      ) : null}
+      {naming ? (
+        <input
+          autoFocus
+          disabled={namingBusy}
+          maxLength={200}
+          autoComplete="off"
+          placeholder={m.documentTitlePlaceholder}
+          aria-label={m.documentTitlePlaceholder}
+          style={{ top: naming.top, left: naming.left }}
+          className="fixed z-50 h-9 w-64 rounded-lg bg-popover px-3 text-[0.8125rem] leading-5 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          onKeyDown={(event) => {
+            // Stays in this field: the editor around it must not take the keys.
+            event.stopPropagation();
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void insertDocument(event.currentTarget.value);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              cancelNaming();
+            }
+          }}
+          // Clicking elsewhere gives up, the same as an empty title.
+          onBlur={() => {
+            if (!namingBusy) setNaming(null);
+          }}
+        />
       ) : null}
       {slash && editor && items.length > 0 ? (
         <div

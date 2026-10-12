@@ -8,6 +8,9 @@
 
 - 컨트롤러와 서비스의 메서드는 `suspend fun` 으로 쓴다. `Mono`/`Flux` 를 직접 다루는 것은 프레임워크 인터페이스를 구현할 때뿐이다(예: `WebFilter`, `ServerSecurityContextRepository`). 그때는 `mono { }` 로 코루틴을 감싼다.
 - **블로킹 호출 금지**: JDBC, JPA, `Thread.sleep`, `.block()`, 블로킹 HTTP 클라이언트를 쓰지 않는다. DB 는 R2DBC 로만 접근한다.
+- 블로킹 라이브러리를 피할 수 없으면(LDAP SDK, 메일 전송, 파일 입출력, 이미지 변환) 그 호출을 한 클래스에 모으고 `withContext(Dispatchers.IO)` 안에서만 부른다. DB 트랜잭션 안에서 부르지 않는다(`LdapDirectory`, `AuthService.login`, `Mailer`).
+- 바깥 서버를 부르는 HTTP 는 `WebClient` 를 쓰고 시간 제한을 건다(`OidcClient`, `FcmClient`, `WebhookSender`).
+- 요청과 상관없이 뒤에서 도는 일(알림 보내기)은 자체 `CoroutineScope` 에서 돌리고 빈이 사라질 때 취소한다(`NotificationDispatcher`). 통합 테스트는 결과가 나타날 때까지 기다린다.
 - CPU 를 오래 쓰는 일(Argon2 해시 등)은 `withContext(Dispatchers.Default)` 로 이벤트 루프 밖에서 돌린다. `PasswordHasher` 가 그렇게 한다.
 - 요청 정보는 `ServerWebExchange` 에서 얻는다. 서블릿 API(`HttpServletRequest`, `HttpSession`)는 없다.
 - `ThreadLocal` 에 기대지 않는다(MDC 포함). 요청 ID 는 exchange 속성에 둔다(`RequestIdFilter`).
@@ -23,19 +26,21 @@ com.flowbit
 ├─ FlowbitApplication.kt
 ├─ common/            여러 모듈이 쓰는 것
 │   ├─ error/           ApiException, 문제 문서(Problems), GlobalExceptionHandler
-│   ├─ web/             RequestIdFilter, ClientInfo, HealthController
+│   ├─ web/             RequestIdFilter, ClientInfo, HealthController, PublicUrl(접속 주소)
 │   ├─ ratelimit/       RateLimiter (메모리, IP 기준)
 │   ├─ audit/           AuditService (감사 로그)
 │   └─ richtext/        RichText: 편집기 문서의 검증, 저장, 글자 추출
 ├─ instance/          인스턴스 설정, 초기 설정 완료 여부
 ├─ user/              사용자, 아이디·비밀번호 규칙, /me
 ├─ auth/              로그인, 로그아웃, 세션, 보안 설정
-│   ├─ api/             AuthController, SessionCookies
-│   ├─ application/     AuthService, SessionService, PasswordHasher
-│   ├─ domain/          UserSession
+│   ├─ api/             AuthController, SessionCookies, SsoController, AdminAuthController
+│   ├─ application/     AuthService, SessionService, PasswordHasher,
+│   │                    LdapDirectory, OidcClient, OAuth2Client, SsoService, ExternalAccountService, ExternalAuthSettingsService
+│   ├─ domain/          UserSession, LdapSettings, SsoSettings
 │   └─ config/          SecurityConfig, SessionSecurityContextRepository
 ├─ project/           프로젝트, 프로젝트 구성원과 역할 (접근 판단은 ProjectService 가 한다)
 ├─ issue/             이슈 (IssueService, 조회용 IssueQueries)
+├─ notification/      알림 통로(메일, 웹 푸시, API 알림)와 그 설정. 계층을 나누지 않은 작은 모듈
 ├─ setup/             초기 설정
 └─ media/             이미지 변환(ImageProcessor), 파일 저장(ImageStorage), 파일 제공, 업로드 읽기
 ```
@@ -88,7 +93,7 @@ com.flowbit
 - 스키마 변경은 Flyway 마이그레이션으로만 한다 (사용자 지정, D-008).
 - 파일 위치: `backend/src/main/resources/db/migration/V<번호>__<설명>.sql`
 - **이미 배포된 마이그레이션 파일은 고치지 않는다.** 새 파일을 추가한다.
-- **지금은 배포 전이라 파일이 `V1__schema.sql` 하나다** (D-067). 개발 중에는 스키마를 바꿀 때 이 파일을 직접 고치고 개발 DB 를 지우고 다시 만든다(Flyway 가 체크섬이 달라졌다고 시작을 거부하므로 DB 를 지워야 한다). 옛 데이터를 살리려는 변환 SQL 이나, 지우지 못한 컬럼을 피해 가는 코드를 두지 않는다. 첫 배포 이후로는 `V1` 을 고정하고 `V2` 부터 추가한다.
+- **`V1__schema.sql` 은 더 고치지 않는다** (D-084). 2026-10-12 까지의 스키마는 이 파일 하나에 합쳐져 있다(D-067). 그 뒤의 변경은 `V2__….sql`, `V3__….sql` … 처럼 새 파일로 추가하고, 데이터가 들어 있는 DB 에 그대로 적용되게 쓴다(기본값, 기존 행 채우기).
 - 애플리케이션은 R2DBC(`spring.r2dbc.*`)로, Flyway 는 JDBC(`spring.flyway.*`)로 같은 DB 에 접속한다. 접속 정보를 바꿀 때 둘 다 바꾼다.
 - 엔티티와 테이블이 맞는지 자동으로 검증해 주는 장치가 없다(JPA 의 `ddl-auto=validate` 에 해당하는 것이 없음). 통합 테스트가 실제 PostgreSQL 에서 읽고 쓰는 것으로 확인한다.
 - 테이블 규칙은 [05-data-model.md](05-data-model.md).

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
 import { createDocument } from "@/features/issues/api";
+import type { IssueDocumentSummary } from "@/features/issues/types";
 import { useAutosave } from "@/lib/use-autosave";
 import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
@@ -18,10 +19,13 @@ const m = messages.projects;
  */
 export function ProjectOverviewEditor({
   project,
+  documents,
   canEdit,
   children,
 }: {
   project: Project;
+  /** The documents made on this overview; they sit in the description as page blocks. */
+  documents: IssueDocumentSummary[];
   canEdit: boolean;
   /** Shown between the summary and the description: the row of project properties. */
   children?: React.ReactNode;
@@ -66,16 +70,14 @@ export function ProjectOverviewEditor({
             className="min-h-40"
             onChange={content.schedule}
             keepLocal={content.isDirty}
-            // "/문서" in the description makes a document on this project and leaves a link to it.
+            // "/문서" in the description makes a document on this project and puts it there as a block.
+            documents={documents}
             onCreateDocument={
               canEdit
-                ? async () => {
-                    const document = await createDocument({
-                      owner: { projectId: project.id },
-                      title: messages.issues.documents.untitled,
-                    });
+                ? async (title) => {
+                    const document = await createDocument({ owner: { projectId: project.id }, title });
                     router.refresh();
-                    return { href: `/doc/${document.id}`, title: document.title };
+                    return { id: document.id, title: document.title };
                   }
                 : undefined
             }

@@ -9,6 +9,9 @@ export type Member = {
   avatarUrl: string | null;
   role: WorkspaceRole;
   status: MemberStatus;
+  /** Where the password is checked. Only LOCAL accounts have one here to reset. */
+  authSource: "LOCAL" | "LDAP" | "SSO";
+  email: string | null;
   lastLoginAt: string | null;
   createdAt: string;
 };

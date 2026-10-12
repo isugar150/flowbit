@@ -30,7 +30,8 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
         else router.back();
       }}
     >
-      <DialogContent className="gap-0 p-0 sm:max-w-2xl lg:max-w-5xl">
+      {/* Hung from the top rather than centred, so it does not jump as its content grows or shrinks. */}
+      <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl lg:max-w-5xl">
         {/* The scroll box is inside, not the dialog itself, so the editor's menus are not clipped. */}
         <div className="max-h-[88dvh] min-h-64 overflow-y-auto overscroll-contain rounded-xl">{children}</div>
       </DialogContent>

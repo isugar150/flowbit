@@ -28,6 +28,13 @@ server:
   forward-headers-strategy: native
 
 flowbit:
+  # The address people open Flowbit at. Used in the single sign-on redirect URI and in the links
+  # of mails and API notifications. Empty: single sign-on works it out from the request, and
+  # notifications carry a path (/issue/FB-12) instead of a full address.
+  public-url: ${FLOWBIT_PUBLIC_URL:}
+  notifications:
+    # Where web push messages are sent. Only tests point this elsewhere.
+    fcm-url: https://fcm.googleapis.com
   storage:
     # Where uploaded files are kept. Relative paths are resolved against the working directory.
     path: ${FLOWBIT_STORAGE_PATH:./data/uploads}

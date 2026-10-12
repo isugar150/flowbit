@@ -37,6 +37,14 @@ dependencies {
     // Decodes uploads and re-encodes them as WebP (bundles the cwebp/dwebp binaries)
     implementation("com.sksamuel.scrimage:scrimage-core:4.6.8")
     implementation("com.sksamuel.scrimage:scrimage-webp:4.6.8")
+    // LDAP sign-in. The SDK is blocking, so every call runs on Dispatchers.IO (LdapDirectory).
+    implementation("com.unboundid:unboundid-ldapsdk")
+    // Verifies the ID token of an OpenID Connect sign-in (OidcClient).
+    implementation("org.springframework.security:spring-security-oauth2-jose")
+    // Mail notifications. Jakarta Mail is blocking, so every send runs on Dispatchers.IO (Mailer).
+    implementation("org.springframework.boot:spring-boot-starter-mail")
+    // Signs the service account assertion for Firebase Cloud Messaging (FcmClient).
+    implementation("com.nimbusds:nimbus-jose-jwt")
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("org.postgresql:r2dbc-postgresql")
     testImplementation("org.springframework.boot:spring-boot-starter-data-r2dbc-test")
@@ -49,6 +57,8 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation("org.testcontainers:testcontainers-r2dbc")
+    // An SMTP server inside the test JVM
+    testImplementation("com.icegreen:greenmail:2.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

@@ -45,7 +45,9 @@ export function MilestonesSection({
   canEdit: boolean;
 }) {
   const [adding, setAdding] = useState(false);
-  const create = useRefreshingMutation(createMilestone, () => setAdding(false));
+  // After one is added the field starts over empty and stays, so several can be typed in a row.
+  const [round, setRound] = useState(0);
+  const create = useRefreshingMutation(createMilestone, () => setRound((current) => current + 1));
   const update = useRefreshingMutation(updateMilestone);
   const remove = useRefreshingMutation(deleteMilestone);
   const error = create.error ?? update.error ?? remove.error;
@@ -83,6 +85,7 @@ export function MilestonesSection({
             <li className="flex h-11 items-center gap-2 border-t px-3 first:border-t-0">
               <DiamondIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <input
+                key={round}
                 // Appears only after pressing "+", so taking focus is what the person expects.
                 autoFocus
                 maxLength={NAME_MAX_LENGTH}

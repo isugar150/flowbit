@@ -9,11 +9,12 @@ export type Crumb = {
 
 /**
  * The bar at the top of the content panel: where you are, as a path, and the page's actions on
- * the right. The last crumb is the current page and is the page's <h1>.
+ * the right. The last crumb is the current page and is the page's <h1>. It stays at the top of
+ * the panel while the page under it scrolls (the panel's <main> is the scroll box).
  */
 export function PageHeader({ crumbs, actions }: { crumbs: Crumb[]; actions?: React.ReactNode }) {
   return (
-    <header className="flex h-11 shrink-0 items-center justify-between gap-3 px-4">
+    <header className="sticky top-0 z-30 flex h-11 shrink-0 items-center justify-between gap-3 bg-background px-4">
       <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1 text-[0.8125rem] leading-5">
         {crumbs.map((crumb, index) => {
           const last = index === crumbs.length - 1;

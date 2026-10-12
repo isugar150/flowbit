@@ -1,9 +1,21 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AllIssues } from "@/features/issues/components/all-issues";
 import { IssueDetail } from "@/features/issues/components/issue-detail";
 import { IssueDialog, IssueDialogSkeleton } from "@/features/issues/components/issue-dialog";
+import { issueNumberOf } from "@/features/issues/meta";
+import type { Issue } from "@/features/issues/types";
+import { serverGet } from "@/lib/current-user";
 
 type Params = PageProps<"/issue/[key]">["params"];
+
+/** "FB-12 제목" in the browser tab when the issue's address is opened directly. */
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { key } = await params;
+  const number = issueNumberOf(key);
+  const issue = number === null ? null : await serverGet<Issue>(`/api/v1/issues/${number}`);
+  return issue ? { title: `${issue.key} ${issue.title}` } : {};
+}
 
 /**
  * An issue's address opened directly (a link, a bookmark, a reload). The issue is a dialog here

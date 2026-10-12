@@ -105,5 +105,12 @@ class RealtimeHub {
     companion object {
         /** Topic for "some issue changed", heard by the lists that span projects (전체 이슈, 내 이슈). */
         const val ISSUES = "issues"
+
+        /**
+         * Topic for "the list of projects changed for someone": a project was made or renamed, or
+         * somebody was let in, given another role or taken out. Heard by every page (the sidebar),
+         * because someone who is not in a project yet cannot hear that project's own topic.
+         */
+        const val PROJECTS = "projects"
     }
 }

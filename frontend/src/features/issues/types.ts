@@ -51,6 +51,12 @@ export type IssueDocument = IssueDocumentSummary & {
   /** The project the document belongs to, or null when it belongs to an issue. */
   project: { id: string; name: string } | null;
   canEdit: boolean;
+  /** The documents it sits inside, the outermost first. */
+  ancestors: IssueDocumentSummary[];
+  /** The documents inside it (page blocks in its body). */
+  children: IssueDocumentSummary[];
+  /** Whether a document may be made inside it: project documents only, five levels deep at most. */
+  canAddChild: boolean;
 };
 
 /** An issue as returned by /api/v1/issues. */

@@ -161,6 +161,29 @@ class ProjectsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `업데이트는 쓴 사람과 관리 역할만 지울 수 있고 지우면 건강도가 앞의 것으로 돌아간다`() {
+        createProject("PAY")
+        val base = "/api/v1/projects/${p("PAY")}"
+        owner.put("$base/members/$outsiderId", """{"role":"EDITOR"}""")
+        val first = owner.post("$base/updates", """{"health":"ON_TRACK","body":"순조롭다"}""").json()["id"]
+        val second = outsider.post("$base/updates", """{"health":"AT_RISK"}""").json()["id"]
+        assertEquals("AT_RISK", owner.get(base).json()["health"])
+
+        // An editor may take back their own update, not someone else's.
+        assertEquals(403, outsider.delete("$base/updates/$first").status)
+        assertEquals(204, outsider.delete("$base/updates/$second").status)
+        assertEquals("ON_TRACK", owner.get(base).json()["health"])
+        assertEquals(404, owner.delete("$base/updates/$second").status)
+
+        // A manager may remove anyone's; a viewer none, not even their own.
+        val third = outsider.post("$base/updates", """{"health":"OFF_TRACK"}""").json()["id"]
+        owner.put("$base/members/$outsiderId", """{"role":"VIEWER"}""")
+        assertEquals(403, outsider.delete("$base/updates/$third").status)
+        assertEquals(204, owner.delete("$base/updates/$third").status)
+        assertEquals(listOf(first), owner.get("$base/updates").jsonList().map { it["id"] })
+    }
+
+    @Test
     fun `로그인하지 않으면 프로젝트를 볼 수 없다`() {
         createProject("PAY")
 

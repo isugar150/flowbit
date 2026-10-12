@@ -184,7 +184,8 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
                         </Link>
                         <span
                           aria-hidden="true"
-                          className={cn("absolute top-1/2 -translate-y-1/2 pl-2 text-xs leading-4 whitespace-nowrap", closed ? "text-muted-foreground" : null)}
+                          // Fits in the two weeks of air right of the last bar, so a long title never leaves the chart.
+                          className={cn("absolute top-1/2 max-w-60 -translate-y-1/2 truncate pl-2 text-xs leading-4", closed ? "text-muted-foreground" : null)}
                           style={{ left: left(end) + DAY_WIDTH }}
                         >
                           {issue.title}

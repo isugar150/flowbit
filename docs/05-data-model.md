@@ -1,6 +1,6 @@
 # 05. 데이터 모델
 
-> **스키마 파일은 하나다** (`backend/src/main/resources/db/migration/V1__schema.sql`, D-067). 개발 단계라 그동안의 단계별 마이그레이션(V1~V12)을 하나로 합쳤다. 이 문서의 표는 그 파일의 설명이고, 어긋나면 파일이 기준이다. `issues.project_id` 는 프로젝트가 지워지면 null 이 된다(이슈는 남는다).
+> **스키마의 바탕은 `backend/src/main/resources/db/migration/V1__schema.sql` 이다** (D-067). 이 파일은 더 고치지 않고, 이후의 변경은 `V2` 부터 새 파일로 추가한다 (D-084). 개발 단계라 그동안의 단계별 마이그레이션(V1~V12)을 하나로 합쳤다. 이 문서의 표는 그 파일의 설명이고, 어긋나면 파일이 기준이다. `issues.project_id` 는 프로젝트가 지워지면 null 이 된다(이슈는 남는다).
 
 스키마 설계나 검토 시 `agent-skills/wshobson-agents/plugins/database-design/skills/postgresql-table-design/SKILL.md` 를 참고한다.
 
@@ -39,11 +39,13 @@
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `id` | `uuid` PK | |
-| `login_id` | `text` unique | 로그인 아이디 (API 필드 `loginId`). 소문자로 정규화. 4~32자 |
-| `email` | `text` null unique | M1 에서는 받지 않는다. 소문자로 정규화 |
+| `login_id` | `text` unique | 로그인 아이디 (API 필드 `loginId`). 소문자로 정규화. 일반 아이디(4~32자) 또는 이메일 주소. LDAP·SSO 가 준 아이디는 길이 하한이 없다 (`V2`, D-089) |
+| `email` | `text` null unique | 소문자로 정규화. 이메일 아이디로 만든 계정과 LDAP·SSO 로 가입한 계정에 들어간다. 로그인할 때 아이디 대신 입력할 수 있다 |
 | `display_name` | `text` null | 1~50자. M1 에서는 받지 않는다 (M2 프로필) |
 | `avatar_key` | `text` null | 프로필 사진의 저장 파일 이름(`<uuid>.webp`). `V2` 에서 추가 |
-| `password_hash` | `text` | Argon2id |
+| `password_hash` | `text` null | Argon2id. `auth_source` 가 `LOCAL` 일 때만 있다 (`V2`) |
+| `auth_source` | `text` | `LOCAL` \| `LDAP` \| `SSO`. 비밀번호를 어디서 확인하는지 (`V2`, D-087) |
+| `external_id` | `text` null | SSO 서비스가 준 식별자(OIDC `sub`). `(auth_source, external_id)` unique (`V2`) |
 | `role` | `text` | `ADMIN` \| `MEMBER` |
 | `status` | `text` | `ACTIVE` \| `DISABLED` |
 | `locale` | `text` null | null 이면 인스턴스 기본값 |
@@ -52,6 +54,28 @@
 | `locked_until` | `timestamptz` null | 이 시각까지 로그인 불가 |
 | `last_login_at` | `timestamptz` null | |
 | `created_at`, `updated_at` | `timestamptz` | |
+
+### `ldap_settings`, `sso_settings` (`V2`, D-087·D-088)
+
+각각 행이 하나뿐이다(`id = 1`). 항목의 뜻은 [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) "설정 항목".
+
+| 테이블 | 컬럼 |
+|---|---|
+| `ldap_settings` | `enabled`, `url`, `start_tls`, `bind_dn`, `bind_password`, `base_dn`, `user_filter`, `login_id_attribute`, `email_attribute`, `display_name_attribute`, `auto_provision`, `updated_at` |
+| `sso_settings` | `enabled`, `display_name`, `issuer`, `client_id`, `client_secret`, `scopes`, `login_id_claim`, `auto_provision`, `updated_at`. `V4`(D-094): `protocol`(`OIDC`\|`OAUTH2`), `authorize_url`, `token_url`, `userinfo_url`, `token_auth`(`BASIC`\|`BEARER`\|`BODY`), `token_format`(`FORM`\|`JSON`), `token_body`, `subject_field`, `email_field`, `name_field`, `button_style`(`DEFAULT`\|`NAVER_WORKS`) |
+
+`bind_password` 와 `client_secret` 은 평문이다. API 로는 내보내지 않는다. DB 백업을 다룰 때 비밀로 취급한다.
+
+### 알림 테이블 (`V3`, D-091)
+
+뜻은 [features/M7a-notification-channels.md](features/M7a-notification-channels.md).
+
+| 테이블 | 컬럼 | 비고 |
+|---|---|---|
+| `users.notify_email` | `boolean` 기본 true | 메일 알림을 받을지. 주소는 `users.email` |
+| `notification_settings` | `smtp_enabled`, `smtp_host`, `smtp_port`, `smtp_security`(`NONE`\|`STARTTLS`\|`SSL`), `smtp_username`, `smtp_password`, `smtp_from_address`, `smtp_from_name`, `push_enabled`, `fcm_service_account`, `fcm_api_key`, `fcm_messaging_sender_id`, `fcm_app_id`, `fcm_vapid_key`, `updated_at` | 행 하나(`id = 1`). `smtp_password`, `fcm_service_account` 는 평문이고 API 로 내보내지 않는다 |
+| `push_tokens` | `token` PK, `user_id` FK → `users`(함께 삭제), `user_agent`, `created_at`, `last_seen_at` | 푸시를 켠 브라우저 하나당 한 행. 같은 토큰을 다른 계정이 등록하면 주인이 바뀐다 |
+| `webhooks` | `id`, `name`, `enabled`, `url`, `method`(`GET`\|`POST`\|`PUT`\|`PATCH`\|`DELETE`, `V4`), `per_recipient`(`V4`, D-095), `content_type`, `headers`, `body_template`, `signing_secret`, `event_types`, `last_status`, `last_error`, `last_attempt_at`, `created_at`, `updated_at` | `headers` 는 JSON 객체를 담은 `text`(엔티티에 그대로 매핑하려고 `jsonb` 를 쓰지 않았다). `event_types` 는 쉼표로 이은 `IssueActivityType` 이름, 빈 값은 전부 |
 
 ### `audit_events`
 
@@ -214,6 +238,6 @@ notifications (수신함)
 | `issues.parent_id` | 상위 이슈(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다 |
 | `issue_reactions` | `issue_id`, `user_id`, `emoji` (셋이 PK). 이모지는 서버가 정한 8개만 |
 | `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at` |
-| `documents` | `id`, `issue_id` null, `project_id` null, `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 이슈나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |
+| `documents` | `id`, `issue_id` null, `project_id` null, `parent_id` null(안에 들어 있는 상위 문서. 프로젝트 문서만, 5단계까지, 상위가 지워지면 함께 지워진다. D-083), `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 이슈나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |
 | `issues.start_date` | 이슈가 기간을 가질 때의 첫날. `due_date` 가 있어야 하고 그보다 늦을 수 없다(`issues_dates_order`) (D-077) |
 | `issues.deleted_at`, `issues.deleted_by` | 삭제 표시. 삭제된 이슈는 목록·집계에서 빠지지만 행은 남는다 (D-079) |

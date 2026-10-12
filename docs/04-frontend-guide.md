@@ -83,6 +83,10 @@ frontend/
 - 지금 시각이 있어야 그릴 수 있는 화면(캘린더의 "이번 달")은 `useInBrowser()`(`components/dates.tsx`)로 브라우저에서만 그린다.
 - **렌더 중에 현재 시각을 읽지 않는다** (`Date.now()`, `new Date()`). `cacheComponents` 에서는 서버 렌더 중의 시각 읽기가 오류다("unstable value `Date.now()` while prerendering"). "3분 전"이나 "올해면 연도 생략"처럼 지금 시각에 기대는 글자는 `components/dates.tsx` 의 `<TimeAgo>`, `<DueDate>` 로 그린다(서버는 날짜 그대로, 브라우저가 바꿔 보여 준다).
 - **대화상자로 여는 페이지**는 가로채기 경로로 만든다. `(app)/layout.tsx` 가 `modal` 슬롯을 그리고, `(app)/@modal/(.)issue/[key]/page.tsx` 가 대화상자다(앱 어느 화면에서 이슈를 눌러도 그 위에 뜬다). 슬롯에는 `default.tsx` 와 `page.tsx`(모두 null)를 둔다. **슬롯에 `[...catchAll]` 을 두지 않는다**: `(app)` 은 주소에 나타나지 않는 묶음이라 그 catch-all 이 `/setup`, `/unavailable` 같은 `(public)` 의 주소까지 가로채 404 를 만든다(실제로 겪었다). 대신 대화상자(`issue-dialog.tsx`)가 주소를 보고, `/issue/…` 가 아니면 스스로 사라진다. 닫기는 `router.back()`. 주소를 직접 연 경우(`issue/[key]/page.tsx`)는 전체 이슈 목록(`all-issues.tsx`)을 뒤에 그리고 같은 대화상자를 띄우며, 닫으면 `/issues` 로 간다. 그 대화상자 안에서 다른 이슈(하위 이슈)를 누르면 가로챈 대화상자가 뜨므로, 페이지의 대화상자는 자기 주소가 아닐 때 숨는다(`path`).
+- **대화상자 뒤의 목록은 자기 주소를 기억한다.** 이슈를 대화상자로 열면 브라우저 주소가 `/issue/…` 로 바뀌어 목록의 보기(`?view=calendar`)와 필터가 주소에서 사라진다. 목록은 `usePathname`/`useSearchParams` 를 직접 읽지 않고 `useListAddress()`(`issue-views.tsx`)로 읽는다: 주소가 `/issue/…` 인 동안에는 마지막으로 보던 목록 주소를 돌려준다.
+- 편집기나 팝오버 안에서 `Esc` 로 닫는 것(`/` 메뉴 등)은 그 키 이벤트를 `stopPropagation()` 한다. 안 그러면 바깥의 대화상자까지 닫힌다.
+- 경로 표시(`PageHeader`)와 알약 탭(`PillTabs`)은 `sticky` 로 내용 패널 위쪽에 붙어 있다(`z-30`). 내용 안에서 `sticky` 를 쓰면 그보다 낮은 `z-index` 를 준다.
+- 사진 없는 아바타의 글자는 `lib/initials.ts`: 사람은 `initials()`(한글 이름은 뒤 두 글자), 24px 보다 작은 아바타는 `initial()`(한 글자), 사람이 아닌 것(워크스페이스)은 `mark()`(앞 글자).
 - 같은 폴더 안에서 페이지끼리 오가면(이슈 상세 ↔ 이슈 목록) 그 폴더에도 `loading.tsx` 가 있어야 한다(`project/[id]/issues/loading.tsx`). 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다.
 - 편집기 위에 띄우는 것(`/` 메뉴, 표 도구 모음)은 `position: fixed` 로 두되 좌표에서 `fixedOrigin()`(`components/editor/fixed-origin.ts`)을 뺀다. 대화상자는 `transform` 으로 가운데에 놓이기 때문에 그 안의 `fixed` 는 창이 아니라 대화상자 모서리가 기준이다. 빼지 않으면 새 이슈 창에서 메뉴가 엉뚱한 곳에 뜬다.
 - 편집기는 `RichTextEditor` 하나뿐이다(개요 설명, 이슈 본문, 새 이슈 창). 블록이나 도구를 더하면 세 곳 모두에 생긴다.
@@ -154,3 +158,13 @@ frontend/
 1. 디자인 리뷰 스킬로 점검한다 ([07-skills-guide.md](07-skills-guide.md) 의 "리뷰" 항목).
 2. 극단적인 데이터(아주 긴 이름, 빈 값, 이모지, 한글/영문 혼합)로 깨지지 않는지 확인한다.
 3. 키보드만으로 흐름 전체를 끝까지 진행해 본다.
+
+## 설정 폼, 서비스 워커 (M2b, M7a)
+
+- **연동 설정 화면의 틀 (D-096)**: 서로 다른 설정을 한 페이지에 폼째로 늘어놓지 않는다. 항목마다 `components/settings-card.tsx` 의 `SettingsCard`(아이콘, 이름, 한 줄 설명, 켜짐 배지, 펼치기) 하나로 두고 처음에는 접어 둔다. 펼친 폼은 `FieldSection`(묶음 제목 + 두 열 격자)으로 나누고, 긴 칸은 `wide` 로 한 줄을 다 쓴다. 방식에 따라 칸이 달라지면 `SegmentedSetting` 으로 고르게 하고 해당하는 칸만 보여 준다. 잘 안 쓰는 값은 `AdvancedSettings` 안에, 저장·테스트 버튼은 맨 아래 `SettingsActions` 에 둔다. 자주 쓰는 대상의 값은 "예시 넣기" 버튼으로 채운다.
+- 카드를 접어도 안의 폼은 사라지지 않는다(`hidden`). 입력하던 값이 남는다.
+- 칸은 `components/setting-fields.tsx` 의 `TextSetting`·`CheckSetting`·`TextAreaSetting`·`SelectSetting` 을 쓴다. 검증은 서버가 하고(`fieldErrorsOf`), 비밀 값 칸은 비워 두면 "저장된 값 유지"다(빈 문자열 대신 `null` 을 보낸다).
+- 서비스 워커는 `public/push-sw.js` 하나뿐이고 푸시 알림만 다룬다. 캐시나 요청 가로채기를 넣지 않는다. `proxy.ts` 는 확장자가 있는 주소를 건드리지 않으므로 그대로 내려간다.
+- `firebase` 는 푸시를 켜는 순간에만 필요하다. 정적으로 import 하지 말고 `features/notifications/push.ts` 처럼 동적으로 불러온다.
+- 브라우저에만 있는 상태(이 브라우저에서 푸시를 켰는지)는 `useSyncExternalStore` 로 읽는다. 렌더 중에 `localStorage` 나 `Notification` 을 직접 읽으면 서버 렌더와 어긋난다.
+

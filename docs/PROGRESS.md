@@ -12,6 +12,9 @@
 - **M3 1단계(구성원 관리, 프로젝트, 프로젝트 권한)가 구현됐다** ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md)). 팀 개념은 없어지고 프로젝트로 합쳐졌다 (D-032). 2~4단계(프리셋, 문서형 이슈, 목록, 댓글)는 명세만 있다.
 - **이슈를 만들고, 목록에서 보고, 문서 편집기로 본문을 쓸 수 있다** (M3 2·3단계의 핵심). 화면 구조는 Linear 의 현재 UI를 따라 다시 짰다 (D-039). 무엇이 되고 안 되는지는 [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) 의 "지금 구현된 범위".
 - **실시간 동기화(WebSocket)와 "보는 사람" 아바타가 구현됐다** (D-044, [02-architecture.md](02-architecture.md) "실시간 동기화"). 두 계정으로 직접 확인한 사람은 아직 없다.
+- **LDAP 연동, SSO(OpenID Connect) 연동, 이메일 아이디가 구현됐다** ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md), D-087~D-090). 관리자 설정의 "로그인 연동" 탭. 계정이 없으면 처음 로그인할 때 가입된다. 백엔드는 인메모리 LDAP·가짜 OIDC 서버로 테스트했고, **화면과 실제 LDAP·SSO 서버로는 아무도 확인하지 않았다.**
+- **알림 통로(메일 SMTP, Firebase 웹 푸시, API 알림)가 구현됐다** ([features/M7a-notification-channels.md](features/M7a-notification-channels.md), D-091~D-093). 관리자 설정의 "알림" 탭, 내 설정의 "알림". 백엔드는 가짜 SMTP·FCM·웹훅 서버로 테스트했고, **화면과 실제 서비스로는 확인하지 않았다.**
+- 백엔드 테스트는 2026-10-12 기준 165개가 통과한다(`FLOWBIT_BUILD_DIR=build-check ./gradlew check`). 마이그레이션은 `V1`(스키마), `V2`(외부 로그인), `V3`(알림), `V4`(SSO 방식, API 알림 대상)이다. 위의 "96개"는 그 전 숫자다.
 - 개발 DB(`flowbit`)에는 사용자가 만든 관리자 계정이 있다. 지우지 않는다.
 
 ## 다음 작업
@@ -63,6 +66,18 @@
 - [x] 프론트엔드: 사용자 메뉴의 설정/관리자 설정, `/settings/profile`, `/settings/workspace`, 사이드바의 로고·이름, 아바타
 - [ ] 화면 확인 (명세의 "화면에서 확인이 필요한 것")
 - [ ] 명세의 "확인이 필요한 것" 3가지 사용자 확인
+
+### M2b. LDAP·SSO 연동, 이메일 아이디
+
+- [x] 백엔드: `V2`, LDAP 인증, OIDC SSO, 자동 가입, 이메일 아이디, 설정 API, 통합 테스트 22개
+- [x] 프론트엔드: `/admin/auth`, 로그인 화면의 SSO 버튼, 구성원 목록 표시
+- [ ] 화면 확인, 실제 LDAP(특히 Active Directory)·SSO 서비스로 확인
+
+### M7a. 알림 통로
+
+- [x] 백엔드: `V3`, 메일·웹 푸시·API 알림 통로, 설정·내 알림 API, 통합 테스트 14개
+- [x] 프론트엔드: `/admin/notifications`, 내 설정의 알림, 서비스 워커
+- [ ] 화면 확인, 실제 SMTP·Firebase·메신저 주소로 확인
 
 ### M3. 프로젝트와 이슈
 
@@ -132,11 +147,104 @@
 
 [09-decisions.md](09-decisions.md) 의 "미결정" 표 참고. 작업 중 새로 생긴 질문은 아래에 적는다.
 
-- (없음)
+- LDAP·SSO: (아이디가 같은 계정은 전환하기로 정해졌다, D-097) 이메일만 같은 계정도 이을지, LDAP 그룹으로 역할을 정할지, 디렉터리에서 사라진 사람을 자동으로 비활성화할지, SAML 이 필요한지. ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) "확인이 필요한 것")
+- hrm `/api/works/send` 에 쓸 만료되지 않는 토큰을 받을 수 있는지(문서에 없다). 없으면 API 알림의 고정 헤더로는 못 쓴다.
+- 알림: 첨부 파일·문서 변경도 알릴지(지금은 안 간다), 프로젝트에서 빠진 사람의 구독을 정리할지, 이메일 주소 확인 절차와 수신함이 필요한지. ([features/M7a-notification-channels.md](features/M7a-notification-channels.md) "확인이 필요한 것")
+- DB 에 평문으로 둔 비밀 값(LDAP 검색 계정 비밀번호, SSO 시크릿, SMTP 비밀번호, Firebase 서비스 계정 키, 웹훅 서명 값·헤더)을 암호화할지. 하려면 암호화 키를 환경 변수로 받아야 한다.
 
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — LDAP 사용 시 구성원 관리 제한, 계정 전환, 구성원별 프로젝트 권한
+
+- 사용자 지시: ① LDAP 을 쓰면 구성원 메뉴의 구성원 추가와, 관리자를 뺀 비밀번호 재설정을 제한. ② 기존 계정과 아이디가 겹치는 사람이 LDAP·SSO 로 로그인하면 그 계정으로 전환하고 비밀번호도 LDAP 에서 검증. ③ 구성원 메뉴에서 그 사용자의 권한을 바꿀 수 있게.
+- 한 일 (D-097, D-098, [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) "계정 전환"·"LDAP 을 쓰는 동안의 구성원 관리"):
+  - `AuthService.login`: LDAP 이 켜져 있으면 디렉터리에 먼저 묻고, 받아들이지 않으면 저장된 비밀번호로 확인. `ExternalAccountService.convert`(`User.convertTo`, 감사 로그 `MEMBER_CONVERTED`). 비밀번호 재설정은 계정을 다시 `LOCAL` 로 만든다(`UserRepository.updatePassword`).
+  - `MemberAdminService`: LDAP 켜짐이면 추가 409 `MEMBERS_FROM_DIRECTORY`, 관리자가 아닌 계정의 재설정 409 `PASSWORD_IN_DIRECTORY`.
+  - `GET /api/v1/admin/members/{id}/projects`(`ProjectService.rolesOf`), 프런트 `member-projects-dialog.tsx`("프로젝트 권한" 버튼), 구성원 화면의 LDAP 안내문.
+- ③ 은 "프로젝트 권한"으로 풀었다. 워크스페이스 역할(관리자/구성원) 변경은 전부터 같은 줄의 선택 상자에 있다. 사용자가 다른 것을 뜻했다면 고친다.
+- 확인한 범위: `FLOWBIT_BUILD_DIR=build-check ./gradlew check`(165개 통과), typecheck, eslint, `next build`. 화면은 보지 않았다.
+- 주의: 전환된 관리자는 LDAP 이 죽으면 들어올 수 없다. LDAP 에 없는 아이디의 로컬 관리자를 하나 남겨 둬야 한다.
+
+### 2026-10-12 — hrm 의 LDAP·SSO·메시지 API 에 맞추기, 설정 화면 다시 짜기
+
+- 사용자 지시: 사내 hrm 의 LDAP(`ldap-guide`), SSO(`sso-guide`), `/api/works/send` 를 셋 다 쓸 수 있어야 한다. 표준도 자체 방식도 되게 호환성을 최대한. 설정 화면은 서로 다른 설정이 길게 늘어져 보기 힘드니 고칠 것.
+- 한 일 (D-094~D-096):
+  - LDAP: 검색 계정 바인드 → 검색 → 사용자 바인드를 **한 연결에서**(hrm LDAP 은 새 연결의 사용자 바인드를 거부할 수 있다). 응답 시간 제한 5초.
+  - SSO: 방식 `OIDC` / `OAUTH2`("직접 설정"). `V4__sso_protocols_and_webhook_targets.sql`, `OAuth2Client`, `SsoService` 분기, 버튼 모양(NAVER WORKS, `public/naver-works-app-icon.svg`), `sso_denied`.
+  - API 알림: `GET`·`DELETE`, 주소 자리표시자(URL 인코딩), `per_recipient`(구독자마다 호출, `{{recipient.email}}` 등).
+  - 화면: `components/settings-card.tsx`(접는 카드), `setting-fields.tsx` 의 `FieldSection`·`SegmentedSetting`·`SelectSetting`·`AdvancedSettings`. `/admin/auth` 와 `/admin/notifications` 를 카드 목록으로. hrm 값을 채우는 "예시 넣기" 버튼(SSO, API 알림).
+- 확인한 범위: `FLOWBIT_BUILD_DIR=build-check ./gradlew check`(161개 통과: 직접 설정 SSO 2개, 받는 사람별 GET 호출 1개 추가), typecheck, eslint, `next build`. **화면은 보지 않았다. 실제 hrm 으로도 확인하지 않았다**(가이드 문서를 읽고 맞췄다).
+- **백엔드를 다시 시작하면 `V4` 가 적용된다.**
+- hrm 에 연결하려면: [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) "설정 항목"·"hrm", [features/M7a-notification-channels.md](features/M7a-notification-channels.md) "hrm 의 NAVER WORKS 메시지". hrm 쪽 준비물: LDAP 조회 계정과 CIDR 허용·각자의 앱 비밀번호, SSO 용 `api_name`·API 키(`sso_enabled`), 메시지 API 용 봇 ID 와 **만료되지 않는 토큰**(받을 수 있는지 미확인).
+- **사고 기록**: 앞 작업에서 결정 번호를 옮기던 스크립트가 `M2b-ldap-and-sso.md` 를 빈 파일로 만들었다(읽기 전에 쓰기 모드로 열었다). 이번에 발견해 전체를 다시 썼다. 파일을 고치는 스크립트는 먼저 읽고 나서 쓴다.
+
+### 2026-10-12 — LDAP·SSO 연동과 이메일 아이디, 알림 통로(메일·웹 푸시·API)
+
+- 사용자 지시 ①: 관리자 설정에 LDAP 연동과 SSO 연동을 넣고, 가입이 안 된 사람은 바로 가입까지 되게. 로그인 아이디는 이메일도 일반 아이디도 가능하게. ②(작업 중 추가): 알림 기능(Firebase 웹 푸시, SMTP, API)을 넣고 API 는 범용으로 설정할 수 있게, 스킬을 참고해서.
+- 한 일 ① (D-087~D-090, [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md)):
+  - 백엔드: `V2__external_auth.sql`(`users.auth_source`·`external_id`, `password_hash` null 허용, `login_id` 검사 완화, `ldap_settings`, `sso_settings`). `auth/` 에 `LdapDirectory`(UnboundID, `Dispatchers.IO`), `OidcClient`·`SsoService`·`SsoController`(인가 코드 + PKCE + state + nonce, ID 토큰 검증), `ExternalAccountService`(계정 찾기·자동 가입), `ExternalAuthSettingsService`, `AdminAuthController`. `AuthService.login` 을 "로컬 계정 → 없으면 LDAP" 순서로 다시 썼고 LDAP 호출은 트랜잭션 밖에서 한다. `CredentialPolicy` 가 이메일 아이디를 받는다. LDAP·SSO 계정은 비밀번호 재설정 불가.
+  - 프런트: `/admin/auth`("로그인 연동" 탭, `features/external-auth/`), 로그인 화면의 "아이디 또는 이메일"·SSO 버튼·`?error=sso_…` 문구, 구성원 목록의 LDAP·SSO 표시, 아이디 입력 규칙.
+- 한 일 ② (D-091~D-093, [features/M7a-notification-channels.md](features/M7a-notification-channels.md)):
+  - 백엔드: `V3__notifications.sql`(`users.notify_email`, `notification_settings`, `push_tokens`, `webhooks`). `notification/` 에 통로 세 개(`MailChannel.kt`, `PushChannel.kt`, `WebhookChannel.kt`), `NotificationText`, 설정 서비스와 API. `NotificationDispatcher` 는 이제 백그라운드에서 보낸다(요청을 늦추지 않음). `IssueAnnouncer` 는 구독자가 없어도 알림을 넘긴다(API 알림 때문에). 접속 주소 설정을 `flowbit.public-url`(`FLOWBIT_PUBLIC_URL`, `common/web/PublicUrl.kt`)로 모았다.
+  - 프런트: `/admin/notifications`("알림" 탭), 내 설정의 "알림"(이메일, 메일 수신, 이 브라우저의 푸시), `public/push-sw.js`, `features/notifications/`, `components/setting-fields.tsx`. `firebase` 패키지 추가.
+  - 참고한 스킬: `backend-security-coder`(외부 요청·SSRF), `error-handling-patterns`(재시도), `api-design-principles`. [07-skills-guide.md](07-skills-guide.md) 에 적었다.
+- 확인한 범위: `FLOWBIT_BUILD_DIR=build-check ./gradlew check`(158개 통과. `ExternalAuthIntegrationTest` 22개, `NotificationsIntegrationTest` 14개 추가), 프런트 typecheck·eslint·`next build`. **화면은 보지 않았다.** 실제 LDAP·SSO·SMTP·Firebase·Slack 으로도 확인하지 않았다.
+- **백엔드를 다시 시작하면 `V2`, `V3` 가 적용된다.** DB 를 지울 필요는 없다(기존 계정은 `LOCAL` 로 남는다).
+- 써 보려면: SSO 는 SSO 서비스에 관리자 화면이 보여 주는 리다이렉트 URI 를 등록한다. 메일·API 알림에 열리는 링크를 넣으려면 `FLOWBIT_PUBLIC_URL` 을 정한다. 푸시는 HTTPS 또는 localhost 에서만 된다.
+- 먼저 볼 곳: ① 실제 SSO 서비스에서 돌아올 때 리다이렉트 URI 가 접속 주소로 나오는지(Next rewrite 뒤). ② 서비스 워커가 실제 FCM 메시지를 띄우는지(메시지 모양은 문서를 보고 썼다). ③ Active Directory 의 필터·속성.
+- 알아둘 것: 같은 시간에 다른 세션이 이 저장소를 고치고 있었다(결정 번호 D-085·D-086 을 그쪽이 먼저 써서 번호를 옮겼다). 결정이나 마이그레이션 번호를 쓰기 전에 파일을 다시 읽는다.
+
+### 2026-10-12 — 화면 점검에서 찾은 문제 고침
+
+- 사용자 요청: 에이전트가 화면을 직접 눌러 보며 찾은 문제(버그 7, 개선 여럿)를 모두 고친다. 관리자 설정의 LDAP/SSO 는 다른 작업이 하고 있어 그쪽 파일(`admin/layout.tsx`, 로그인 폼, 구성원 관리)은 건드리지 않았다.
+- 고친 것(화면):
+  - 전체 프로젝트 표: 건강도 열은 1280px 부터, 리드·목표일은 1024px 부터 보인다(이름 칸이 한두 글자로 줄던 문제).
+  - 새 이슈 창: `/` 메뉴의 `Esc` 가 창까지 닫던 문제, 제목이 옆으로 밀리던 것(줄바꿈되는 입력란으로), 프로젝트 이름 배지의 앞이 잘리던 것.
+  - 이슈를 대화상자로 열어도 뒤의 목록이 보기(캘린더·목표 차트)와 필터를 유지한다(`useListAddress`). 대화상자는 가운데가 아니라 위쪽에 걸어 내용이 바뀌어도 뛰지 않는다.
+  - 표 도구 모음: 본문 폭을 넘지 않고 한 줄로 두며(넘치면 옆으로 민다), 편집 중인 표 위에 그만큼 여백을 둔다(`.rich-text-editable`).
+  - **문서 블록을 눌러도 열리지 않던 문제**(사용자 지적): Tiptap 이 확장의 storage 를 복사해 쓰는데 `configure` 가 원본 객체에 `open` 을 넣고 있었다. `this` 로 쓰게 고쳤다(`page-link.ts`).
+  - 좁은 화면의 메뉴 버튼(`mobile-nav.tsx`, D-086), 경로 표시와 탭을 위쪽에 고정, 프로젝트·이슈·문서 화면의 탭 제목.
+  - 프로젝트 업데이트: 지우기(D-085, 두 번 눌러 확인), 글도 없고 건강도도 그대로면 남기지 못함. 목표는 연달아 추가할 수 있다.
+  - "내 이슈 > 담당"에서 만든 이슈는 담당자가 본인으로 시작한다. 삭제된 이슈에는 이모지를 달 수 없다. 목록의 하위 이슈 순서를 상세와 같게(만든 순서).
+  - 아바타 글자(작은 아바타는 한 글자, 워크스페이스는 이름 앞 글자), 달력의 오늘 표시, 목표 차트의 긴 제목, 문구(검색 안내, 새 이슈 본문 안내, 닫기, 체크리스트 접근성 이름).
+  - `admin/loading.tsx` 추가(관리자 설정 탭 사이를 오갈 때의 "uncached data" 오류).
+- 고친 것(백엔드): `DELETE /api/v1/projects/{id}/updates/{updateId}`, 통합 테스트 1개.
+- 확인한 범위: typecheck, eslint, `ProjectsIntegrationTest`(`build-check`). 화면은 개발 서버에서 직접 봤다: 프로젝트 표, 탭 제목, 고정된 머리줄, 캘린더 뒤 배경, 새 이슈 창의 `Esc`·긴 제목, 문서 블록 열기, 표 도구 모음, 좁은 화면 메뉴. **업데이트 지우기는 버튼과 확인 문구까지만 봤다**(그때 떠 있던 백엔드가 새 API 가 없는 예전 빌드였다).
+- 남은 것:
+  - `/my-issues/created` 등에서 탭을 오갈 때 콘솔에 "URL data ... outside of `<Suspense>`" 가 남는다(페이지가 `searchParams` 를 최상위에서 읽는다). 고치지 않았다.
+  - 관리자 설정 레이아웃(`admin/layout.tsx`)이 최상위에서 `requireUser()` 를 기다린다(04 가이드의 규칙과 다름). LDAP/SSO 작업이 끝난 뒤 `<Suspense>` 안으로 옮긴다.
+  - 캘린더·목표 차트의 끌어 옮기기, 파일 올리기, 두 계정의 실시간 반영은 여전히 아무도 화면에서 확인하지 않았다.
+  - 프로젝트 라벨(글자만)과 이슈의 워크스페이스 라벨(색 있음)이 따로다. 합칠지는 사용자가 정한다.
+  - 보기 역할만 가진 사람도 프로젝트 없는 이슈는 만들 수 있다(명세대로). 의도인지 확인이 필요하다.
+
+### 2026-10-12 — 프로젝트 목록의 실시간 반영
+
+- 사용자 확인 요청 후 진행: 이슈 변경은 이미 실시간이었지만, 프로젝트 권한을 새로 받거나 잃은 사람과 새 프로젝트는 사이드바·홈 목록에 바로 반영되지 않았다.
+- 한 일: 실시간 주제 `projects`(`RealtimeHub.PROJECTS`, 로그인한 누구나). 프로젝트 생성·수정·아이콘·구성원 변경 때 알리고, `(app)/layout.tsx` 가 듣는다. 테스트 1개.
+- 확인한 범위: `./gradlew check`(`build-check`), typecheck, eslint. 화면은 보지 않았다.
+- 남은 것: 관리자 설정에서 사람의 역할(관리자/구성원)이나 사용 중지를 바꾸는 경우는 알리지 않는다.
+
+### 2026-10-12 — 문서 이름 먼저 받기
+
+- 사용자 지시: `/문서` 를 고르면 바로 만들지 말고 이름부터 받는다. 이름이 없으면 취소. "본문에 없는 문서" 목록은 없앤다 (D-083 보완).
+- 한 일: `rich-text-editor.tsx` 에 커서 자리의 이름 입력 칸(Enter 로 만들기, 빈 이름·Esc·바깥 클릭은 취소), `onCreateDocument(title)`. `issue-documents.tsx`(`UnlinkedDocuments`) 삭제.
+- 확인한 범위: typecheck, eslint, `next build`. 화면은 보지 않았다.
+- 열린 질문: 본문에서 문서 블록을 지우면 그 문서는 DB 에 남지만 화면에서 갈 길이 없다. 블록을 지울 때 문서도 지울지(휴지통과 함께) 정해야 한다.
+
+### 2026-10-12 — 스키마 변경 방식
+
+- 사용자 지시: 이제부터 스키마 변경을 `V1__schema.sql` 에 하지 않는다 (D-084). 다음 변경부터 `V2__….sql` 로 추가한다. 이번 세션에서 V1 에 이미 넣은 것(`projects.key` 삭제, `documents.parent_id`)은 그대로다.
+
+### 2026-10-12 — 문서를 편집기 블록으로, 하위 문서, 커서 동기화
+
+- 사용자 지시: ① 상대가 글을 쓰는 동안 커서가 엉뚱한 곳에서 글자 수만큼 움직인다. 저장된 글을 불러올 때 커서도 같이, 커서만 옮기면 커서만 (D-053 보완). ② 문서를 노션처럼 편집기 안에 넣고 별도 문서 영역을 없앤다. 프로젝트 문서는 5단계, 이슈 문서는 1단계 (D-083).
+- 한 일 ①: `use-autosave.ts` 에 `hasUnsavedEdits`/`onEditsSaved`. `presence-focus.tsx` 는 저장 안 된 입력이 있으면 커서를 보내지 않다가 저장이 끝나면 보낸다. 받는 쪽은 `MutationObserver` 로 글이 바뀔 때마다 커서를 다시 놓고, 가리키는 자리가 아직 없으면 숨긴다(`markEditor`).
+- 한 일 ②: `documents.parent_id`, `POST /api/v1/documents/{id}/documents`, 문서 응답의 `ancestors`·`children`·`canAddChild`, `RichText` 가 `pageLink` 블록을 받음. 프런트 `components/editor/page-link.ts`(문서 블록), `/문서` 가 링크 대신 블록을 넣음, 문서 화면에서도 `/문서`(하위 문서), 경로 표시에 상위 문서. `IssueDocuments` 목록을 없애고 `UnlinkedDocuments`(블록이 지워진 문서만)로 바꿈. 테스트 1개.
+- 확인한 범위: `./gradlew check`(`build-check`), typecheck, eslint, `next build`. 화면은 보지 않았다.
+- **개발 DB 를 다시 만들어야 한다**(`documents.parent_id`).
+- 예전 방식으로 넣은 문서 링크(글자 링크)는 그대로 링크로 남는다.
 
 ### 2026-10-12 — 프로젝트 키 제거
 

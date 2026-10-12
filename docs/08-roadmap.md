@@ -7,12 +7,14 @@
 | M0 | 프로젝트 뼈대 | 대부분 완료 (CI, 프론트 테스트 남음) | 아래 |
 | M1 | 로그인 및 초기 설정 | 구현됨 (프론트 자동 테스트 남음) | [features/M1-auth-and-setup.md](features/M1-auth-and-setup.md) |
 | M2a | 설정 화면과 이미지 업로드 (M2 의 일부를 먼저) | 구현됨 (화면 확인 남음) | [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md) |
+| M2b | LDAP 연동, SSO(OpenID Connect) 연동, 이메일 아이디 | 구현됨 (화면·실제 서버 확인 남음) | [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) |
 | M2 | 구성원과 워크스페이스 설정 (나머지: 내 비밀번호 변경, 언어·시간대) | 초안 | 미작성 |
 | M3 | 프로젝트와 이슈 (구성원, 프로젝트 권한, 프리셋, 문서형 이슈, 목록, 댓글) | **1단계 구현됨, 2·3단계 핵심 구현됨**(이슈·편집기), 4단계 명세만 | [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) |
 | M4 | 커맨드 팔레트와 단축키, 실행 취소 | 초안 | 미작성 |
 | M5 | 보드 | 초안 | 미작성 |
 | M6 | 사이클 | 초안 | 미작성 |
 | M7 | 수신함과 트리아지 | 초안 | 미작성 |
+| M7a | 알림 통로: 메일(SMTP), 웹 푸시(Firebase), API 알림 (M7 의 일부를 먼저) | 구현됨 (화면·실제 서비스 확인 남음) | [features/M7a-notification-channels.md](features/M7a-notification-channels.md) |
 | M8 | 프로젝트 | 초안 | 미작성 |
 | M9 | 검색과 저장한 뷰 | 초안 | 미작성 |
 | M10 | 모바일 경험 다듬기 | 초안 | 미작성 |

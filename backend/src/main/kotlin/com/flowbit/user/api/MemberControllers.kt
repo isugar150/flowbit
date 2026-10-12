@@ -5,6 +5,7 @@ import com.flowbit.common.web.ClientInfo
 import com.flowbit.media.application.ImageStorage
 import com.flowbit.user.application.MemberAdminService
 import com.flowbit.user.application.UserService
+import com.flowbit.user.domain.AuthSource
 import com.flowbit.user.domain.User
 import com.flowbit.user.domain.UserRole
 import com.flowbit.user.domain.UserStatus
@@ -43,6 +44,8 @@ data class MemberResponse(
     val avatarUrl: String?,
     val role: UserRole,
     val status: UserStatus,
+    val authSource: AuthSource,
+    val email: String?,
     val lastLoginAt: Instant?,
     val createdAt: Instant,
 ) {
@@ -55,6 +58,8 @@ data class MemberResponse(
                 avatarUrl = ImageStorage.urlOf(user.avatarKey),
                 role = user.role,
                 status = user.status,
+                authSource = user.authSource,
+                email = user.email,
                 lastLoginAt = user.lastLoginAt,
                 createdAt = user.createdAt,
             )

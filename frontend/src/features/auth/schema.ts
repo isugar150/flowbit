@@ -10,16 +10,27 @@ export function normalizeLoginId(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
+export const EMAIL_PATTERN = /^[a-z0-9][a-z0-9._+-]*@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+/** What is wrong with a normalized login id: a plain id of 4 to 32 characters, or an e-mail address. */
+function loginIdProblem(loginId: string): string | null {
+  if (!loginId) return v.loginIdRequired;
+  if (loginId.includes("@")) {
+    return loginId.length <= 254 && EMAIL_PATTERN.test(loginId) ? null : v.loginIdEmailInvalid;
+  }
+  if (loginId.length < 4) return v.loginIdTooShort;
+  if (loginId.length > 32) return v.loginIdTooLong;
+  return LOGIN_ID_PATTERN.test(loginId) ? null : v.loginIdInvalid;
+}
+
 export const newLoginId = z
   .string()
   .transform(normalizeLoginId)
   .pipe(
-    z
-      .string()
-      .min(1, v.loginIdRequired)
-      .min(4, v.loginIdTooShort)
-      .max(32, v.loginIdTooLong)
-      .regex(LOGIN_ID_PATTERN, v.loginIdInvalid),
+    z.string().superRefine((value, context) => {
+      const problem = loginIdProblem(value);
+      if (problem) context.addIssue({ code: "custom", message: problem });
+    }),
   );
 
 export const newPassword = z.string().min(1, v.passwordRequired).min(10, v.passwordTooShort).max(128, v.passwordTooLong);

@@ -92,7 +92,7 @@ B 의 브라우저 ◀── WebSocket {"type":"changed","topic":"project:FLOW"}
 
 - **변경은 REST, 전파는 WebSocket.** 쓰기는 REST API 로 하고(검증, 권한, 오류 형식이 한 곳에 있다), 컨트롤러가 서비스의 트랜잭션이 커밋된 뒤 `RealtimeHub.publish(topic, actorId)` 를 부른다. WebSocket 으로 쓰기 명령을 받지 않는다.
 - 엔드포인트: `GET /api/v1/realtime` (WebSocket 업그레이드, `realtime/RealtimeWebSocketHandler.kt`). 다른 요청과 똑같이 세션 쿠키로 인증하고(로그인 안 됐으면 401), `Origin` 이 Flowbit 자신(`X-Forwarded-Host`, `Host`, 요청 URI 중 하나)인지 확인한다. 60초마다 세션이 살아 있는지 확인하고(세션을 연장하지 않는다), 끝났으면 코드 4401 로 닫는다.
-- **주제(topic)**: `project:{id}`(프로젝트 정보·속성·개요·구성원, 그 프로젝트의 이슈 목록), `issue:{번호}`(이슈 한 건, 그 이슈를 볼 수 있는 사람만), `issues`(어떤 이슈든 바뀜. 내용 없이 알리기만 하며 로그인한 누구나. 전체 이슈·내 이슈 화면이 듣는다). 이슈를 고치면 `issues`, 연결된(그리고 떠난) 프로젝트의 `project:`, `issue:` 를 알리고, 하위 이슈면 상위 이슈의 `issue:` 도 알린다 (D-062).
+- **주제(topic)**: `project:{id}`(프로젝트 정보·속성·개요·구성원, 그 프로젝트의 이슈 목록), `issue:{번호}`(이슈 한 건, 그 이슈를 볼 수 있는 사람만), `projects`(프로젝트 목록이 누군가에게 달라짐: 프로젝트 생성·이름/아이콘 변경, 구성원 추가·역할 변경·내보내기. 내용 없이 알리기만 하며 로그인한 누구나. 앱 전체 레이아웃이 들어서 사이드바와 프로젝트 목록을 다시 그린다), `issues`(어떤 이슈든 바뀜. 내용 없이 알리기만 하며 로그인한 누구나. 전체 이슈·내 이슈 화면이 듣는다). 이슈를 고치면 `issues`, 연결된(그리고 떠난) 프로젝트의 `project:`, `issue:` 를 알리고, 하위 이슈면 상위 이슈의 `issue:` 도 알린다 (D-062).
 - **메시지**
   - 브라우저 → 서버: `{"type":"subscribe","topics":[...],"presence":"issue:12"}`. 보낼 때마다 이전 구독을 바꾼다. `{"type":"focus","target":"description"}`(없으면 `null`)로 그 화면의 어느 부분을 가리키고 있는지 알린다.
   - 서버 → 브라우저: `{"type":"changed","topic","actorId"}`, `{"type":"presence","key","viewers":[{id,loginId,displayName,avatarUrl,focus}]}`, `{"type":"ping"}`(20초마다).
@@ -106,25 +106,34 @@ B 의 브라우저 ◀── WebSocket {"type":"changed","topic":"project:FLOW"}
 - **Next.js rewrite 와 WebSocket** (확인함): `next dev`/`next start` 모두 `/api` rewrite 로 WebSocket 업그레이드를 백엔드에 넘기고 `x-forwarded-host` 를 붙인다(`next/dist/server/lib/router-server.js` 의 `upgradeHandler`). 단, 운영 모드의 프록시는 30초 동안 오가는 것이 없으면 끊으므로 서버가 20초마다 `ping` 을 보낸다. 앞에 리버스 프록시(nginx 등)를 두면 `/api/v1/realtime` 에 `Upgrade`/`Connection` 헤더를 넘기도록 설정해야 한다.
 - 알려진 한계: 구독할 때만 권한을 확인한다. 연결 중에 프로젝트에서 내보내진 사람은 다시 연결하거나 화면을 옮길 때까지 "바뀌었다"는 알림(내용 없음)과 보는 사람 목록을 계속 받는다.
 
-## 알림 (메일, 웹 푸시를 붙일 자리)
+## 외부 로그인 (LDAP, SSO)
 
-이슈가 바뀌면 그 이슈를 **구독하는 사람**에게 알린다. 지금은 알릴 통로가 하나도 없고(아무것도 보내지 않는다), 통로를 꽂을 자리만 있다 (D-061).
+명세는 [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md). 설정은 환경 변수가 아니라 DB 에 있고 관리자 화면에서 바꾼다(재시작 없이 적용).
+
+- **LDAP**: UnboundID LDAP SDK. 블로킹 라이브러리라 `LdapDirectory` 가 모든 호출을 `Dispatchers.IO` 에서 한다. 연결은 로그인마다 하나를 맺어(풀 없음) 검색 계정 바인드 → 검색 → 사용자 바인드를 그 연결에서 차례로 한다 (D-094).
+- **SSO**: OpenID Connect 를 직접 구현했다(`OidcClient`, `SsoService`, `SsoController`). Spring Security 의 `oauth2Login` 은 인가 요청을 `WebSession` 에 두는데 이 프로젝트는 `WebSession` 을 만들지 않고, 설정도 DB 에서 실행 중에 바뀌기 때문이다. ID 토큰 검증만 `spring-security-oauth2-jose`(Nimbus)를 쓴다. SAML 은 Spring Security 가 WebFlux 를 지원하지 않아 하지 않는다 (D-088).
+- **SSO "직접 설정"**(D-094): OIDC 가 아닌 서비스(일반 OAuth 2.0, 사내 SSO)는 `OAuth2Client` 가 설정에 적힌 대로 코드를 교환한다. 서명 검증이 없으므로 설정한 주소에 서버가 직접 받아 온 응답이라는 것이 믿는 근거다.
+- 두 방식 모두 마지막에는 `ExternalAccountService.signIn` 이 계정을 찾거나 만들고 보통 로그인과 같은 세션을 연다.
+
+## 알림 (메일, 웹 푸시, API 알림)
+
+명세는 [features/M7a-notification-channels.md](features/M7a-notification-channels.md) (D-061, D-091~D-093). 설정은 DB 에 있고 관리자 화면에서 바꾼다.
 
 ```
-IssueController ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(IssueNotification)
-                                   │  등록된 NotificationChannel 빈을 차례로 부른다
-                                   ├─▶ (앞으로) SmtpNotificationChannel      : 메일
-                                   └─▶ (앞으로) FcmNotificationChannel       : Firebase 웹 푸시
+IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(IssueNotification)   기다리지 않는다
+                                        │  NotificationChannel 빈마다 백그라운드 코루틴
+                                        ├─▶ MailNotificationChannel      SMTP (Jakarta Mail, Dispatchers.IO)
+                                        ├─▶ PushNotificationChannel      Firebase Cloud Messaging HTTP v1 (WebClient)
+                                        └─▶ WebhookNotificationChannel   관리자가 정한 주소 (WebClient)
 ```
 
-- `notification/Notifications.kt`: `IssueNotification`(이슈 키·제목, 프로젝트 키, 바꾼 사람, 바뀐 일 목록, 받는 사람 id 목록), `NotificationChannel`(구현할 인터페이스), `NotificationDispatcher`.
-- **받는 사람** = 그 이슈의 구독자에서 바꾼 사람 본인을 뺀 것. 서비스가 트랜잭션 안에서 계산해 `IssueChange.recipientIds` 로 돌려준다.
-- **바뀐 일** = 활동 기록과 같은 종류와 값(`IssueActivityType`, `{from,to}`). 메일 본문이나 푸시 문구는 통로가 이것으로 만든다.
-- 통로는 요청 처리 중에(커밋 뒤) 불린다. 통로 하나가 실패해도 요청과 다른 통로는 실패하지 않고 로그만 남는다.
-- **SMTP 를 붙일 때**: `NotificationChannel` 을 구현한 빈을 만들고, 받는 사람의 주소는 `users.email`(지금은 비어 있다. 입력 화면이 필요하다)에서 읽는다. 메일 서버 설정은 환경 변수로 받는다.
-- **Firebase 웹 푸시를 붙일 때**: 브라우저가 받은 FCM 토큰을 저장할 테이블(사용자 id, 토큰, 만든 때)과 등록 API, 프런트의 서비스 워커가 필요하다. 통로는 받는 사람의 토큰으로 보낸다.
-- 보내는 일이 느려지거나(메일 서버 지연) 재시도가 필요해지면, 통로를 직접 부르는 대신 알림을 테이블에 쌓고 따로 내보내는 방식(아웃박스)으로 바꾼다. 그때 같은 테이블이 앱 안의 수신함도 된다.
-- 사용자별 알림 끄기·종류 고르기는 아직 없다. 구독이 유일한 스위치다.
+- `notification/` 패키지: `Notifications.kt`(`IssueNotification`, `NotificationChannel`, `NotificationDispatcher`), `NotificationText.kt`(세 통로가 함께 쓰는 문구), `MailChannel.kt`, `PushChannel.kt`, `WebhookChannel.kt`, `NotificationSettingsService.kt`, `NotificationControllers.kt`, `NotificationData.kt`(엔티티).
+- **받는 사람** = 그 이슈의 구독자에서 바꾼 사람 본인을 뺀 것. 서비스가 트랜잭션 안에서 계산해 `IssueChange.recipientIds` 로 돌려준다. 메일·푸시는 받는 사람이 없으면 아무것도 하지 않고, API 알림은 받는 사람과 무관하게 간다.
+- **바뀐 일** = 활동 기록과 같은 종류와 값(`IssueActivityType`, `{from,to}`).
+- 통로를 더하려면 `NotificationChannel` 을 구현한 빈을 만든다. 통로는 스스로 켜져 있는지 확인하고, 필요한 것(주소, 토큰)을 직접 찾는다.
+- 디스크에 쌓지 않는다. 보내는 중에 서버가 꺼지면 그 알림은 사라진다. 재시도는 API 알림만 한다(5xx·무응답, 두 번 더).
+- 프런트: `public/push-sw.js`(서비스 워커), `features/notifications/push.ts`(브라우저 등록, `firebase` 는 동적 import).
+- 링크에 쓰는 접속 주소는 `FLOWBIT_PUBLIC_URL`(`common/web/PublicUrl.kt`). 없으면 메일·API 알림의 링크가 경로뿐이다.
 
 ## 환경과 설정
 
@@ -137,6 +146,7 @@ IssueController ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(IssueNotif
 | `FLOWBIT_STORAGE_PATH` | backend | `./data/uploads` | 올린 이미지를 저장할 폴더. 상대 경로는 백엔드를 실행한 폴더 기준. **백업 대상** |
 | `FLOWBIT_MAX_UPLOAD_SIZE` | backend | `5MB` | 올릴 수 있는 파일 하나의 최대 크기 |
 | `SERVER_PORT` | backend | `8080` | 백엔드 포트 |
+| `FLOWBIT_PUBLIC_URL` | backend | 없음 | 사람들이 Flowbit 을 여는 주소(`https://flowbit.example.com`). **메일과 API 알림의 이슈 링크**에 쓴다(없으면 `/issue/FB-12` 같은 경로만 들어간다). SSO 리다이렉트 URI 에도 쓰는데, 그쪽은 비워 두면 요청의 `X-Forwarded-*` 로 알아낸다 |
 | `BACKEND_URL` | frontend | `http://localhost:8080` | Next.js 가 `/api` 를 넘기고 서버에서 직접 부를 백엔드 주소 |
 | `FLOWBIT_DEV_ORIGINS` | frontend (개발 서버만) | 없음 | `npm run dev` 를 localhost 가 아닌 주소(예: 사내망 `192.168.0.75`)로 열 때 허용할 호스트, 쉼표로 구분, `192.168.0.*` 같은 와일드카드 가능. 없으면 Next 16 이 그 주소에 `/_next` 스크립트를 403 으로 막아 화면이 동작하지 않는다(`next.config.ts` 의 `allowedDevOrigins`) |
 

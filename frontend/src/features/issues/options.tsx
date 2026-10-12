@@ -2,7 +2,7 @@ import { CircleSlashIcon, DiamondIcon, UserIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
-import { initials } from "@/lib/initials";
+import { initial } from "@/lib/initials";
 import { messages } from "@/messages";
 import type { ChipOption } from "./components/chip-select";
 import {
@@ -39,7 +39,7 @@ export function PersonAvatar({ person }: { person: PersonLike }) {
   return (
     <Avatar size="sm" className="size-4.5">
       {person.avatarUrl ? <AvatarImage src={person.avatarUrl} alt="" /> : null}
-      <AvatarFallback className="text-[0.5625rem]">{initials(name)}</AvatarFallback>
+      <AvatarFallback className="text-[0.625rem]">{initial(name)}</AvatarFallback>
     </Avatar>
   );
 }

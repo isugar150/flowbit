@@ -7,17 +7,45 @@ export function createMember(input: {
   displayName: string;
   role: WorkspaceRole;
 }): Promise<Member> {
-  return apiFetch<Member>("/api/v1/admin/members", { method: "POST", body: input });
+  return apiFetch<Member>("/api/v1/admin/members", {
+    method: "POST",
+    body: input,
+  });
 }
 
-export function updateMember(input: { id: string; role?: WorkspaceRole; status?: MemberStatus }): Promise<Member> {
+export function updateMember(input: {
+  id: string;
+  role?: WorkspaceRole;
+  status?: MemberStatus;
+}): Promise<Member> {
   const { id, ...changes } = input;
-  return apiFetch<Member>(`/api/v1/admin/members/${id}`, { method: "PATCH", body: changes });
+  return apiFetch<Member>(`/api/v1/admin/members/${id}`, {
+    method: "PATCH",
+    body: changes,
+  });
 }
 
-export function resetMemberPassword(input: { id: string; password: string }): Promise<void> {
+export function resetMemberPassword(input: {
+  id: string;
+  password: string;
+}): Promise<void> {
   return apiFetch<void>(`/api/v1/admin/members/${input.id}/password`, {
     method: "PUT",
     body: { password: input.password },
   });
+}
+
+/** One project and what a member may do in it; `role` is null when they are not a member. */
+export type MemberProjectRole = {
+  projectId: string;
+  name: string;
+  role: "MANAGER" | "EDITOR" | "VIEWER" | null;
+};
+
+export function memberProjectRoles(
+  memberId: string,
+): Promise<MemberProjectRole[]> {
+  return apiFetch<MemberProjectRole[]>(
+    `/api/v1/admin/members/${memberId}/projects`,
+  );
 }

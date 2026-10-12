@@ -19,3 +19,9 @@ export type SetupRequest = Credentials & {
   workspaceName: string;
   workspaceKey: string;
 };
+
+/** Response of GET /api/v1/auth/methods: the ways of signing in the sign-in page offers. */
+export type AuthMethods = {
+  ldap: boolean;
+  sso: { displayName: string; buttonStyle: "DEFAULT" | "NAVER_WORKS" } | null;
+};

@@ -29,7 +29,10 @@ import type { CellAlign, CellVerticalAlign } from "./table-extensions";
 
 const m = messages.editor.tableTools;
 
-/** Room the toolbar takes above the table, including the gap. */
+/**
+ * Room the toolbar takes above the table, including the gap. An editable table keeps this much
+ * space above itself (globals.css, `.tableWrapper`), so the toolbar never covers the line before it.
+ */
 const TOOLBAR_SPACE = 44;
 
 type Place = { top: number; left: number; maxWidth: number };
@@ -49,11 +52,14 @@ function toolbarPlace(editor: Editor, probe: HTMLElement | null): Place | null {
   if (rect.bottom < TOOLBAR_SPACE || rect.top > window.innerHeight) return null;
   // Fixed positioning, so the editor's own scroll box (as in the new issue window) cannot clip it.
   const origin = fixedOrigin(probe);
-  const left = Math.max(8, rect.left);
+  // No wider than the text column: next to the editor there may be other things (the property
+  // panel), and the toolbar must not lie over them.
+  const column = editor.view.dom.getBoundingClientRect();
+  const left = Math.max(8, column.left);
   return {
     top: Math.round(Math.max(8, rect.top - TOOLBAR_SPACE) - origin.y),
     left: Math.round(left - origin.x),
-    maxWidth: Math.round(window.innerWidth - left - 8),
+    maxWidth: Math.round(Math.max(160, Math.min(column.right, window.innerWidth - 8) - left)),
   };
 }
 
@@ -159,7 +165,9 @@ export function TableToolbar({ editor, probe }: { editor: Editor; probe: HTMLEle
       role="toolbar"
       aria-label={m.toolbar}
       style={place}
-      className="fixed z-50 flex w-fit flex-wrap items-center gap-0.5 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+      // One row whatever the width: a narrow column scrolls the buttons sideways instead of wrapping
+      // them over the text above.
+      className="fixed z-50 flex w-fit items-center gap-0.5 overflow-x-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 [scrollbar-width:none]"
     >
       <ToolButton label={m.addRowBefore} onRun={() => run().addRowBefore().run()}>
         <BetweenHorizontalEndIcon />

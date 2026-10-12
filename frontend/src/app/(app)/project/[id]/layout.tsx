@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import { PillTabs } from "@/components/pill-tabs";
@@ -5,10 +6,19 @@ import { ProjectIcon } from "@/components/project-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
-import { loadProject } from "@/lib/current-user";
+import type { Project } from "@/features/projects/types";
+import { loadProject, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
 
 const m = messages.projects;
+
+/** The browser tab carries the project's name on all of its pages. */
+export async function generateMetadata({ params }: LayoutProps<"/project/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  // Read without loadProject: a missing project is the page's to answer, not the title's.
+  const project = await serverGet<Project>(`/api/v1/projects/${encodeURIComponent(id)}`);
+  return project ? { title: project.name } : {};
+}
 
 /**
  * The project's header and tabs, with the avatars of whoever else is looking at the same page. They read the project, so they sit inside <Suspense>: with

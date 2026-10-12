@@ -153,4 +153,19 @@ class MembersIntegrationTest : IntegrationTest() {
     )
 
     private fun loginIds(response: com.flowbit.support.ApiResponse): List<String> = response.jsonList().map { it["loginId"] as String }
+
+    @Test
+    fun `관리자는 한 구성원이 프로젝트마다 가진 권한을 볼 수 있다`() {
+        val memberId = admin.post("/api/v1/admin/members", """{"loginId":"roles1","password":"$PASSWORD"}""").json()["id"]
+        val pay = admin.post("/api/v1/projects", """{"name":"결제"}""").json()["id"]
+        admin.post("/api/v1/projects", """{"name":"검색"}""")
+        admin.put("/api/v1/projects/$pay/members/$memberId", """{"role":"EDITOR"}""")
+
+        val roles = admin.get("/api/v1/admin/members/$memberId/projects")
+
+        assertEquals(200, roles.status)
+        assertEquals(listOf("검색" to null, "결제" to "EDITOR"), roles.jsonList().map { it["name"] to it["role"] })
+        val member = client().also { it.login("roles1", PASSWORD) }
+        assertEquals(403, member.get("/api/v1/admin/members/$memberId/projects").status)
+    }
 }

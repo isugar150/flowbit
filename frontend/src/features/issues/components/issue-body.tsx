@@ -7,7 +7,7 @@ import { useAutosave } from "@/lib/use-autosave";
 import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
 import { createDocument, updateIssue } from "../api";
-import type { Issue } from "../types";
+import type { IssueDetail } from "../types";
 
 const m = messages.issues;
 
@@ -15,7 +15,7 @@ const m = messages.issues;
  * Title and body of one issue, edited in place by people who may edit. There is no edit mode
  * and no save button; what is typed is saved a moment later.
  */
-export function IssueBody({ issue, canEdit }: { issue: Issue; canEdit: boolean }) {
+export function IssueBody({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
   const router = useRouter();
   const title = useAutosave(async (value: string) => {
     // An emptied title is not saved; the issue keeps its last title.
@@ -67,16 +67,14 @@ export function IssueBody({ issue, canEdit }: { issue: Issue; canEdit: boolean }
           className="min-h-40"
           onChange={content.schedule}
           keepLocal={content.isDirty}
-          // "/문서" in the body makes a document on this issue and leaves a link to it.
+          // "/문서" in the body makes a document on this issue and puts it there as a block.
+          documents={issue.documents}
           onCreateDocument={
             canEdit
-              ? async () => {
-                  const document = await createDocument({
-                    owner: { issueNumber: issue.number },
-                    title: messages.issues.documents.untitled,
-                  });
+              ? async (title) => {
+                  const document = await createDocument({ owner: { issueNumber: issue.number }, title });
                   router.refresh();
-                  return { href: `/doc/${document.id}`, title: document.title };
+                  return { id: document.id, title: document.title };
                 }
               : undefined
           }

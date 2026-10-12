@@ -531,6 +531,42 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `프로젝트의 문서는 다섯 단계까지 안에 문서를 만들 수 있고 이슈의 문서는 한 단계뿐이다`() {
+        fun child(parentId: Any?) = editor.post("/api/v1/documents/$parentId/documents", """{"title":"하위"}""")
+        val top = editor.post("/api/v1/projects/${p("PAY")}/documents", """{"title":"1단계"}""").json()["id"]
+
+        val ids = mutableListOf(top)
+        repeat(4) { ids += child(ids.last()).also { assertEquals(201, it.status) }.json()["id"] }
+
+        val tooDeep = child(ids.last())
+        assertEquals(409, tooDeep.status)
+        assertEquals("DOCUMENT_TOO_DEEP", tooDeep.json()["code"])
+        val deepest = viewer.get("/api/v1/documents/${ids.last()}").json()
+        assertEquals(ids.dropLast(1), (deepest["ancestors"] as List<*>).map { (it as Map<*, *>)["id"] })
+        assertEquals(false, deepest["canAddChild"])
+        val first = editor.get("/api/v1/documents/$top").json()
+        assertEquals(listOf(ids[1]), (first["children"] as List<*>).map { (it as Map<*, *>)["id"] })
+        assertEquals(true, first["canAddChild"])
+        // Only the documents made on the overview itself are listed for the project.
+        assertEquals(listOf(top), viewer.get("/api/v1/projects/${p("PAY")}/documents").jsonList().map { it["id"] })
+        assertEquals(403, viewer.post("/api/v1/documents/$top/documents", """{"title":"안 됨"}""").status)
+        // A page block in a body is accepted; one that does not point at a document is not.
+        val page = """{"type":"doc","content":[{"type":"pageLink","attrs":{"id":"${ids[1]}","title":"하위"}}]}"""
+        assertEquals(200, editor.patch("/api/v1/documents/$top", """{"content":$page}""").status)
+        val bad = """{"type":"doc","content":[{"type":"pageLink","attrs":{"id":"/etc/passwd"}}]}"""
+        assertEquals(422, editor.patch("/api/v1/documents/$top", """{"content":$bad}""").status)
+
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
+        val issueDocument = editor.post("/api/v1/issues/1/documents", """{"title":"회의록"}""").json()["id"]
+        assertEquals(409, child(issueDocument).status)
+        assertEquals(false, editor.get("/api/v1/documents/$issueDocument").json()["canAddChild"])
+
+        // Deleting a document takes the documents inside it along.
+        assertEquals(204, editor.delete("/api/v1/documents/$top").status)
+        assertEquals(404, editor.get("/api/v1/documents/${ids.last()}").status)
+    }
+
+    @Test
     fun `관리자가 이슈 키를 바꾸면 모든 이슈의 키가 바뀌고 번호는 그대로다`() {
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
 

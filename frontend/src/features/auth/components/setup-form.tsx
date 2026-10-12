@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { uploadWorkspaceLogo } from "@/features/settings/api";
 import { settingsErrorMessage } from "@/features/settings/error-message";
 import { ApiError } from "@/lib/api/errors";
-import { initials } from "@/lib/initials";
+import { mark } from "@/lib/initials";
 import { messages } from "@/messages";
 import { completeSetup } from "../api";
 import { formErrorMessage } from "../error-message";
@@ -193,7 +193,7 @@ export function SetupForm() {
           <LogoPicker
             id="logo"
             file={logo}
-            fallback={initials(workspaceName.trim() || "Flowbit")}
+            fallback={mark(workspaceName.trim() || "Flowbit")}
             disabled={pending}
             onChange={setLogo}
           />

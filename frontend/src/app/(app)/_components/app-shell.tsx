@@ -6,7 +6,8 @@ import type { Me } from "@/features/auth/types";
 import type { ProjectSummary } from "@/features/projects/types";
 import { RealtimeProvider } from "@/features/realtime/realtime-provider";
 import type { Workspace } from "@/features/settings/types";
-import { initials } from "@/lib/initials";
+import { mark } from "@/lib/initials";
+import { MobileNav } from "./mobile-nav";
 import { SidebarNav } from "./sidebar-nav";
 import { UserMenu } from "./user-menu";
 
@@ -42,7 +43,11 @@ export function AppShell({
           <div className="flex min-w-0 flex-1 flex-col md:py-2 md:pr-2">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:border">
               <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-2 md:hidden">
-                <WorkspaceLink workspace={workspace} />
+                {/* The sidebar is hidden at this width; the menu holds the same places. */}
+                <div className="flex min-w-0 items-center">
+                  <MobileNav projects={projects} />
+                  <WorkspaceLink workspace={workspace} />
+                </div>
                 <UserMenu user={user} placement="header" />
               </div>
               <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
@@ -67,7 +72,7 @@ function WorkspaceLink({ workspace }: { workspace: Workspace }) {
           <AvatarImage src={workspace.logoUrl} alt="" className="rounded-md" />
         ) : null}
         <AvatarFallback className="rounded-md bg-primary text-[0.625rem] font-semibold text-primary-foreground">
-          {initials(workspace.name)}
+          {mark(workspace.name, 1)}
         </AvatarFallback>
       </Avatar>
       <span className="truncate">{workspace.name}</span>

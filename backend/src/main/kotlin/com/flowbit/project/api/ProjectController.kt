@@ -153,7 +153,11 @@ class ProjectController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestBody body: CreateProjectRequest,
         exchange: ServerWebExchange,
-    ): ProjectResponse = ProjectResponse.from(projectService.create(user, body.name, body.description, ClientInfo.from(exchange)))
+    ): ProjectResponse {
+        val project = projectService.create(user, body.name, body.description, ClientInfo.from(exchange))
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
+        return ProjectResponse.from(project)
+    }
 
     @GetMapping("/{projectId}")
     suspend fun get(
@@ -176,6 +180,7 @@ class ProjectController(
     ): ProjectResponse {
         val project = projectService.update(user, projectId, body)
         realtime.publish("project:${project.id}", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
         return ProjectResponse.from(project)
     }
 
@@ -188,6 +193,7 @@ class ProjectController(
     ): ProjectResponse {
         val project = projectService.replaceIcon(user, projectId, uploadReader.read(file))
         realtime.publish("project:${project.id}", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
         return ProjectResponse.from(project)
     }
 
@@ -198,6 +204,7 @@ class ProjectController(
     ): ProjectResponse {
         val project = projectService.removeIcon(user, projectId)
         realtime.publish("project:${project.id}", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
         return ProjectResponse.from(project)
     }
 
@@ -216,6 +223,7 @@ class ProjectController(
     ): List<ProjectMemberResponse> {
         val members = projectService.putMember(user, projectId, userId, body.role)
         realtime.publish("project:$projectId", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
         return members.map(ProjectMemberResponse::from)
     }
 
@@ -228,5 +236,28 @@ class ProjectController(
     ) {
         projectService.removeMember(user, projectId, userId)
         realtime.publish("project:$projectId", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
     }
+}
+
+/** One project and what a given member may do in it; `role` is null when they are not a member. */
+data class MemberProjectRoleResponse(
+    val projectId: UUID,
+    val name: String,
+    val role: ProjectRole?,
+)
+
+/**
+ * Everything under `/api/v1/admin` requires the ADMIN role (SecurityConfig). Changing a role goes
+ * through the ordinary project member endpoints, which administrators may use on every project.
+ */
+@RestController
+@RequestMapping("/api/v1/admin/members")
+class AdminMemberProjectsController(
+    private val projectService: ProjectService,
+) {
+    @GetMapping("/{memberId}/projects")
+    suspend fun projects(
+        @PathVariable memberId: UUID,
+    ): List<MemberProjectRoleResponse> = projectService.rolesOf(memberId).map { (project, role) -> MemberProjectRoleResponse(project.id, project.name, role) }
 }

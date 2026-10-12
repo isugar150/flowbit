@@ -50,6 +50,7 @@ export function NewIssueDialog({
   milestones: defaultMilestones,
   labels,
   defaultMilestoneId = null,
+  defaultAssigneeId = null,
   defaultDates = null,
 }: {
   open: boolean;
@@ -65,6 +66,8 @@ export function NewIssueDialog({
   labels: Label[];
   /** Pre-selected when the list is filtered to one milestone. */
   defaultMilestoneId?: string | null;
+  /** Pre-selected on a list of one person's issues ("내 이슈"), so the new issue shows up there. */
+  defaultAssigneeId?: string | null;
   /** Dates to start with, when the dialog is opened from a day or a span of days on the calendar. */
   defaultDates?: { startDate: string | null; dueDate: string } | null;
 }) {
@@ -76,7 +79,14 @@ export function NewIssueDialog({
   const [createMore, setCreateMore] = useState(false);
   const [titleError, setTitleError] = useState(false);
   const [lastCreated, setLastCreated] = useState<string | null>(null);
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  // The title wraps instead of scrolling sideways: the field grows with what is typed.
+  useEffect(() => {
+    const field = titleRef.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${field.scrollHeight}px`;
+  }, [title, open]);
 
   const resetBody = () => {
     content.current = null;
@@ -94,6 +104,7 @@ export function NewIssueDialog({
         ...current,
         projectId: defaultProjectId,
         milestoneId: defaultMilestoneId,
+        assigneeId: current.assigneeId ?? defaultAssigneeId,
         startDate: defaultDates?.startDate ?? null,
         dueDate: defaultDates?.dueDate ?? null,
       }));
@@ -110,7 +121,7 @@ export function NewIssueDialog({
       setLastCreated(issue.key);
       titleRef.current?.focus();
     } else {
-      setProperties({ ...DEFAULT_PROPERTIES, projectId: defaultProjectId });
+      setProperties({ ...DEFAULT_PROPERTIES, projectId: defaultProjectId, assigneeId: defaultAssigneeId });
       resetBody();
       onOpenChange(false);
     }
@@ -181,8 +192,9 @@ export function NewIssueDialog({
           <div className="flex items-center gap-1 px-4 pt-3.5 text-[0.8125rem] leading-5">
             {projectId ? (
               <>
-                <Badge variant="secondary" className="max-w-48 truncate">
-                  {projects.find((project) => project.id === projectId)?.name ?? projectId}
+                {/* The name is cut at its end; the badge alone would centre it and lose both ends. */}
+                <Badge variant="secondary" className="max-w-48 justify-start">
+                  <span className="truncate">{projects.find((project) => project.id === projectId)?.name ?? projectId}</span>
                 </Badge>
                 <ChevronRightIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
               </>
@@ -191,8 +203,9 @@ export function NewIssueDialog({
           </div>
           <div className="flex flex-col md:flex-row">
           <div className="flex min-w-0 flex-1 flex-col gap-2 px-4 pt-3 pb-3">
-            <input
+            <textarea
               ref={titleRef}
+              rows={1}
               value={title}
               placeholder={m.titlePlaceholder}
               aria-label={m.titleLabel}
@@ -201,14 +214,15 @@ export function NewIssueDialog({
               maxLength={200}
               autoComplete="off"
               onChange={(event) => {
-                setTitle(event.target.value);
+                // A title is one line however it was typed or pasted.
+                setTitle(event.target.value.replace(/\s*\n\s*/g, " "));
                 setTitleError(false);
               }}
               onKeyDown={(event) => {
                 // Plain Enter must not create a half-written issue.
                 if (event.key === "Enter" && !event.ctrlKey && !event.metaKey) event.preventDefault();
               }}
-              className="w-full bg-transparent text-lg leading-7 font-semibold outline-none placeholder:font-medium placeholder:text-muted-foreground"
+              className="max-h-40 w-full resize-none bg-transparent text-lg leading-7 font-semibold outline-none placeholder:font-medium placeholder:text-muted-foreground"
             />
             {titleError ? (
               <p id="new-issue-title-error" role="alert" className="text-[0.8125rem] leading-5 text-destructive">

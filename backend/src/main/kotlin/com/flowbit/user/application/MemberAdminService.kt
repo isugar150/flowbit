@@ -1,6 +1,7 @@
 package com.flowbit.user.application
 
 import com.flowbit.auth.application.AuthenticatedUser
+import com.flowbit.auth.application.ExternalAuthSettingsService
 import com.flowbit.auth.application.PasswordHasher
 import com.flowbit.auth.application.SessionRevoker
 import com.flowbit.common.UuidV7
@@ -10,6 +11,7 @@ import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.web.ClientInfo
+import com.flowbit.user.domain.AuthSource
 import com.flowbit.user.domain.CredentialPolicy
 import com.flowbit.user.domain.User
 import com.flowbit.user.domain.UserRepository
@@ -34,6 +36,7 @@ class MemberAdminService(
     private val repository: UserRepository,
     private val entityTemplate: R2dbcEntityTemplate,
     private val passwordHasher: PasswordHasher,
+    private val externalAuthSettings: ExternalAuthSettingsService,
     private val sessionRevoker: SessionRevoker,
     private val auditService: AuditService,
     private val clock: Clock,
@@ -48,6 +51,10 @@ class MemberAdminService(
         role: UserRole,
         client: ClientInfo,
     ): User {
+        // With LDAP on, people come from the directory: they get an account by signing in.
+        if (externalAuthSettings.ldap().enabled) {
+            throw ConflictException("MEMBERS_FROM_DIRECTORY", "LDAP 을 사용하는 동안에는 구성원을 직접 추가할 수 없습니다. LDAP 계정으로 처음 로그인하면 구성원이 됩니다")
+        }
         val loginId = CredentialPolicy.normalizeLoginId(rawLoginId)
         val displayName = rawDisplayName?.trim()?.takeIf { it.isNotEmpty() }
         val errors = CredentialPolicy.validate(loginId, password).toMutableList()
@@ -55,7 +62,7 @@ class MemberAdminService(
             errors += UserService.displayNameTooLong()
         }
         if (errors.isNotEmpty()) throw ValidationException(errors)
-        if (repository.existsByLoginId(loginId)) throw loginIdTaken()
+        if (repository.existsByLoginIdOrEmail(loginId)) throw loginIdTaken()
 
         val now = clock.instant()
         val user = User.create(UuidV7.generate(now), loginId, passwordHasher.hash(password), role, displayName, now)
@@ -101,7 +108,10 @@ class MemberAdminService(
         return find(memberId)
     }
 
-    /** Sets a new password, clears any lockout, and signs the member out everywhere. */
+    /**
+     * Sets a new password, clears any lockout, and signs the member out everywhere. An account that
+     * signed in through LDAP or single sign-on becomes a local one again.
+     */
     suspend fun resetPassword(
         actor: AuthenticatedUser,
         memberId: UUID,
@@ -109,6 +119,15 @@ class MemberAdminService(
         client: ClientInfo,
     ) {
         val member = find(memberId)
+        if (externalAuthSettings.ldap().enabled) {
+            // Everyone's password lives in the directory; only administrators keep (or get back) one
+            // here, so that someone can still sign in when the directory is unreachable.
+            if (member.role != UserRole.ADMIN) {
+                throw ConflictException("PASSWORD_IN_DIRECTORY", "LDAP 을 사용하는 동안에는 관리자 계정의 비밀번호만 재설정할 수 있습니다. 다른 구성원의 비밀번호는 LDAP 에서 바꿉니다")
+            }
+        } else if (member.authSource != AuthSource.LOCAL) {
+            throw ConflictException("EXTERNAL_ACCOUNT", "LDAP 또는 SSO 로 로그인하는 계정의 비밀번호는 여기서 바꿀 수 없습니다")
+        }
         val errors = CredentialPolicy.validate(member.loginId, password)
         if (errors.isNotEmpty()) throw ValidationException(errors)
         repository.updatePassword(memberId, passwordHasher.hash(password), clock.instant())

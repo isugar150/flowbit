@@ -134,13 +134,13 @@ class RealtimeWebSocketHandler(
 
     /**
      * `project:<id>` is readable by whoever may enter the project, `issue:12` by whoever may see
-     * that issue, and `issues` (some issue changed, with no detail) by every signed-in person.
+     * that issue, and `issues` and `projects` (something changed, with no detail) by every signed-in person.
      */
     private suspend fun canRead(
         user: AuthenticatedUser,
         topic: String,
     ): Boolean {
-        if (topic == RealtimeHub.ISSUES) return true
+        if (topic == RealtimeHub.ISSUES || topic == RealtimeHub.PROJECTS) return true
         if (topic.startsWith("issue:")) {
             val number = topic.removePrefix("issue:").takeIf { ISSUE_NUMBER.matches(it) }?.toInt() ?: return false
             return issueService.canRead(user, number)

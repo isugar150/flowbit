@@ -77,6 +77,9 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
   - `POST /api/v1/setup`
   - `POST /api/v1/auth/login`
   - `GET /api/v1/auth/csrf`
+  - `GET /api/v1/auth/methods`, `GET /api/v1/auth/sso/start`, `GET /api/v1/auth/sso/callback` (SSO, [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md))
+- SSO 의 `start`·`callback` 은 JSON API 가 아니라 브라우저가 직접 여는 주소다. 항상 302 로 답하고, 실패는 문제 문서가 아니라 `/login?error=sso_…` 로 알린다.
+- 로그인 방법은 세 가지다: Flowbit 의 아이디·비밀번호, LDAP(같은 로그인 폼), SSO(OpenID Connect). 어느 쪽이든 결과는 같은 세션 쿠키다.
 
 ## CSRF
 

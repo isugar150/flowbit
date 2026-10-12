@@ -267,6 +267,9 @@ CREATE TABLE documents (
     id         uuid        PRIMARY KEY,
     issue_id   uuid        REFERENCES issues (id) ON DELETE CASCADE,
     project_id uuid        REFERENCES projects (id) ON DELETE CASCADE,
+    -- The document this one sits inside (a page block in its body). Only project documents nest,
+    -- five levels deep at most; the service checks both. Gone together with its parent.
+    parent_id  uuid        REFERENCES documents (id) ON DELETE CASCADE,
     title      text        NOT NULL DEFAULT '' CHECK (char_length(title) <= 200),
     content    jsonb,
     created_by uuid        NOT NULL REFERENCES users (id),
@@ -277,3 +280,4 @@ CREATE TABLE documents (
 
 CREATE INDEX documents_issue_id_idx ON documents (issue_id, created_at);
 CREATE INDEX documents_project_id_idx ON documents (project_id, created_at);
+CREATE INDEX documents_parent_id_idx ON documents (parent_id, created_at);

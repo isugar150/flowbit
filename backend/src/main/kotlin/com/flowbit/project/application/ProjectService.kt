@@ -22,6 +22,7 @@ import com.flowbit.project.domain.ProjectRole
 import com.flowbit.project.domain.ProjectStatus
 import com.flowbit.user.application.UserService
 import com.flowbit.user.domain.UserRole
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.stereotype.Service
@@ -245,6 +246,20 @@ class ProjectService(
         projectId: String,
     ): List<ProjectMemberRow> = memberStore.members(access(user, projectId).project.id)
 
+    /**
+     * Every project with the role [memberId] has in it (null: not a member), for the administrator
+     * screen that sets one person's project permissions. Only reached through `/api/v1/admin`.
+     */
+    suspend fun rolesOf(memberId: UUID): List<Pair<Project, ProjectRole?>> {
+        userService.findActive(memberId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
+        return repository
+            .findAll()
+            .toList()
+            .filter { it.archivedAt == null }
+            .sortedBy { it.name.lowercase() }
+            .map { it to memberStore.roleOf(it.id, memberId) }
+    }
+
     /** Adds a member or changes their role. */
     @Transactional
     suspend fun putMember(
@@ -314,7 +329,7 @@ class ProjectService(
     ) {
         val managers = memberStore.lockManagerIds(projectId)
         if (managers == listOf(memberId)) {
-            throw ConflictException("LAST_MANAGER", "프로젝트에는 관리 역할이 한 명 이상 있어야 합니다. 다른 사람을 먼저 관리 역할로 지정하세요")
+            throw ConflictException("LAST_MANAGER", "프로젝트에는 관리 역할이 한 명 이상 있어야 합니다. 다른 사람을 먼저 관리 역할로 지정하세요.")
         }
     }
 

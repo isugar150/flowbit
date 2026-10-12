@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { hasUnsavedEdits, onEditsSaved } from "@/lib/use-autosave";
 import { messages } from "@/messages";
 import { useSendFocus, useViewers } from "./realtime-provider";
 
@@ -56,26 +57,33 @@ function focusedTarget(): string | null {
   return targetOf(active);
 }
 
-/** The line the caret would stand on, after `offset` characters of the block's text. */
-function caretRect(block: Element, offset: number): { left: number; top: number; height: number } {
+/**
+ * The line the caret would stand on, after `offset` characters of the block's text. Null when
+ * the block has fewer characters: what they typed has not arrived here yet.
+ */
+function caretRect(block: Element, offset: number): { left: number; top: number; height: number } | null {
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
   let left = offset;
   let last: Text | null = null;
+  let found = false;
   for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
     if (node.length === 0) continue;
     last = node;
-    if (left <= node.length) break;
+    if (left <= node.length) {
+      found = true;
+      break;
+    }
     left -= node.length;
   }
+  if (!found && offset > 0) return null;
   if (last) {
     // A collapsed range has no box in some browsers, so measure the character beside the caret.
-    const at = Math.min(left, last.length);
     const range = document.createRange();
-    range.setStart(last, Math.max(at - 1, 0));
-    range.setEnd(last, Math.max(at, 1));
+    range.setStart(last, Math.max(left - 1, 0));
+    range.setEnd(last, Math.max(left, 1));
     const rects = range.getClientRects();
     const rect = rects[rects.length - 1];
-    if (rect) return { left: at === 0 ? rect.left : rect.right, top: rect.top, height: rect.height };
+    if (rect) return { left: left === 0 ? rect.left : rect.right, top: rect.top, height: rect.height };
   }
   // An empty block: the caret stands at its start.
   const rect = block.getBoundingClientRect();
@@ -87,10 +95,18 @@ function caretRect(block: Element, offset: number): { left: number; top: number;
  * Shows where someone else is in an editor: their caret with a name flag when `offset` is given
  * (they are typing), otherwise a frame around the block (they are pointing at it). The editor
  * owns its own DOM and would undo anything set on a block, so this is a separate box laid over
- * it, kept in place as the text reflows. Styled here rather than in the stylesheet, so that the
- * box is always lifted out of the flow.
+ * it. It is placed again whenever the text changes, and hidden while the place it points at is
+ * not here yet (their text arrives a moment after their caret). Styled here rather than in the
+ * stylesheet, so that the box is always lifted out of the flow.
  */
-function markBlock(host: HTMLElement, block: Element, names: string, color: string, offset: number | null): () => void {
+function markEditor(
+  host: HTMLElement,
+  editor: Element,
+  index: number,
+  offset: number | null,
+  names: string,
+  color: string,
+): () => void {
   const box = document.createElement("div");
   box.style.position = "absolute";
   box.style.pointerEvents = "none";
@@ -124,27 +140,35 @@ function markBlock(host: HTMLElement, block: Element, names: string, color: stri
   const hostWasStatic = getComputedStyle(host).position === "static";
   if (hostWasStatic) host.style.position = "relative";
   const place = () => {
+    const block = editor.children[index];
+    const caret = block && offset !== null ? caretRect(block, offset) : null;
+    if (!block || (offset !== null && !caret)) {
+      box.style.display = "none";
+      return;
+    }
+    box.style.display = "";
     const outer = host.getBoundingClientRect();
-    if (offset === null) {
+    if (caret) {
+      box.style.top = `${caret.top - outer.top}px`;
+      box.style.left = `${caret.left - outer.left - 1}px`;
+      box.style.height = `${caret.height}px`;
+    } else {
       const inner = block.getBoundingClientRect();
       box.style.top = `${inner.top - outer.top}px`;
       box.style.left = `${inner.left - outer.left}px`;
       box.style.width = `${inner.width}px`;
       box.style.height = `${inner.height}px`;
-    } else {
-      const caret = caretRect(block, offset);
-      box.style.top = `${caret.top - outer.top}px`;
-      box.style.left = `${caret.left - outer.left - 1}px`;
-      box.style.height = `${caret.height}px`;
     }
   };
   host.append(box);
   place();
-  const observer = new ResizeObserver(place);
-  observer.observe(host);
-  observer.observe(block);
+  const resized = new ResizeObserver(place);
+  resized.observe(host);
+  const edited = new MutationObserver(place);
+  edited.observe(editor, { childList: true, subtree: true, characterData: true });
   return () => {
-    observer.disconnect();
+    resized.disconnect();
+    edited.disconnect();
     box.remove();
     if (hostWasStatic) host.style.position = "";
   };
@@ -171,8 +195,16 @@ export function PresenceFocus() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const report = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => sendFocus(focusedTarget() ?? hovered), SETTLE_MS);
+      timer = setTimeout(() => {
+        const target = focusedTarget() ?? hovered;
+        // A caret is a place in the text, so it is only true once the text it stands in has been
+        // saved: it is sent after the save, and the others get the text and the caret together.
+        // Moving the caret without typing has nothing to wait for.
+        if (target?.includes("@") && hasUnsavedEdits()) return;
+        sendFocus(target);
+      }, SETTLE_MS);
     };
+    const stopListening = onEditsSaved(report);
     const onPointer = (event: PointerEvent) => {
       const next = targetOf(event.target);
       if (next === hovered) return;
@@ -192,6 +224,7 @@ export function PresenceFocus() {
     window.addEventListener("blur", onLeave);
     return () => {
       clearTimeout(timer);
+      stopListening();
       document.removeEventListener("pointerover", onPointer);
       document.removeEventListener("focusin", report);
       document.removeEventListener("focusout", report);
@@ -214,12 +247,13 @@ export function PresenceFocus() {
       const names = people.map((viewer) => viewer.displayName ?? viewer.loginId).join(", ");
       const [, mark, index, offset] = EDITOR_TARGET.exec(target) ?? [];
       const host = mark ? find(mark) : null;
-      const block = host?.querySelector(EDITOR)?.children[Number(index)];
-      if (host && block) {
-        frames.push(markBlock(host, block, names, colorOf(people[0].id), offset === undefined ? null : Number(offset)));
+      const editor = host?.querySelector(EDITOR);
+      if (host && editor) {
+        const caret = offset === undefined ? null : Number(offset);
+        frames.push(markEditor(host, editor, Number(index), caret, names, colorOf(people[0].id)));
         continue;
       }
-      // Not in an editor, or the block is not there (their text is longer than what is saved).
+      // Not in an editor.
       const element = host ?? find(target);
       if (!element) continue;
       element.setAttribute(SHOWN, names);

@@ -2,7 +2,6 @@
 
 import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
 import {
   BoxIcon,
   CircleDashedIcon,
@@ -34,7 +33,7 @@ import { ChipSelect, type ChipOption } from "./chip-select";
 import { projectOptions } from "./issue-properties";
 import { IssueMilestoneChart } from "./issue-timeline";
 import { IssueCalendarView, type IssueDates } from "./issue-calendar";
-import { IssueViewSwitch, useIssueView } from "./issue-views";
+import { IssueViewSwitch, useIssueView, useListAddress } from "./issue-views";
 import { LabelFilterChip, LabelPill } from "./label-chip";
 import { SubIssueContextRow, SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
 import { NewIssueDialog } from "./new-issue-dialog";
@@ -76,9 +75,12 @@ export function IssuesView({
   canEdit,
   deleted = false,
   empty,
+  defaultAssigneeId = null,
 }: {
   /** True when `issues` are the deleted ones: the list is then read-only, there to look things up. */
   deleted?: boolean;
+  /** Who a new issue made from this list is assigned to at first: the person whose issues these are. */
+  defaultAssigneeId?: string | null;
   /** What to say when there are no issues at all, where the usual words do not fit ("내 이슈"). */
   empty?: { title: string; description: string };
   /** The project whose issues these are; null on the list of every issue. */
@@ -96,8 +98,8 @@ export function IssuesView({
   const [dialogOpen, setDialogOpen] = useState(false);
   // The filters live in the address (`?status=TODO&milestone=<id>&q=…`), so the links on the
   // project overview open the list already narrowed, and back/forward and sharing keep it.
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // An issue open in a dialog changes the browser's address, not the list's (useListAddress).
+  const { pathname, searchParams } = useListAddress();
   // A filter value from the address: "none" stands for NONE, anything unknown counts as no filter.
   const readFilter = (key: ChipKey, known: (value: string) => boolean): string => {
     const param = searchParams.get(key);
@@ -446,6 +448,7 @@ export function IssuesView({
           milestones={milestones}
           labels={labels}
           defaultMilestoneId={milestoneFilter === ALL || milestoneFilter === NONE ? null : milestoneFilter}
+          defaultAssigneeId={defaultAssigneeId}
           defaultDates={dialogDates}
         />
       ) : null}

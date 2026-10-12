@@ -1,4 +1,4 @@
-import type { Me } from "@/features/auth/types";
+import type { AuthMethods, Me } from "@/features/auth/types";
 import type { Workspace } from "@/features/settings/types";
 
 /**
@@ -35,6 +35,17 @@ export async function fetchSetupCompleted(): Promise<boolean> {
   if (!response.ok) throw new BackendUnavailableError(response.status);
   const body = (await response.json()) as { completed: boolean };
   return body.completed;
+}
+
+/** Which ways of signing in are switched on. Public; a backend that cannot answer means "password only". */
+export async function fetchAuthMethods(): Promise<AuthMethods> {
+  try {
+    const response = await get("/api/v1/auth/methods");
+    if (response.ok) return (await response.json()) as AuthMethods;
+  } catch {
+    // The sign-in page still works with the password form alone.
+  }
+  return { ldap: false, sso: null };
 }
 
 /**

@@ -24,9 +24,12 @@ export function arrangeBySubIssues(group: Issue[]): IssueRow[] {
     }
   }
   const rows: IssueRow[] = [];
+  // Sub-issues read in the order they were made, the same as on their parent's own page; the
+  // list itself comes newest first.
+  const inOrder = (issues: Issue[]) => [...issues].sort((a, b) => a.number - b.number);
   const add = (issue: Issue, depth: number) => {
     rows.push({ kind: "issue", issue, depth });
-    for (const child of children.get(issue.number) ?? []) add(child, depth + 1);
+    for (const child of inOrder(children.get(issue.number) ?? [])) add(child, depth + 1);
   };
   const shownParents = new Set<number>();
   for (const issue of tops) {
@@ -39,7 +42,7 @@ export function arrangeBySubIssues(group: Issue[]): IssueRow[] {
     shownParents.add(parent.number);
     rows.push({ kind: "context", parent, depth: 0 });
     // Brothers and sisters stay together under the one line for their parent.
-    for (const sibling of tops) if (sibling.parent?.number === parent.number) add(sibling, 1);
+    for (const sibling of inOrder(tops)) if (sibling.parent?.number === parent.number) add(sibling, 1);
   }
   return rows;
 }

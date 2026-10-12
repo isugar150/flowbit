@@ -62,7 +62,7 @@ function Calendar({
         range_middle: cn("rounded-none", defaults.range_middle),
         range_end: cn("rounded-r-md bg-accent", defaults.range_end),
         today: cn(
-          "rounded-md bg-muted text-foreground data-[selected=true]:rounded-none",
+          "rounded-md bg-muted font-semibold text-primary data-[selected=true]:rounded-none",
           defaults.today
         ),
         outside: cn(

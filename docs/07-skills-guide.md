@@ -85,6 +85,7 @@ git clone --depth 1 https://github.com/anthropics/skills.git agent-skills/anthro
 | 위협 모델링 | `wshobson-agents/plugins/security-scanning/skills/stride-analysis-patterns` |
 | JVM 코드 작성 시 관점 | `wshobson-agents/plugins/jvm-languages/agents/java-pro.md` (에이전트 정의. Kotlin 전용 자료는 없어 Java 기준을 Kotlin 으로 옮겨 적용) |
 | 보안 관점의 백엔드 코드 | `wshobson-agents/plugins/backend-api-security/agents/backend-security-coder.md` |
+| 바깥 서버를 부르는 기능(웹훅, SSO, 메일) | 위 `backend-security-coder.md` 의 "외부 요청"(목적지 검증, SSRF), `error-handling-patterns`(재시도), `api-design-principles`(메서드 뜻). 알림 통로(M7a)를 만들 때 이것들을 봤다 |
 
 ### 공통
 

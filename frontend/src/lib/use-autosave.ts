@@ -4,6 +4,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+const dirtyChecks = new Set<() => boolean>();
+const savedListeners = new Set<() => void>();
+
+/** Whether anything typed on this page is still on its way to the server. */
+export function hasUnsavedEdits(): boolean {
+  for (const isDirty of dirtyChecks) if (isDirty()) return true;
+  return false;
+}
+
+/** Calls `listener` each time a round of saving ends. Returns how to stop. */
+export function onEditsSaved(listener: () => void): () => void {
+  savedListeners.add(listener);
+  return () => {
+    savedListeners.delete(listener);
+  };
+}
+
 /**
  * Saves a value a moment after the last change, with no save button. Changes made while a save
  * is in flight are sent right after it, always the latest value, so saves never arrive out of
@@ -38,6 +55,7 @@ export function useAutosave<T>(save: (value: T) => Promise<unknown>, delayMs = 8
         inFlight.current = false;
       }
     }
+    for (const listener of savedListeners) listener();
   }, []);
 
   const schedule = useCallback(
@@ -58,6 +76,13 @@ export function useAutosave<T>(save: (value: T) => Promise<unknown>, delayMs = 8
 
   /** Whether something typed here has not reached the server yet; then a newer server value must not replace it. */
   const isDirty = useCallback(() => timer.current !== null || pending.current !== null || inFlight.current, []);
+
+  useEffect(() => {
+    dirtyChecks.add(isDirty);
+    return () => {
+      dirtyChecks.delete(isDirty);
+    };
+  }, [isDirty]);
 
   return { schedule, flush, status, isDirty };
 }

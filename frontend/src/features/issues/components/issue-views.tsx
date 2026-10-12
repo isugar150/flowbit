@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CalendarIcon, ChartGanttIcon, ListIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,13 +12,30 @@ export const ISSUE_VIEWS = ["list", "milestone", "calendar"] as const;
 export type IssueViewMode = (typeof ISSUE_VIEWS)[number];
 
 /**
+ * The address of the list itself. While an issue is open in a dialog over the list the browser's
+ * address is the issue's (`/issue/FB-12`), without the list's view and filters; the list then
+ * keeps the address it had, so a calendar stays a calendar behind the dialog. A list drawn behind
+ * an issue that was opened by its address is the list of all issues.
+ */
+export function useListAddress(): { pathname: string; searchParams: URLSearchParams } {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
+  const behindIssue = pathname.startsWith("/issue/");
+  const [kept, setKept] = useState({ pathname: behindIssue ? "/issues" : pathname, query: behindIssue ? "" : query });
+  if (!behindIssue && (kept.pathname !== pathname || kept.query !== query)) setKept({ pathname, query });
+  return behindIssue
+    ? { pathname: kept.pathname, searchParams: new URLSearchParams(kept.query) }
+    : { pathname, searchParams: new URLSearchParams(query) };
+}
+
+/**
  * Which way a list of issues is shown: as the list, as a timeline chart by milestone
  * (issue-timeline.tsx), or on a calendar (issue-calendar.tsx). Kept
  * in the address (`?view=milestone`), so a reload, the back button and a shared link keep it.
  */
 export function useIssueView(): [IssueViewMode, (view: IssueViewMode) => void] {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { pathname, searchParams } = useListAddress();
   const param = searchParams.get("view");
   const view = ISSUE_VIEWS.find((item) => item === param) ?? "list";
   const setView = (next: IssueViewMode) => {

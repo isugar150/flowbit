@@ -3,6 +3,7 @@ package com.flowbit.project.application
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.UuidV7
 import com.flowbit.common.error.ForbiddenException
+import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.project.domain.ProjectHealth
 import kotlinx.coroutines.reactor.awaitSingle
@@ -26,6 +27,7 @@ data class ProjectUpdateView(
 /**
  * Project updates: how the project is going (health) and a short note. The latest update's
  * health is the project's health in the project list. Members read them; editors post them.
+ * An update can be taken back by whoever wrote it or by a manager of the project.
  */
 @Service
 class ProjectUpdateService(
@@ -69,6 +71,28 @@ class ProjectUpdateService(
             .rowsUpdated()
             .awaitSingle()
         return query(access.project.id, id).single()
+    }
+
+    /** Removes one update. The project's health falls back to the update before it. */
+    @Transactional
+    suspend fun delete(
+        user: AuthenticatedUser,
+        projectId: String,
+        updateId: UUID,
+    ) {
+        val access = projectService.access(user, projectId)
+        val update =
+            query(access.project.id, updateId).singleOrNull()
+                ?: throw NotFoundException("PROJECT_UPDATE_NOT_FOUND", "업데이트를 찾을 수 없습니다")
+        val own = update.author.id == user.id && access.role.canEdit
+        if (!own && !access.role.canManage) throw ForbiddenException("이 업데이트를 지울 권한이 없습니다")
+        databaseClient
+            .sql("delete from project_updates where id = :id and project_id = :projectId")
+            .bind("id", updateId)
+            .bind("projectId", access.project.id)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
     }
 
     private suspend fun query(

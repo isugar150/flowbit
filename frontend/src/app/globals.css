@@ -259,6 +259,11 @@
   .rich-text .tiptap .tableWrapper {
     overflow-x: auto;
   }
+  /* While editing, a table keeps room above itself for its toolbar (table-toolbar.tsx,
+     TOOLBAR_SPACE), which would otherwise lie over the line before the table. */
+  .rich-text-editable .tiptap .tableWrapper {
+    margin-top: 2.75rem;
+  }
   .rich-text .tiptap table {
     width: 100%;
     table-layout: fixed;
