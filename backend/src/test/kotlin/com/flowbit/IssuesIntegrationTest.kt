@@ -52,12 +52,12 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `상태 우선순위 담당자 프리셋 기한 설명을 함께 정해 만들 수 있다`() {
+    fun `상태 우선순위 담당자 기한 설명을 함께 정해 만들 수 있다`() {
         val created =
             editor.post(
                 "/api/v1/projects/PAY/issues",
                 """
-                {"title":"환불 흐름","description":"## 배경\n환불이 느리다","preset":"ENHANCEMENT","status":"READY",
+                {"title":"환불 흐름","description":"## 배경\n환불이 느리다","status":"READY",
                  "priority":"HIGH","assigneeId":"$editorId","dueDate":"2026-11-30"}
                 """.trimIndent(),
             )
@@ -66,7 +66,6 @@ class IssuesIntegrationTest : IntegrationTest() {
         val issue = created.json()
         assertEquals("READY", issue["status"])
         assertEquals("HIGH", issue["priority"])
-        assertEquals("ENHANCEMENT", issue["preset"])
         assertEquals("2026-11-30", issue["dueDate"])
         assertEquals("## 배경\n환불이 느리다", issue["description"])
         @Suppress("UNCHECKED_CAST")

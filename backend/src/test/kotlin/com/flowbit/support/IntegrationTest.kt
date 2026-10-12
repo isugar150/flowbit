@@ -18,7 +18,7 @@ import org.springframework.r2dbc.core.DatabaseClient
 @Import(TestcontainersConfiguration::class, TestClockConfiguration::class)
 abstract class IntegrationTest {
     @Value("\${local.server.port}")
-    private var port: Int = 0
+    protected var port: Int = 0
 
     @Autowired
     private lateinit var databaseClient: DatabaseClient

@@ -52,11 +52,10 @@ enum class ProjectPriority {
 class Project(
     @Id
     val id: UUID,
-    /** Prefix of issue keys (FLOW-12). Never changes. */
+    /** Short name in addresses (/project/FLOW). Never changes. */
     val key: String,
     var name: String,
     var description: String,
-    var nextIssueNumber: Int,
     val createdBy: UUID,
     var archivedAt: Instant?,
     val createdAt: Instant,

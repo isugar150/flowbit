@@ -2,7 +2,6 @@ import type { RichDoc } from "@/components/editor/rich-text-editor";
 
 export type IssueStatus = "BACKLOG" | "READY" | "IN_PROGRESS" | "DONE" | "CANCELED";
 export type IssuePriority = "NONE" | "URGENT" | "HIGH" | "MEDIUM" | "LOW";
-export type IssuePreset = "BUG" | "ENHANCEMENT" | "FEATURE";
 
 /** A workspace label (GET /api/v1/labels). */
 export type Label = {
@@ -62,8 +61,6 @@ export type Issue = {
   description: string;
   /** The body as an editor document. Only sent when a single issue is requested; null in lists. */
   content: RichDoc | null;
-  /** No longer shown or set; labels replaced it (D-060). */
-  preset: IssuePreset | null;
   status: IssueStatus;
   priority: IssuePriority;
   assignee: IssuePerson | null;

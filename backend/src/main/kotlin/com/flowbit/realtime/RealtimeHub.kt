@@ -3,7 +3,7 @@ package com.flowbit.realtime
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Sinks
-import java.time.Duration
+import reactor.core.scheduler.Schedulers
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -25,7 +25,7 @@ data class TopicChanged(
 
 /**
  * The in-process event bus behind realtime (docs/02-architecture.md "실시간 동기화"): change
- * notices for topics such as `project:FLOW` or `issue:FLOW-12`, and who is looking at which page.
+ * notices for topics such as `project:FLOW` or `issue:12`, and who is looking at which page.
  * Flowbit runs as a single instance, so memory is enough; several instances would relay through
  * PostgreSQL LISTEN/NOTIFY.
  */
@@ -33,6 +33,9 @@ data class TopicChanged(
 class RealtimeHub {
     private val changes = Sinks.many().multicast().directBestEffort<TopicChanged>()
     private val presenceChanges = Sinks.many().multicast().directBestEffort<String>()
+
+    /** The one thread that hands signals to the sinks; see [emit]. */
+    private val emitter = Schedulers.newSingle("realtime-hub", true)
 
     /** Connection id → the page it is on and who is on it (with what they are pointing at). */
     private val presence = ConcurrentHashMap<String, Pair<String, Viewer>>()
@@ -42,7 +45,7 @@ class RealtimeHub {
         topic: String,
         actorId: UUID,
     ) {
-        changes.emitNext(TopicChanged(topic, actorId), RETRY_WHEN_CONCURRENT)
+        emit { changes.tryEmitNext(TopicChanged(topic, actorId)) }
     }
 
     fun changes(): Flux<TopicChanged> = changes.asFlux()
@@ -57,8 +60,8 @@ class RealtimeHub {
         viewer: Viewer,
     ) {
         val previous = if (key == null) presence.remove(connectionId) else presence.put(connectionId, key to viewer)
-        previous?.first?.takeIf { it != key }?.let { presenceChanges.emitNext(it, RETRY_WHEN_CONCURRENT) }
-        key?.let { presenceChanges.emitNext(it, RETRY_WHEN_CONCURRENT) }
+        previous?.first?.takeIf { it != key }?.let(::presenceChanged)
+        key?.let(::presenceChanged)
     }
 
     /** Says which part of its page a connection is on. Ignored while the connection is on no page. */
@@ -67,11 +70,11 @@ class RealtimeHub {
         focus: String?,
     ) {
         val updated = presence.computeIfPresent(connectionId) { _, (key, viewer) -> key to viewer.copy(focus = focus) }
-        updated?.let { (key, _) -> presenceChanges.emitNext(key, RETRY_WHEN_CONCURRENT) }
+        updated?.let { (key, _) -> presenceChanged(key) }
     }
 
     fun leave(connectionId: String) {
-        presence.remove(connectionId)?.let { (key, _) -> presenceChanges.emitNext(key, RETRY_WHEN_CONCURRENT) }
+        presence.remove(connectionId)?.let { (key, _) -> presenceChanged(key) }
     }
 
     /**
@@ -86,11 +89,21 @@ class RealtimeHub {
             .distinctBy { it.id }
             .sortedBy { (it.displayName ?: it.loginId).lowercase() }
 
+    private fun presenceChanged(key: String) = emit { presenceChanges.tryEmitNext(key) }
+
+    /**
+     * Hands a signal to the sinks from one thread, one at a time. A sink must not be given two
+     * signals at once, and here they come from many request threads and even from inside the
+     * handling of another signal (a connection that closes while it is being written to calls
+     * [leave]). Emitting directly failed in exactly those cases and broke the connection that
+     * was emitting, so who-is-here updates stopped arriving.
+     */
+    private fun emit(signal: () -> Unit) {
+        emitter.schedule(signal)
+    }
+
     companion object {
         /** Topic for "some issue changed", heard by the lists that span projects (전체 이슈, 내 이슈). */
         const val ISSUES = "issues"
-
-        /** Several request threads may publish at once; a sink accepts one at a time, so retry briefly. */
-        private val RETRY_WHEN_CONCURRENT: Sinks.EmitFailureHandler = Sinks.EmitFailureHandler.busyLooping(Duration.ofMillis(200))
     }
 }

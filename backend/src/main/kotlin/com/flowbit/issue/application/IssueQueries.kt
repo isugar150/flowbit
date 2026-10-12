@@ -1,6 +1,5 @@
 package com.flowbit.issue.application
 
-import com.flowbit.issue.domain.IssuePreset
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueStatus
 import kotlinx.coroutines.reactor.awaitSingle
@@ -54,7 +53,6 @@ data class IssueView(
     val parent: IssueParent?,
     val title: String,
     val description: String,
-    val preset: IssuePreset?,
     val status: IssueStatus,
     val priority: IssuePriority,
     val assignee: IssuePerson?,
@@ -201,7 +199,7 @@ class IssueQueries(
         bind(
             databaseClient.sql(
                 """
-                select i.id, i.number, i.title, i.description, i.preset, i.status, i.priority, i.due_date,
+                select i.id, i.number, i.title, i.description, i.status, i.priority, i.due_date,
                        i.version, i.created_at, i.updated_at,
                        (select issue_key from instance_settings where id = 1) as issue_prefix,
                        p.key as project_key, p.name as project_name,
@@ -250,7 +248,6 @@ class IssueQueries(
                     },
                 title = checkNotNull(row.get("title", String::class.java)),
                 description = checkNotNull(row.get("description", String::class.java)),
-                preset = row.get("preset", String::class.java)?.let(IssuePreset::valueOf),
                 status = IssueStatus.valueOf(checkNotNull(row.get("status", String::class.java))),
                 priority = IssuePriority.valueOf(checkNotNull(row.get("priority", String::class.java))),
                 assignee = person("assignee"),

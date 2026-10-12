@@ -130,7 +130,7 @@ class ProjectService(
         if (repository.existsByKey(key)) throw keyTaken()
 
         val now = clock.instant()
-        val project = Project(UuidV7.generate(now), key, name, description, 1, user.id, null, now, now)
+        val project = Project(UuidV7.generate(now), key, name, description, user.id, null, now, now)
         try {
             entityTemplate.insert(project).awaitSingle()
         } catch (_: DuplicateKeyException) {

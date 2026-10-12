@@ -22,7 +22,6 @@ import com.flowbit.issue.application.IssueView
 import com.flowbit.issue.application.MyIssueScope
 import com.flowbit.issue.application.NewIssue
 import com.flowbit.issue.application.ReactionSummary
-import com.flowbit.issue.domain.IssuePreset
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueStatus
 import com.flowbit.media.api.UploadReader
@@ -113,8 +112,6 @@ data class IssueResponse(
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val content: String?,
-    @get:JsonInclude(JsonInclude.Include.ALWAYS)
-    val preset: IssuePreset?,
     val status: IssueStatus,
     val priority: IssuePriority,
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
@@ -148,7 +145,6 @@ data class IssueResponse(
                 title = issue.title,
                 description = issue.description,
                 content = issue.content,
-                preset = issue.preset,
                 status = issue.status,
                 priority = issue.priority,
                 assignee = issue.assignee?.let(IssuePersonResponse::from),
@@ -230,7 +226,6 @@ data class CreateIssueRequest(
     val title: String,
     val description: String? = null,
     val content: Map<String, Any?>? = null,
-    val preset: IssuePreset? = null,
     val status: IssueStatus? = null,
     val priority: IssuePriority? = null,
     val assigneeId: UUID? = null,
@@ -247,7 +242,6 @@ data class CreateIssueRequest(
             title,
             description,
             content,
-            preset,
             status,
             priority,
             assigneeId,

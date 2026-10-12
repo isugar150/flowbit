@@ -1,5 +1,7 @@
 # 05. 데이터 모델
 
+> **스키마 파일은 하나다** (`backend/src/main/resources/db/migration/V1__schema.sql`, D-067). 개발 단계라 그동안의 단계별 마이그레이션(V1~V12)을 하나로 합쳤다. 이 문서의 표는 그 파일의 설명이고, 어긋나면 파일이 기준이다. `issues.project_id` 는 프로젝트가 지워지면 null 이 된다(이슈는 남는다).
+
 스키마 설계나 검토 시 `agent-skills/wshobson-agents/plugins/database-design/skills/postgresql-table-design/SKILL.md` 를 참고한다.
 
 ## 공통 규칙
@@ -87,7 +89,7 @@
 
 이미지 자체는 DB 가 아니라 파일로 저장한다(`FLOWBIT_STORAGE_PATH/images/`). DB 에는 위의 `*_key` 컬럼에 파일 이름만 둔다. 규칙은 [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md). 이슈 첨부처럼 한 대상에 이미지가 여러 개 붙게 되면 그때 별도 테이블을 만든다.
 
-### `projects`, `project_members` (`V3`, M3 1단계)
+### `projects`, `project_members` (M3 1단계)
 
 | 테이블.컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -95,7 +97,6 @@
 | `projects.key` | `text` unique | 이슈 키의 접두어. `^[A-Z][A-Z0-9]{1,9}$`. 만든 뒤 바꾸지 않는다 |
 | `projects.name` | `text` | 1~80자 |
 | `projects.description` | `text` | 500자 이하, 기본 빈 문자열 |
-| `projects.next_issue_number` | `int` | 다음에 발급할 이슈 번호. 2단계에서 쓴다 |
 | `projects.created_by` | `uuid` FK → `users` | |
 | `projects.archived_at` | `timestamptz` null | 보관 기능용. 아직 쓰지 않는다 |
 | `projects.status` (`V6`) | `text` | `BACKLOG` \| `PLANNED` \| `IN_PROGRESS` \| `COMPLETED` \| `CANCELED`, 기본 `BACKLOG` |
@@ -109,7 +110,7 @@
 
 `project_members` 는 기본 키가 두 컬럼이라, `projects` 의 속성 컬럼은 배열(`labels`)이 있어서 Spring Data 리포지토리 대신 `ProjectMemberStore` 가 SQL 로 직접 다룬다.
 
-### `project_updates` (`V8`)
+### `project_updates`
 
 프로젝트가 어떻게 진행되는지 남기는 글. 가장 최근 것의 `health` 가 프로젝트의 건강도다 (D-048).
 
@@ -122,7 +123,7 @@
 | `body` | `text` | 평문, 5000자 이하, 기본 빈 문자열 |
 | `created_at` | `timestamptz` | |
 
-### `milestones` (`V7`)
+### `milestones`
 
 프로젝트 안의 단계. 이슈를 묶어 단계별 진행률을 본다 ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "마일스톤").
 
@@ -136,17 +137,16 @@
 
 `issues.milestone_id`(`V7`): `uuid` null FK → `milestones`. 마일스톤을 지우면 null 이 된다. 같은 프로젝트의 마일스톤인지는 서비스가 확인한다.
 
-### `issues` (`V4`), 문서 컬럼 (`V5`)
+### `issues`, 문서 컬럼
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `id` | `uuid` PK | |
 | `project_id` | `uuid` FK → `projects` (함께 삭제) | |
-| `number` | `int` | 프로젝트 안의 일련번호. `(project_id, number)` 유일. `projects.next_issue_number` 를 한 문장으로 증가시켜 발급 |
+| `number` | `int` | 워크스페이스 전체의 일련번호. 유일(`issues_number_key`). `instance_settings.next_issue_number` 를 한 문장으로 증가시켜 발급 |
 | `title` | `text` | 1~200자 |
 | `content` | `jsonb` null | 본문. 편집기 문서(JSON). `V5` |
 | `description` | `text` | 본문에서 뽑은 글자. 미리 보기와 검색용. 서버가 채운다 |
-| `preset` | `text` null | `BUG` \| `ENHANCEMENT` \| `FEATURE` |
 | `status` | `text` | `BACKLOG` \| `READY` \| `IN_PROGRESS` \| `DONE` \| `CANCELED` |
 | `priority` | `text` | `NONE` \| `URGENT` \| `HIGH` \| `MEDIUM` \| `LOW` |
 | `assignee_id` | `uuid` null FK → `users` (지워지면 null) | 프로젝트의 활성 구성원만 |
@@ -185,7 +185,7 @@ notifications (수신함)
 - 이슈 변경 이력은 필드 단위로 남긴다. 실행 취소와 활동 기록이 이것을 쓴다.
 - 삭제는 `deleted_at` 으로 표시하고 일정 기간 뒤에 실제로 지운다(실행 취소가 가능해야 한다).
 
-### `labels`, `issue_labels` (V10, D-060)
+### `labels`, `issue_labels` (D-060)
 
 워크스페이스 전체가 함께 쓰는 이슈 라벨. 이슈 하나에 여러 개 붙는다(최대 10개).
 
@@ -194,9 +194,8 @@ notifications (수신함)
 | `labels` | `id` uuid PK, `name` text(1~30자, 대소문자 무시하고 유일), `color` text(`#rrggbb`), `created_at` | 처음부터 `버그`, `기능`, `중요` 세 개가 들어 있다. 목록은 만든 순서 |
 | `issue_labels` | `issue_id`, `label_id` (둘이 PK, 둘 다 `ON DELETE CASCADE`) | 이슈와 라벨의 연결 |
 
-`issues.preset` 컬럼은 남아 있지만 화면에서 쓰지 않는다. 마이그레이션이 기존 프리셋 `BUG` → `버그`, `FEATURE` → `기능` 라벨로 옮겼다(`ENHANCEMENT` 는 대응하는 라벨이 없어 옮기지 않았다).
 
-### `issue_activities`, `issue_subscriptions` (V11, D-061)
+### `issue_activities`, `issue_subscriptions` (D-061)
 
 | 테이블 | 컬럼 | 설명 |
 |---|---|---|
@@ -205,14 +204,14 @@ notifications (수신함)
 
 마이그레이션이 기존 이슈마다 `CREATED` 한 줄을 넣고, 만든 사람과 담당자를 구독시켰다.
 
-### 독립 이슈, 하위 이슈, 리액션, 첨부, 문서 (V12, D-062~D-066)
+### 독립 이슈, 하위 이슈, 리액션, 첨부, 문서 (D-062~D-066)
 
 | 대상 | 내용 |
 |---|---|
 | `instance_settings.issue_key` | 모든 이슈 키의 앞부분(기본 `FB`). 관리자가 바꾼다. 형식은 프로젝트 키와 같다 |
 | `instance_settings.next_issue_number` | 다음 이슈 번호. 워크스페이스 전체에서 하나의 일련번호 |
 | `issues.project_id` | **null 허용**. 이슈가 연결된 프로젝트(없으면 독립 이슈). 바꿔도 번호는 그대로 |
-| `issues.number` | 워크스페이스 전체에서 유일(`issues_number_key`). 마이그레이션이 기존 이슈를 만든 순서대로 다시 매겼다. `projects.next_issue_number` 는 더 쓰지 않는다 |
+| `issues.number` | 워크스페이스 전체에서 유일(`issues_number_key`) |
 | `issues.parent_id` | 상위 이슈(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다 |
 | `issue_reactions` | `issue_id`, `user_id`, `emoji` (셋이 PK). 이모지는 서버가 정한 8개만 |
 | `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at` |

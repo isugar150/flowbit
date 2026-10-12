@@ -7,8 +7,10 @@ import type { Editor } from "@tiptap/react";
 import { GripVerticalIcon } from "lucide-react";
 import { messages } from "@/messages";
 
-/** How far left of a block its handle sits, and how wide the handle is. */
+/** How far left of a block its handle sits. The handle is this wide, so it touches the text with no gap to cross. */
 const HANDLE_OFFSET = 16;
+/** The handle stays this long after the pointer leaves the text, time enough to reach it. */
+const HIDE_DELAY_MS = 300;
 
 type Target = { pos: number; top: number; left: number };
 
@@ -54,13 +56,31 @@ export function BlockDragHandle({ editor, container }: { editor: Editor; contain
         previous?.pos === next?.pos && previous?.top === next?.top && previous?.left === next?.left ? previous : next,
       );
     };
-    const hide = () => setTarget(null);
-    container.addEventListener("mousemove", onMove);
-    container.addEventListener("mouseleave", hide);
+    let hiding: ReturnType<typeof setTimeout> | undefined;
+    const stay = () => clearTimeout(hiding);
+    const hide = () => {
+      clearTimeout(hiding);
+      setTarget(null);
+    };
+    // The handle sits at the very edge of the editor, so reaching it can take the pointer outside
+    // for a moment; hiding at once made it vanish just as the pointer arrived.
+    const hideSoon = () => {
+      clearTimeout(hiding);
+      hiding = setTimeout(() => setTarget(null), HIDE_DELAY_MS);
+    };
+    const onMoveInside = (event: MouseEvent) => {
+      stay();
+      // Over the handle itself the block is already chosen; measuring again from here would lose it.
+      if (event.target instanceof Element && event.target.closest("[data-block-handle]")) return;
+      onMove(event);
+    };
+    container.addEventListener("mousemove", onMoveInside);
+    container.addEventListener("mouseleave", hideSoon);
     container.addEventListener("keydown", hide);
     return () => {
-      container.removeEventListener("mousemove", onMove);
-      container.removeEventListener("mouseleave", hide);
+      clearTimeout(hiding);
+      container.removeEventListener("mousemove", onMoveInside);
+      container.removeEventListener("mouseleave", hideSoon);
       container.removeEventListener("keydown", hide);
     };
   }, [editor, container]);
@@ -70,11 +90,12 @@ export function BlockDragHandle({ editor, container }: { editor: Editor; contain
   return (
     <div
       draggable
+      data-block-handle
       contentEditable={false}
       title={messages.editor.dragBlock}
       aria-hidden="true"
       style={{ top: target.top, left: target.left }}
-      className="absolute z-10 flex h-[1.375rem] w-3.5 cursor-grab items-center justify-center rounded text-muted-foreground/70 hover:bg-accent hover:text-foreground active:cursor-grabbing max-md:hidden [&>svg]:size-3.5"
+      className="absolute z-10 flex h-[1.375rem] w-4 cursor-grab items-center justify-center rounded text-muted-foreground/70 hover:bg-accent hover:text-foreground active:cursor-grabbing max-md:hidden [&>svg]:size-3.5"
       onDragStart={(event) => {
         const { view, state } = editor;
         if (!state.doc.nodeAt(target.pos)) return event.preventDefault();

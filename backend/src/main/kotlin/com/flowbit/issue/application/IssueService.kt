@@ -8,7 +8,6 @@ import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.issue.domain.Issue
-import com.flowbit.issue.domain.IssuePreset
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueRepository
 import com.flowbit.issue.domain.IssueStatus
@@ -32,7 +31,6 @@ data class NewIssue(
     val description: String?,
     /** The body as an editor document. When present, `description` is derived from it. */
     val content: Any?,
-    val preset: IssuePreset?,
     val status: IssueStatus?,
     val priority: IssuePriority?,
     val assigneeId: UUID?,
@@ -187,7 +185,6 @@ class IssueService(
                 number = queries.nextNumber(),
                 title = title,
                 description = description,
-                preset = input.preset,
                 status = input.status ?: IssueStatus.BACKLOG,
                 priority = input.priority ?: IssuePriority.NONE,
                 assigneeId = input.assigneeId,
@@ -227,7 +224,6 @@ class IssueService(
 
         patch.enum("status", IssueStatus::valueOf)?.let { issue.status = it }
         patch.enum("priority", IssuePriority::valueOf)?.let { issue.priority = it }
-        if (patch.has("preset")) issue.preset = patch.enum("preset", IssuePreset::valueOf)
         if (patch.has("dueDate")) issue.dueDate = patch.date("dueDate")
         if (patch.has("projectKey")) {
             val projectId = patch.string("projectKey")?.let { editableProject(user, it).id }

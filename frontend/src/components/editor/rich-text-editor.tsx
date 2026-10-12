@@ -152,7 +152,7 @@ function readSlash(editor: Editor, probe: HTMLElement | null): SlashState | null
  * document only keeps their address. With the cursor in a table, a toolbar for it appears. A grip
  * to the left of the block under the pointer drags that block to another place.
  * Content goes in and out as JSON, never HTML. To replace the content from outside (for example
- * when a preset is applied), give the component a new `key` so it starts again.
+ * when a form is cleared), give the component a new `key` so it starts again.
  *
  * When `initialContent` changes afterwards (someone else saved, and the page was refreshed by
  * realtime), the new document is shown unless `keepLocal` says there is typing not yet saved here.

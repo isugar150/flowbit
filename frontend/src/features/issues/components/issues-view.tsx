@@ -30,7 +30,7 @@ function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
-/** "Every …" in a filter; NONE is "nobody" / "no milestone" / "no preset". */
+/** "Every …" in a filter; NONE is "nobody" / "no milestone" / "no label". */
 const ALL = "__all__";
 const FILTER_KEYS = ["project", "status", "priority", "assignee", "label", "milestone"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
@@ -261,7 +261,11 @@ export function IssuesView({
               </h2>
               <ul>
                 {group.items.map((issue) => (
-                  <li key={issue.id} className="flex h-10 items-center gap-2 border-b pr-5 pl-3 hover:bg-muted max-md:h-12">
+                  <li
+                    key={issue.id}
+                    data-presence-id={`issue-row:${issue.number}`}
+                    className="flex h-10 items-center gap-2 border-b pr-5 pl-3 hover:bg-muted max-md:h-12"
+                  >
                     {canEdit && mayEdit(issue) ? (
                       <ChipSelect
                         iconOnly

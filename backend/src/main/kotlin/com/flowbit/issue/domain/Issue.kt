@@ -12,9 +12,6 @@ enum class IssueStatus { BACKLOG, READY, IN_PROGRESS, DONE, CANCELED }
 
 enum class IssuePriority { NONE, URGENT, HIGH, MEDIUM, LOW }
 
-/** The kind of issue. On the client it decides the outline a new description starts with. */
-enum class IssuePreset { BUG, ENHANCEMENT, FEATURE }
-
 @Table("issues")
 class Issue(
     @Id
@@ -27,7 +24,6 @@ class Issue(
     val number: Int,
     var title: String,
     var description: String,
-    var preset: IssuePreset?,
     var status: IssueStatus,
     var priority: IssuePriority,
     var assigneeId: UUID?,
