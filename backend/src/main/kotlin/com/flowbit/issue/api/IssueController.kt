@@ -11,6 +11,7 @@ import com.flowbit.issue.application.NewIssue
 import com.flowbit.issue.domain.IssuePreset
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueStatus
+import com.flowbit.realtime.RealtimeHub
 import com.flowbit.media.application.ImageStorage
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -90,11 +91,15 @@ data class CreateIssueRequest(
     val dueDate: LocalDate? = null,
 )
 
-/** Access is decided inside IssueService for every call. */
+/**
+ * Access is decided inside IssueService for every call. Writes are announced on the realtime hub
+ * after IssueService has committed them.
+ */
 @RestController
 @RequestMapping("/api/v1/projects/{key}/issues")
 class IssueController(
     private val issueService: IssueService,
+    private val realtime: RealtimeHub,
 ) {
     @GetMapping
     suspend fun list(
@@ -108,14 +113,16 @@ class IssueController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable key: String,
         @RequestBody body: CreateIssueRequest,
-    ): IssueResponse =
-        IssueResponse.from(
+    ): IssueResponse {
+        val issue =
             issueService.create(
                 user,
                 key,
                 NewIssue(body.title, body.description, body.content, body.preset, body.status, body.priority, body.assigneeId, body.dueDate),
-            ),
-        )
+            )
+        realtime.publish("project:${issue.projectKey}", user.id)
+        return IssueResponse.from(issue)
+    }
 
     @GetMapping("/{number}")
     suspend fun get(
@@ -131,5 +138,10 @@ class IssueController(
         @PathVariable key: String,
         @PathVariable number: Int,
         @RequestBody body: Map<String, Any?>,
-    ): IssueResponse = IssueResponse.from(issueService.update(user, key, number, IssuePatch(body)))
+    ): IssueResponse {
+        val issue = issueService.update(user, key, number, IssuePatch(body))
+        realtime.publish("project:${issue.projectKey}", user.id)
+        realtime.publish("issue:${issue.key}", user.id)
+        return IssueResponse.from(issue)
+    }
 }

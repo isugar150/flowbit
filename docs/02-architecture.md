@@ -79,26 +79,31 @@ PostgreSQL 18 ── 데이터, 세션
 - 백엔드는 모듈형 모놀리스다. 마이크로서비스로 나누지 않는다.
 - **백엔드를 외부에 직접 노출하지 않는다.** 백엔드는 `X-Forwarded-For` 를 믿고 클라이언트 IP 를 판단한다(`server.forward-headers-strategy: native`). 직접 노출하면 IP 기준 요청 제한을 속일 수 있다.
 
-## 실시간 동기화 (M3 부터, 사용자 지정 D-024)
+## 실시간 동기화 (M3 부터, 사용자 지정 D-024, 구현 D-044)
 
 여러 사람이 같은 화면을 보고 있을 때 한 사람의 변경이 다른 사람 화면에 새로 고침 없이 반영되어야 한다. WebSocket 으로 구현한다.
 
 ```
-A 의 브라우저 ── PATCH /api/v1/issues/.. ──▶ 백엔드 ── 커밋 ──▶ 이벤트 발행
-                                                                │
-B 의 브라우저 ◀── WebSocket: 변경 이벤트 ◀──────────────────────┘
-(캐시에 반영, 화면 즉시 갱신)
+A 의 브라우저 ── PATCH /api/v1/projects/FLOW ──▶ 백엔드 ── 커밋 ──▶ RealtimeHub.publish("project:FLOW")
+                                                                          │
+B 의 브라우저 ◀── WebSocket {"type":"changed","topic":"project:FLOW"} ◀───┘
+(router.refresh() 로 서버 컴포넌트를 다시 그림)
 ```
 
-- **변경은 REST, 전파는 WebSocket.** 쓰기는 지금처럼 REST API 로 하고(검증, 권한, 오류 형식이 한 곳에 있다), 서버가 커밋 후에 변경 이벤트를 WebSocket 으로 뿌린다. WebSocket 으로 쓰기 명령을 받지 않는다.
-- 엔드포인트: `GET /api/v1/realtime` (WebSocket 업그레이드). 연결할 때 세션 쿠키로 인증하고 `Origin` 헤더를 확인한다. 세션이 끝나면 서버가 연결을 닫는다.
-- 이벤트: `{ type: "issue.updated", id, version, changes: {...}, actorId, at }` 형태. 받는 쪽은 TanStack Query 캐시의 해당 항목에 `changes` 를 합친다. 자기가 낸 변경은 이미 낙관적으로 반영했으므로 `version` 으로 중복을 걸러낸다.
-- 구독 범위: 연결 후 클라이언트가 보고 있는 범위(팀, 이슈)를 알리고, 서버는 그 범위이면서 볼 권한이 있는 이벤트만 보낸다.
-- 끊김: 자동 재연결(지수 백오프). 다시 붙으면 마지막으로 받은 이벤트 이후의 변경을 받거나, 간격이 크면 보고 있는 목록을 다시 조회한다. 연결이 끊긴 동안에도 앱은 동작해야 한다(REST 만으로).
-- 충돌: 필드 단위로 나중에 쓴 값이 이긴다. 같은 이슈의 다른 필드를 동시에 고치면 둘 다 남는다. 긴 글(이슈 설명)을 두 사람이 동시에 고친 경우는 덮어쓰지 않고 나중에 저장하는 쪽에 알린다. 한 글자씩 합치는 공동 편집(CRDT)은 범위 밖이다.
-- 서버 구현: WebFlux `WebSocketHandler` + 프로세스 안의 이벤트 버스(Reactor `Sinks`). 인스턴스가 하나이므로 이것으로 충분하다. 여러 인스턴스로 늘릴 때는 PostgreSQL `LISTEN/NOTIFY` 로 인스턴스 사이에 이벤트를 전달한다.
-- 표시: 누가 같은 이슈를 보고 있는지(프레즌스)는 이슈 상세에 아바타로 보여준다. 기반이 생긴 뒤에 추가한다.
-- **확인 필요**: Next.js 의 `/api` rewrite 가 WebSocket 업그레이드를 운영 환경에서 안정적으로 전달하는지. 안 되면 리버스 프록시에서 `/api/v1/realtime` 만 백엔드로 직접 보낸다. M3 에서 가장 먼저 확인한다.
+- **변경은 REST, 전파는 WebSocket.** 쓰기는 REST API 로 하고(검증, 권한, 오류 형식이 한 곳에 있다), 컨트롤러가 서비스의 트랜잭션이 커밋된 뒤 `RealtimeHub.publish(topic, actorId)` 를 부른다. WebSocket 으로 쓰기 명령을 받지 않는다.
+- 엔드포인트: `GET /api/v1/realtime` (WebSocket 업그레이드, `realtime/RealtimeWebSocketHandler.kt`). 다른 요청과 똑같이 세션 쿠키로 인증하고(로그인 안 됐으면 401), `Origin` 이 Flowbit 자신(`X-Forwarded-Host`, `Host`, 요청 URI 중 하나)인지 확인한다. 60초마다 세션이 살아 있는지 확인하고(세션을 연장하지 않는다), 끝났으면 코드 4401 로 닫는다.
+- **주제(topic)**: `project:{KEY}`(프로젝트 정보·속성·개요·구성원, 그 프로젝트의 이슈 목록), `issue:{KEY}-{N}`(이슈 한 건). 프로젝트에 들어갈 수 있는 사람만 구독된다. 이슈를 고치면 `project:` 와 `issue:` 둘 다 알린다.
+- **메시지**
+  - 브라우저 → 서버: `{"type":"subscribe","topics":[...],"presence":"issue:FLOW-12"}`. 보낼 때마다 이전 구독을 바꾼다.
+  - 서버 → 브라우저: `{"type":"changed","topic","actorId"}`, `{"type":"presence","key","viewers":[{id,loginId,displayName,avatarUrl}]}`, `{"type":"ping"}`(20초마다).
+- **받는 쪽**: 이벤트에 바뀐 값을 싣지 않는다. 받으면 그 화면을 `router.refresh()` 로 다시 그린다(연달아 오면 250ms 로 묶는다). 화면은 서버 컴포넌트가 데이터를 읽는 구조라, 자기 변경 뒤에 하는 것과 같은 방법이 가장 단순하고 어긋나지 않는다. 이 탭이 3초 안에 쓴 변경의 메아리는 건너뛴다(같은 사람의 다른 탭은 반영된다).
+- **편집 중인 글**: 문서 편집기와 제목·요약 입력은 서버에서 새 값이 오면 바꿔 보여 준다. 단, **그 칸에 아직 저장되지 않은 입력이 있으면 덮지 않는다**(`useAutosave().isDirty`). 동시에 고치면 나중에 저장한 쪽이 이긴다. 충돌 알림과 한 글자씩 합치는 공동 편집(CRDT)은 아직 없다.
+- **프레즌스**: 각 화면이 `presence` 키를 알리고(프로젝트 화면은 `project:KEY`, 이슈 상세는 `issue:KEY-N`), 서버는 같은 키를 보는 사람이 바뀔 때마다 그 목록을 보낸다. 화면 오른쪽 위(경로 표시 줄)에 **나를 뺀** 사람들의 아바타가 겹쳐 보이고, 마우스를 올리거나 키보드로 초점을 주면 이름이 보인다. 한 사람이 탭을 여러 개 열어도 한 번만 보인다.
+- 끊김: 지수 백오프(1초 → 최대 30초)로 다시 붙고, 다시 붙으면 놓친 변경이 있을 수 있으니 한 번 다시 그린다. 연결이 없어도 앱은 REST 만으로 동작한다.
+- 서버 구현: WebFlux `WebSocketHandler` + 프로세스 안의 이벤트 버스(Reactor `Sinks`, `realtime/RealtimeHub.kt`). 인스턴스가 하나이므로 이것으로 충분하다. 여러 인스턴스로 늘릴 때는 PostgreSQL `LISTEN/NOTIFY` 로 인스턴스 사이에 이벤트를 전달한다.
+- 프런트엔드: `features/realtime/realtime-provider.tsx`(연결 하나, `RealtimeScope`, `useViewers`), `features/realtime/components/presence-avatars.tsx`. `RealtimeProvider` 는 앱 틀(`app-shell.tsx`)에 있다. 새 화면이 실시간으로 갱신되어야 하면 그 화면에 `<RealtimeScope topics=[...] presence="..." />` 를 둔다.
+- **Next.js rewrite 와 WebSocket** (확인함): `next dev`/`next start` 모두 `/api` rewrite 로 WebSocket 업그레이드를 백엔드에 넘기고 `x-forwarded-host` 를 붙인다(`next/dist/server/lib/router-server.js` 의 `upgradeHandler`). 단, 운영 모드의 프록시는 30초 동안 오가는 것이 없으면 끊으므로 서버가 20초마다 `ping` 을 보낸다. 앞에 리버스 프록시(nginx 등)를 두면 `/api/v1/realtime` 에 `Upgrade`/`Connection` 헤더를 넘기도록 설정해야 한다.
+- 알려진 한계: 구독할 때만 권한을 확인한다. 연결 중에 프로젝트에서 내보내진 사람은 다시 연결하거나 화면을 옮길 때까지 "바뀌었다"는 알림(내용 없음)과 보는 사람 목록을 계속 받는다.
 
 ## 환경과 설정
 

@@ -12,6 +12,7 @@ import com.flowbit.project.application.ProjectView
 import com.flowbit.project.domain.ProjectPriority
 import com.flowbit.project.domain.ProjectRole
 import com.flowbit.project.domain.ProjectStatus
+import com.flowbit.realtime.RealtimeHub
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Locale
 import java.util.UUID
 
 data class ProjectResponse(
@@ -102,11 +104,15 @@ data class PutProjectMemberRequest(
     val role: ProjectRole,
 )
 
-/** Access is decided inside ProjectService for every call; see its class comment. */
+/**
+ * Access is decided inside ProjectService for every call; see its class comment. Writes are
+ * announced on the realtime hub after ProjectService has committed them.
+ */
 @RestController
 @RequestMapping("/api/v1/projects")
 class ProjectController(
     private val projectService: ProjectService,
+    private val realtime: RealtimeHub,
 ) {
     @GetMapping
     suspend fun list(
@@ -132,7 +138,11 @@ class ProjectController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable key: String,
         @RequestBody body: Map<String, Any?>,
-    ): ProjectResponse = ProjectResponse.from(projectService.update(user, key, body))
+    ): ProjectResponse {
+        val project = projectService.update(user, key, body)
+        realtime.publish("project:${project.key}", user.id)
+        return ProjectResponse.from(project)
+    }
 
     @GetMapping("/{key}/members")
     suspend fun members(
@@ -146,7 +156,11 @@ class ProjectController(
         @PathVariable key: String,
         @PathVariable userId: UUID,
         @RequestBody body: PutProjectMemberRequest,
-    ): List<ProjectMemberResponse> = projectService.putMember(user, key, userId, body.role).map(ProjectMemberResponse::from)
+    ): List<ProjectMemberResponse> {
+        val members = projectService.putMember(user, key, userId, body.role)
+        realtime.publish("project:${key.uppercase(Locale.ROOT)}", user.id)
+        return members.map(ProjectMemberResponse::from)
+    }
 
     @DeleteMapping("/{key}/members/{userId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -156,5 +170,6 @@ class ProjectController(
         @PathVariable userId: UUID,
     ) {
         projectService.removeMember(user, key, userId)
+        realtime.publish("project:${key.uppercase(Locale.ROOT)}", user.id)
     }
 }

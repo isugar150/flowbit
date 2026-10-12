@@ -48,6 +48,22 @@ const SLASH_ITEMS: SlashItem[] = [
   { id: "rule", label: m.divider, keywords: "hr divider line 구분선", icon: <MinusIcon />, run: (e, r) => block(e, r).setHorizontalRule().run() },
 ];
 
+/** Compares two documents by content; key order differs between the editor and the database (jsonb). */
+function sameDoc(a: RichDoc | null, b: RichDoc | null): boolean {
+  return stableJson(a) === stableJson(b);
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
 type SlashState = { from: number; to: number; query: string; top: number; left: number };
 
 const MENU_HEIGHT = 320;
@@ -77,6 +93,9 @@ function readSlash(editor: Editor): SlashState | null {
  * Type `/` for a menu of blocks; markdown shortcuts also work (`## `, `- `, `1. `, `[] `, `> `).
  * Content goes in and out as JSON, never HTML. To replace the content from outside (for example
  * when a preset is applied), give the component a new `key` so it starts again.
+ *
+ * When `initialContent` changes afterwards (someone else saved, and the page was refreshed by
+ * realtime), the new document is shown unless `keepLocal` says there is typing not yet saved here.
  */
 export function RichTextEditor({
   initialContent,
@@ -86,8 +105,11 @@ export function RichTextEditor({
   ariaLabel,
   className,
   autoFocus,
+  keepLocal,
 }: {
   initialContent: RichDoc | null;
+  /** True while this editor has edits the server has not stored yet. */
+  keepLocal?: () => boolean;
   /** Called with the document after each edit, or null when it has been emptied. */
   onChange?: (content: RichDoc | null) => void;
   editable?: boolean;
@@ -182,6 +204,25 @@ export function RichTextEditor({
   useEffect(() => {
     editor?.setEditable(editable);
   }, [editor, editable]);
+
+  const keepLocalRef = useRef(keepLocal);
+  useEffect(() => {
+    keepLocalRef.current = keepLocal;
+  }, [keepLocal]);
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || keepLocalRef.current?.()) return;
+    const shown = editor.isEmpty ? null : (editor.getJSON() as RichDoc);
+    if (sameDoc(shown, initialContent)) return;
+    const { from, to } = editor.state.selection;
+    if (initialContent) editor.commands.setContent(initialContent, { emitUpdate: false });
+    else editor.commands.clearContent(false);
+    if (editor.isFocused) {
+      // Keep the cursor about where it was rather than jumping to the end.
+      const max = editor.state.doc.content.size;
+      editor.commands.setTextSelection({ from: Math.min(from, max), to: Math.min(to, max) });
+    }
+  }, [editor, initialContent]);
 
   const items = slash ? matchingItems(slash.query) : [];
 

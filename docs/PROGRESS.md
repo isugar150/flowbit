@@ -11,12 +11,12 @@
 - **M2a(설정 화면과 이미지 업로드)가 구현됐다** ([features/M2a-settings-and-images.md](features/M2a-settings-and-images.md)). 백엔드는 테스트로 확인했고, **화면은 아무도 아직 확인하지 않았다** (에이전트는 사용자 계정의 비밀번호를 몰라 로그인 후 화면을 볼 수 없었다).
 - **M3 1단계(구성원 관리, 프로젝트, 프로젝트 권한)가 구현됐다** ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md)). 팀 개념은 없어지고 프로젝트로 합쳐졌다 (D-032). 2~4단계(프리셋, 문서형 이슈, 목록, 댓글)는 명세만 있다.
 - **이슈를 만들고, 목록에서 보고, 문서 편집기로 본문을 쓸 수 있다** (M3 2·3단계의 핵심). 화면 구조는 Linear 의 현재 UI를 따라 다시 짰다 (D-039). 무엇이 되고 안 되는지는 [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) 의 "지금 구현된 범위".
-- 실시간 동기화(WebSocket)는 설계만 있다 (D-024, [02-architecture.md](02-architecture.md) "실시간 동기화"). M3 에서 구현한다.
+- **실시간 동기화(WebSocket)와 "보는 사람" 아바타가 구현됐다** (D-044, [02-architecture.md](02-architecture.md) "실시간 동기화"). 두 계정으로 직접 확인한 사람은 아직 없다.
 - 개발 DB(`flowbit`)에는 사용자가 만든 관리자 계정이 있다. 지우지 않는다.
 
 ## 다음 작업
 
-**다음 차례는 M3 의 남은 것이다**: 라벨, 필터, 완료 조건 진행률, 댓글과 변경 이력, 실시간 반영, 낙관적 업데이트, 편집기의 이미지 블록 (명세의 "아직 없는 것"). 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
+**다음 차례는 M3 의 남은 것이다**: 이슈 라벨, 필터, 완료 조건 진행률, 댓글과 변경 이력, 낙관적 업데이트, 편집기의 이미지 블록 (명세의 "아직 없는 것"). 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
 
 (이전 메모) M3 2단계(프리셋과 문서형 이슈 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
 
@@ -88,6 +88,8 @@
 - [x] 프로젝트 속성: 상태, 우선순위, 리드, 기간(시작일 → 종료일), 라벨. `V6` 마이그레이션, `PATCH /api/v1/projects/{key}` 확장, 개요의 속성 카드 (D-042, [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "프로젝트 속성")
 - [x] `/project/[key]` 의 "uncached data outside of `<Suspense>`" 오류: 프로젝트 레이아웃의 조회를 `<Suspense>` 안으로 옮기고 `project/[key]/loading.tsx` 추가 ([04-frontend-guide.md](04-frontend-guide.md) 규칙 추가)
 - [x] 날짜 선택을 달력 팝오버로 교체 (D-043): 이슈 기한은 `DateChip`, 프로젝트 기간은 `DateRangeChip`(첫 클릭 시작일, 두 번째 클릭 종료일). `react-day-picker` 추가
+- [x] 실시간 반영과 프레즌스 (D-044): 백엔드 `realtime` 모듈(`RealtimeHub`, `RealtimeWebSocketHandler`), `SessionService.isActive`, 프로젝트·이슈 컨트롤러의 알림, 프런트 `RealtimeProvider`·`RealtimeScope`·`PresenceAvatars`, 편집기·입력 칸의 원격 값 반영, `components/ui/tooltip.tsx`
+- [ ] 실시간: 두 브라우저(다른 계정)로 확인, `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. **백엔드는 이 환경에서 컴파일하지 못했다**(JDK 25 없음, Maven Central 429). 사용자 PC 에서 `./gradlew check` 가 먼저다
 - [ ] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 (달력 팝오버 포함) (사용자가 "작업 뒤 테스트하지 말 것"을 지정해 하지 않았다)
 
 ## 화면을 직접 확인하는 방법 (사용자 계정 없이)
@@ -119,11 +121,17 @@
 
 [09-decisions.md](09-decisions.md) 의 "미결정" 표 참고. 작업 중 새로 생긴 질문은 아래에 적는다.
 
-- 사용자가 "실시간 기능을 추가했는데 설명 편집이 다른 클라이언트에 반영되지 않는다"고 했다. 그러나 저장소(원격 `main` 포함)에는 WebSocket 코드가 없다. 사용자의 로컬 변경이 아직 올라오지 않은 것으로 보인다. 요청 내용: 설명 편집·설정 변경이 다른 클라이언트에 바로 반영, 같은 화면을 보는 사람의 아바타를 오른쪽 위에 표시(마우스를 올리면 이름).
+- (없음)
 
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 실시간 반영과 보는 사람 아바타
+
+- 사용자 지시: A 계정이 프로젝트 설명·속성을 바꾸면 B 계정 브라우저에 바로 반영. 설명 편집도. 같은 화면을 보는 사람의 아바타를 오른쪽 위에, 마우스를 올리면 이름.
+- 사용자는 "웹소켓을 적용했는데 안 된다"고 했지만, 저장소(원격의 모든 브랜치)에는 WebSocket 코드가 없었다. 문서의 설계대로 새로 만들었다.
+- 확인한 범위: 프런트 typecheck, eslint. 백엔드는 컴파일도 못 했다(위 체크리스트). Next 의 rewrite 가 WebSocket 을 넘기는지는 `node_modules/next` 코드를 읽어 확인했다.
 
 ### 2026-10-12 — 달력 날짜 선택
 

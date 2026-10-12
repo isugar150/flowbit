@@ -3,6 +3,7 @@
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
 import { useAutosave } from "@/lib/use-autosave";
+import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
 import { updateProject } from "../api";
 import type { Project } from "../types";
@@ -26,11 +27,13 @@ export function ProjectOverviewEditor({
   const summary = useAutosave((description: string) => updateProject({ key: project.key, changes: { description } }));
   const content = useAutosave((doc: RichDoc | null) => updateProject({ key: project.key, changes: { content: doc } }));
   const status = content.status !== "idle" ? content.status : summary.status;
+  const summaryInput = useRemoteValue<HTMLInputElement>(project.description, summary.isDirty);
 
   return (
     <div className="flex flex-col gap-6">
       {canEdit ? (
         <input
+          ref={summaryInput}
           defaultValue={project.description}
           placeholder={m.summaryPlaceholder}
           aria-label={m.summaryLabel}
@@ -57,6 +60,7 @@ export function ProjectOverviewEditor({
             ariaLabel={m.contentLabel}
             className="min-h-40"
             onChange={content.schedule}
+            keepLocal={content.isDirty}
           />
         ) : (
           <p className="text-muted-foreground">{m.noDescription}</p>

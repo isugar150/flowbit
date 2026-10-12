@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
 import { useAutosave } from "@/lib/use-autosave";
+import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
 import type { Issue } from "../types";
@@ -27,6 +28,7 @@ export function IssueBody({ projectKey, issue, canEdit }: { projectKey: string; 
     updateIssue({ projectKey, number: issue.number, changes: { content: doc } }),
   );
   const status = content.status !== "idle" ? content.status : title.status;
+  const titleInput = useRemoteValue<HTMLInputElement>(issue.title, title.isDirty);
 
   return (
     <>
@@ -37,6 +39,7 @@ export function IssueBody({ projectKey, issue, canEdit }: { projectKey: string; 
         </div>
         {canEdit ? (
           <input
+            ref={titleInput}
             defaultValue={issue.title}
             aria-label={m.titleLabel}
             maxLength={200}
@@ -60,6 +63,7 @@ export function IssueBody({ projectKey, issue, canEdit }: { projectKey: string; 
           ariaLabel={m.descriptionLabel}
           className="min-h-40"
           onChange={content.schedule}
+          keepLocal={content.isDirty}
         />
       ) : (
         <p className="text-muted-foreground">{m.noDescription}</p>

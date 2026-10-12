@@ -5,13 +5,15 @@ import { PageHeader } from "@/components/page-header";
 import { PillTabs } from "@/components/pill-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Project } from "@/features/projects/types";
+import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
+import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
 
 const m = messages.projects;
 
 /**
- * The project's header and tabs. They read the project, so they sit inside <Suspense>: with
+ * The project's header and tabs, with the avatars of whoever else is looking at the same page. They read the project, so they sit inside <Suspense>: with
  * cacheComponents, request data read outside a boundary blocks every navigation between tabs.
  */
 export default function ProjectLayout({ children, params }: LayoutProps<"/project/[key]">) {
@@ -34,7 +36,12 @@ async function ProjectNav({ params }: { params: LayoutProps<"/project/[key]">["p
 
   return (
     <>
-      <PageHeader crumbs={[{ label: m.all, href: "/" }, { label: project.name, icon: <BoxIcon /> }]} />
+      {/* Anything in this project changing re-renders it for everyone who has it open. */}
+      <RealtimeScope topics={[`project:${project.key}`]} presence={`project:${project.key}`} />
+      <PageHeader
+        crumbs={[{ label: m.all, href: "/" }, { label: project.name, icon: <BoxIcon /> }]}
+        actions={<PresenceAvatars />}
+      />
       <PillTabs
         label={m.tabsLabel}
         tabs={[

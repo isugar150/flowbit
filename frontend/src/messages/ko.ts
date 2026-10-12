@@ -106,6 +106,10 @@ export const ko = {
     saveFailed: "저장하지 못했습니다. 계속 쓰면 다시 시도합니다.",
     hint: "'/' 를 눌러 제목, 목록, 체크리스트를 넣을 수 있습니다.",
   },
+  realtime: {
+    viewersLabel: (names: string) => `지금 보고 있는 사람: ${names}`,
+    viewing: (name: string) => `${name} · 보는 중`,
+  },
   dates: {
     clear: "날짜 지우기",
     pickStart: "시작일을 고르세요",

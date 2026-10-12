@@ -24,6 +24,16 @@ async function csrfToken(forceRefresh = false): Promise<string | null> {
   return readCookie(CSRF_COOKIE);
 }
 
+let lastWriteAt = 0;
+
+/**
+ * When this tab last sent a change. The realtime connection uses it to skip the echo of its own
+ * writes (the page already refreshes after a mutation) while other tabs still pick them up.
+ */
+export function lastLocalWriteAt(): number {
+  return lastWriteAt;
+}
+
 type Options = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** A plain value is sent as JSON. A FormData is sent as multipart, which is how files are uploaded. */
@@ -48,6 +58,7 @@ export async function apiFetch<T>(path: string, { method = "GET", body }: Option
     return send(path, { method, headers, body: payload });
   };
 
+  if (method !== "GET") lastWriteAt = Date.now();
   let response = await request(false);
   if (!response.ok) {
     let error = await toApiError(response);

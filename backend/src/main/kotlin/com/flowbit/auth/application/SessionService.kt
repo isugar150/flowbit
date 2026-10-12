@@ -73,6 +73,16 @@ class SessionService(
         return AuthenticatedUser(user.id, user.loginId, user.role, session.id)
     }
 
+    /**
+     * Whether a session is still usable, without touching it. Used by long-lived connections
+     * (realtime), which must not keep an idle session alive just by being open.
+     */
+    suspend fun isActive(sessionId: UUID): Boolean {
+        val session = repository.findById(sessionId) ?: return false
+        if (session.isExpired(clock.instant(), properties.sessionIdleTimeout, properties.sessionMaxAge)) return false
+        return userService.findActive(session.userId) != null
+    }
+
     suspend fun end(sessionId: UUID) {
         repository.deleteById(sessionId)
     }

@@ -7,6 +7,7 @@ import { IssueBody } from "@/features/issues/components/issue-body";
 import { IssueProperties } from "@/features/issues/components/issue-properties";
 import type { Issue } from "@/features/issues/types";
 import type { Project, ProjectMember } from "@/features/projects/types";
+import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
 
@@ -28,6 +29,8 @@ export default async function IssuePage({ params }: PageProps<"/project/[key]/is
 
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 pt-2 pb-10 lg:flex-row lg:items-start lg:gap-6">
+      {/* Presence on an issue page is about this issue, not the whole project. */}
+      <RealtimeScope topics={[`issue:${issue.key}`]} presence={`issue:${issue.key}`} priority={1} />
       <article className="mx-auto flex w-full max-w-3xl min-w-0 flex-1 flex-col gap-5 px-2 pt-4 sm:px-6 lg:pt-8">
         <Link
           href={`/project/${project.key}/issues`}

@@ -56,5 +56,8 @@ export function useAutosave<T>(save: (value: T) => Promise<unknown>, delayMs = 8
     [flush],
   );
 
-  return { schedule, flush, status };
+  /** Whether something typed here has not reached the server yet; then a newer server value must not replace it. */
+  const isDirty = useCallback(() => timer.current !== null || pending.current !== null || inFlight.current, []);
+
+  return { schedule, flush, status, isDirty };
 }
