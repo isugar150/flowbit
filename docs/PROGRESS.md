@@ -91,6 +91,9 @@
 - [x] 실시간 반영과 프레즌스 (D-044): 백엔드 `realtime` 모듈(`RealtimeHub`, `RealtimeWebSocketHandler`), `SessionService.isActive`, 프로젝트·이슈 컨트롤러의 알림, 프런트 `RealtimeProvider`·`RealtimeScope`·`PresenceAvatars`, 편집기·입력 칸의 원격 값 반영, `components/ui/tooltip.tsx`
 - [x] 마일스톤 (D-045): `V7`, `milestone` 모듈(API 4개), 이슈의 `milestoneId`, 개요의 마일스톤 목록과 진행률, 이슈 상세·새 이슈 창의 마일스톤 칩, 이슈 목록의 마일스톤 거르기(`?milestone=`)
 - [x] 전체 프로젝트(`/`)를 Linear 식 표로 (D-046): 프로젝트 목록 API 에 `issueCount`, `doneCount`, `currentMilestone` 추가
+- [x] 모든 프로젝트를 목록에 표시, 들어갈 수 없는 프로젝트는 `/no-access/{key}` 에서 관리자 안내 (D-047). `GET /api/v1/projects/{key}/access`, 프런트 `loadProject`(lib/current-user.ts). `ProjectsIntegrationTest` 의 해당 테스트를 고쳤다(돌려 보지 못했다)
+- [x] 프로젝트 업데이트와 건강도 (D-048): `V8`, `ProjectUpdateService`/`ProjectUpdateController`, 개요의 "프로젝트 업데이트", 속성 카드와 목록의 건강도, `--success` 색
+- [ ] 프로젝트 업데이트: `ProjectUpdatesIntegrationTest`(권한, 최근 건강도가 목록에 반영) 작성
 - [ ] 마일스톤: `MilestonesIntegrationTest`(권한, 다른 프로젝트 마일스톤 거부, 진행률 계산, 삭제 시 이슈 유지)와 화면 확인
 - [ ] 실시간: 두 브라우저(다른 계정)로 확인, `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. **백엔드는 이 환경에서 컴파일하지 못했다**(JDK 25 없음, Maven Central 429). 사용자 PC 에서 `./gradlew check` 가 먼저다
 - [ ] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 (달력 팝오버 포함) (사용자가 "작업 뒤 테스트하지 말 것"을 지정해 하지 않았다)
@@ -129,6 +132,12 @@
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 건강도, 모든 프로젝트 표시
+
+- 사용자 지시: Health 열("On track") 기능을 넣을 것. 프로젝트에 할당되지 않았어도 목록에는 보이고, 들어가려 하면 권한이 없으니 소유자 누구에게 문의하라고 뜨게.
+- 한 일: 위 체크리스트. "소유자"는 프로젝트의 관리 역할로 해석했다(여럿일 수 있다).
+- 확인한 범위: 프런트 typecheck, eslint. 백엔드는 컴파일하지 못했다(JDK 25 없음).
 
 ### 2026-10-12 — 전체 프로젝트 표
 

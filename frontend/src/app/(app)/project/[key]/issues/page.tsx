@@ -2,19 +2,19 @@ import { notFound } from "next/navigation";
 import { IssuesView } from "@/features/issues/components/issues-view";
 import type { Issue } from "@/features/issues/types";
 import type { Milestone } from "@/features/milestones/types";
-import type { Project, ProjectMember } from "@/features/projects/types";
-import { serverGet } from "@/lib/current-user";
+import type { ProjectMember } from "@/features/projects/types";
+import { loadProject, serverGet } from "@/lib/current-user";
 
 export default async function ProjectIssuesPage({ params, searchParams }: PageProps<"/project/[key]/issues">) {
   const [{ key }, { milestone }] = await Promise.all([params, searchParams]);
   const path = `/api/v1/projects/${encodeURIComponent(key)}`;
   const [project, issues, members, milestones] = await Promise.all([
-    serverGet<Project>(path),
+    loadProject(key),
     serverGet<Issue[]>(`${path}/issues`),
     serverGet<ProjectMember[]>(`${path}/members`),
     serverGet<Milestone[]>(`${path}/milestones`),
   ]);
-  if (!project || !issues || !members || !milestones) notFound();
+  if (!issues || !members || !milestones) notFound();
 
   return (
     <IssuesView

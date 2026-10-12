@@ -5,10 +5,12 @@ import com.fasterxml.jackson.annotation.JsonRawValue
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.media.application.ImageStorage
+import com.flowbit.project.application.ProjectEntry
 import com.flowbit.project.application.ProjectMemberRow
 import com.flowbit.project.application.ProjectPerson
 import com.flowbit.project.application.ProjectService
 import com.flowbit.project.application.ProjectView
+import com.flowbit.project.domain.ProjectHealth
 import com.flowbit.project.domain.ProjectPriority
 import com.flowbit.project.domain.ProjectRole
 import com.flowbit.project.domain.ProjectStatus
@@ -36,7 +38,8 @@ data class ProjectResponse(
     val key: String,
     val name: String,
     val description: String,
-    val myRole: ProjectRole,
+    /** Null for a project in the list that the caller may not enter. */
+    val myRole: ProjectRole?,
     val memberCount: Int,
     val createdAt: Instant,
     val status: ProjectStatus,
@@ -48,6 +51,8 @@ data class ProjectResponse(
     val issueCount: Int,
     val doneCount: Int,
     val currentMilestone: String?,
+    val health: ProjectHealth?,
+    val healthUpdatedAt: Instant?,
     /** The overview document as editor JSON; present only when one project is requested. */
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
@@ -72,6 +77,8 @@ data class ProjectResponse(
                 issueCount = view.issueCount,
                 doneCount = view.doneCount,
                 currentMilestone = view.currentMilestone,
+                health = view.health,
+                healthUpdatedAt = view.healthUpdatedAt,
                 content = view.content,
             )
     }
@@ -97,6 +104,17 @@ data class ProjectMemberResponse(
 ) {
     companion object {
         fun from(row: ProjectMemberRow) = ProjectMemberResponse(row.userId, row.loginId, row.displayName, ImageStorage.urlOf(row.avatarKey), row.role)
+    }
+}
+
+data class ProjectEntryResponse(
+    val key: String,
+    val name: String,
+    val myRole: ProjectRole?,
+    val managers: List<ProjectMemberResponse>,
+) {
+    companion object {
+        fun from(entry: ProjectEntry) = ProjectEntryResponse(entry.key, entry.name, entry.myRole, entry.managers.map(ProjectMemberResponse::from))
     }
 }
 
@@ -138,6 +156,13 @@ class ProjectController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable key: String,
     ): ProjectResponse = ProjectResponse.from(projectService.get(user, key))
+
+    /** For any signed-in user: whether they may enter, and whom to ask if not. */
+    @GetMapping("/{key}/access")
+    suspend fun entry(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable key: String,
+    ): ProjectEntryResponse = ProjectEntryResponse.from(projectService.entry(user, key))
 
     @PatchMapping("/{key}")
     suspend fun update(

@@ -12,6 +12,7 @@ import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.project.domain.Project
+import com.flowbit.project.domain.ProjectHealth
 import com.flowbit.project.domain.ProjectPriority
 import com.flowbit.project.domain.ProjectRepository
 import com.flowbit.project.domain.ProjectRole
@@ -35,8 +36,11 @@ data class ProjectView(
     val key: String,
     val name: String,
     val description: String,
-    /** What this person may do here. Workspace administrators act as managers everywhere. */
-    val myRole: ProjectRole,
+    /**
+     * What this person may do here. Workspace administrators act as managers everywhere. Null in
+     * the project list for a project the person has not been added to: they see it but cannot enter.
+     */
+    val myRole: ProjectRole?,
     val memberCount: Int,
     val createdAt: Instant,
     val status: ProjectStatus,
@@ -50,13 +54,25 @@ data class ProjectView(
     val doneCount: Int,
     /** The first milestone that is not finished yet. */
     val currentMilestone: String?,
+    val health: ProjectHealth?,
+    val healthUpdatedAt: Instant?,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
     val content: String? = null,
 )
 
+/** Who may enter a project, for the screen shown to someone who may not. */
+data class ProjectEntry(
+    val key: String,
+    val name: String,
+    val myRole: ProjectRole?,
+    /** Whom to ask for access. */
+    val managers: List<ProjectMemberRow>,
+)
+
 /**
- * Projects and who may enter them. Every method takes the acting user and decides access itself;
- * a project the user may not enter is reported as not found, so its existence is not revealed.
+ * Projects and who may enter them. Every method takes the acting user and decides access itself.
+ * Everyone sees every project in the list (D-047), but only members (and workspace administrators)
+ * may enter one; to anyone else its data answers "not found".
  */
 @Service
 class ProjectService(
@@ -68,7 +84,19 @@ class ProjectService(
     private val richText: RichText,
     private val clock: Clock,
 ) {
-    suspend fun list(user: AuthenticatedUser): List<ProjectView> = memberStore.projectsVisibleTo(user.id, includeAll = user.isAdmin).map { view(it, user) }
+    /** Every active project; `myRole` is null for those the user may not enter. */
+    suspend fun list(user: AuthenticatedUser): List<ProjectView> = memberStore.projectsVisibleTo(user.id, includeAll = true).map { view(it, user) }
+
+    /** Answers anyone signed in: the project's name, the caller's role (null: no access) and its managers. */
+    suspend fun entry(
+        user: AuthenticatedUser,
+        key: String,
+    ): ProjectEntry {
+        val project = repository.findActiveByKey(key.uppercase(Locale.ROOT)) ?: throw notFound()
+        val role = effectiveRole(memberStore.roleOf(project.id, user.id), user)
+        val managers = memberStore.members(project.id).filter { it.role == ProjectRole.MANAGER }
+        return ProjectEntry(project.key, project.name, role, managers)
+    }
 
     suspend fun get(
         user: AuthenticatedUser,
@@ -260,7 +288,7 @@ class ProjectService(
         key = row.key,
         name = row.name,
         description = row.description,
-        myRole = checkNotNull(effectiveRole(row.memberRole, user)),
+        myRole = effectiveRole(row.memberRole, user),
         memberCount = row.memberCount,
         createdAt = row.createdAt,
         status = row.status,
@@ -272,6 +300,8 @@ class ProjectService(
         issueCount = row.issueCount,
         doneCount = row.doneCount,
         currentMilestone = row.currentMilestone,
+        health = row.health,
+        healthUpdatedAt = row.healthUpdatedAt,
     )
 
     private fun effectiveRole(

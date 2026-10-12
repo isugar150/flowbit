@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BoxIcon, DiamondIcon, LayoutGridIcon } from "lucide-react";
+import { BoxIcon, DiamondIcon, LayoutGridIcon, LockIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PillTabs } from "@/components/pill-tabs";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -8,8 +8,8 @@ import { PriorityIcon, formatDueDate, priorityLabel } from "@/features/issues/me
 import { PersonAvatar } from "@/features/issues/options";
 import { milestoneProgress } from "@/features/milestones/types";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
-import { ProjectStatusIcon, projectStatusLabel } from "@/features/projects/meta";
-import type { Project } from "@/features/projects/types";
+import { HealthBadge, ProjectStatusIcon, projectStatusLabel, timeAgo } from "@/features/projects/meta";
+import type { ProjectSummary } from "@/features/projects/types";
 import { getProjects } from "@/lib/current-user";
 import { messages } from "@/messages";
 
@@ -24,12 +24,13 @@ const wide = "max-md:hidden";
 
 /**
  * All projects as a table, after Linear's project list: name with the current milestone,
- * priority, lead, target date, issue count, and status with progress. A whole row opens the
- * project.
+ * health from the latest update, priority, lead, target date, issue count, and status with
+ * progress. A whole row opens the project. Projects the person has not been added to are listed
+ * too, with a lock; opening one says whom to ask (D-047).
  */
 export default async function HomePage() {
   // The same list the sidebar loaded for this request; no second call to the backend.
-  const projects: Project[] = await getProjects();
+  const projects: ProjectSummary[] = await getProjects();
 
   return (
     <>
@@ -62,6 +63,9 @@ export default async function HomePage() {
                 <th scope="col" className={`${headCell} pl-11`}>
                   {m.colName}
                 </th>
+                <th scope="col" className={`${headCell} ${wide} w-44`}>
+                  {m.propHealth}
+                </th>
                 <th scope="col" className={`${headCell} ${wide} w-24`}>
                   {m.propPriority}
                 </th>
@@ -91,21 +95,28 @@ export default async function HomePage() {
   );
 }
 
-function ProjectRow({ project }: { project: Project }) {
+function ProjectRow({ project }: { project: ProjectSummary }) {
   const percent = milestoneProgress(project);
   const lead = project.lead;
+  const locked = project.myRole === null;
 
   return (
     // The link in the name cell stretches over the whole row, so any part of it opens the project.
     <tr className="relative border-b hover:bg-muted has-[a:focus-visible]:bg-muted">
       <td className={`${cell} pl-5`}>
         <div className="flex min-w-0 items-center gap-3">
-          <BoxIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          {locked ? (
+            <LockIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          ) : (
+            <BoxIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          )}
           <Link
-            href={`/project/${project.key}`}
+            href={locked ? `/no-access/${project.key}` : `/project/${project.key}`}
+            title={locked ? m.locked : undefined}
             className="min-w-0 truncate font-medium outline-none after:absolute after:inset-0"
           >
             {project.name}
+            {locked ? <span className="sr-only"> ({m.locked})</span> : null}
           </Link>
           {project.currentMilestone ? (
             <span className="flex min-w-0 shrink items-center gap-1 text-muted-foreground">
@@ -115,6 +126,18 @@ function ProjectRow({ project }: { project: Project }) {
             </span>
           ) : null}
         </div>
+      </td>
+      <td className={`${cell} ${wide}`}>
+        {project.health && project.healthUpdatedAt ? (
+          <span className="flex min-w-0 items-center gap-1">
+            <HealthBadge health={project.health} />
+            <time dateTime={project.healthUpdatedAt} className="truncate text-muted-foreground">
+              · {timeAgo(project.healthUpdatedAt)}
+            </time>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">{m.noUpdates}</span>
+        )}
       </td>
       <td className={`${cell} ${wide}`}>
         <span className="flex items-center" title={priorityLabel(project.priority)}>

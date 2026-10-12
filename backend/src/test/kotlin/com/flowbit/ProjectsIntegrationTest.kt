@@ -5,7 +5,6 @@ import com.flowbit.support.IntegrationTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 private const val PASSWORD = "correct-horse-battery"
 
@@ -56,10 +55,20 @@ class ProjectsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로젝트 구성원이 아닌 사람에게 프로젝트는 목록에도 없고 404 다`() {
+    fun `프로젝트 구성원이 아닌 사람은 목록에서 볼 수 있지만 들어갈 수 없고 관리자를 안내받는다`() {
         createProject("PAY")
 
-        assertTrue(outsider.get("/api/v1/projects").jsonList().isEmpty())
+        val listed = outsider.get("/api/v1/projects").jsonList()
+        assertEquals(listOf("PAY"), listed.map { it["key"] })
+        assertEquals(null, listed.single()["myRole"])
+        val entry = outsider.get("/api/v1/projects/PAY/access")
+        assertEquals(200, entry.status)
+        assertEquals(null, entry.json()["myRole"])
+        @Suppress("UNCHECKED_CAST")
+        val managers = entry.json()["managers"] as List<Map<String, Any?>>
+        assertEquals(listOf("owner"), managers.map { it["loginId"] })
+        assertEquals(404, outsider.get("/api/v1/projects/NOPE/access").status)
+
         val response = outsider.get("/api/v1/projects/PAY")
         assertEquals(404, response.status)
         assertEquals("PROJECT_NOT_FOUND", response.json()["code"])

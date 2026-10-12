@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
-import type { Project, ProjectChanges, ProjectMember, ProjectRole } from "./types";
+import type { Project, ProjectChanges, ProjectHealth, ProjectMember, ProjectRole, ProjectUpdate } from "./types";
 
 export function createProject(input: { name: string; key: string; description: string }): Promise<Project> {
   return apiFetch<Project>("/api/v1/projects", { method: "POST", body: input });
@@ -19,4 +19,15 @@ export function putProjectMember(input: { key: string; userId: string; role: Pro
 
 export function removeProjectMember(input: { key: string; userId: string }): Promise<void> {
   return apiFetch<void>(`/api/v1/projects/${input.key}/members/${input.userId}`, { method: "DELETE" });
+}
+
+export function postProjectUpdate(input: {
+  key: string;
+  health: ProjectHealth;
+  body: string;
+}): Promise<ProjectUpdate> {
+  return apiFetch<ProjectUpdate>(`/api/v1/projects/${input.key}/updates`, {
+    method: "POST",
+    body: { health: input.health, body: input.body },
+  });
 }

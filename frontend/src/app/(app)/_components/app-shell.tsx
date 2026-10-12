@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Me } from "@/features/auth/types";
-import type { Project } from "@/features/projects/types";
+import type { ProjectSummary } from "@/features/projects/types";
 import { RealtimeProvider } from "@/features/realtime/realtime-provider";
 import type { Workspace } from "@/features/settings/types";
 import { initials } from "@/lib/initials";
@@ -23,7 +23,7 @@ export function AppShell({
 }: {
   user: Me;
   workspace: Workspace;
-  projects: Project[];
+  projects: ProjectSummary[];
   children: React.ReactNode;
 }) {
   return (

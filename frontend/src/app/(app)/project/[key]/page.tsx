@@ -6,8 +6,10 @@ import { MilestonesSection } from "@/features/milestones/components/milestones-s
 import type { Milestone } from "@/features/milestones/types";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { ProjectProperties } from "@/features/projects/components/project-properties";
-import type { Project, ProjectMember } from "@/features/projects/types";
-import { getProjects, requireUser, serverGet } from "@/lib/current-user";
+import { ProjectUpdates } from "@/features/projects/components/project-updates";
+import { HealthBadge } from "@/features/projects/meta";
+import type { ProjectMember, ProjectUpdate } from "@/features/projects/types";
+import { getProjects, loadProject, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
 
 const m = messages.projects;
@@ -24,14 +26,15 @@ function formatDate(iso: string, timeZone: string): string {
 export default async function ProjectOverviewPage({ params }: PageProps<"/project/[key]">) {
   const { key } = await params;
   const path = `/api/v1/projects/${encodeURIComponent(key)}`;
-  const [user, project, members, projects, milestones] = await Promise.all([
+  const [user, project, members, projects, milestones, updates] = await Promise.all([
     requireUser(),
-    serverGet<Project>(path),
+    loadProject(key),
     serverGet<ProjectMember[]>(`${path}/members`),
     getProjects(),
     serverGet<Milestone[]>(`${path}/milestones`),
+    serverGet<ProjectUpdate[]>(`${path}/updates`),
   ]);
-  if (!project || !members || !milestones) notFound();
+  if (!members || !milestones || !updates) notFound();
   const labelSuggestions = [...new Set(projects.flatMap((other) => other.labels))].sort((a, b) => a.localeCompare(b, "ko"));
   const role = messages.roles[project.myRole];
   const created = formatDate(project.createdAt, user.timezone);
@@ -70,6 +73,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
         </dl>
         </ProjectOverviewEditor>
         <MilestonesSection projectKey={project.key} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
+        <ProjectUpdates projectKey={project.key} updates={updates} canEdit={project.myRole !== "VIEWER"} />
       </div>
       <aside className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 lg:mx-0 lg:w-80">
         <PropertyCard title={m.properties}>
@@ -80,6 +84,13 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
               labelSuggestions={labelSuggestions}
               canEdit={project.myRole !== "VIEWER"}
             />
+            <PropertyRow label={m.propHealth}>
+              {project.health ? (
+                <HealthBadge health={project.health} />
+              ) : (
+                <span className="font-normal text-muted-foreground">{m.noUpdates}</span>
+              )}
+            </PropertyRow>
             <PropertyRow label={m.propKey}>
               <span className="tabular-nums">{project.key}</span>
             </PropertyRow>

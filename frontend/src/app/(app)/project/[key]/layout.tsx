@@ -1,13 +1,11 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
 import { BoxIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PillTabs } from "@/components/pill-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Project } from "@/features/projects/types";
 import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
-import { serverGet } from "@/lib/current-user";
+import { loadProject } from "@/lib/current-user";
 import { messages } from "@/messages";
 
 const m = messages.projects;
@@ -29,9 +27,7 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/projec
 
 async function ProjectNav({ params }: { params: LayoutProps<"/project/[key]">["params"] }) {
   const { key } = await params;
-  // The backend answers "not found" both for a missing project and for one this person may not enter.
-  const project = await serverGet<Project>(`/api/v1/projects/${encodeURIComponent(key)}`);
-  if (!project) notFound();
+  const project = await loadProject(key);
   const base = `/project/${project.key}`;
 
   return (

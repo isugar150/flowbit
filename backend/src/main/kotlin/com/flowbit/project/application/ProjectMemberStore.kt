@@ -1,5 +1,6 @@
 package com.flowbit.project.application
 
+import com.flowbit.project.domain.ProjectHealth
 import com.flowbit.project.domain.ProjectPriority
 import com.flowbit.project.domain.ProjectRole
 import com.flowbit.project.domain.ProjectStatus
@@ -34,6 +35,9 @@ data class ProjectSummaryRow(
     val doneCount: Int,
     /** The first milestone (in milestone order) that is not finished yet. */
     val currentMilestone: String?,
+    /** Health of the latest project update, and when it was posted; null before the first update. */
+    val health: ProjectHealth?,
+    val healthUpdatedAt: Instant?,
 )
 
 data class ProjectPerson(
@@ -195,7 +199,7 @@ class ProjectMemberStore(
             .collectList()
             .awaitSingle()
 
-    /** Projects the user belongs to; every project when `includeAll` (workspace administrators). */
+    /** Projects the user belongs to; every project when `includeAll`. */
     suspend fun projectsVisibleTo(
         userId: UUID,
         includeAll: Boolean,
@@ -232,8 +236,15 @@ class ProjectMemberStore(
                                                  and i.status not in ('DONE', 'CANCELED')))
                                order by ms.target_date nulls last, ms.created_at
                                limit 1
-                           ) as current_milestone
+                           ) as current_milestone,
+                           latest.health, latest.created_at as health_updated_at
                     from projects p
+                    left join lateral (
+                        select u.health, u.created_at from project_updates u
+                        where u.project_id = p.id
+                        order by u.created_at desc
+                        limit 1
+                    ) latest on true
                     left join project_members pm on pm.project_id = p.id and pm.user_id = :userId
                     left join users l on l.id = p.lead_id
                     where p.archived_at is null and $condition
@@ -269,6 +280,8 @@ class ProjectMemberStore(
                     issueCount = checkNotNull(row.get("issue_count", Long::class.javaObjectType)).toInt(),
                     doneCount = checkNotNull(row.get("done_count", Long::class.javaObjectType)).toInt(),
                     currentMilestone = row.get("current_milestone", String::class.java),
+                    health = row.get("health", String::class.java)?.let(ProjectHealth::valueOf),
+                    healthUpdatedAt = row.get("health_updated_at", OffsetDateTime::class.java)?.toInstant(),
                 )
             }.all()
             .collectList()

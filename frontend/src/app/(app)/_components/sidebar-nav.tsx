@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BoxIcon, ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
-import type { Project } from "@/features/projects/types";
+import type { ProjectSummary } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 
@@ -30,8 +30,10 @@ function NavItem({ href, current, children }: { href: string; current: boolean; 
 }
 
 /** The sidebar's navigation: every project you can enter, under a section that can be folded away. */
-export function SidebarNav({ projects }: { projects: Project[] }) {
+export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary[] }) {
   const pathname = usePathname();
+  // "내 프로젝트" lists the ones this person can enter; the rest are on the all-projects page.
+  const projects = allProjects.filter((project) => project.myRole !== null);
   const [open, setOpen] = useState(true);
 
   return (

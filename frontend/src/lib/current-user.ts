@@ -1,9 +1,9 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { fetchJson, fetchMe, fetchWorkspace, SESSION_COOKIE } from "@/lib/backend";
 import type { Me } from "@/features/auth/types";
-import type { Project } from "@/features/projects/types";
+import type { Project, ProjectEntry, ProjectSummary } from "@/features/projects/types";
 import type { Workspace } from "@/features/settings/types";
 
 /** Where a request with a session cookie that no longer works is sent: it clears the cookie, then goes to sign-in. */
@@ -34,9 +34,12 @@ export const getWorkspace = cache(async (): Promise<Workspace> => {
   return workspace ?? redirect(SESSION_EXPIRED);
 });
 
-/** Projects the signed-in user can enter, fetched once per render for the sidebar and the home page. */
+/**
+ * Every project, fetched once per render for the sidebar and the home page. `myRole` is null for
+ * the ones the signed-in user may not enter.
+ */
 export const getProjects = cache(
-  async (): Promise<Project[]> => (await serverGet<Project[]>("/api/v1/projects")) ?? [],
+  async (): Promise<ProjectSummary[]> => (await serverGet<ProjectSummary[]>("/api/v1/projects")) ?? [],
 );
 
 /**
@@ -52,3 +55,17 @@ async function sessionCookieHeader(): Promise<string | null> {
   const session = (await cookies()).get(SESSION_COOKIE);
   return session ? `${SESSION_COOKIE}=${session.value}` : null;
 }
+
+/**
+ * One project for the project pages, fetched once per render. Someone who sees the project in
+ * the list but has not been added to it is sent to /no-access/{key}, which says whom to ask; a
+ * project that does not exist is "not found".
+ */
+export const loadProject = cache(async (key: string): Promise<Project> => {
+  const path = `/api/v1/projects/${encodeURIComponent(key)}`;
+  const project = await serverGet<Project>(path);
+  if (project) return project;
+  const entry = await serverGet<ProjectEntry>(`${path}/access`);
+  if (entry && !entry.myRole) redirect(`/no-access/${entry.key}`);
+  notFound();
+});

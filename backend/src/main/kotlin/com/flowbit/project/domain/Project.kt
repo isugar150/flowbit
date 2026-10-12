@@ -31,6 +31,13 @@ enum class ProjectStatus {
     CANCELED,
 }
 
+/** How a project is going, as given by its latest update. */
+enum class ProjectHealth {
+    ON_TRACK,
+    AT_RISK,
+    OFF_TRACK,
+}
+
 /** Same scale as issue priority. */
 enum class ProjectPriority {
     NONE,

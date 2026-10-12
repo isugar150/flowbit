@@ -48,6 +48,19 @@
 | `PATCH /api/v1/projects/{key}/issues/{number}` | 보낸 항목만 바뀐다. `assigneeId`, `dueDate`, `preset`, `content` 는 `null` 로 지운다 |
 | `PATCH /api/v1/projects/{key}` | `{ name?, description?, content?, status?, priority?, leadId?, startDate?, targetDate?, labels? }`. `content` 는 개요 문서. `leadId`, `startDate`, `targetDate` 는 `null` 로 지운다 |
 
+### 프로젝트 업데이트와 건강도
+
+사용자가 Linear 의 Health 열("On track · 1h")을 지정했다 (D-048). 건강도는 따로 고르는 속성이 아니라 **가장 최근 프로젝트 업데이트의 값**이다.
+
+- 업데이트: 건강도(순조로움 `ON_TRACK` / 위험 `AT_RISK` / 지연 `OFF_TRACK`) + 글(선택, 5000자 이하, 평문). 편집 역할부터 남긴다. 고치거나 지우는 기능은 없다.
+- 화면: 프로젝트 개요의 마일스톤 아래 "프로젝트 업데이트"(건강도 칩 + 글 + "업데이트 남기기", `Ctrl/⌘+Enter`; 최근 것부터 50개). 속성 카드의 "건강도" 줄, 전체 프로젝트 표의 "건강도" 열(`순조로움 · 1시간 전`). 업데이트가 없으면 "업데이트 없음".
+- 남기면 실시간으로 `project:{KEY}` 를 알린다.
+
+| 메서드와 경로 | 설명 |
+|---|---|
+| `GET /api/v1/projects/{key}/updates` | 최근 것부터 50개: `[{ id, health, body, author, createdAt }]` |
+| `POST /api/v1/projects/{key}/updates` | `{ health, body? }` → 201. 편집 역할부터 |
+
 ### 마일스톤
 
 사용자가 Linear 의 프로젝트 마일스톤처럼 만들어 달라고 지정했다 (D-045). 프로젝트 안의 **단계**이고, 이슈를 단계에 묶어 단계별 진행률을 본다. 할 일을 따로 적는 목록이 아니라 기존 이슈를 분류하는 것이다.
@@ -137,7 +150,8 @@
 
 | 할 수 있는 일 | 프로젝트 밖 구성원 | 보기 `VIEWER` | 편집 `EDITOR` | 관리 `MANAGER` | 워크스페이스 관리자 |
 |---|---|---|---|---|---|
-| 프로젝트가 있는지 알기, 들어가기 | ✕ (404) | ○ | ○ | ○ | ○ (모든 프로젝트) |
+| 전체 프로젝트 목록에서 보기(이름, 속성, 건강도, 진행률) | ○ (D-047) | ○ | ○ | ○ | ○ |
+| 프로젝트에 들어가기 | ✕ ("권한 없음" 화면, 관리자 안내) | ○ | ○ | ○ | ○ (모든 프로젝트) |
 | 이슈 읽기, 댓글 읽기 | ✕ | ○ | ○ | ○ | ○ |
 | 이슈 쓰기·고치기, 댓글 쓰기 | ✕ | ✕ | ○ | ○ | ○ |
 | 프로젝트 이름·설명, 프리셋 목차 고치기 | ✕ | ✕ | ✕ | ○ | ○ |
@@ -145,7 +159,8 @@
 | 프로젝트 만들기 | ○ (만든 사람이 관리 역할) | | | | ○ |
 | 워크스페이스 구성원 추가·역할 변경·비활성화 | ✕ | | | | ○ |
 
-- 권한이 없는 프로젝트는 "없는 것"처럼 404 로 답한다. 있는지 없는지도 알려 주지 않는다.
+- **모든 프로젝트가 전체 프로젝트 목록에 보인다** (D-047, 사용자 지정). 들어갈 수 없는 프로젝트는 자물쇠가 붙고, 누르면 `/no-access/{key}` 에서 "권한이 없습니다"와 그 프로젝트의 관리 역할(이름·아이디·사진)을 보여 주며 그들에게 추가를 요청하라고 안내한다. 사이드바 "내 프로젝트"에는 들어갈 수 있는 것만 있다.
+- 목록 밖의 데이터(개요, 이슈, 구성원, 마일스톤, 업데이트)는 지금처럼 구성원이 아니면 404 로 답한다. 화면은 `GET /api/v1/projects/{key}/access`(로그인한 누구나: `{ key, name, myRole, managers }`)로 "없는 프로젝트"와 "권한 없음"을 가른다.
 - 워크스페이스 관리자는 프로젝트 구성원이 아니어도 모든 프로젝트에서 관리 역할로 동작한다.
 - 프로젝트에는 관리 역할이 항상 한 명 이상 있어야 한다. 마지막 관리 역할을 내보내거나 낮출 수 없다 (409 `LAST_MANAGER`).
 - 관리자는 자기 자신의 워크스페이스 역할을 바꾸거나 자신을 비활성화할 수 없다 (409 `CANNOT_CHANGE_SELF`). 그래서 관리자가 한 명도 없는 상태가 생기지 않는다.
@@ -182,7 +197,7 @@
 | `POST /api/v1/admin/members` | `{ loginId, password, displayName?, role }` → 201 | 관리자 |
 | `PATCH /api/v1/admin/members/{id}` | `{ role?, status? }` | 관리자 |
 | `PUT /api/v1/admin/members/{id}/password` | `{ password }` → 204 | 관리자 |
-| `GET /api/v1/projects` | 내가 들어갈 수 있는 프로젝트 (관리자는 전부). 속성과 함께 `issueCount`(취소 제외), `doneCount`, `currentMilestone`(끝나지 않은 첫 마일스톤 이름)이 온다 | 로그인 |
+| `GET /api/v1/projects` | 모든 프로젝트. 들어갈 수 없는 것은 `myRole: null`. 속성과 함께 `health`, `healthUpdatedAt`(최근 업데이트), `issueCount`(취소 제외), `doneCount`, `currentMilestone`(끝나지 않은 첫 마일스톤 이름)이 온다 | 로그인 |
 | `POST /api/v1/projects` | `{ name, key, description? }` → 201 | 로그인 |
 | `GET /api/v1/projects/{key}` | 프로젝트와 내 역할 | 프로젝트 구성원 |
 | `PATCH /api/v1/projects/{key}` | `{ name?, description? }` (속성은 위 "프로젝트 속성") | 관리 |
@@ -197,7 +212,7 @@
 | 경로 | 내용 |
 |---|---|
 | 사이드바 "프로젝트" | 내가 들어갈 수 있는 프로젝트 목록, `+` 로 새 프로젝트 |
-| `/` (전체 프로젝트) | Linear 의 프로젝트 목록처럼 표로 보인다 (D-046): 이름 + 현재 마일스톤(◆), 우선순위, 리드, 목표일, 이슈 수(취소 제외), 상태 아이콘 + 진행률(완료 ÷ 취소 제외 이슈). 줄 전체가 링크. 좁은 화면에서는 이름과 상태만. 머리 오른쪽에 "새 프로젝트" |
+| `/` (전체 프로젝트) | Linear 의 프로젝트 목록처럼 표로 보인다 (D-046): 이름 + 현재 마일스톤(◆), 건강도(D-048), 우선순위, 리드, 목표일, 이슈 수(취소 제외), 상태 아이콘 + 진행률(완료 ÷ 취소 제외 이슈). 줄 전체가 링크. 좁은 화면에서는 이름과 상태만. 머리 오른쪽에 "새 프로젝트" |
 | `/project/{key}` | 프로젝트 머리(키, 이름, 설명). 이슈 목록 자리에는 아직 빈 상태 안내 |
 | `/project/{key}/settings` | 이름·설명 고치기, 구성원 추가·역할 변경·내보내기 (관리 역할만) |
 | `/admin/members` | 워크스페이스 구성원 목록, 추가, 역할 변경, 비활성화, 비밀번호 재설정 (관리자만) |
@@ -213,7 +228,7 @@
 - [x] 비밀번호를 재설정하면 새 비밀번호로만 로그인되고 기존 세션은 끝난다
 - [x] 관리자는 자기 역할을 바꾸거나 자신을 비활성화할 수 없다
 - [x] 프로젝트를 만들면 만든 사람이 관리 역할이 된다. 키가 겹치거나 형식이 틀리면 거부
-- [x] 프로젝트 구성원이 아닌 사람에게 프로젝트는 목록에도 없고 404 다
+- [x] 프로젝트 구성원이 아닌 사람은 목록에서 볼 수 있지만(`myRole: null`) 들어갈 수 없고(404), `/access` 로 관리자를 안내받는다 (D-047 로 바뀜)
 - [x] 워크스페이스 관리자는 구성원이 아닌 프로젝트도 보고 관리할 수 있다
 - [x] 보기·편집 역할은 프로젝트 설정과 구성원을 바꿀 수 없다 (403)
 - [x] 마지막 관리 역할은 내보내거나 낮출 수 없다
@@ -308,6 +323,7 @@
 projects (id, key unique, name, description, next_issue_number, created_by, archived_at, created_at, updated_at,
           status, priority, lead_id, start_date, target_date, labels text[])   -- 속성은 V6
 milestones (id, project_id, name, target_date, created_at, updated_at)        -- V7, issues.milestone_id 도 V7
+project_updates (id, project_id, author_id, health, body, created_at)        -- V8
 project_members (project_id, user_id, role: MANAGER | EDITOR | VIEWER, created_at)   PK (project_id, user_id)
 ```
 
@@ -338,7 +354,7 @@ issue_events (id, issue_id, actor_id, type, field, old_value, new_value, body_sn
 ## 확인이 필요한 것
 
 1. 프로젝트 역할 3단계(관리/편집/보기)와, "누구나 프로젝트를 만들 수 있다"는 규칙. 관리자만 만들게 하려면 한 줄만 바꾸면 된다.
-2. 권한 없는 프로젝트를 404 로 숨기는 것(워크스페이스 관리자는 예외로 전부 본다).
+2. ~~권한 없는 프로젝트를 404 로 숨기는 것~~ → 사용자가 "목록에는 보이고, 들어가면 권한 없음과 관리자 안내"로 정했다 (D-047).
 3. 프리셋 3종의 이름과 목차 문구.
 4. 상태 목록 5개, 특히 "준비됨"이라는 이름.
 5. 본문 동시 편집을 "먼저 저장한 쪽이 이기고 나중 쪽에 알림"으로 시작하는 것.

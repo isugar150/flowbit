@@ -108,6 +108,19 @@
 
 `project_members` 는 기본 키가 두 컬럼이라, `projects` 의 속성 컬럼은 배열(`labels`)이 있어서 Spring Data 리포지토리 대신 `ProjectMemberStore` 가 SQL 로 직접 다룬다.
 
+### `project_updates` (`V8`)
+
+프로젝트가 어떻게 진행되는지 남기는 글. 가장 최근 것의 `health` 가 프로젝트의 건강도다 (D-048).
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `id` | `uuid` PK | |
+| `project_id` | `uuid` FK → `projects` (함께 삭제) | `(project_id, created_at desc)` 색인 |
+| `author_id` | `uuid` FK → `users` | |
+| `health` | `text` | `ON_TRACK` \| `AT_RISK` \| `OFF_TRACK` |
+| `body` | `text` | 평문, 5000자 이하, 기본 빈 문자열 |
+| `created_at` | `timestamptz` | |
+
 ### `milestones` (`V7`)
 
 프로젝트 안의 단계. 이슈를 묶어 단계별 진행률을 본다 ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "마일스톤").

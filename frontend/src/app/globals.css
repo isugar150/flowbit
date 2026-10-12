@@ -32,6 +32,7 @@
   --color-ring: var(--ring);
   --color-warning: var(--warning);
   --color-urgent: var(--urgent);
+  --color-success: var(--success);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -76,9 +77,10 @@
   --accent: #eef3ff;
   --accent-foreground: #1a1f27;
   --destructive: #d92d20;
-  /* Issue state colours (docs/01-product.md section 5): in progress, urgent. */
+  /* Issue state colours (docs/01-product.md section 5): in progress, urgent. Success is a project on track. */
   --warning: #b77a00;
   --urgent: #d9480f;
+  --success: #15803d;
   --border: #e6e8ec;
   /* Input outlines keep 3:1 contrast against the page so the field boundary is visible. */
   --input: #8a93a0;
@@ -120,6 +122,7 @@
   --destructive: #f97066;
   --warning: #f0b429;
   --urgent: #fd853a;
+  --success: #4ade80;
   --border: oklch(1 0 0 / 8%);
   --input: #6b7480;
   --ring: #6e9bf5;
