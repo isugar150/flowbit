@@ -69,7 +69,8 @@ frontend/
 | 경로 표시 | `components/page-header.tsx` | 모든 화면의 맨 위. 마지막 항목이 그 화면의 `<h1>` 이다 |
 | 알약 탭 | `components/pill-tabs.tsx` | 한 대상의 여러 보기(개요 / 이슈 / 설정) |
 | 속성 카드 | `components/property-card.tsx` | 오른쪽 열의 카드와 그 안의 "이름: 값" 줄 |
-| 속성 칩 | `features/issues/components/chip-select.tsx`, `due-date-chip.tsx` | 값을 보여 주고 눌러서 바꾸는 둥근 칩 |
+| 속성 칩 | `features/issues/components/chip-select.tsx`, `date-chips.tsx` | 값을 보여 주고 눌러서 바꾸는 둥근 칩 |
+| 날짜 칩 | `features/issues/components/date-chips.tsx` | `DateChip`(날짜 하나: 기한), `DateRangeChip`(기간: 첫 클릭이 시작일, 두 번째 클릭이 종료일). 달력은 `components/ui/calendar.tsx`(react-day-picker, 한국어), 팝오버는 `components/ui/popover.tsx` (D-043) |
 | 문서 편집기 | `components/editor/rich-text-editor.tsx` | 프로젝트 설명, 이슈 본문 |
 | 자동 저장 | `lib/use-autosave.ts`, `components/editor/save-status.tsx` | 저장 버튼 없이 저장하는 모든 곳 |
 

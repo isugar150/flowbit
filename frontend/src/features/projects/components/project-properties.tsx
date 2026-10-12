@@ -1,11 +1,11 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ArrowRightIcon, PlusIcon, TagIcon, UserIcon, XIcon } from "lucide-react";
+import { PlusIcon, TagIcon, UserIcon, XIcon } from "lucide-react";
 import { PropertyRow } from "@/components/property-card";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { ChipSelect, chipClass } from "@/features/issues/components/chip-select";
-import { DueDateChip } from "@/features/issues/components/due-date-chip";
+import { DateRangeChip } from "@/features/issues/components/date-chips";
 import { NONE, PersonAvatar, priorityOptions } from "@/features/issues/options";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
@@ -87,25 +87,14 @@ export function ProjectProperties({
         />
       </PropertyRow>
       <PropertyRow label={m.propDates}>
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
-          <DueDateChip
-            value={project.startDate}
-            label={m.startDate}
-            clearLabel={m.clearStartDate}
-            max={project.targetDate ?? undefined}
-            disabled={locked}
-            onChange={(startDate) => change({ startDate })}
-          />
-          <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <DueDateChip
-            value={project.targetDate}
-            label={m.targetDate}
-            clearLabel={m.clearTargetDate}
-            min={project.startDate ?? undefined}
-            disabled={locked}
-            onChange={(targetDate) => change({ targetDate })}
-          />
-        </div>
+        <DateRangeChip
+          label={m.propDates}
+          placeholder={m.noDates}
+          start={project.startDate}
+          end={project.targetDate}
+          disabled={locked}
+          onChange={({ start, end }) => change({ startDate: start, targetDate: end })}
+        />
       </PropertyRow>
       <PropertyRow label={m.propLabels}>
         <LabelsEditor

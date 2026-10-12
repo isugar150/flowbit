@@ -18,7 +18,7 @@ import { PRESET_TEMPLATES } from "../meta";
 import { NONE, assigneeOptions, presetOptions, priorityOptions, statusOptions } from "../options";
 import type { IssuePreset, NewIssueInput } from "../types";
 import { ChipSelect } from "./chip-select";
-import { DueDateChip } from "./due-date-chip";
+import { DateChip } from "./date-chips";
 
 const m = messages.issues;
 
@@ -191,7 +191,12 @@ export function NewIssueDialog({
               options={presetOptions}
               onChange={(value) => setPreset(value === NONE ? null : value)}
             />
-            <DueDateChip value={properties.dueDate} onChange={(value) => set("dueDate", value)} />
+            <DateChip
+              label={m.dueDate}
+              placeholder={m.dueDate}
+              value={properties.dueDate}
+              onChange={(value) => set("dueDate", value)}
+            />
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3 border-t px-4 py-2.5">
             {lastCreated ? (

@@ -87,7 +87,8 @@
 - [ ] 위 변경의 화면 확인 (에이전트는 로그인할 수 없어 보지 못했다. lint, typecheck, `next build` 통과)
 - [x] 프로젝트 속성: 상태, 우선순위, 리드, 기간(시작일 → 종료일), 라벨. `V6` 마이그레이션, `PATCH /api/v1/projects/{key}` 확장, 개요의 속성 카드 (D-042, [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "프로젝트 속성")
 - [x] `/project/[key]` 의 "uncached data outside of `<Suspense>`" 오류: 프로젝트 레이아웃의 조회를 `<Suspense>` 안으로 옮기고 `project/[key]/loading.tsx` 추가 ([04-frontend-guide.md](04-frontend-guide.md) 규칙 추가)
-- [ ] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 (사용자가 "작업 뒤 테스트하지 말 것"을 지정해 하지 않았다)
+- [x] 날짜 선택을 달력 팝오버로 교체 (D-043): 이슈 기한은 `DateChip`, 프로젝트 기간은 `DateRangeChip`(첫 클릭 시작일, 두 번째 클릭 종료일). `react-day-picker` 추가
+- [ ] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 (달력 팝오버 포함) (사용자가 "작업 뒤 테스트하지 말 것"을 지정해 하지 않았다)
 
 ## 화면을 직접 확인하는 방법 (사용자 계정 없이)
 
@@ -123,6 +124,12 @@
 ## 작업 기록
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
+
+### 2026-10-12 — 달력 날짜 선택
+
+- 사용자 지시: 날짜 선택을 보기 좋은 라이브러리로, 기간은 달력에서 시작일·종료일을 바로 고르게. 앞으로 작업은 `main` 에 바로 한다(PR #1 머지).
+- 한 일: `react-day-picker` 9 설치, `components/ui/calendar.tsx`·`popover.tsx` 작성(shadcn 레지스트리가 막혀 직접), `due-date-chip.tsx` 를 `date-chips.tsx`(`DateChip`, `DateRangeChip`)로 교체.
+- 확인한 범위: typecheck, eslint. 화면은 보지 않았다.
 
 ### 2026-10-12 — 프로젝트 속성
 

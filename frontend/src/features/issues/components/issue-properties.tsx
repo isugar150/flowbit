@@ -10,7 +10,7 @@ import { updateIssue } from "../api";
 import { NONE, assigneeOptions, presetOptions, priorityOptions, statusOptions } from "../options";
 import type { Issue, IssueChanges } from "../types";
 import { ChipSelect } from "./chip-select";
-import { DueDateChip } from "./due-date-chip";
+import { DateChip } from "./date-chips";
 
 const m = messages.issues;
 
@@ -71,7 +71,13 @@ export function IssueProperties({
           />
         </PropertyRow>
         <PropertyRow label={m.dueDate}>
-          <DueDateChip value={issue.dueDate} disabled={locked} onChange={(dueDate) => change({ dueDate })} />
+          <DateChip
+            label={m.dueDate}
+            placeholder={m.noDueDate}
+            value={issue.dueDate}
+            disabled={locked}
+            onChange={(dueDate) => change({ dueDate })}
+          />
         </PropertyRow>
       </dl>
     </>
