@@ -26,8 +26,8 @@ class RealtimeIntegrationTest : IntegrationTest() {
     fun createProjectWithTwoPeople() {
         admin = client().also { it.setup("admin", PASSWORD) }
         val editorId = admin.post("/api/v1/admin/members", """{"loginId":"editor","password":"$PASSWORD"}""").json()["id"]
-        admin.post("/api/v1/projects", """{"name":"결제 개편","key":"PAY"}""")
-        admin.put("/api/v1/projects/PAY/members/$editorId", """{"role":"EDITOR"}""")
+        remember("PAY", admin.post("/api/v1/projects", """{"name":"결제 개편"}""").json()["id"])
+        admin.put("/api/v1/projects/${p("PAY")}/members/$editorId", """{"role":"EDITOR"}""")
         editor = client().also { it.login("editor", PASSWORD) }
     }
 
@@ -35,8 +35,8 @@ class RealtimeIntegrationTest : IntegrationTest() {
     fun `같은 화면을 보는 사람과 그 사람이 가리키는 곳이 서로에게 전해진다`() {
         val a = Socket(admin)
         val b = Socket(editor)
-        a.send("""{"type":"subscribe","topics":["project:PAY"],"presence":"project:PAY"}""")
-        b.send("""{"type":"subscribe","topics":["project:PAY"],"presence":"project:PAY"}""")
+        a.send("""{"type":"subscribe","topics":["project:${p("PAY")}"],"presence":"project:${p("PAY")}"}""")
+        b.send("""{"type":"subscribe","topics":["project:${p("PAY")}"],"presence":"project:${p("PAY")}"}""")
         b.awaitPresence { viewers -> viewers.size == 2 }
 
         a.send("""{"type":"focus","target":"description"}""")
@@ -53,16 +53,16 @@ class RealtimeIntegrationTest : IntegrationTest() {
 
     @Test
     fun `이슈가 바뀌면 그 프로젝트를 보는 사람에게 알리고 볼 수 없는 주제는 구독되지 않는다`() {
-        admin.post("/api/v1/projects", """{"name":"비공개","key":"SEC"}""")
+        remember("SEC", admin.post("/api/v1/projects", """{"name":"비공개"}""").json()["id"])
         val b = Socket(editor)
-        b.send("""{"type":"subscribe","topics":["project:PAY","project:SEC","issues"],"presence":"project:SEC"}""")
+        b.send("""{"type":"subscribe","topics":["project:${p("PAY")}","project:${p("SEC")}","issues"],"presence":"project:${p("SEC")}"}""")
 
-        admin.post("/api/v1/projects/SEC/issues", """{"title":"비공개 이슈"}""")
-        admin.post("/api/v1/projects/PAY/issues", """{"title":"결제 실패"}""")
+        admin.post("/api/v1/projects/${p("SEC")}/issues", """{"title":"비공개 이슈"}""")
+        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
 
         val topics = (1..3).map { b.awaitChanged() }
         // "issues" twice (one per new issue) and the one project the editor may enter.
-        assertEquals(listOf("issues", "issues", "project:PAY"), topics.sorted())
+        assertEquals(listOf("issues", "issues", "project:${p("PAY")}"), topics.sorted())
         assertNull(b.poll("presence"))
         b.close()
     }

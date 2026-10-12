@@ -22,8 +22,8 @@ export function projectOptions(projects: ProjectSummary[], current?: string | nu
   return [
     { value: NONE, label: m.noProject, icon: <CircleSlashIcon className="size-4 text-muted-foreground" aria-hidden /> },
     ...projects
-      .filter((project) => (project.myRole && project.myRole !== "VIEWER") || project.key === current)
-      .map((project) => ({ value: project.key, label: project.name, icon: <ProjectIcon iconUrl={project.iconUrl} /> })),
+      .filter((project) => (project.myRole && project.myRole !== "VIEWER") || project.id === current)
+      .map((project) => ({ value: project.id, label: project.name, icon: <ProjectIcon iconUrl={project.iconUrl} /> })),
   ];
 }
 
@@ -54,7 +54,7 @@ export type IssuePropertyValues = {
   startDate: string | null;
   dueDate: string | null;
   labelIds: string[];
-  projectKey: string | null;
+  projectId: string | null;
   milestoneId: string | null;
 };
 
@@ -148,14 +148,14 @@ export function IssuePropertyFields({
           <ChipSelect
             plain
             label={m.project}
-            value={values.projectKey ?? NONE}
-            options={projectOptions(projects, values.projectKey)}
+            value={values.projectId ?? NONE}
+            options={projectOptions(projects, values.projectId)}
             disabled={disabled}
-            onChange={(value) => onChange({ projectKey: value === NONE ? null : value })}
+            onChange={(value) => onChange({ projectId: value === NONE ? null : value })}
           />
         </Row>
         {/* The milestone hangs under its project: it only exists once a project is chosen. */}
-        {values.projectKey ? (
+        {values.projectId ? (
           <Row id={m.milestone}>
             <span
               aria-hidden="true"
@@ -217,7 +217,7 @@ export function IssueProperties({
           startDate: issue.startDate,
           dueDate: issue.dueDate,
           labelIds: issue.labels.map((label) => label.id),
-          projectKey: issue.project?.key ?? null,
+          projectId: issue.project?.id ?? null,
           milestoneId: issue.milestone?.id ?? null,
         }}
         onChange={(changes) => mutation.mutate({ number: issue.number, changes })}

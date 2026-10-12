@@ -133,7 +133,7 @@ class RealtimeWebSocketHandler(
     }
 
     /**
-     * `project:KEY` is readable by whoever may enter the project, `issue:12` by whoever may see
+     * `project:<id>` is readable by whoever may enter the project, `issue:12` by whoever may see
      * that issue, and `issues` (some issue changed, with no detail) by every signed-in person.
      */
     private suspend fun canRead(

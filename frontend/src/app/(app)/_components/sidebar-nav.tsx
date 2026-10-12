@@ -79,7 +79,7 @@ export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary
               <li className="px-2 py-1 text-xs text-muted-foreground">{m.sidebarEmpty}</li>
             ) : (
               projects.map((project) => {
-                const href = `/project/${project.key}`;
+                const href = `/project/${project.id}`;
                 return (
                   <li key={project.id}>
                     <NavItem href={href} current={pathname === href || pathname.startsWith(`${href}/`)}>

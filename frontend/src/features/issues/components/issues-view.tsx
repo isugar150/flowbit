@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -11,7 +11,6 @@ import {
   PlusIcon,
   SearchIcon,
   SignalIcon,
-  TagIcon,
   Trash2Icon,
   UsersIcon,
   XIcon,
@@ -36,7 +35,7 @@ import { projectOptions } from "./issue-properties";
 import { IssueMilestoneChart } from "./issue-timeline";
 import { IssueCalendarView, type IssueDates } from "./issue-calendar";
 import { IssueViewSwitch, useIssueView } from "./issue-views";
-import { LabelDot, LabelPill } from "./label-chip";
+import { LabelFilterChip, LabelPill } from "./label-chip";
 import { SubIssueContextRow, SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
 import { NewIssueDialog } from "./new-issue-dialog";
 import { DueDate } from "@/components/dates";
@@ -51,6 +50,9 @@ function isTyping(target: EventTarget | null): boolean {
 /** "Every …" in a filter; NONE is "nobody" / "no milestone" / "no label". */
 const ALL = "__all__";
 const FILTER_KEYS = ["project", "status", "priority", "assignee", "label", "milestone"] as const;
+/** The filters with one value, drawn as a menu. Labels take several and have their own chip. */
+type ChipKey = Exclude<FilterKey, "label">;
+const CHIP_KEYS = FILTER_KEYS.filter((key): key is ChipKey => key !== "label");
 type FilterKey = (typeof FILTER_KEYS)[number];
 /** The title search in the address: `?q=`. */
 const SEARCH_KEY = "q";
@@ -65,7 +67,7 @@ const NONE_PARAM = "none";
  * the title; what is chosen lives in the address.
  */
 export function IssuesView({
-  projectKey,
+  projectId,
   issues: allIssues,
   members,
   milestones,
@@ -80,7 +82,7 @@ export function IssuesView({
   /** What to say when there are no issues at all, where the usual words do not fit ("내 이슈"). */
   empty?: { title: string; description: string };
   /** The project whose issues these are; null on the list of every issue. */
-  projectKey: string | null;
+  projectId: string | null;
   /** For linking a new issue to a project, and for the project filter on the list of every issue. */
   projects: ProjectSummary[];
   issues: Issue[];
@@ -97,7 +99,7 @@ export function IssuesView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   // A filter value from the address: "none" stands for NONE, anything unknown counts as no filter.
-  const readFilter = (key: FilterKey, known: (value: string) => boolean): string => {
+  const readFilter = (key: ChipKey, known: (value: string) => boolean): string => {
     const param = searchParams.get(key);
     return param === NONE_PARAM ? NONE : param && known(param) ? param : ALL;
   };
@@ -108,44 +110,53 @@ export function IssuesView({
     // The list is already loaded; only the address changes, without asking the server again.
     window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
   };
-  const setFilter = (key: FilterKey, value: string) =>
+  const setFilter = (key: ChipKey, value: string) =>
     replaceQuery((params) => {
       if (value === ALL) params.delete(key);
       else params.set(key, value === NONE ? NONE_PARAM : value);
     });
   const filters = {
-    project: readFilter("project", (value) => projects.some((project) => project.key === value)),
+    project: readFilter("project", (value) => projects.some((project) => project.id === value)),
     status: readFilter("status", (value) => STATUS_ORDER.some((status) => status === value)),
     priority: readFilter("priority", (value) => priorityOptions.some((option) => option.value === value)),
     assignee: readFilter("assignee", (value) => members.some((member) => member.userId === value)),
-    label: readFilter("label", (value) => labels.some((label) => label.id === value)),
     milestone: readFilter("milestone", (value) => milestones.some((milestone) => milestone.id === value)),
   };
+  // Labels are the one filter with several values at once: "?label=<id>,<id>,none".
+  const labelFilter = (searchParams.get("label") ?? "")
+    .split(",")
+    .map((value) => (value === NONE_PARAM ? NONE : value))
+    .filter((value) => value === NONE || labels.some((label) => label.id === value));
+  const setLabelFilter = (value: string[]) =>
+    replaceQuery((params) => {
+      if (value.length === 0) params.delete("label");
+      else params.set("label", value.map((item) => (item === NONE ? NONE_PARAM : item)).join(","));
+    });
   const milestoneFilter = filters.milestone;
   // Typed text is kept here and copied to the address: an input driven by the address alone would
   // lag a step behind and break Korean composition.
   const [search, setSearch] = useState(() => searchParams.get(SEARCH_KEY) ?? "");
   const needle = search.trim().toLowerCase();
-  const filtered = needle !== "" || FILTER_KEYS.some((key) => filters[key] !== ALL);
+  const filtered = needle !== "" || labelFilter.length > 0 || CHIP_KEYS.some((key) => filters[key] !== ALL);
   const matches = (filter: string, value: string | null | undefined) => filter === ALL || (value ?? NONE) === filter;
   const issues = allIssues.filter(
     (issue) =>
-      matches(filters.project, issue.project?.key) &&
+      matches(filters.project, issue.project?.id) &&
       matches(filters.status, issue.status) &&
       // "No priority" is a priority of its own (NONE), not a missing value.
       (filters.priority === ALL || issue.priority === filters.priority) &&
       matches(filters.assignee, issue.assignee?.id) &&
-      (filters.label === ALL ||
-        (filters.label === NONE
-          ? issue.labels.length === 0
-          : issue.labels.some((label) => label.id === filters.label))) &&
+      (labelFilter.length === 0 ||
+        (issue.labels.length === 0
+          ? labelFilter.includes(NONE)
+          : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
       matches(filters.milestone, issue.milestone?.id) &&
       (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle)),
   );
   const all = (label: string, icon: React.ReactNode): ChipOption<string> => ({ value: ALL, label, icon });
-  const filterChips: { key: FilterKey; label: string; options: ChipOption<string>[] }[] = [
+  const filterChips: { key: ChipKey; label: string; options: ChipOption<string>[] }[] = [
     // Inside a project every issue has that project, so the filter is only on the list of all issues.
-    ...(projectKey === null
+    ...(projectId === null
       ? [
           {
             key: "project" as const,
@@ -172,15 +183,6 @@ export function IssuesView({
       label: m.assigneeFilter,
       options: [all(m.allAssignees, <UsersIcon {...ALL_ICON} />), ...assigneeOptions(members)],
     },
-    {
-      key: "label",
-      label: m.labelFilter,
-      options: [
-        all(m.allLabels, <TagIcon {...ALL_ICON} />),
-        { value: NONE, label: m.noLabels, icon: <TagIcon {...ALL_ICON} /> },
-        ...labels.map((label) => ({ value: label.id, label: label.name, icon: <LabelDot color={label.color} /> })),
-      ],
-    },
     ...(milestones.length > 0
       ? [
           {
@@ -191,6 +193,7 @@ export function IssuesView({
         ]
       : []),
   ];
+  const labelChip = <LabelFilterChip labels={labels} value={labelFilter} onChange={setLabelFilter} noneValue={NONE} />;
   const [view, setView] = useIssueView();
   const mutation = useRefreshingMutation(updateIssue);
   // Deleted issues are only looked at: nothing is made or changed among them.
@@ -216,7 +219,7 @@ export function IssuesView({
   );
   // An issue linked to a project the person can only view is read-only for them.
   const mayEdit = (issue: Issue) =>
-    !issue.project || projects.find((project) => project.key === issue.project?.key)?.myRole !== "VIEWER";
+    !issue.project || projects.find((project) => project.id === issue.project?.id)?.myRole !== "VIEWER";
 
   useEffect(() => {
     if (!writable) return;
@@ -289,14 +292,18 @@ export function IssuesView({
               />
             </div>
             {filterChips.map((chip) => (
-              <ChipSelect
-                key={chip.key}
-                label={chip.label}
-                value={filters[chip.key]}
-                options={chip.options}
-                onChange={(value) => setFilter(chip.key, value)}
-              />
+              <Fragment key={chip.key}>
+                {/* Labels come after the assignee, before the milestone. */}
+                {chip.key === "milestone" ? labelChip : null}
+                <ChipSelect
+                  label={chip.label}
+                  value={filters[chip.key]}
+                  options={chip.options}
+                  onChange={(value) => setFilter(chip.key, value)}
+                />
+              </Fragment>
             ))}
+            {filterChips.some((chip) => chip.key === "milestone") ? null : labelChip}
             {filtered ? (
               <Button
                 variant="ghost"
@@ -391,7 +398,7 @@ export function IssuesView({
                           {issue.title}
                         </Link>
                         <SubIssueProgress issue={issue} />
-                        {projectKey === null && issue.project ? (
+                        {projectId === null && issue.project ? (
                           <span className="hidden max-w-40 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground lg:block">
                             {issue.project.name}
                           </span>
@@ -434,7 +441,7 @@ export function IssuesView({
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           projects={projects}
-          defaultProjectKey={projectKey}
+          defaultProjectId={projectId}
           members={members}
           milestones={milestones}
           labels={labels}

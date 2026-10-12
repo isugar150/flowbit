@@ -25,7 +25,7 @@ export async function AllIssues({ deleted = false }: { deleted?: boolean }) {
       <RealtimeScope topics={["issues"]} />
       <PageHeader crumbs={[{ label: messages.issues.all }]} />
       <IssuesView
-        projectKey={null}
+        projectId={null}
         issues={issues ?? []}
         members={people}
         milestones={[]}

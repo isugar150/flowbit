@@ -52,8 +52,6 @@ enum class ProjectPriority {
 class Project(
     @Id
     val id: UUID,
-    /** Short name in addresses (/project/FLOW). Never changes. */
-    val key: String,
     var name: String,
     var description: String,
     val createdBy: UUID,
@@ -64,7 +62,6 @@ class Project(
     companion object {
         const val NAME_MAX_LENGTH = 80
         const val DESCRIPTION_MAX_LENGTH = 500
-        val KEY_PATTERN = Regex("^[A-Z][A-Z0-9]{1,9}$")
         const val LABELS_MAX = 10
         const val LABEL_MAX_LENGTH = 30
     }
@@ -81,11 +78,6 @@ interface ProjectRepository : CoroutineCrudRepository<Project, UUID> {
 
     @Query("select icon_key from projects where id = :id")
     suspend fun findIconKey(id: UUID): String?
-
-    @Query("select * from projects where key = :key and archived_at is null")
-    suspend fun findActiveByKey(key: String): Project?
-
-    suspend fun existsByKey(key: String): Boolean
 
     @Modifying
     @Query("update projects set name = :name, description = :description, updated_at = :now where id = :id")

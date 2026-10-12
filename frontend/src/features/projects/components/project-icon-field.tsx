@@ -8,7 +8,7 @@ import { removeProjectIcon, uploadProjectIcon } from "../api";
 const m = messages.projects;
 
 /** Upload or remove the project's icon (managers only); shown in the sidebar, lists and the overview. */
-export function ProjectIconField({ projectKey, iconUrl }: { projectKey: string; iconUrl: string | null }) {
+export function ProjectIconField({ projectId, iconUrl }: { projectId: string; iconUrl: string | null }) {
   return (
     <ImageUploadField
       id="project-icon"
@@ -17,8 +17,8 @@ export function ProjectIconField({ projectKey, iconUrl }: { projectKey: string; 
       imageAlt={m.iconAlt}
       fallback={<BoxIcon className="size-6" aria-hidden="true" />}
       shape="square"
-      upload={(file) => uploadProjectIcon(projectKey, file)}
-      remove={() => removeProjectIcon(projectKey)}
+      upload={(file) => uploadProjectIcon(projectId, file)}
+      remove={() => removeProjectIcon(projectId)}
     />
   );
 }

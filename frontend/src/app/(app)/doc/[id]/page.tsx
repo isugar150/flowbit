@@ -17,7 +17,7 @@ export default async function DocumentPage({ params }: PageProps<"/doc/[id]">) {
   return (
     <>
       <RealtimeScope
-        topics={[document.issue ? `issue:${document.issue.number}` : `project:${document.project?.key ?? ""}`]}
+        topics={[document.issue ? `issue:${document.issue.number}` : `project:${document.project?.id ?? ""}`]}
         presence={`document:${document.id}`}
         priority={1}
       />
@@ -26,7 +26,7 @@ export default async function DocumentPage({ params }: PageProps<"/doc/[id]">) {
           // Where the document belongs: its issue, or its project.
           document.issue
             ? { label: `${document.issue.key} ${document.issue.title}`, href: `/issue/${document.issue.key}` }
-            : { label: document.project?.name ?? "", href: `/project/${document.project?.key ?? ""}` },
+            : { label: document.project?.name ?? "", href: `/project/${document.project?.id ?? ""}` },
           { label: document.title || messages.issues.documents.untitled, icon: <FileTextIcon /> },
         ]}
       />

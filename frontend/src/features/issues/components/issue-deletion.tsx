@@ -62,7 +62,7 @@ export function DeleteIssueButton({ issue }: { issue: IssueDetail }) {
         <Trash2Icon data-icon="inline-start" />
         {confirming ? m.deleteConfirm : m.delete}
       </Button>
-      <p className="text-xs leading-4 text-muted-foreground">{remove.isError ? apiErrorMessage(remove.error) : m.deleteHint}</p>
+      {remove.isError ? <p className="text-xs leading-4 text-destructive">{apiErrorMessage(remove.error)}</p> : null}
     </div>
   );
 }

@@ -13,8 +13,9 @@
 - **키와 번호**: `<워크스페이스 이슈 키>-<번호>`(기본 `FB-12`). 번호는 워크스페이스 전체의 일련번호다. 이슈 키는 관리자 설정의 워크스페이스에서 바꾼다(모든 이슈의 키가 바뀌고 번호는 그대로). 프로젝트 연결을 바꿔도 키는 그대로다.
 - **권한**: 프로젝트에 연결된 이슈는 그 프로젝트를 따른다(구성원만 보고, 보기 역할은 고치지 못한다). **어디에도 연결되지 않은 이슈는 로그인한 누구나 보고 고친다.** 볼 수 없는 이슈는 404.
 - **연결 바꾸기**: 이슈 상세 오른쪽 "프로젝트" 카드에서 프로젝트를 고르고, 그 아래에서 그 프로젝트의 목표를 고른다. 연결하려면 그 프로젝트에서 편집 권한이 있어야 한다. 프로젝트를 바꾸면 목표는 떨어진다. 담당자는 연결된 프로젝트의 구성원 중에서(독립 이슈는 모든 구성원 중에서) 고른다.
-- **주소**: `/issue/FB-12`(번호만 읽는다). 앱 안에서 이슈를 누르면 어느 화면에서든 그 위에 대화상자로 뜬다. **주소를 직접 열거나 새로 고쳐도 대화상자다** (D-074): 뒤에 둘 화면이 없으므로 전체 이슈 목록 위에 뜨고, 닫으면 `/issues` 로 간다. `/issues` 는 볼 수 있는 모든 이슈("전체 이슈"), `/project/{key}/issues` 는 그 프로젝트에 연결된 이슈, `/my-issues` 는 내 이슈.
-- **API**: `GET/POST /api/v1/issues`(`?project=KEY` 로 좁히기, 만들 때 `projectKey`·`parentId`), `GET/PATCH /api/v1/issues/{번호}`(`projectKey`, `parentId` 를 `null` 로 보내면 떼어 낸다), `…/activity`, `…/subscription`, `…/reactions`, `…/attachments`, `…/documents`. `GET/POST /api/v1/projects/{key}/issues` 는 그 프로젝트의 목록과 "그 프로젝트에 연결해 만들기"로 남아 있다. 한 건 조회 응답에는 `canEdit`, `subIssues`, `reactions`, `attachments`, `documents` 가 더 들어 있다.
+- **프로젝트에는 키가 없다** (D-082). 프로젝트는 내부 ID 로만 가리킨다: 주소 `/project/{id}`, API `/api/v1/projects/{id}`, 실시간 주제 `project:{id}`. 화면에는 이름만 보인다. 이름은 겹쳐도 된다.
+- **주소**: `/issue/FB-12`(번호만 읽는다). 앱 안에서 이슈를 누르면 어느 화면에서든 그 위에 대화상자로 뜬다. **주소를 직접 열거나 새로 고쳐도 대화상자다** (D-074): 뒤에 둘 화면이 없으므로 전체 이슈 목록 위에 뜨고, 닫으면 `/issues` 로 간다. `/issues` 는 볼 수 있는 모든 이슈("전체 이슈"), `/project/{id}/issues` 는 그 프로젝트에 연결된 이슈, `/my-issues` 는 내 이슈.
+- **API**: `GET/POST /api/v1/issues`(`?project={id}` 로 좁히기, 만들 때 `projectId`·`parentId`), `GET/PATCH /api/v1/issues/{번호}`(`projectId`, `parentId` 를 `null` 로 보내면 떼어 낸다), `…/activity`, `…/subscription`, `…/reactions`, `…/attachments`, `…/documents`. `GET/POST /api/v1/projects/{id}/issues` 는 그 프로젝트의 목록과 "그 프로젝트에 연결해 만들기"로 남아 있다. 한 건 조회 응답에는 `canEdit`, `subIssues`, `reactions`, `attachments`, `documents` 가 더 들어 있다.
 
 | 기능 | 내용 | 상태 |
 |---|---|---|
@@ -27,8 +28,8 @@
 | 목록의 하위 이슈 (D-072) | 내 이슈, 전체 이슈, 프로젝트의 이슈 목록에서 하위 이슈를 상위 이슈 바로 아래에 한 단계 들여 그린다(꺾인 선). 상위 이슈가 같은 묶음(상태)에 없으면 그 묶음에 상위 이슈를 흐린 줄로 한 번 보여 주고 그 아래에 둔다. 하위 이슈가 있는 이슈에는 `완료/전체` 가 붙는다(목록 응답의 `subIssueCount`, `subIssueDoneCount`) | 구현, 화면 확인 안 함 |
 | 이모지 (D-064) | 이슈에 이모지 8개(👍 ❤️ 🎉 😄 👀 🚀 🙏 ✅) 중에서 달고, 다시 누르면 지운다. 볼 수 있는 누구나 | 구현, 화면 확인 안 함 |
 | 파일 첨부 (D-065) | 이슈에 아무 파일이나(기본 5MB 까지, `FLOWBIT_MAX_UPLOAD_SIZE`). 올린 그대로 저장하고 **항상 내려받기로만** 돌려준다(`application/octet-stream`, `Content-Disposition: attachment`): 올린 HTML 이 이 사이트에서 실행되지 않게. 편집 권한이 있으면 올리고 지우고, 볼 수 있으면 내려받는다. `GET/DELETE /api/v1/attachments/{id}` | 구현, 화면 확인 안 함 |
-| 이슈 문서 (D-066) | 이슈의 "자료": 제목과 편집기 본문을 가진 문서(`/doc/{id}`). 이슈 상세의 "+" 로 만들거나, 이슈 본문에서 `/문서` 로 만들면 그 자리에 링크가 들어간다. 자동 저장, 두 번 눌러 삭제. `GET/PATCH/DELETE /api/v1/documents/{id}` | 구현, 화면 확인 안 함 |
-| 프로젝트 문서 (D-075) | 프로젝트 개요의 설명 편집기에서 `/문서` 로 문서를 만들면 그 자리에 링크가 들어가고, 설명 아래 "자료" 목록에 보인다("+" 로도 만든다). 문서 화면과 편집은 이슈 문서와 같다(`/doc/{id}`). 프로젝트의 편집 권한이 있으면 만들고 고치고 지운다. `GET/POST /api/v1/projects/{key}/documents` | 구현, 화면 확인 안 함 |
+| 이슈 문서 (D-066) | 이슈의 "문서" 목록: 제목과 편집기 본문을 가진 문서(`/doc/{id}`). 이슈 상세의 "+" 로 만들거나, 이슈 본문에서 `/문서` 로 만들면 그 자리에 링크가 들어간다. 자동 저장, 두 번 눌러 삭제. `GET/PATCH/DELETE /api/v1/documents/{id}` | 구현, 화면 확인 안 함 |
+| 프로젝트 문서 (D-075) | 프로젝트 개요의 설명 편집기에서 `/문서` 로 문서를 만들면 그 자리에 링크가 들어가고, 설명 아래 "문서" 목록에 보인다("+" 로도 만든다). 문서 화면과 편집은 이슈 문서와 같다(`/doc/{id}`). 프로젝트의 편집 권한이 있으면 만들고 고치고 지운다. `GET/POST /api/v1/projects/{id}/documents` | 구현, 화면 확인 안 함 |
 | 전체 이슈 | 사이드바 "전체 이슈"(`/issues`). 프로젝트 필터가 더 있다. 여기서 만든 이슈는 프로젝트를 고르지 않으면 독립 이슈다 | 구현, 화면 확인 안 함 |
 | 프로젝트 구성원 추가 버튼 | 프로젝트 개요의 "구성원" 카드에 관리 역할에게만 "+" 가 보이고, 누르면 사람과 역할을 골라 추가한다 | 구현, 화면 확인 안 함 |
 
@@ -41,10 +42,10 @@
 | 이슈 목록: 상태별 묶음(진행 중 → 준비됨 → 백로그 → 완료 → 취소), 줄에서 상태 바꾸기 | 구현, 화면 확인 |
 | 이슈 상세: 제목과 본문을 그 자리에서 고침(자동 저장), 오른쪽 속성 카드에서 속성 변경 | 구현, 화면 확인(읽기), 속성 변경은 API 테스트만 |
 | 문서 편집기: `/` 메뉴(제목 1~3, 글머리·번호 목록, 체크리스트, 코드 블록, 인용, 표, 이미지, 구분선), 마크다운 입력, 자동 저장 | 구현, 화면 확인 |
-| 이슈 상세는 목록에서 열면 **목록 위의 대화상자**로 뜬다 (D-055). 주소는 `/issue/{키}`(D-062 전에는 `/project/{key}/issues/{n}`)이고, 닫으면 뒤로 간다. 주소를 직접 열거나 새로 고치면 예전처럼 한 페이지로 보인다 | 구현, 화면 확인 안 함 |
+| 이슈 상세는 목록에서 열면 **목록 위의 대화상자**로 뜬다 (D-055). 주소는 `/issue/{키}`(D-062 전에는 `/project/{id}/issues/{n}`)이고, 닫으면 뒤로 간다. 주소를 직접 열거나 새로 고치면 예전처럼 한 페이지로 보인다 | 구현, 화면 확인 안 함 |
 | 이슈 목록 필터 (D-056): 제목·번호 검색, 상태, 우선순위, 담당자(없음 포함), 프리셋(없음 포함), 마일스톤. 모두 주소에 둔다(`?status=&priority=&assignee=&preset=&milestone=&q=`) | 구현, 화면 확인 안 함 |
 | **내 이슈** (`/my-issues`, D-059): 사이드바 맨 위 메뉴. "담당"(`/my-issues`)과 "만든 이슈"(`/my-issues/created`) 탭, 상태별 묶음. 들어갈 수 있는 모든 프로젝트의 이슈를 모은다. `GET /api/v1/me/issues?scope=assigned\|created`(최근에 바뀐 순, 최대 1000건) | 구현, 화면 확인 안 함 |
-| **이슈 라벨** (D-060): 프리셋을 대신한다. 워크스페이스 공용, 이슈 하나에 여러 개. 기본 `버그`·`기능`·`중요`. 라벨 칩을 열어 찾고, 체크하고, 없는 이름은 그 자리에서 만든다. `GET/POST /api/v1/labels`, 이슈의 `labelIds`(쓰기)·`labels`(읽기). 목록의 줄에 라벨이 보이고 라벨로 거를 수 있다(`?label=<id>\|none`) | 구현, 화면 확인 안 함 |
+| **이슈 라벨** (D-060): 프리셋을 대신한다. 워크스페이스 공용, 이슈 하나에 여러 개. 기본 `버그`·`기능`·`중요`. 라벨 칩을 열어 찾고, 체크하고, 없는 이름은 그 자리에서 만든다. `GET/POST /api/v1/labels`, 이슈의 `labelIds`(쓰기)·`labels`(읽기). 목록의 줄에 라벨이 보이고 라벨로 거를 수 있다. 라벨 필터는 여러 개를 함께 고르며 그중 하나라도 붙은 이슈가 나온다(`?label=<id>,<id>,none`). 라벨을 고르는 곳(이슈 라벨, 라벨 필터, 프로젝트 라벨)은 모두 같은 콤보박스(`MultiCombobox`)다: 위에 찾기 칸, 열 때 골라져 있던 것이 맨 위, 그 아래 나머지, 화살표 키와 Enter 로 조작 (D-081) | 구현, 화면 확인 안 함 |
 | **이슈 활동** (D-061): 이슈 상세의 본문 아래 "활동". 만들기와 제목·본문·상태·우선순위·담당자·기한·목표·라벨 변경이 차례로 남는다("○○ 님이 상태를 바꿨습니다: 백로그 → 진행 중 · 3분 전"). 제목·본문은 같은 사람이 10분 안에 이어서 고치면 한 줄로 합친다. `GET …/issues/{n}/activity` | 구현, 화면 확인 안 함 |
 | **이슈 구독** (D-061): 만든 사람과 담당자(나중에 지정된 사람 포함)는 자동 구독. 이슈를 볼 수 있는 누구나(보기 역할 포함) "구독"/"구독 취소" 버튼으로 바꾼다. 구독자 아바타가 활동 제목 옆에 보인다. `PUT/DELETE …/issues/{n}/subscription`. 구독자는 알림의 받는 사람이 된다([02-architecture.md](../02-architecture.md) "알림") | 구현, 화면 확인 안 함 |
 | 편집기의 블록 옮기기: 마우스를 올린 블록의 왼쪽에 손잡이가 뜨고, 끌면 문단·목록·표·이미지를 통째로 다른 위치로 옮긴다 (D-058). 터치 화면에는 없다 | 구현, 화면 확인 안 함 |
@@ -60,7 +61,7 @@
 
 - **라벨** (Linear 의 Labels 칩). 라벨 관리가 필요해 뒤로 미뤘다.
 - 하위 이슈, 반복 이슈, 링크 첨부, 파일·이미지 첨부 (Linear 창의 "…" 메뉴와 클립 버튼)
-- 라벨 이름·색 고치기와 삭제(관리 화면), 프로젝트별 라벨, 필터에서 여러 값 동시 선택, 필터 저장(뷰)
+- 라벨 이름·색 고치기와 삭제(관리 화면), 프로젝트별 라벨, 필터에서 여러 값 동시 선택(라벨만 됨, D-081), 필터 저장(뷰)
 - 프리셋과 프리셋 목차(새 이슈 본문에 깔리던 제목들): D-060 으로 화면에서 없앴다. 아래 "프리셋" 절은 처음 쓴 명세로 남겨 둔다
 - 내 이슈의 "구독", "활동" 탭(Linear 에 있는 것). 구독과 활동 기록은 생겼으니(D-061) 다음에 만들 수 있다
 - 댓글(활동 목록 아래의 입력 칸), 실제 알림 발송(메일, 웹 푸시), 알림 설정
@@ -83,11 +84,11 @@
 
 | 메서드와 경로 | 설명 |
 |---|---|
-| `GET /api/v1/projects/{key}/issues` | 목록. 최근에 만든 것부터. `content` 는 빠진다 |
-| `POST /api/v1/projects/{key}/issues` | `{ title, content?, preset?, status?, priority?, assigneeId?, dueDate? }` → 201. 제목만 필수 |
-| `GET /api/v1/projects/{key}/issues/{number}` | 한 건. `content` 포함 |
-| `PATCH /api/v1/projects/{key}/issues/{number}` | 보낸 항목만 바뀐다. `assigneeId`, `dueDate`, `preset`, `content` 는 `null` 로 지운다 |
-| `PATCH /api/v1/projects/{key}` | `{ name?, description?, content?, status?, priority?, leadId?, startDate?, targetDate?, labels? }`. `content` 는 개요 문서. `leadId`, `startDate`, `targetDate` 는 `null` 로 지운다 |
+| `GET /api/v1/projects/{id}/issues` | 목록. 최근에 만든 것부터. `content` 는 빠진다 |
+| `POST /api/v1/projects/{id}/issues` | `{ title, content?, preset?, status?, priority?, assigneeId?, dueDate? }` → 201. 제목만 필수 |
+| `GET /api/v1/projects/{id}/issues/{number}` | 한 건. `content` 포함 |
+| `PATCH /api/v1/projects/{id}/issues/{number}` | 보낸 항목만 바뀐다. `assigneeId`, `dueDate`, `preset`, `content` 는 `null` 로 지운다 |
+| `PATCH /api/v1/projects/{id}` | `{ name?, description?, content?, status?, priority?, leadId?, startDate?, targetDate?, labels? }`. `content` 는 개요 문서. `leadId`, `startDate`, `targetDate` 는 `null` 로 지운다 |
 
 ### 프로젝트 업데이트와 건강도
 
@@ -95,12 +96,12 @@
 
 - 업데이트: 건강도(순조로움 `ON_TRACK` / 위험 `AT_RISK` / 지연 `OFF_TRACK`) + 글(선택, 5000자 이하, 평문). 편집 역할부터 남긴다. 고치거나 지우는 기능은 없다.
 - 화면: 프로젝트 개요의 마일스톤 아래 "프로젝트 업데이트"(건강도 칩 + 글 + "업데이트 남기기", `Ctrl/⌘+Enter`; 최근 것부터 50개). 속성 카드의 "건강도" 줄, 전체 프로젝트 표의 "건강도" 열(`순조로움 · 1시간 전`). 업데이트가 없으면 "업데이트 없음".
-- 남기면 실시간으로 `project:{KEY}` 를 알린다.
+- 남기면 실시간으로 `project:{id}` 를 알린다.
 
 | 메서드와 경로 | 설명 |
 |---|---|
-| `GET /api/v1/projects/{key}/updates` | 최근 것부터 50개: `[{ id, health, body, author, createdAt }]` |
-| `POST /api/v1/projects/{key}/updates` | `{ health, body? }` → 201. 편집 역할부터 |
+| `GET /api/v1/projects/{id}/updates` | 최근 것부터 50개: `[{ id, health, body, author, createdAt }]` |
+| `POST /api/v1/projects/{id}/updates` | `{ health, body? }` → 201. 편집 역할부터 |
 
 ### 마일스톤 (화면 이름은 "목표")
 
@@ -113,15 +114,15 @@
 - 진행률 = 완료(`DONE`) 이슈 수 ÷ 취소(`CANCELED`)를 뺀 이슈 수. 이슈가 없으면 0%. 추정치(포인트)가 없어 개수로 센다.
 - 마일스톤을 지우면 이슈는 남고 마일스톤만 빠진다.
 - 권한: 프로젝트 구성원은 모두 보고, **편집 역할부터** 만들고 고치고 지운다.
-- 화면: 프로젝트 개요의 설명 아래 "마일스톤" 목록(진행률 막대와 %, `이슈 완료수/전체`, 목표일 칩, `…` 메뉴의 삭제). `이슈 n/m` 을 누르면 그 마일스톤으로 걸러진 이슈 목록(`/project/{key}/issues?milestone={id}`). 이슈 목록 위의 마일스톤 칩으로 거르고, 거른 상태에서 새 이슈를 만들면(버튼이든 `C` 든) 그 마일스톤이 미리 골라져 있다. 거르는 값은 **주소에 둔다**(`?milestone=<id>`, 마일스톤 없음은 `?milestone=none`): 개요의 링크, 뒤로 가기, 주소 공유가 같은 결과를 낸다. 거른 상태에서는 "필터 초기화" 버튼이 보이고, 누르면 모든 이슈로 돌아간다. 목록의 줄에도 마일스톤 이름이 보인다(넓은 화면).
-- 바뀌면 실시간으로 `project:{KEY}` 를 알린다.
+- 화면: 프로젝트 개요의 설명 아래 "마일스톤" 목록(진행률 막대와 %, `이슈 완료수/전체`, 목표일 칩, `…` 메뉴의 삭제). `이슈 n/m` 을 누르면 그 마일스톤으로 걸러진 이슈 목록(`/project/{id}/issues?milestone={id}`). 이슈 목록 위의 마일스톤 칩으로 거르고, 거른 상태에서 새 이슈를 만들면(버튼이든 `C` 든) 그 마일스톤이 미리 골라져 있다. 거르는 값은 **주소에 둔다**(`?milestone=<id>`, 마일스톤 없음은 `?milestone=none`): 개요의 링크, 뒤로 가기, 주소 공유가 같은 결과를 낸다. 거른 상태에서는 "필터 초기화" 버튼이 보이고, 누르면 모든 이슈로 돌아간다. 목록의 줄에도 마일스톤 이름이 보인다(넓은 화면).
+- 바뀌면 실시간으로 `project:{id}` 를 알린다.
 
 | 메서드와 경로 | 설명 |
 |---|---|
-| `GET /api/v1/projects/{key}/milestones` | `[{ id, name, targetDate, issueCount, doneCount, createdAt }]`. `issueCount` 는 취소를 뺀 수 |
-| `POST /api/v1/projects/{key}/milestones` | `{ name, targetDate? }` → 201. 편집 역할부터 |
-| `PATCH /api/v1/projects/{key}/milestones/{id}` | `{ name?, targetDate? }`. `targetDate: null` 로 지운다 |
-| `DELETE /api/v1/projects/{key}/milestones/{id}` | → 204. 이슈는 마일스톤 없음이 된다 |
+| `GET /api/v1/projects/{id}/milestones` | `[{ id, name, targetDate, issueCount, doneCount, createdAt }]`. `issueCount` 는 취소를 뺀 수 |
+| `POST /api/v1/projects/{id}/milestones` | `{ name, targetDate? }` → 201. 편집 역할부터 |
+| `PATCH /api/v1/projects/{id}/milestones/{id}` | `{ name?, targetDate? }`. `targetDate: null` 로 지운다 |
+| `DELETE /api/v1/projects/{id}/milestones/{id}` | → 204. 이슈는 마일스톤 없음이 된다 |
 
 이슈 API 에는 `milestoneId`(만들기, `PATCH`, `null` 로 지움)와 응답의 `milestone: { id, name } | null` 이 더해졌다. 오류: 404 `MILESTONE_NOT_FOUND`, 422 `VALIDATION_FAILED`(이름 비었음·너무 김).
 
@@ -202,8 +203,8 @@
 | 프로젝트 만들기 | ○ (만든 사람이 관리 역할) | | | | ○ |
 | 워크스페이스 구성원 추가·역할 변경·비활성화 | ✕ | | | | ○ |
 
-- **모든 프로젝트가 전체 프로젝트 목록에 보인다** (D-047, 사용자 지정). 들어갈 수 없는 프로젝트는 자물쇠가 붙고, 누르면 `/no-access/{key}` 에서 "권한이 없습니다"와 그 프로젝트의 관리 역할(이름·아이디·사진)을 보여 주며 그들에게 추가를 요청하라고 안내한다. 사이드바 "내 프로젝트"에는 들어갈 수 있는 것만 있다.
-- 목록 밖의 데이터(개요, 이슈, 구성원, 마일스톤, 업데이트)는 지금처럼 구성원이 아니면 404 로 답한다. 화면은 `GET /api/v1/projects/{key}/access`(로그인한 누구나: `{ key, name, myRole, managers }`)로 "없는 프로젝트"와 "권한 없음"을 가른다.
+- **모든 프로젝트가 전체 프로젝트 목록에 보인다** (D-047, 사용자 지정). 들어갈 수 없는 프로젝트는 자물쇠가 붙고, 누르면 `/no-access/{id}` 에서 "권한이 없습니다"와 그 프로젝트의 관리 역할(이름·아이디·사진)을 보여 주며 그들에게 추가를 요청하라고 안내한다. 사이드바 "내 프로젝트"에는 들어갈 수 있는 것만 있다.
+- 목록 밖의 데이터(개요, 이슈, 구성원, 마일스톤, 업데이트)는 지금처럼 구성원이 아니면 404 로 답한다. 화면은 `GET /api/v1/projects/{id}/access`(로그인한 누구나: `{ id, name, myRole, managers }`)로 "없는 프로젝트"와 "권한 없음"을 가른다.
 - 워크스페이스 관리자는 프로젝트 구성원이 아니어도 모든 프로젝트에서 관리 역할로 동작한다.
 - 프로젝트에는 관리 역할이 항상 한 명 이상 있어야 한다. 마지막 관리 역할을 내보내거나 낮출 수 없다 (409 `LAST_MANAGER`).
 - 관리자는 자기 자신의 워크스페이스 역할을 바꾸거나 자신을 비활성화할 수 없다 (409 `CANNOT_CHANGE_SELF`). 그래서 관리자가 한 명도 없는 상태가 생기지 않는다.
@@ -241,16 +242,16 @@
 | `PATCH /api/v1/admin/members/{id}` | `{ role?, status? }` | 관리자 |
 | `PUT /api/v1/admin/members/{id}/password` | `{ password }` → 204 | 관리자 |
 | `GET /api/v1/projects` | 모든 프로젝트. 들어갈 수 없는 것은 `myRole: null`. 속성과 함께 `health`, `healthUpdatedAt`(최근 업데이트), `issueCount`(취소 제외), `doneCount`, `currentMilestone`(끝나지 않은 첫 마일스톤 이름)이 온다 | 로그인 |
-| `POST /api/v1/projects` | `{ name, key, description? }` → 201 | 로그인 |
-| `GET /api/v1/projects/{key}` | 프로젝트와 내 역할 | 프로젝트 구성원 |
-| `PATCH /api/v1/projects/{key}` | `{ name?, description? }` (속성은 위 "프로젝트 속성") | 관리 |
-| `PUT /api/v1/projects/{key}/icon` | multipart `file` 하나. 256px 정사각 WebP 로 바꿔 저장(M2a 의 변환·저장). 응답은 프로젝트(`iconUrl`) | 관리 |
-| `DELETE /api/v1/projects/{key}/icon` | 기본 아이콘으로 되돌림 | 관리 |
-| `GET /api/v1/projects/{key}/members` | 프로젝트 구성원과 역할 | 프로젝트 구성원 |
-| `PUT /api/v1/projects/{key}/members/{userId}` | `{ role }`. 없으면 추가, 있으면 역할 변경 | 관리 |
-| `DELETE /api/v1/projects/{key}/members/{userId}` | 내보내기 → 204 | 관리 |
+| `POST /api/v1/projects` | `{ name, description? }` → 201 | 로그인 |
+| `GET /api/v1/projects/{id}` | 프로젝트와 내 역할 | 프로젝트 구성원 |
+| `PATCH /api/v1/projects/{id}` | `{ name?, description? }` (속성은 위 "프로젝트 속성") | 관리 |
+| `PUT /api/v1/projects/{id}/icon` | multipart `file` 하나. 256px 정사각 WebP 로 바꿔 저장(M2a 의 변환·저장). 응답은 프로젝트(`iconUrl`) | 관리 |
+| `DELETE /api/v1/projects/{id}/icon` | 기본 아이콘으로 되돌림 | 관리 |
+| `GET /api/v1/projects/{id}/members` | 프로젝트 구성원과 역할 | 프로젝트 구성원 |
+| `PUT /api/v1/projects/{id}/members/{userId}` | `{ role }`. 없으면 추가, 있으면 역할 변경 | 관리 |
+| `DELETE /api/v1/projects/{id}/members/{userId}` | 내보내기 → 204 | 관리 |
 
-오류 코드: 404 `PROJECT_NOT_FOUND`, 404 `MEMBER_NOT_FOUND`, 403 `FORBIDDEN`, 409 `PROJECT_KEY_TAKEN`, 409 `LOGIN_ID_TAKEN`, 409 `LAST_MANAGER`, 409 `CANNOT_CHANGE_SELF`, 422 `VALIDATION_FAILED`.
+오류 코드: 404 `PROJECT_NOT_FOUND`, 404 `MEMBER_NOT_FOUND`, 403 `FORBIDDEN`, 409 `LOGIN_ID_TAKEN`, 409 `LAST_MANAGER`, 409 `CANNOT_CHANGE_SELF`, 422 `VALIDATION_FAILED`.
 
 ### 화면
 
@@ -258,8 +259,8 @@
 |---|---|
 | 사이드바 "프로젝트" | 내가 들어갈 수 있는 프로젝트 목록, `+` 로 새 프로젝트 |
 | `/` (전체 프로젝트) | Linear 의 프로젝트 목록처럼 표로 보인다 (D-046): 이름 + 현재 마일스톤(◆), 건강도(D-048), 우선순위, 리드, 목표일, 이슈 수(취소 제외), 상태 아이콘 + 진행률(완료 ÷ 취소 제외 이슈). 줄 전체가 링크. 좁은 화면에서는 이름과 상태만. 머리 오른쪽에 "새 프로젝트" |
-| `/project/{key}` | 프로젝트 머리(키, 이름, 설명). 이슈 목록 자리에는 아직 빈 상태 안내 |
-| `/project/{key}/settings` | 프로젝트 아이콘 올리기·지우기, 이름 고치기, 구성원 추가·역할 변경·내보내기 (관리 역할만). 아이콘은 사이드바, 전체 프로젝트 표, 경로 표시, 개요 머리에 보인다. 없으면 기본 상자 아이콘 |
+| `/project/{id}` | 프로젝트 머리(이름, 설명). 이슈 목록 자리에는 아직 빈 상태 안내 |
+| `/project/{id}/settings` | 프로젝트 아이콘 올리기·지우기, 이름 고치기, 구성원 추가·역할 변경·내보내기 (관리 역할만). 아이콘은 사이드바, 전체 프로젝트 표, 경로 표시, 개요 머리에 보인다. 없으면 기본 상자 아이콘 |
 | `/admin/members` | 워크스페이스 구성원 목록, 추가, 역할 변경, 비활성화, 비밀번호 재설정 (관리자만) |
 
 ### 인수 기준 (1단계)
@@ -349,7 +350,7 @@
 
 ## 3단계: 이슈 목록 (명세만)
 
-- `/project/{key}`: 상태별로 묶인 이슈 목록. 한 줄 = 우선순위 · 키 · 프리셋 · 제목 · 완료 조건 진행률 · 라벨 · 기한 · 담당자.
+- `/project/{id}`: 상태별로 묶인 이슈 목록. 한 줄 = 우선순위 · 키 · 프리셋 · 제목 · 완료 조건 진행률 · 라벨 · 기한 · 담당자.
 - 필터: 상태, 프리셋, 담당자, 라벨, 우선순위. "내 이슈" 바로 가기.
 - 줄의 상태·담당자·우선순위 아이콘을 눌러 그 자리에서 바꾼다. 즉시 반영하고 실패하면 되돌린다.
 - 다른 사람이 바꾼 것은 WebSocket 으로 바로 반영된다 ([../02-architecture.md](../02-architecture.md) "실시간 동기화").
@@ -365,7 +366,7 @@
 1단계 (마이그레이션 `V3`, 구현됨):
 
 ```
-projects (id, key unique, name, description, next_issue_number, created_by, archived_at, created_at, updated_at,
+projects (id, name, description, next_issue_number, created_by, archived_at, created_at, updated_at,
           status, priority, lead_id, start_date, target_date, labels text[])   -- 속성은 V6
 milestones (id, project_id, name, target_date, created_at, updated_at)        -- V7, issues.milestone_id 도 V7
 project_updates (id, project_id, author_id, health, body, created_at)        -- V8

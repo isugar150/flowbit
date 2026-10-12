@@ -113,7 +113,7 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
             <ProjectIcon iconUrl={project.iconUrl} />
           )}
           <Link
-            href={locked ? `/no-access/${project.key}` : `/project/${project.key}`}
+            href={locked ? `/no-access/${project.id}` : `/project/${project.id}`}
             title={locked ? m.locked : undefined}
             className="min-w-0 truncate font-medium outline-none after:absolute after:inset-0"
           >

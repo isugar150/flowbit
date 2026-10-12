@@ -6,11 +6,11 @@ import type { ProjectMember } from "@/features/projects/types";
 import { getProjects, loadProject, serverGet } from "@/lib/current-user";
 
 /** `?deleted=1` shows the deleted issues instead of the ones in use. */
-export default async function ProjectIssuesPage({ params, searchParams }: PageProps<"/project/[key]/issues">) {
-  const [{ key }, { deleted }] = await Promise.all([params, searchParams]);
-  const path = `/api/v1/projects/${encodeURIComponent(key)}`;
+export default async function ProjectIssuesPage({ params, searchParams }: PageProps<"/project/[id]/issues">) {
+  const [{ id }, { deleted }] = await Promise.all([params, searchParams]);
+  const path = `/api/v1/projects/${encodeURIComponent(id)}`;
   const [project, issues, members, milestones, labels, projects] = await Promise.all([
-    loadProject(key),
+    loadProject(id),
     serverGet<Issue[]>(`${path}/issues${deleted ? "?deleted=true" : ""}`),
     serverGet<ProjectMember[]>(`${path}/members`),
     serverGet<Milestone[]>(`${path}/milestones`),
@@ -21,7 +21,7 @@ export default async function ProjectIssuesPage({ params, searchParams }: PagePr
 
   return (
     <IssuesView
-      projectKey={project.key}
+      projectId={project.id}
       issues={issues}
       members={members}
       milestones={milestones}

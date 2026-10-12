@@ -49,7 +49,7 @@ export type IssueDocument = IssueDocumentSummary & {
   /** The issue the document belongs to, or null when it belongs to a project. */
   issue: { number: number; key: string; title: string } | null;
   /** The project the document belongs to, or null when it belongs to an issue. */
-  project: { key: string; name: string } | null;
+  project: { id: string; name: string } | null;
   canEdit: boolean;
 };
 
@@ -72,7 +72,7 @@ export type Issue = {
   /** YYYY-MM-DD */
   dueDate: string | null;
   /** The project the issue is linked to; null when it is on its own. */
-  project: { key: string; name: string } | null;
+  project: { id: string; name: string } | null;
   milestone: { id: string; name: string; /** YYYY-MM-DD */ targetDate?: string | null } | null;
   /** The issue this one is a sub-issue of. */
   parent: { number: number; key: string; title: string } | null;
@@ -112,7 +112,7 @@ export type NewIssueInput = {
   milestoneId: string | null;
   labelIds: string[];
   /** The project to link the issue to; null leaves it on its own. */
-  projectKey: string | null;
+  projectId: string | null;
   /** Makes the issue a sub-issue of this one. */
   parentId?: string;
 };
@@ -130,7 +130,7 @@ export type IssueChanges = Partial<{
   milestoneId: string | null;
   labelIds: string[];
   /** Links the issue to another project, or to none with null. Its milestone is dropped. */
-  projectKey: string | null;
+  projectId: string | null;
   parentId: string | null;
 }>;
 

@@ -1,4 +1,4 @@
-/** A stage of a project, with how far along its issues are (GET /api/v1/projects/{key}/milestones). */
+/** A stage of a project, with how far along its issues are (GET /api/v1/projects/{id}/milestones). */
 export type Milestone = {
   id: string;
   name: string;

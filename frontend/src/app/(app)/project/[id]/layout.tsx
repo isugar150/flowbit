@@ -14,7 +14,7 @@ const m = messages.projects;
  * The project's header and tabs, with the avatars of whoever else is looking at the same page. They read the project, so they sit inside <Suspense>: with
  * cacheComponents, request data read outside a boundary blocks every navigation between tabs.
  */
-export default function ProjectLayout({ children, params }: LayoutProps<"/project/[key]">) {
+export default function ProjectLayout({ children, params }: LayoutProps<"/project/[id]">) {
   return (
     <>
       <Suspense fallback={<ProjectNavSkeleton />}>
@@ -25,15 +25,15 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/projec
   );
 }
 
-async function ProjectNav({ params }: { params: LayoutProps<"/project/[key]">["params"] }) {
-  const { key } = await params;
-  const project = await loadProject(key);
-  const base = `/project/${project.key}`;
+async function ProjectNav({ params }: { params: LayoutProps<"/project/[id]">["params"] }) {
+  const { id } = await params;
+  const project = await loadProject(id);
+  const base = `/project/${project.id}`;
 
   return (
     <>
       {/* Anything in this project changing re-renders it for everyone who has it open. */}
-      <RealtimeScope topics={[`project:${project.key}`]} presence={`project:${project.key}`} />
+      <RealtimeScope topics={[`project:${project.id}`]} presence={`project:${project.id}`} />
       <PageHeader
         crumbs={[{ label: m.all, href: "/" }, { label: project.name, icon: <ProjectIcon iconUrl={project.iconUrl} /> }]}
         actions={<PresenceAvatars />}

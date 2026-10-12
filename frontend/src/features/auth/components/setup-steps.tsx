@@ -11,7 +11,7 @@ export function SetupSteps({ current: currentStep }: { current: number }) {
   const { steps, stepsLabel, stepDone, stepCurrent } = messages.setup;
 
   return (
-    <ol aria-label={stepsLabel} className="flex items-center gap-2 text-[0.8125rem] leading-5">
+    <ol aria-label={stepsLabel} className="flex items-center gap-1.5 text-[0.8125rem] leading-5">
       {steps.map((step, index) => {
         const done = index < currentStep;
         const current = index === currentStep;
@@ -19,9 +19,11 @@ export function SetupSteps({ current: currentStep }: { current: number }) {
           <li
             key={step}
             aria-current={current ? "step" : undefined}
-            className={cn("flex items-center gap-2", index > 0 && "flex-1")}
+            className={cn("flex items-center gap-1.5", index > 0 && "flex-1")}
           >
-            {index > 0 ? <span aria-hidden="true" className={cn("h-px flex-1", done || current ? "bg-primary" : "bg-border")} /> : null}
+            {index > 0 ? (
+              <span aria-hidden="true" className={cn("h-px min-w-2 flex-1", done || current ? "bg-primary" : "bg-border")} />
+            ) : null}
             <span
               aria-hidden="true"
               className={cn(
@@ -34,7 +36,13 @@ export function SetupSteps({ current: currentStep }: { current: number }) {
               {done ? <CheckIcon className="size-3" strokeWidth={3} /> : null}
               {current ? <span className="size-1.5 rounded-full bg-primary" /> : null}
             </span>
-            <span className={cn(current ? "font-medium text-foreground" : "text-muted-foreground")}>
+            {/* One line each. On a narrow phone only the current step keeps its name on screen. */}
+            <span
+              className={cn(
+                "whitespace-nowrap",
+                current ? "font-medium text-foreground" : "text-muted-foreground max-[23.4375rem]:sr-only",
+              )}
+            >
               {step}
               {done ? <span className="sr-only"> ({stepDone})</span> : null}
               {current ? <span className="sr-only"> ({stepCurrent})</span> : null}

@@ -56,14 +56,14 @@ export function deleteAttachment(id: string): Promise<void> {
   return apiFetch<void>(`/api/v1/attachments/${id}`, { method: "DELETE" });
 }
 
-/** Whose document: an issue (by number) or a project (by key). */
-export type DocumentOwner = { issueNumber: number } | { projectKey: string };
+/** Whose document: an issue (by number) or a project (by id). */
+export type DocumentOwner = { issueNumber: number } | { projectId: string };
 
 export function createDocument(input: { owner: DocumentOwner; title: string }): Promise<IssueDocumentSummary> {
   const path =
     "issueNumber" in input.owner
       ? `/api/v1/issues/${input.owner.issueNumber}/documents`
-      : `/api/v1/projects/${encodeURIComponent(input.owner.projectKey)}/documents`;
+      : `/api/v1/projects/${encodeURIComponent(input.owner.projectId)}/documents`;
   return apiFetch<IssueDocumentSummary>(path, { method: "POST", body: { title: input.title } });
 }
 

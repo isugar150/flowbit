@@ -28,22 +28,22 @@ class RichTextIntegrationTest : IntegrationTest() {
         admin = client().also { it.setup("admin", PASSWORD) }
         val editorId = createMember("editor")
         val viewerId = createMember("viewer")
-        admin.post("/api/v1/projects", """{"name":"결제 개편","key":"PAY"}""")
-        admin.put("/api/v1/projects/PAY/members/$editorId", """{"role":"EDITOR"}""")
-        admin.put("/api/v1/projects/PAY/members/$viewerId", """{"role":"VIEWER"}""")
+        remember("PAY", admin.post("/api/v1/projects", """{"name":"결제 개편"}""").json()["id"])
+        admin.put("/api/v1/projects/${p("PAY")}/members/$editorId", """{"role":"EDITOR"}""")
+        admin.put("/api/v1/projects/${p("PAY")}/members/$viewerId", """{"role":"VIEWER"}""")
         editor = client().also { it.login("editor", PASSWORD) }
         viewer = client().also { it.login("viewer", PASSWORD) }
     }
 
     @Test
     fun `편집 역할은 프로젝트 개요 문서와 요약을 쓸 수 있고 다시 읽으면 그대로 나온다`() {
-        assertNull(editor.get("/api/v1/projects/PAY").json()["content"])
+        assertNull(editor.get("/api/v1/projects/${p("PAY")}").json()["content"])
 
-        val saved = editor.patch("/api/v1/projects/PAY", """{"description":"결제를 다시 만든다","content":$DOCUMENT}""")
+        val saved = editor.patch("/api/v1/projects/${p("PAY")}", """{"description":"결제를 다시 만든다","content":$DOCUMENT}""")
 
         assertEquals(200, saved.status)
         assertEquals("결제를 다시 만든다", saved.json()["description"])
-        val content = viewer.get("/api/v1/projects/PAY").json()["content"] as Map<*, *>
+        val content = viewer.get("/api/v1/projects/${p("PAY")}").json()["content"] as Map<*, *>
         assertEquals("doc", content["type"])
         assertEquals(3, (content["content"] as List<*>).size)
         // Lists stay light: the document is only sent when one project is requested.
@@ -52,20 +52,20 @@ class RichTextIntegrationTest : IntegrationTest() {
 
     @Test
     fun `문서를 null 로 보내면 지워지고 보내지 않으면 그대로다`() {
-        editor.patch("/api/v1/projects/PAY", """{"content":$DOCUMENT}""")
+        editor.patch("/api/v1/projects/${p("PAY")}", """{"content":$DOCUMENT}""")
 
-        editor.patch("/api/v1/projects/PAY", """{"description":"요약만 바꿈"}""")
-        assertTrue(editor.get("/api/v1/projects/PAY").json()["content"] is Map<*, *>)
+        editor.patch("/api/v1/projects/${p("PAY")}", """{"description":"요약만 바꿈"}""")
+        assertTrue(editor.get("/api/v1/projects/${p("PAY")}").json()["content"] is Map<*, *>)
 
-        editor.patch("/api/v1/projects/PAY", """{"content":null}""")
-        assertNull(editor.get("/api/v1/projects/PAY").json()["content"])
+        editor.patch("/api/v1/projects/${p("PAY")}", """{"content":null}""")
+        assertNull(editor.get("/api/v1/projects/${p("PAY")}").json()["content"])
     }
 
     @Test
     fun `보기 역할은 개요를 고칠 수 없고 편집 역할은 이름을 바꿀 수 없다`() {
-        assertEquals(403, viewer.patch("/api/v1/projects/PAY", """{"content":$DOCUMENT}""").status)
-        assertEquals(403, editor.patch("/api/v1/projects/PAY", """{"name":"내 프로젝트"}""").status)
-        assertEquals("결제 개편", editor.get("/api/v1/projects/PAY").json()["name"])
+        assertEquals(403, viewer.patch("/api/v1/projects/${p("PAY")}", """{"content":$DOCUMENT}""").status)
+        assertEquals(403, editor.patch("/api/v1/projects/${p("PAY")}", """{"name":"내 프로젝트"}""").status)
+        assertEquals("결제 개편", editor.get("/api/v1/projects/${p("PAY")}").json()["name"])
     }
 
     @Test
@@ -77,11 +77,11 @@ class RichTextIntegrationTest : IntegrationTest() {
         val notADocument = """{"type":"paragraph"}"""
 
         listOf(unknownNode, badLink, notADocument, "\"그냥 글자\"").forEach { document ->
-            val response = editor.patch("/api/v1/projects/PAY", """{"content":$document}""")
+            val response = editor.patch("/api/v1/projects/${p("PAY")}", """{"content":$document}""")
             assertEquals(422, response.status, document)
             assertEquals("VALIDATION_FAILED", response.json()["code"])
         }
-        assertNull(editor.get("/api/v1/projects/PAY").json()["content"])
+        assertNull(editor.get("/api/v1/projects/${p("PAY")}").json()["content"])
     }
 
     @Test
@@ -95,7 +95,7 @@ class RichTextIntegrationTest : IntegrationTest() {
                     {"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null,"align":null,"verticalAlign":null},$cell}]}]}
             ]}"""
 
-        val created = editor.post("/api/v1/projects/PAY/issues", """{"title":"표","content":$document}""")
+        val created = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"표","content":$document}""")
 
         assertEquals(201, created.status)
         assertEquals("값\n값", created.json()["description"])
@@ -113,7 +113,7 @@ class RichTextIntegrationTest : IntegrationTest() {
                 {"type":"tableCell","attrs":{"colspan":100000}}]}]}]}"""
 
         listOf(outsideImage, noSource, badAlign, badSpan).forEach { document ->
-            assertEquals(422, editor.patch("/api/v1/projects/PAY", """{"content":$document}""").status, document)
+            assertEquals(422, editor.patch("/api/v1/projects/${p("PAY")}", """{"content":$document}""").status, document)
         }
     }
 
@@ -123,23 +123,23 @@ class RichTextIntegrationTest : IntegrationTest() {
             """{"type":"doc","content":[{"type":"paragraph","content":[
                 {"type":"text","text":"문서","marks":[{"type":"link","attrs":{"href":"https://example.com/spec"}}]}]}]}"""
 
-        assertEquals(200, editor.patch("/api/v1/projects/PAY", """{"content":$document}""").status)
+        assertEquals(200, editor.patch("/api/v1/projects/${p("PAY")}", """{"content":$document}""").status)
     }
 
     @Test
     fun `이슈를 문서와 함께 만들면 본문이 저장되고 설명은 문서의 글자로 채워진다`() {
-        val created = editor.post("/api/v1/projects/PAY/issues", """{"title":"환불 흐름","content":$DOCUMENT}""")
+        val created = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"환불 흐름","content":$DOCUMENT}""")
 
         assertEquals(201, created.status)
         assertEquals("배경\n환불이 느리다\n3초 안에 끝난다", created.json()["description"])
         assertEquals("doc", (created.json()["content"] as Map<*, *>)["type"])
         assertEquals("doc", (viewer.get("/api/v1/issues/1").json()["content"] as Map<*, *>)["type"])
-        assertNull(viewer.get("/api/v1/projects/PAY/issues").jsonList().single()["content"])
+        assertNull(viewer.get("/api/v1/projects/${p("PAY")}/issues").jsonList().single()["content"])
     }
 
     @Test
     fun `이슈 본문을 고치면 설명도 함께 바뀌고 다른 속성은 그대로다`() {
-        editor.post("/api/v1/projects/PAY/issues", """{"title":"환불 흐름","priority":"HIGH","content":$DOCUMENT}""")
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"환불 흐름","priority":"HIGH","content":$DOCUMENT}""")
         val shorter = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"다시 씀"}]}]}"""
 
         val updated = editor.patch("/api/v1/issues/1", """{"content":$shorter}""").json()

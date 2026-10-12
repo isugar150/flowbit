@@ -1,8 +1,10 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 import { PlusIcon, TagIcon, UserIcon, XIcon } from "lucide-react";
+import { MultiCombobox } from "@/components/multi-combobox";
 import { PropertyRow } from "@/components/property-card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { ChipSelect, chipClass } from "@/features/issues/components/chip-select";
 import { DateRangeChip } from "@/features/issues/components/date-chips";
@@ -36,7 +38,7 @@ export function ProjectProperties({
   canEdit: boolean;
 }) {
   const mutation = useRefreshingMutation(updateProject);
-  const change = (changes: ProjectChanges) => mutation.mutate({ key: project.key, changes });
+  const change = (changes: ProjectChanges) => mutation.mutate({ id: project.id, changes });
   const locked = !canEdit || mutation.isPending;
 
   const leadOptions = [
@@ -108,7 +110,10 @@ export function ProjectProperties({
   );
 }
 
-/** The labels as chips with a remove button each, and a "+" that opens a field with suggestions. */
+/**
+ * The labels as chips with a remove button each, and a "+" that opens a combobox: tick labels
+ * used on other projects, or type a new one.
+ */
 function LabelsEditor({
   labels,
   suggestions,
@@ -120,18 +125,17 @@ function LabelsEditor({
   disabled: boolean;
   onChange: (labels: string[]) => void;
 }) {
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState("");
-  const listId = useId();
+  const [tooMany, setTooMany] = useState(false);
   const has = (label: string) => labels.some((existing) => existing.toLowerCase() === label.toLowerCase());
-  const offered = suggestions.filter((label) => !has(label));
-  const full = labels.length >= LABELS_MAX;
-
-  const add = () => {
-    const label = draft.trim();
-    setDraft("");
-    setAdding(false);
-    if (label && !has(label) && !full) onChange([...labels, label]);
+  // A label is its own name here: there is no label table for projects.
+  const options = [...labels, ...suggestions.filter((label) => !has(label))].map((label) => ({
+    id: label,
+    label,
+    icon: <TagIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />,
+  }));
+  const change = (next: string[]) => {
+    setTooMany(next.length > LABELS_MAX);
+    if (next.length <= LABELS_MAX) onChange(next);
   };
 
   return (
@@ -152,48 +156,37 @@ function LabelsEditor({
           )}
         </span>
       ))}
-      {disabled ? null : adding ? (
-        <span className={cn(chipClass, "max-w-40 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50")}>
-          <input
-            // The field only appears after pressing "+", so taking focus here is what the person expects.
-            autoFocus
-            list={listId}
-            value={draft}
-            maxLength={LABEL_MAX_LENGTH}
-            placeholder={m.newLabelPlaceholder}
-            aria-label={m.newLabelLabel}
-            autoComplete="off"
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={add}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                add();
-              } else if (event.key === "Escape") {
-                setDraft("");
-                setAdding(false);
-              }
-            }}
-            className="w-full min-w-0 bg-transparent outline-none placeholder:text-muted-foreground"
-          />
-          <datalist id={listId}>
-            {offered.map((label) => (
-              <option key={label} value={label} />
-            ))}
-          </datalist>
-        </span>
-      ) : (
-        <button
-          type="button"
-          aria-label={m.addLabel}
-          title={full ? m.tooManyLabels : m.addLabel}
-          disabled={full}
-          onClick={() => setAdding(true)}
-          className={cn(chipClass, labels.length > 0 && "size-7 justify-center px-0 max-md:size-9")}
-        >
-          <PlusIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
-          {labels.length > 0 ? null : <span className="text-muted-foreground">{m.addLabel}</span>}
-        </button>
+      {disabled ? null : (
+        <Popover onOpenChange={() => setTooMany(false)}>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                aria-label={m.addLabel}
+                title={m.addLabel}
+                className={cn(chipClass, labels.length > 0 && "size-7 justify-center px-0 max-md:size-9")}
+              />
+            }
+          >
+            <PlusIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            {labels.length > 0 ? null : <span className="text-muted-foreground">{m.addLabel}</span>}
+          </PopoverTrigger>
+          <PopoverContent className="w-60 p-0">
+            <MultiCombobox
+              options={options}
+              value={labels}
+              onChange={change}
+              onCreate={(name) => change([...labels, name])}
+              placeholder={m.labelSearchPlaceholder}
+              listLabel={m.propLabels}
+              heading={m.labelsHeading}
+              emptyText={m.noLabelSuggestions}
+              createText={m.createLabel}
+              error={tooMany ? m.tooManyLabels : null}
+              maxLength={LABEL_MAX_LENGTH}
+            />
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );

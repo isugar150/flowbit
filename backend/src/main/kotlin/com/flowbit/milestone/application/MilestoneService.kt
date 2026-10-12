@@ -46,17 +46,17 @@ class MilestoneService(
     /** Dated milestones first, soonest first; undated ones after, in the order they were made. */
     suspend fun list(
         user: AuthenticatedUser,
-        projectKey: String,
-    ): List<MilestoneView> = views(projectService.access(user, projectKey).project.id)
+        projectId: String,
+    ): List<MilestoneView> = views(projectService.access(user, projectId).project.id)
 
     @Transactional
     suspend fun create(
         user: AuthenticatedUser,
-        projectKey: String,
+        projectId: String,
         rawName: String,
         targetDate: LocalDate?,
     ): MilestoneView {
-        val project = editable(projectService.access(user, projectKey)).project
+        val project = editable(projectService.access(user, projectId)).project
         val now = clock.instant()
         val milestone = Milestone(UuidV7.generate(now), project.id, validName(rawName), targetDate, now, now)
         entityTemplate.insert(milestone).awaitSingle()
@@ -67,11 +67,11 @@ class MilestoneService(
     @Transactional
     suspend fun update(
         user: AuthenticatedUser,
-        projectKey: String,
+        projectId: String,
         milestoneId: UUID,
         changes: Map<String, Any?>,
     ): MilestoneView {
-        val project = editable(projectService.access(user, projectKey)).project
+        val project = editable(projectService.access(user, projectId)).project
         val milestone = repository.findByIdAndProjectId(milestoneId, project.id) ?: throw notFound()
         if ("name" in changes) milestone.name = validName(changes["name"] as? String ?: "")
         if ("targetDate" in changes) {
@@ -91,10 +91,10 @@ class MilestoneService(
     @Transactional
     suspend fun delete(
         user: AuthenticatedUser,
-        projectKey: String,
+        projectId: String,
         milestoneId: UUID,
     ) {
-        val project = editable(projectService.access(user, projectKey)).project
+        val project = editable(projectService.access(user, projectId)).project
         val milestone = repository.findByIdAndProjectId(milestoneId, project.id) ?: throw notFound()
         repository.delete(milestone)
     }

@@ -38,7 +38,7 @@ data class NewIssue(
     val milestoneId: UUID? = null,
     val labelIds: List<UUID> = emptyList(),
     /** The project to link the issue to; null leaves it on its own. */
-    val projectKey: String? = null,
+    val projectId: String? = null,
     /** Makes the new issue a sub-issue of this one. */
     val parentId: UUID? = null,
     /** With [dueDate], makes the issue cover a span of days. */
@@ -106,10 +106,10 @@ data class DocumentDetail(
     val canEdit: Boolean,
 )
 
-/** What a document belonged to: an issue (by number) or a project (by key). */
+/** What a document belonged to: an issue (by number) or a project (by id). */
 data class DocumentOwner(
     val issueNumber: Int?,
-    val projectKey: String?,
+    val projectId: UUID?,
 )
 
 /** An attached file ready to be sent. */
@@ -138,14 +138,14 @@ class IssueService(
     private val clock: Clock,
 ) {
     /**
-     * Issues the caller may see; of one project when `projectKey` is given. `deleted` asks for the
+     * Issues the caller may see; of one project when `projectId` is given. `deleted` asks for the
      * deleted ones instead of the ones in use.
      */
     suspend fun list(
         user: AuthenticatedUser,
-        projectKey: String?,
+        projectId: String?,
         deleted: Boolean = false,
-    ): List<IssueView> = queries.list(viewer(user), projectKey?.let { projectService.access(user, it).project.id }, deleted)
+    ): List<IssueView> = queries.list(viewer(user), projectId?.let { projectService.access(user, it).project.id }, deleted)
 
     /** The caller's own issues ("내 이슈"). */
     suspend fun mine(
@@ -225,7 +225,7 @@ class IssueService(
         // A sub-issue starts where its parent is: the same project, and the same milestone in it,
         // unless the request says otherwise.
         val project =
-            input.projectKey?.let { editableProject(user, it) }
+            input.projectId?.let { editableProject(user, it) }
                 ?: parent?.projectId?.let { projectService.accessById(user, it)?.takeIf { access -> access.role.canEdit }?.project ?: throw noEditRight() }
         val milestoneId = input.milestoneId ?: parent?.milestoneId?.takeIf { project?.id == parent.projectId }
         val title = input.title.trim()
@@ -291,8 +291,8 @@ class IssueService(
         if (patch.has("dueDate")) issue.dueDate = patch.date("dueDate")
         if (patch.has("startDate")) issue.startDate = patch.date("startDate")
         issue.startDate = spanStart(issue.startDate, issue.dueDate)
-        if (patch.has("projectKey")) {
-            val projectId = patch.string("projectKey")?.let { editableProject(user, it).id }
+        if (patch.has("projectId")) {
+            val projectId = patch.string("projectId")?.let { editableProject(user, it).id }
             if (projectId != issue.projectId) {
                 issue.projectId = projectId
                 // A milestone belongs to one project; it cannot follow the issue to another.
@@ -322,7 +322,7 @@ class IssueService(
         // Whoever is given the issue follows it from then on.
         if (after.assignee != null && after.assignee.id != before.assignee?.id) activities.subscribe(issue.id, after.assignee.id)
         moveSubIssuesAlong(user, issue, oldProjectId, oldMilestoneId, 0)
-        return IssueChange(after, events, recipients(issue.id, user), listOfNotNull(before.project?.key, after.project?.key).distinct())
+        return IssueChange(after, events, recipients(issue.id, user), listOfNotNull(before.project?.id, after.project?.id).distinct())
     }
 
     /**
@@ -458,14 +458,14 @@ class IssueService(
     /** A document of a project, made from its overview. Needs the right to edit in the project. */
     suspend fun createProjectDocument(
         user: AuthenticatedUser,
-        projectKey: String,
+        projectId: String,
         rawTitle: String?,
-    ): DocumentSummary = extras.addDocument(null, editableProject(user, projectKey).id, documentTitle(rawTitle.orEmpty()), user.id, clock.instant())
+    ): DocumentSummary = extras.addDocument(null, editableProject(user, projectId).id, documentTitle(rawTitle.orEmpty()), user.id, clock.instant())
 
     suspend fun projectDocuments(
         user: AuthenticatedUser,
-        projectKey: String,
-    ): List<DocumentSummary> = extras.projectDocuments(projectService.access(user, projectKey).project.id)
+        projectId: String,
+    ): List<DocumentSummary> = extras.projectDocuments(projectService.access(user, projectId).project.id)
 
     suspend fun document(
         user: AuthenticatedUser,
@@ -477,7 +477,7 @@ class IssueService(
             document = document,
             content = richText.load(RichText.ContentTable.DOCUMENTS, document.id),
             issue = owner.issue?.let { checkNotNull(queries.find(it.number)) },
-            project = owner.project?.let { IssueProject(it.key, it.name) },
+            project = owner.project?.let { IssueProject(it.id, it.name) },
             canEdit = owner.canEdit,
         )
     }
@@ -514,7 +514,7 @@ class IssueService(
             val event = IssueEvent(IssueActivityType.DOCUMENT_REMOVED, mapOf("from" to document.title))
             activities.record(issue.id, user.id, listOf(event), clock.instant())
         }
-        return DocumentOwner(owner.issue?.number, owner.project?.key)
+        return DocumentOwner(owner.issue?.number, owner.project?.id)
     }
 
     /** The issue or project a document belongs to, as the caller may see it; "not found" when they may not. */
@@ -564,9 +564,9 @@ class IssueService(
     /** A project the caller may put issues into. */
     private suspend fun editableProject(
         user: AuthenticatedUser,
-        projectKey: String,
+        projectId: String,
     ): Project {
-        val access = projectService.access(user, projectKey)
+        val access = projectService.access(user, projectId)
         if (!access.role.canEdit) throw noEditRight()
         return access.project
     }

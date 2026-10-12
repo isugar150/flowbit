@@ -33,7 +33,7 @@ data class IssueLabel(
 
 /** The project an issue is linked to. */
 data class IssueProject(
-    val key: String,
+    val id: UUID,
     val name: String,
 )
 
@@ -222,7 +222,7 @@ class IssueQueries(
                 select i.id, i.number, i.title, i.description, i.status, i.priority, i.start_date, i.due_date,
                        i.version, i.created_at, i.updated_at, i.deleted_at,
                        (select workspace_key from instance_settings where id = 1) as issue_prefix,
-                       p.key as project_key, p.name as project_name,
+                       p.id as project_id, p.name as project_name,
                        parent.number as parent_number, parent.title as parent_title,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null) as sub_total,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null and s.status = 'DONE') as sub_done,
@@ -261,8 +261,8 @@ class IssueQueries(
                 key = "$prefix-$number",
                 number = number,
                 project =
-                    row.get("project_key", String::class.java)?.let { key ->
-                        IssueProject(key, checkNotNull(row.get("project_name", String::class.java)))
+                    row.get("project_id", UUID::class.java)?.let { projectId ->
+                        IssueProject(projectId, checkNotNull(row.get("project_name", String::class.java)))
                     },
                 parent =
                     row.get("parent_number", Int::class.javaObjectType)?.let { parentNumber ->

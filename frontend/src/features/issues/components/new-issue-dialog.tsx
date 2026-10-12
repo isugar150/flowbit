@@ -7,6 +7,7 @@ import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-edit
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { ModKey } from "@/components/mod-key";
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
@@ -32,7 +33,7 @@ const DEFAULT_PROPERTIES: Properties = {
   dueDate: null,
   milestoneId: null,
   labelIds: [],
-  projectKey: null,
+  projectId: null,
 };
 
 /**
@@ -44,7 +45,7 @@ export function NewIssueDialog({
   open,
   onOpenChange,
   projects,
-  defaultProjectKey,
+  defaultProjectId,
   members: defaultMembers,
   milestones: defaultMilestones,
   labels,
@@ -56,8 +57,8 @@ export function NewIssueDialog({
   /** Projects the issue can be linked to. */
   projects: ProjectSummary[];
   /** The project the dialog was opened in; null on the list of every issue. */
-  defaultProjectKey: string | null;
-  /** Who can be assigned and the milestones, for `defaultProjectKey` (everyone and none when it is null). */
+  defaultProjectId: string | null;
+  /** Who can be assigned and the milestones, for `defaultProjectId` (everyone and none when it is null). */
   members: ProjectMember[];
   milestones: Milestone[];
   /** Every label in the workspace. */
@@ -91,7 +92,7 @@ export function NewIssueDialog({
     if (open) {
       setProperties((current) => ({
         ...current,
-        projectKey: defaultProjectKey,
+        projectId: defaultProjectId,
         milestoneId: defaultMilestoneId,
         startDate: defaultDates?.startDate ?? null,
         dueDate: defaultDates?.dueDate ?? null,
@@ -109,7 +110,7 @@ export function NewIssueDialog({
       setLastCreated(issue.key);
       titleRef.current?.focus();
     } else {
-      setProperties({ ...DEFAULT_PROPERTIES, projectKey: defaultProjectKey });
+      setProperties({ ...DEFAULT_PROPERTIES, projectId: defaultProjectId });
       resetBody();
       onOpenChange(false);
     }
@@ -117,17 +118,17 @@ export function NewIssueDialog({
 
   // Who can be assigned and which milestones exist follow the chosen project. For the project the
   // dialog was opened in they came with the page; for another one they are fetched.
-  const projectKey = properties.projectKey;
-  const other = projectKey !== defaultProjectKey;
+  const projectId = properties.projectId;
+  const other = projectId !== defaultProjectId;
   const fetched = useQuery({
-    queryKey: ["new-issue-project", projectKey],
+    queryKey: ["new-issue-project", projectId],
     enabled: open && other,
     queryFn: async (): Promise<{ members: ProjectMember[]; milestones: Milestone[] }> => {
-      if (projectKey === null) {
+      if (projectId === null) {
         const users = await apiFetch<UserSummary[]>("/api/v1/users");
         return { members: users.map((person) => ({ ...person, userId: person.id, role: "EDITOR" })), milestones: [] };
       }
-      const path = `/api/v1/projects/${encodeURIComponent(projectKey)}`;
+      const path = `/api/v1/projects/${encodeURIComponent(projectId)}`;
       const [members, milestones] = await Promise.all([
         apiFetch<ProjectMember[]>(`${path}/members`),
         apiFetch<Milestone[]>(`${path}/milestones`),
@@ -139,7 +140,7 @@ export function NewIssueDialog({
   const milestones = other ? (fetched.data?.milestones ?? []) : defaultMilestones;
   // An assignee or a milestone belongs to a project; changing the project starts those over.
   const setProject = (key: string | null) =>
-    setProperties((current) => ({ ...current, projectKey: key, assigneeId: null, milestoneId: null }));
+    setProperties((current) => ({ ...current, projectId: key, assigneeId: null, milestoneId: null }));
 
   const submit = () => {
     if (mutation.isPending) return;
@@ -178,10 +179,10 @@ export function NewIssueDialog({
           className="flex flex-col"
         >
           <div className="flex items-center gap-1 px-4 pt-3.5 text-[0.8125rem] leading-5">
-            {projectKey ? (
+            {projectId ? (
               <>
                 <Badge variant="secondary" className="max-w-48 truncate">
-                  {projects.find((project) => project.key === projectKey)?.name ?? projectKey}
+                  {projects.find((project) => project.id === projectId)?.name ?? projectId}
                 </Badge>
                 <ChevronRightIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
               </>
@@ -232,7 +233,7 @@ export function NewIssueDialog({
               values={properties}
               onChange={(changes) => {
                 // An assignee or a milestone belongs to a project; changing the project starts those over.
-                if ("projectKey" in changes) setProject(changes.projectKey ?? null);
+                if ("projectId" in changes) setProject(changes.projectId ?? null);
                 else setProperties((current) => ({ ...current, ...changes }));
               }}
               members={members}
@@ -265,7 +266,11 @@ export function NewIssueDialog({
             <Button type="submit" className="max-md:h-11" disabled={mutation.isPending}>
               {mutation.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}
               {mutation.isPending ? m.creating : m.create}
-              {mutation.isPending ? null : <Kbd className="max-md:hidden">Ctrl ↵</Kbd>}
+              {mutation.isPending ? null : (
+                <Kbd className="max-md:hidden">
+                  <ModKey /> ↵
+                </Kbd>
+              )}
             </Button>
           </div>
         </form>

@@ -52,8 +52,8 @@ data class IssueChange(
     val events: List<IssueEvent>,
     /** Subscribers of the issue other than the person who made the change. */
     val recipientIds: List<UUID>,
-    /** Keys of the projects whose lists the change shows in: the one it is linked to, and the one it left. */
-    val projectKeys: List<String> = listOfNotNull(issue.project?.key),
+    /** The projects whose lists the change shows in: the one it is linked to, and the one it left. */
+    val projectIds: List<UUID> = listOfNotNull(issue.project?.id),
 )
 
 /** The history of issues and who is subscribed to them (V11__issue_activity_and_subscriptions.sql). */
@@ -90,7 +90,7 @@ class IssueActivityStore(
         if (before.milestone?.id != after.milestone?.id) {
             events += IssueEvent(IssueActivityType.MILESTONE_CHANGED, mapOf("from" to before.milestone?.name, "to" to after.milestone?.name))
         }
-        if (before.project?.key != after.project?.key) {
+        if (before.project?.id != after.project?.id) {
             events += IssueEvent(IssueActivityType.PROJECT_CHANGED, mapOf("from" to before.project?.name, "to" to after.project?.name))
         }
         if (before.parent?.number != after.parent?.number) {

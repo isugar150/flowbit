@@ -39,7 +39,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
   ]);
   if (!issue || !labels) notFound();
   // Who can be assigned and which milestones exist depend on the project the issue is linked to.
-  const projectPath = issue.project ? `/api/v1/projects/${encodeURIComponent(issue.project.key)}` : null;
+  const projectPath = issue.project ? `/api/v1/projects/${encodeURIComponent(issue.project.id)}` : null;
   const [members, milestones] = await Promise.all([
     projectPath
       ? serverGet<ProjectMember[]>(`${projectPath}/members`)

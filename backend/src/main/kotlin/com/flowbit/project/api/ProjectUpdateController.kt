@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
-import java.util.Locale
 import java.util.UUID
 
 data class ProjectUpdateResponse(
@@ -38,7 +37,7 @@ data class PostProjectUpdateRequest(
 
 /** Project updates and health. Access is decided inside ProjectUpdateService. */
 @RestController
-@RequestMapping("/api/v1/projects/{key}/updates")
+@RequestMapping("/api/v1/projects/{projectId}/updates")
 class ProjectUpdateController(
     private val updateService: ProjectUpdateService,
     private val realtime: RealtimeHub,
@@ -46,19 +45,19 @@ class ProjectUpdateController(
     @GetMapping
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
-    ): List<ProjectUpdateResponse> = updateService.list(user, key).map(ProjectUpdateResponse::from)
+        @PathVariable projectId: String,
+    ): List<ProjectUpdateResponse> = updateService.list(user, projectId).map(ProjectUpdateResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     suspend fun post(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
         @RequestBody body: PostProjectUpdateRequest,
     ): ProjectUpdateResponse {
-        val update = updateService.post(user, key, body.health, body.body)
+        val update = updateService.post(user, projectId, body.health, body.body)
         // The project's health changes for everyone looking at the project.
-        realtime.publish("project:${key.uppercase(Locale.ROOT)}", user.id)
+        realtime.publish("project:$projectId", user.id)
         return ProjectUpdateResponse.from(update)
     }
 }

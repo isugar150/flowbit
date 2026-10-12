@@ -19,7 +19,7 @@ const m = messages.projects;
 type Values = z.infer<typeof projectNameSchema>;
 
 /**
- * The name of a project. The key is shown but can never be edited. The summary and the
+ * The name of a project. The summary and the
  * description are not here: they are written directly on the project's overview.
  */
 export function ProjectDetailsForm({ project, canManage }: { project: Project; canManage: boolean }) {
@@ -27,7 +27,7 @@ export function ProjectDetailsForm({ project, canManage }: { project: Project; c
   const mutation = useRefreshingMutation(updateProject, (saved) => form.reset({ name: saved.name }));
   const { errors, isDirty } = form.formState;
 
-  const onSubmit = form.handleSubmit((values) => mutation.mutate({ key: project.key, changes: values }));
+  const onSubmit = form.handleSubmit((values) => mutation.mutate({ id: project.id, changes: values }));
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
@@ -44,10 +44,6 @@ export function ProjectDetailsForm({ project, canManage }: { project: Project; c
             {...form.register("name")}
           />
           {errors.name ? <FieldError>{errors.name.message}</FieldError> : null}
-        </Field>
-        <Field data-disabled>
-          <FieldLabel htmlFor="details-key">{m.keyLabel}</FieldLabel>
-          <Input id="details-key" className="h-9 w-40 tabular-nums max-md:h-11" value={project.key} disabled readOnly />
         </Field>
       </FieldGroup>
       {canManage ? (

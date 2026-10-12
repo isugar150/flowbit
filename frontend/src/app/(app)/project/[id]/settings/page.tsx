@@ -10,12 +10,12 @@ import { messages } from "@/messages";
 
 const m = messages.projects;
 
-export default async function ProjectSettingsPage({ params }: PageProps<"/project/[key]/settings">) {
-  const { key } = await params;
-  const path = `/api/v1/projects/${encodeURIComponent(key)}`;
+export default async function ProjectSettingsPage({ params }: PageProps<"/project/[id]/settings">) {
+  const { id } = await params;
+  const path = `/api/v1/projects/${encodeURIComponent(id)}`;
   const [user, project, members] = await Promise.all([
     requireUser(),
-    loadProject(key),
+    loadProject(id),
     serverGet<ProjectMember[]>(`${path}/members`),
   ]);
   if (!members) notFound();
@@ -26,12 +26,12 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10">
       <SettingsSection title={m.settingsTitle} description={m.settingsDescription}>
-        {canManage ? <ProjectIconField projectKey={project.key} iconUrl={project.iconUrl} /> : null}
+        {canManage ? <ProjectIconField projectId={project.id} iconUrl={project.iconUrl} /> : null}
         <ProjectDetailsForm project={project} canManage={canManage} />
       </SettingsSection>
       <SettingsSection title={m.membersTitle} description={m.membersDescription}>
         <ProjectMembersPanel
-          projectKey={project.key}
+          projectId={project.id}
           members={members}
           users={users}
           canManage={canManage}

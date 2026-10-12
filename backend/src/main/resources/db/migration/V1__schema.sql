@@ -80,8 +80,6 @@ CREATE INDEX audit_events_actor_occurred_at_idx ON audit_events (actor_user_id, 
 -- A project is the unit of access control, and something issues can be linked to.
 CREATE TABLE projects (
     id          uuid        PRIMARY KEY,
-    -- Short name in addresses (/project/FLOW). Never changes once the project exists.
-    key         text        NOT NULL CHECK (key ~ '^[A-Z][A-Z0-9]{1,9}$'),
     name        text        NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
     -- The one-line summary. The longer description is `content`.
     description text        NOT NULL DEFAULT '' CHECK (char_length(description) <= 500),
@@ -102,7 +100,6 @@ CREATE TABLE projects (
     archived_at timestamptz,
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT projects_key_key UNIQUE (key),
     CONSTRAINT projects_dates_order CHECK (start_date IS NULL OR target_date IS NULL OR start_date <= target_date)
 );
 

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { CalendarIcon, HashIcon, ShieldIcon, UsersIcon } from "lucide-react";
+import { CalendarIcon, ShieldIcon, UsersIcon } from "lucide-react";
 import { Person } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
@@ -28,12 +28,12 @@ function formatDate(iso: string, timeZone: string): string {
  * Project overview: what the project is in the middle, its facts and people in cards on the
  * right. On narrow screens the cards move below the description.
  */
-export default async function ProjectOverviewPage({ params }: PageProps<"/project/[key]">) {
-  const { key } = await params;
-  const path = `/api/v1/projects/${encodeURIComponent(key)}`;
+export default async function ProjectOverviewPage({ params }: PageProps<"/project/[id]">) {
+  const { id } = await params;
+  const path = `/api/v1/projects/${encodeURIComponent(id)}`;
   const [user, project, members, projects, milestones, updates, documents] = await Promise.all([
     requireUser(),
-    loadProject(key),
+    loadProject(id),
     serverGet<ProjectMember[]>(`${path}/members`),
     getProjects(),
     serverGet<Milestone[]>(`${path}/milestones`),
@@ -59,11 +59,6 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
         <ProjectOverviewEditor project={project} canEdit={project.myRole !== "VIEWER"}>
         <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem] leading-5">
           <div className="flex items-center gap-1.5">
-            <HashIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            <dt className="sr-only">{m.propKey}</dt>
-            <dd className="font-medium tabular-nums">{project.key}</dd>
-          </div>
-          <div className="flex items-center gap-1.5">
             <ShieldIcon className="size-4 text-muted-foreground" aria-hidden="true" />
             <dt className="sr-only">{m.propRole}</dt>
             <dd className="font-medium">{role}</dd>
@@ -80,9 +75,9 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
           </div>
         </dl>
         </ProjectOverviewEditor>
-        <IssueDocuments owner={{ projectKey: project.key }} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"} />
-        <MilestonesSection projectKey={project.key} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
-        <ProjectUpdates projectKey={project.key} updates={updates} canEdit={project.myRole !== "VIEWER"} />
+        <IssueDocuments owner={{ projectId: project.id }} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"} />
+        <MilestonesSection projectId={project.id} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
+        <ProjectUpdates projectId={project.id} updates={updates} canEdit={project.myRole !== "VIEWER"} />
       </div>
       <aside className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 lg:mx-0 lg:w-80">
         <PropertyCard title={m.properties}>
@@ -100,9 +95,6 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
                 <span className="font-normal text-muted-foreground">{m.noUpdates}</span>
               )}
             </PropertyRow>
-            <PropertyRow label={m.propKey}>
-              <span className="tabular-nums">{project.key}</span>
-            </PropertyRow>
             <PropertyRow label={m.propRole}>{role}</PropertyRow>
             <PropertyRow label={m.propMembers}>{m.memberCount(project.memberCount)}</PropertyRow>
             <PropertyRow label={m.propCreated}>
@@ -112,7 +104,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
         </PropertyCard>
         <PropertyCard
           title={m.membersCardTitle}
-          action={canManage ? <AddProjectMemberButton projectKey={project.key} candidates={candidates} /> : undefined}
+          action={canManage ? <AddProjectMemberButton projectId={project.id} candidates={candidates} /> : undefined}
         >
           <ul className="flex flex-col gap-2 px-1 py-1">
             {members.map((member) => (

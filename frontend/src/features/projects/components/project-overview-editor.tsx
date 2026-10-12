@@ -27,8 +27,8 @@ export function ProjectOverviewEditor({
   children?: React.ReactNode;
 }) {
   const router = useRouter();
-  const summary = useAutosave((description: string) => updateProject({ key: project.key, changes: { description } }));
-  const content = useAutosave((doc: RichDoc | null) => updateProject({ key: project.key, changes: { content: doc } }));
+  const summary = useAutosave((description: string) => updateProject({ id: project.id, changes: { description } }));
+  const content = useAutosave((doc: RichDoc | null) => updateProject({ id: project.id, changes: { content: doc } }));
   const status = content.status !== "idle" ? content.status : summary.status;
   const summaryInput = useRemoteValue<HTMLInputElement>(project.description, summary.isDirty);
 
@@ -71,7 +71,7 @@ export function ProjectOverviewEditor({
               canEdit
                 ? async () => {
                     const document = await createDocument({
-                      owner: { projectKey: project.key },
+                      owner: { projectId: project.id },
                       title: messages.issues.documents.untitled,
                     });
                     router.refresh();

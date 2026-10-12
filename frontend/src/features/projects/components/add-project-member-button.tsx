@@ -24,10 +24,10 @@ const ROLES: ProjectRole[] = ["MANAGER", "EDITOR", "VIEWER"];
  * someone who is not in the project yet and the role to give them.
  */
 export function AddProjectMemberButton({
-  projectKey,
+  projectId,
   candidates,
 }: {
-  projectKey: string;
+  projectId: string;
   /** Active people who are not members of the project yet. */
   candidates: UserSummary[];
 }) {
@@ -66,7 +66,7 @@ export function AddProjectMemberButton({
               className="flex flex-col gap-4"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (userId && !mutation.isPending) mutation.mutate({ key: projectKey, userId, role });
+                if (userId && !mutation.isPending) mutation.mutate({ id: projectId, userId, role });
               }}
             >
               {mutation.isError ? <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert> : null}

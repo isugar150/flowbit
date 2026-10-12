@@ -23,11 +23,11 @@ const BODY_MAX_LENGTH = 5000;
  * health; the latest health is what the project list shows. Newest first.
  */
 export function ProjectUpdates({
-  projectKey,
+  projectId,
   updates,
   canEdit,
 }: {
-  projectKey: string;
+  projectId: string;
   updates: ProjectUpdate[];
   canEdit: boolean;
 }) {
@@ -46,7 +46,7 @@ export function ProjectUpdates({
           className="flex flex-col gap-2 rounded-lg border p-3 has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-3 has-[textarea:focus-visible]:ring-ring/50"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!mutation.isPending) mutation.mutate({ key: projectKey, health, body });
+            if (!mutation.isPending) mutation.mutate({ id: projectId, health, body });
           }}
         >
           {mutation.isError ? <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert> : null}

@@ -94,7 +94,6 @@
 | 테이블.컬럼 | 타입 | 설명 |
 |---|---|---|
 | `projects.id` | `uuid` PK | |
-| `projects.key` | `text` unique | 이슈 키의 접두어. `^[A-Z][A-Z0-9]{1,9}$`. 만든 뒤 바꾸지 않는다 |
 | `projects.name` | `text` | 1~80자 |
 | `projects.description` | `text` | 500자 이하, 기본 빈 문자열 |
 | `projects.created_by` | `uuid` FK → `users` | |

@@ -5,10 +5,9 @@ export type ProjectRole = "MANAGER" | "EDITOR" | "VIEWER";
 export type ProjectStatus = "BACKLOG" | "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED";
 export type ProjectHealth = "ON_TRACK" | "AT_RISK" | "OFF_TRACK";
 
-/** A project as the signed-in user sees it (GET /api/v1/projects, /api/v1/projects/{key}). */
+/** A project as the signed-in user sees it (GET /api/v1/projects, /api/v1/projects/{id}). */
 export type Project = {
   id: string;
-  key: string;
   name: string;
   /** One-line summary. */
   description: string;
@@ -65,15 +64,15 @@ export type ProjectChanges = Partial<{
  */
 export type ProjectSummary = Omit<Project, "myRole"> & { myRole: ProjectRole | null };
 
-/** Whether the signed-in user may enter a project, and whom to ask (GET /api/v1/projects/{key}/access). */
+/** Whether the signed-in user may enter a project, and whom to ask (GET /api/v1/projects/{id}/access). */
 export type ProjectEntry = {
-  key: string;
+  id: string;
   name: string;
   myRole: ProjectRole | null;
   managers: ProjectMember[];
 };
 
-/** A note on how the project is going (GET /api/v1/projects/{key}/updates). */
+/** A note on how the project is going (GET /api/v1/projects/{id}/updates). */
 export type ProjectUpdate = {
   id: string;
   health: ProjectHealth;

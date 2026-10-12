@@ -35,7 +35,7 @@ type Values = z.output<typeof createProjectSchema>;
 const DEFAULTS: Input = { name: "", description: "" };
 
 /**
- * A new project needs only a name. Its short name in addresses (the key) is made by the server.
+ * A new project needs only a name.
  * `variant="icon"` is the small plus in the sidebar; `"button"` is the labelled button on pages;
  * `"ghost"` is the quiet labelled button in a page header.
  */
@@ -46,7 +46,7 @@ export function CreateProjectDialog({ variant }: { variant: "icon" | "button" | 
   const form = useForm<Input, unknown, Values>({ resolver: zodResolver(createProjectSchema), defaultValues: DEFAULTS });
   const mutation = useRefreshingMutation(createProject, (project) => {
     setOpen(false);
-    router.push(`/project/${project.key}`);
+    router.push(`/project/${project.id}`);
   });
   const { errors } = form.formState;
 

@@ -14,7 +14,7 @@ import type { IssueDocumentSummary } from "../types";
 const m = messages.issues.documents;
 
 /**
- * The documents of an issue or a project ("자료"): pages with a title and a body written in the
+ * The documents of an issue or a project ("문서"): pages with a title and a body written in the
  * same editor, for notes that are too long for the issue or the overview itself. "+" makes one
  * and opens it.
  */

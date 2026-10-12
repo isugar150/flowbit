@@ -15,12 +15,12 @@ const m = messages.projects;
  * Where someone lands when they open a project they see in the list but have not been added to
  * (D-047): it says so and names the project's managers, whom to ask to be added.
  */
-export default async function NoAccessPage({ params }: PageProps<"/no-access/[key]">) {
-  const { key } = await params;
-  const entry = await serverGet<ProjectEntry>(`/api/v1/projects/${encodeURIComponent(key)}/access`);
+export default async function NoAccessPage({ params }: PageProps<"/no-access/[id]">) {
+  const { id } = await params;
+  const entry = await serverGet<ProjectEntry>(`/api/v1/projects/${encodeURIComponent(id)}/access`);
   if (!entry) notFound();
   // Added in the meantime: straight in.
-  if (entry.myRole) redirect(`/project/${entry.key}`);
+  if (entry.myRole) redirect(`/project/${entry.id}`);
 
   return (
     <>

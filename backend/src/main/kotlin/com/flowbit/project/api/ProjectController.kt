@@ -34,12 +34,10 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 import java.time.LocalDate
-import java.util.Locale
 import java.util.UUID
 
 data class ProjectResponse(
     val id: UUID,
-    val key: String,
     val name: String,
     val description: String,
     /** The uploaded icon; null for the default one. */
@@ -68,7 +66,6 @@ data class ProjectResponse(
         fun from(view: ProjectView) =
             ProjectResponse(
                 id = view.id,
-                key = view.key,
                 name = view.name,
                 description = view.description,
                 iconUrl = ImageStorage.urlOf(view.iconKey),
@@ -115,20 +112,18 @@ data class ProjectMemberResponse(
 }
 
 data class ProjectEntryResponse(
-    val key: String,
+    val id: UUID,
     val name: String,
     val myRole: ProjectRole?,
     val managers: List<ProjectMemberResponse>,
 ) {
     companion object {
-        fun from(entry: ProjectEntry) = ProjectEntryResponse(entry.key, entry.name, entry.myRole, entry.managers.map(ProjectMemberResponse::from))
+        fun from(entry: ProjectEntry) = ProjectEntryResponse(entry.id, entry.name, entry.myRole, entry.managers.map(ProjectMemberResponse::from))
     }
 }
 
 data class CreateProjectRequest(
     val name: String,
-    /** The short name in addresses (/project/PAY). Optional: left out, the server makes one from the name. */
-    val key: String? = null,
     val description: String? = null,
 )
 
@@ -158,80 +153,80 @@ class ProjectController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestBody body: CreateProjectRequest,
         exchange: ServerWebExchange,
-    ): ProjectResponse = ProjectResponse.from(projectService.create(user, body.name, body.key, body.description, ClientInfo.from(exchange)))
+    ): ProjectResponse = ProjectResponse.from(projectService.create(user, body.name, body.description, ClientInfo.from(exchange)))
 
-    @GetMapping("/{key}")
+    @GetMapping("/{projectId}")
     suspend fun get(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
-    ): ProjectResponse = ProjectResponse.from(projectService.get(user, key))
+        @PathVariable projectId: String,
+    ): ProjectResponse = ProjectResponse.from(projectService.get(user, projectId))
 
     /** For any signed-in user: whether they may enter, and whom to ask if not. */
-    @GetMapping("/{key}/access")
+    @GetMapping("/{projectId}/access")
     suspend fun entry(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
-    ): ProjectEntryResponse = ProjectEntryResponse.from(projectService.entry(user, key))
+        @PathVariable projectId: String,
+    ): ProjectEntryResponse = ProjectEntryResponse.from(projectService.entry(user, projectId))
 
-    @PatchMapping("/{key}")
+    @PatchMapping("/{projectId}")
     suspend fun update(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
         @RequestBody body: Map<String, Any?>,
     ): ProjectResponse {
-        val project = projectService.update(user, key, body)
-        realtime.publish("project:${project.key}", user.id)
+        val project = projectService.update(user, projectId, body)
+        realtime.publish("project:${project.id}", user.id)
         return ProjectResponse.from(project)
     }
 
     /** Multipart with one `file` part; any common image format, stored as WebP. Managers only. */
-    @PutMapping("/{key}/icon", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @PutMapping("/{projectId}/icon", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     suspend fun replaceIcon(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
         @RequestPart("file") file: FilePart,
     ): ProjectResponse {
-        val project = projectService.replaceIcon(user, key, uploadReader.read(file))
-        realtime.publish("project:${project.key}", user.id)
+        val project = projectService.replaceIcon(user, projectId, uploadReader.read(file))
+        realtime.publish("project:${project.id}", user.id)
         return ProjectResponse.from(project)
     }
 
-    @DeleteMapping("/{key}/icon")
+    @DeleteMapping("/{projectId}/icon")
     suspend fun removeIcon(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
     ): ProjectResponse {
-        val project = projectService.removeIcon(user, key)
-        realtime.publish("project:${project.key}", user.id)
+        val project = projectService.removeIcon(user, projectId)
+        realtime.publish("project:${project.id}", user.id)
         return ProjectResponse.from(project)
     }
 
-    @GetMapping("/{key}/members")
+    @GetMapping("/{projectId}/members")
     suspend fun members(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
-    ): List<ProjectMemberResponse> = projectService.members(user, key).map(ProjectMemberResponse::from)
+        @PathVariable projectId: String,
+    ): List<ProjectMemberResponse> = projectService.members(user, projectId).map(ProjectMemberResponse::from)
 
-    @PutMapping("/{key}/members/{userId}")
+    @PutMapping("/{projectId}/members/{userId}")
     suspend fun putMember(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
         @PathVariable userId: UUID,
         @RequestBody body: PutProjectMemberRequest,
     ): List<ProjectMemberResponse> {
-        val members = projectService.putMember(user, key, userId, body.role)
-        realtime.publish("project:${key.uppercase(Locale.ROOT)}", user.id)
+        val members = projectService.putMember(user, projectId, userId, body.role)
+        realtime.publish("project:$projectId", user.id)
         return members.map(ProjectMemberResponse::from)
     }
 
-    @DeleteMapping("/{key}/members/{userId}")
+    @DeleteMapping("/{projectId}/members/{userId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     suspend fun removeMember(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
         @PathVariable userId: UUID,
     ) {
-        projectService.removeMember(user, key, userId)
-        realtime.publish("project:${key.uppercase(Locale.ROOT)}", user.id)
+        projectService.removeMember(user, projectId, userId)
+        realtime.publish("project:$projectId", user.id)
     }
 }

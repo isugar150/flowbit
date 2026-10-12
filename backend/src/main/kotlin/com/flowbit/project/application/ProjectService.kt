@@ -23,7 +23,6 @@ import com.flowbit.project.domain.ProjectStatus
 import com.flowbit.user.application.UserService
 import com.flowbit.user.domain.UserRole
 import kotlinx.coroutines.reactor.awaitSingle
-import org.springframework.dao.DuplicateKeyException
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -36,7 +35,6 @@ import java.util.UUID
 /** A project as one particular person sees it. */
 data class ProjectView(
     val id: UUID,
-    val key: String,
     val name: String,
     val description: String,
     /** File name of the uploaded icon in storage; null for the default icon. */
@@ -67,7 +65,7 @@ data class ProjectView(
 
 /** Who may enter a project, for the screen shown to someone who may not. */
 data class ProjectEntry(
-    val key: String,
+    val id: UUID,
     val name: String,
     val myRole: ProjectRole?,
     /** Whom to ask for access. */
@@ -97,67 +95,37 @@ class ProjectService(
     /** Answers anyone signed in: the project's name, the caller's role (null: no access) and its managers. */
     suspend fun entry(
         user: AuthenticatedUser,
-        key: String,
+        projectId: String,
     ): ProjectEntry {
-        val project = repository.findActiveByKey(key.uppercase(Locale.ROOT)) ?: throw notFound()
+        val project = findActive(projectId) ?: throw notFound()
         val role = effectiveRole(memberStore.roleOf(project.id, user.id), user)
         val managers = memberStore.members(project.id).filter { it.role == ProjectRole.MANAGER }
-        return ProjectEntry(project.key, project.name, role, managers)
+        return ProjectEntry(project.id, project.name, role, managers)
     }
 
     suspend fun get(
         user: AuthenticatedUser,
-        key: String,
-    ): ProjectView = detail(access(user, key).project.id, user)
-
-    /**
-     * A key nobody uses yet, made from the name: the initials of several words ("Payment Rework"
-     * gives PR) or the start of one ("Billing" gives BILL). A name without Latin letters, such as
-     * a Korean one, gives P. A number is added when the key is taken or too short: PR2, P1.
-     */
-    private suspend fun freeKeyFor(name: String): String {
-        val words = name.uppercase(Locale.ROOT).split(Regex("[^A-Z0-9]+")).filter { it.isNotEmpty() }
-        val letters = if (words.size > 1) words.joinToString("") { it.take(1) } else words.firstOrNull().orEmpty().take(4)
-        val base = letters.dropWhile { it.isDigit() }.take(GENERATED_KEY_LENGTH).ifEmpty { "P" }
-        if (Project.KEY_PATTERN.matches(base) && !repository.existsByKey(base)) return base
-        var suffix = if (base.length < 2) 1 else 2
-        while (true) {
-            val candidate = "$base$suffix"
-            if (!repository.existsByKey(candidate)) return candidate
-            suffix++
-        }
-    }
+        projectId: String,
+    ): ProjectView = detail(access(user, projectId).project.id, user)
 
     /** Any signed-in user may create a project and becomes its first manager. */
     @Transactional
     suspend fun create(
         user: AuthenticatedUser,
         rawName: String,
-        /** The short name in addresses. Left out, one is made from the project's name. */
-        rawKey: String?,
         rawDescription: String?,
         client: ClientInfo,
     ): ProjectView {
         val name = rawName.trim()
-        val givenKey = rawKey?.trim()?.uppercase(Locale.ROOT)?.ifEmpty { null }
         val description = rawDescription?.trim().orEmpty()
-        val errors = detailErrors(name, description).toMutableList()
-        if (givenKey != null && !Project.KEY_PATTERN.matches(givenKey)) {
-            errors += FieldError("key", "INVALID_FORMAT", "키는 영문 대문자로 시작하는 영문 대문자·숫자 2~10자여야 합니다")
-        }
+        val errors = detailErrors(name, description)
         if (errors.isNotEmpty()) throw ValidationException(errors)
-        if (givenKey != null && repository.existsByKey(givenKey)) throw keyTaken()
-        val key = givenKey ?: freeKeyFor(name)
 
         val now = clock.instant()
-        val project = Project(UuidV7.generate(now), key, name, description, user.id, null, now, now)
-        try {
-            entityTemplate.insert(project).awaitSingle()
-        } catch (_: DuplicateKeyException) {
-            throw keyTaken()
-        }
+        val project = Project(UuidV7.generate(now), name, description, user.id, null, now, now)
+        entityTemplate.insert(project).awaitSingle()
         memberStore.put(project.id, user.id, ProjectRole.MANAGER, now)
-        auditService.record(AuditEventType.PROJECT_CREATED, user.id, client, mapOf("projectKey" to key))
+        auditService.record(AuditEventType.PROJECT_CREATED, user.id, client, mapOf("projectId" to project.id.toString()))
         return view(memberStore.summary(project.id, user.id), user)
     }
 
@@ -169,10 +137,10 @@ class ProjectService(
     @Transactional
     suspend fun update(
         user: AuthenticatedUser,
-        key: String,
+        projectId: String,
         changes: Map<String, Any?>,
     ): ProjectView {
-        val access = access(user, key)
+        val access = access(user, projectId)
         val project = access.project
         if (!access.role.canEdit || ("name" in changes && !access.role.canManage)) {
             throw ForbiddenException("프로젝트를 고칠 권한이 없습니다")
@@ -249,10 +217,10 @@ class ProjectService(
     /** Replaces the project icon with the upload, converted to a 256px square WebP. Managers only. */
     suspend fun replaceIcon(
         user: AuthenticatedUser,
-        key: String,
+        projectId: String,
         upload: ByteArray,
     ): ProjectView {
-        val project = manage(user, key)
+        val project = manage(user, projectId)
         val previous = repository.findIconKey(project.id)
         val iconKey = imageStorage.store(imageProcessor.toWebp(upload, ImageSpec.PROJECT_ICON))
         repository.updateIconKey(project.id, iconKey, clock.instant())
@@ -263,9 +231,9 @@ class ProjectService(
     /** Back to the default icon. Managers only. */
     suspend fun removeIcon(
         user: AuthenticatedUser,
-        key: String,
+        projectId: String,
     ): ProjectView {
-        val project = manage(user, key)
+        val project = manage(user, projectId)
         val previous = repository.findIconKey(project.id)
         repository.updateIconKey(project.id, null, clock.instant())
         imageStorage.delete(previous)
@@ -274,18 +242,18 @@ class ProjectService(
 
     suspend fun members(
         user: AuthenticatedUser,
-        key: String,
-    ): List<ProjectMemberRow> = memberStore.members(access(user, key).project.id)
+        projectId: String,
+    ): List<ProjectMemberRow> = memberStore.members(access(user, projectId).project.id)
 
     /** Adds a member or changes their role. */
     @Transactional
     suspend fun putMember(
         user: AuthenticatedUser,
-        key: String,
+        projectId: String,
         memberId: UUID,
         role: ProjectRole,
     ): List<ProjectMemberRow> {
-        val project = manage(user, key)
+        val project = manage(user, projectId)
         userService.findActive(memberId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
         if (role != ProjectRole.MANAGER) requireAnotherManager(project.id, memberId)
         memberStore.put(project.id, memberId, role, clock.instant())
@@ -295,10 +263,10 @@ class ProjectService(
     @Transactional
     suspend fun removeMember(
         user: AuthenticatedUser,
-        key: String,
+        projectId: String,
         memberId: UUID,
     ) {
-        val project = manage(user, key)
+        val project = manage(user, projectId)
         requireAnotherManager(project.id, memberId)
         memberStore.remove(project.id, memberId)
     }
@@ -306,12 +274,19 @@ class ProjectService(
     /** The project and the caller's role in it, or "not found" when they may not enter. */
     suspend fun access(
         user: AuthenticatedUser,
-        key: String,
+        projectId: String,
     ): ProjectAccess {
-        val project = repository.findActiveByKey(key.uppercase(Locale.ROOT)) ?: throw notFound()
+        val project = findActive(projectId) ?: throw notFound()
         val role = effectiveRole(memberStore.roleOf(project.id, user.id), user) ?: throw notFound()
         return ProjectAccess(project, role)
     }
+
+    /** `projectId` comes from an address, so it may be anything; what is not an id finds nothing. */
+    private suspend fun findActive(projectId: String): Project? =
+        runCatching { UUID.fromString(projectId) }
+            .getOrNull()
+            ?.let { repository.findById(it) }
+            ?.takeIf { it.archivedAt == null }
 
     /** The same for a project known by id; null when it is gone or the caller may not enter it. */
     suspend fun accessById(
@@ -325,9 +300,9 @@ class ProjectService(
 
     private suspend fun manage(
         user: AuthenticatedUser,
-        key: String,
+        projectId: String,
     ): Project {
-        val access = access(user, key)
+        val access = access(user, projectId)
         if (!access.role.canManage) throw ForbiddenException("프로젝트를 관리할 권한이 없습니다")
         return access.project
     }
@@ -348,7 +323,6 @@ class ProjectService(
         user: AuthenticatedUser,
     ) = ProjectView(
         id = row.id,
-        key = row.key,
         name = row.name,
         description = row.description,
         iconKey = row.iconKey,
@@ -392,14 +366,9 @@ class ProjectService(
 
     private fun notFound() = NotFoundException("PROJECT_NOT_FOUND", "프로젝트를 찾을 수 없습니다")
 
-    private fun keyTaken() = ConflictException("PROJECT_KEY_TAKEN", "이미 쓰고 있는 키입니다")
-
     private val AuthenticatedUser.isAdmin: Boolean
         get() = role == UserRole.ADMIN
 }
-
-/** Leaves room for a number after the letters within the ten characters a key may have. */
-private const val GENERATED_KEY_LENGTH = 5
 
 private val PROPERTY_FIELDS = listOf("status", "priority", "leadId", "startDate", "targetDate", "labels")
 

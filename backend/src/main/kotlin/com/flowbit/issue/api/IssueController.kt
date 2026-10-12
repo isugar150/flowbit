@@ -255,13 +255,13 @@ data class CreateIssueRequest(
     val milestoneId: UUID? = null,
     val labelIds: List<UUID>? = null,
     /** Links the issue to this project; without it the issue is on its own. */
-    val projectKey: String? = null,
+    val projectId: String? = null,
     /** Makes the issue a sub-issue of this one. */
     val parentId: UUID? = null,
     /** With `dueDate`, makes the issue cover a span of days. */
     val startDate: LocalDate? = null,
 ) {
-    fun toNewIssue(projectKey: String? = this.projectKey) =
+    fun toNewIssue(projectId: String? = this.projectId) =
         NewIssue(
             title,
             description,
@@ -272,7 +272,7 @@ data class CreateIssueRequest(
             dueDate,
             milestoneId,
             labelIds.orEmpty(),
-            projectKey,
+            projectId,
             parentId,
             startDate,
         )
@@ -299,7 +299,7 @@ class IssueAnnouncer(
         change: IssueChange,
     ) {
         realtime.publish(RealtimeHub.ISSUES, user.id)
-        change.projectKeys.forEach { realtime.publish("project:$it", user.id) }
+        change.projectIds.forEach { realtime.publish("project:$it", user.id) }
         touched(user, change.issue.number)
         if (change.recipientIds.isEmpty() || change.events.isEmpty()) return
         notifications.dispatch(
@@ -307,7 +307,7 @@ class IssueAnnouncer(
                 issueKey = change.issue.key,
                 issueNumber = change.issue.number,
                 issueTitle = change.issue.title,
-                projectKey = change.issue.project?.key,
+                projectId = change.issue.project?.id,
                 actorId = user.id,
                 actorName = issueService.actorName(user),
                 events = change.events.map { IssueNotification.Event(it.type.name, it.detail) },
@@ -322,7 +322,7 @@ class IssueAnnouncer(
         owner: DocumentOwner,
     ) {
         owner.issueNumber?.let { touched(user, it) }
-        owner.projectKey?.let { realtime.publish("project:$it", user.id) }
+        owner.projectId?.let { realtime.publish("project:$it", user.id) }
     }
 
     /** Something on the issue's own page changed (a reaction, a file, a document, who follows it). */
@@ -375,7 +375,7 @@ class IssueController(
 
     /**
      * Only the fields present in the body change; `null` clears `assigneeId`, `dueDate`,
-     * `milestoneId`, `projectKey` and `parentId`, and `labelIds` replaces the whole set of labels.
+     * `milestoneId`, `projectId` and `parentId`, and `labelIds` replaces the whole set of labels.
      */
     @PatchMapping("/{number}")
     suspend fun update(
@@ -487,7 +487,7 @@ class IssueController(
  * new issue to the project.
  */
 @RestController
-@RequestMapping("/api/v1/projects/{key}/issues")
+@RequestMapping("/api/v1/projects/{projectId}/issues")
 class ProjectIssueController(
     private val issueService: IssueService,
     private val announcer: IssueAnnouncer,
@@ -495,18 +495,18 @@ class ProjectIssueController(
     @GetMapping
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
         @RequestParam(defaultValue = "false") deleted: Boolean,
-    ): List<IssueResponse> = issueService.list(user, key, deleted).map(IssueResponse::from)
+    ): List<IssueResponse> = issueService.list(user, projectId, deleted).map(IssueResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     suspend fun create(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
         @RequestBody body: CreateIssueRequest,
     ): IssueResponse {
-        val change = issueService.create(user, body.toNewIssue(projectKey = key))
+        val change = issueService.create(user, body.toNewIssue(projectId = projectId))
         announcer.changed(user, change)
         change.issue.parent?.let { announcer.touched(user, it.number) }
         return IssueResponse.from(change.issue)
@@ -515,7 +515,7 @@ class ProjectIssueController(
 
 /** The documents of a project, made from its overview. They are read and changed under /api/v1/documents. */
 @RestController
-@RequestMapping("/api/v1/projects/{key}/documents")
+@RequestMapping("/api/v1/projects/{projectId}/documents")
 class ProjectDocumentController(
     private val issueService: IssueService,
     private val announcer: IssueAnnouncer,
@@ -523,18 +523,18 @@ class ProjectDocumentController(
     @GetMapping
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
-    ): List<DocumentSummaryResponse> = issueService.projectDocuments(user, key).map(DocumentSummaryResponse::from)
+        @PathVariable projectId: String,
+    ): List<DocumentSummaryResponse> = issueService.projectDocuments(user, projectId).map(DocumentSummaryResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     suspend fun create(
         @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable key: String,
+        @PathVariable projectId: String,
         @RequestBody body: CreateDocumentRequest,
     ): DocumentSummaryResponse {
-        val document = issueService.createProjectDocument(user, key, body.title)
-        announcer.documentChanged(user, DocumentOwner(null, key.uppercase()))
+        val document = issueService.createProjectDocument(user, projectId, body.title)
+        announcer.documentChanged(user, DocumentOwner(null, document.projectId))
         return DocumentSummaryResponse.from(document)
     }
 }
@@ -612,7 +612,7 @@ class DocumentController(
         @RequestBody body: Map<String, Any?>,
     ): DocumentResponse {
         val document = issueService.updateDocument(user, id, IssuePatch(body))
-        announcer.documentChanged(user, DocumentOwner(document.issue?.number, document.project?.key))
+        announcer.documentChanged(user, DocumentOwner(document.issue?.number, document.project?.id))
         return DocumentResponse.from(document)
     }
 

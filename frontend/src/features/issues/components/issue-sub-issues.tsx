@@ -39,7 +39,7 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
       dueDate: null,
       milestoneId: null,
       labelIds: [],
-      projectKey: issue.project?.key ?? null,
+      projectId: issue.project?.id ?? null,
       parentId: issue.id,
     });
   };

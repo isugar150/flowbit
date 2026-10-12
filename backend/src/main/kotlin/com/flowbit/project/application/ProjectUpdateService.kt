@@ -36,17 +36,17 @@ class ProjectUpdateService(
     /** Newest first, at most LIST_LIMIT. */
     suspend fun list(
         user: AuthenticatedUser,
-        projectKey: String,
-    ): List<ProjectUpdateView> = query(projectService.access(user, projectKey).project.id, null)
+        projectId: String,
+    ): List<ProjectUpdateView> = query(projectService.access(user, projectId).project.id, null)
 
     @Transactional
     suspend fun post(
         user: AuthenticatedUser,
-        projectKey: String,
+        projectId: String,
         health: ProjectHealth,
         rawBody: String?,
     ): ProjectUpdateView {
-        val access = projectService.access(user, projectKey)
+        val access = projectService.access(user, projectId)
         if (!access.role.canEdit) throw ForbiddenException("이 프로젝트에 업데이트를 쓸 권한이 없습니다")
         val body = rawBody?.trim().orEmpty()
         if (body.length > BODY_MAX_LENGTH) throw ValidationException("body", "TOO_LONG", "업데이트는 ${BODY_MAX_LENGTH}자 이하여야 합니다")

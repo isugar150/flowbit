@@ -36,11 +36,11 @@ const iconButtonClass =
  * add, rename, date and delete them in place.
  */
 export function MilestonesSection({
-  projectKey,
+  projectId,
   milestones,
   canEdit,
 }: {
-  projectKey: string;
+  projectId: string;
   milestones: Milestone[];
   canEdit: boolean;
 }) {
@@ -70,13 +70,13 @@ export function MilestonesSection({
           {milestones.map((milestone) => (
             <MilestoneRow
               key={milestone.id}
-              projectKey={projectKey}
+              projectId={projectId}
               milestone={milestone}
               canEdit={canEdit}
               busy={update.isPending || remove.isPending}
-              onRename={(name) => update.mutate({ projectKey, id: milestone.id, changes: { name } })}
-              onDate={(targetDate) => update.mutate({ projectKey, id: milestone.id, changes: { targetDate } })}
-              onDelete={() => remove.mutate({ projectKey, id: milestone.id })}
+              onRename={(name) => update.mutate({ projectId, id: milestone.id, changes: { name } })}
+              onDate={(targetDate) => update.mutate({ projectId, id: milestone.id, changes: { targetDate } })}
+              onDelete={() => remove.mutate({ projectId, id: milestone.id })}
             />
           ))}
           {adding ? (
@@ -95,7 +95,7 @@ export function MilestonesSection({
                   if (event.key === "Enter") {
                     event.preventDefault();
                     const name = event.currentTarget.value.trim();
-                    if (name) create.mutate({ projectKey, name });
+                    if (name) create.mutate({ projectId, name });
                   } else if (event.key === "Escape") {
                     setAdding(false);
                   }
@@ -114,7 +114,7 @@ export function MilestonesSection({
 }
 
 function MilestoneRow({
-  projectKey,
+  projectId,
   milestone,
   canEdit,
   busy,
@@ -122,7 +122,7 @@ function MilestoneRow({
   onDate,
   onDelete,
 }: {
-  projectKey: string;
+  projectId: string;
   milestone: Milestone;
   canEdit: boolean;
   busy: boolean;
@@ -184,7 +184,7 @@ function MilestoneRow({
         </div>
         <span className="w-9 text-right text-[0.8125rem] leading-5 tabular-nums">{percent}%</span>
         <Link
-          href={`/project/${projectKey}/issues?milestone=${milestone.id}`}
+          href={`/project/${projectId}/issues?milestone=${milestone.id}`}
           aria-label={m.issuesOf(milestone.name)}
           className="w-16 rounded-sm text-[0.8125rem] leading-5 text-muted-foreground tabular-nums outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         >

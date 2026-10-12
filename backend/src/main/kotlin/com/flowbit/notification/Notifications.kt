@@ -11,7 +11,7 @@ data class IssueNotification(
     val issueNumber: Int,
     val issueTitle: String,
     /** The project the issue is linked to, if any. */
-    val projectKey: String?,
+    val projectId: UUID?,
     val actorId: UUID,
     val actorName: String,
     /** IssueActivityType names, such as STATUS_CHANGED, with the same details the activity list shows. */

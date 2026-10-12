@@ -34,7 +34,7 @@ export function DocumentEditor({ document }: { document: IssueDocument }) {
   const remove = useMutation({
     mutationFn: deleteDocument,
     onSuccess: () => {
-      router.replace(document.issue ? `/issue/${document.issue.key}` : `/project/${document.project?.key ?? ""}`);
+      router.replace(document.issue ? `/issue/${document.issue.key}` : `/project/${document.project?.id ?? ""}`);
       router.refresh();
     },
   });

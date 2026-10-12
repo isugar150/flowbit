@@ -27,13 +27,13 @@ function RoleOptions() {
 
 /** Who can enter the project and what they may do. Only managers get the controls. */
 export function ProjectMembersPanel({
-  projectKey,
+  projectId,
   members,
   users,
   canManage,
   currentUserId,
 }: {
-  projectKey: string;
+  projectId: string;
   members: ProjectMember[];
   /** Everyone who could be added; empty when the viewer cannot manage. */
   users: UserSummary[];
@@ -76,7 +76,7 @@ export function ProjectMembersPanel({
                     disabled={busy}
                     onChange={(event) =>
                       run(() =>
-                        put.mutate({ key: projectKey, userId: member.userId, role: event.target.value as ProjectRole }),
+                        put.mutate({ id: projectId, userId: member.userId, role: event.target.value as ProjectRole }),
                       )
                     }
                   >
@@ -88,7 +88,7 @@ export function ProjectMembersPanel({
                     className="max-md:h-11"
                     aria-label={m.removeOf(name)}
                     disabled={busy}
-                    onClick={() => run(() => remove.mutate({ key: projectKey, userId: member.userId }))}
+                    onClick={() => run(() => remove.mutate({ id: projectId, userId: member.userId }))}
                   >
                     {m.remove}
                   </Button>
@@ -106,7 +106,7 @@ export function ProjectMembersPanel({
             className="flex flex-wrap items-end gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              if (newUserId) run(() => put.mutate({ key: projectKey, userId: newUserId, role: newRole }));
+              if (newUserId) run(() => put.mutate({ id: projectId, userId: newUserId, role: newRole }));
             }}
           >
             <Field className="min-w-48 flex-1 sm:max-w-72">

@@ -29,8 +29,22 @@ abstract class IntegrationTest {
     @Autowired
     private lateinit var rateLimiter: RateLimiter
 
+    /** Ids of the projects a test made, by the short handle the test gave them ("PAY"). */
+    private val projectIds = mutableMapOf<String, String>()
+
+    protected fun remember(
+        handle: String,
+        projectId: Any?,
+    ) {
+        projectIds[handle] = projectId as String
+    }
+
+    /** The id of the project a test made under this handle, for addresses and request bodies. */
+    protected fun p(handle: String): String = projectIds.getValue(handle)
+
     @BeforeEach
     fun resetState() {
+        projectIds.clear()
         execute("truncate table audit_events, user_sessions, issues, project_members, projects, users cascade")
         // The three labels every installation starts with stay; the ones tests add go.
         execute("delete from labels where name not in ('버그', '기능', '중요')")

@@ -58,14 +58,14 @@ async function sessionCookieHeader(): Promise<string | null> {
 
 /**
  * One project for the project pages, fetched once per render. Someone who sees the project in
- * the list but has not been added to it is sent to /no-access/{key}, which says whom to ask; a
+ * the list but has not been added to it is sent to /no-access/{id}, which says whom to ask; a
  * project that does not exist is "not found".
  */
-export const loadProject = cache(async (key: string): Promise<Project> => {
-  const path = `/api/v1/projects/${encodeURIComponent(key)}`;
+export const loadProject = cache(async (id: string): Promise<Project> => {
+  const path = `/api/v1/projects/${encodeURIComponent(id)}`;
   const project = await serverGet<Project>(path);
   if (project) return project;
   const entry = await serverGet<ProjectEntry>(`${path}/access`);
-  if (entry && !entry.myRole) redirect(`/no-access/${entry.key}`);
+  if (entry && !entry.myRole) redirect(`/no-access/${entry.id}`);
   notFound();
 });
