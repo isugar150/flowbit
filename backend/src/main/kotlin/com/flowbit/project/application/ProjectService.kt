@@ -12,8 +12,10 @@ import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.project.domain.Project
+import com.flowbit.project.domain.ProjectPriority
 import com.flowbit.project.domain.ProjectRepository
 import com.flowbit.project.domain.ProjectRole
+import com.flowbit.project.domain.ProjectStatus
 import com.flowbit.user.application.UserService
 import com.flowbit.user.domain.UserRole
 import kotlinx.coroutines.reactor.awaitSingle
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 
@@ -36,6 +39,12 @@ data class ProjectView(
     val myRole: ProjectRole,
     val memberCount: Int,
     val createdAt: Instant,
+    val status: ProjectStatus,
+    val priority: ProjectPriority,
+    val lead: ProjectPerson?,
+    val startDate: LocalDate?,
+    val targetDate: LocalDate?,
+    val labels: List<String>,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
     val content: String? = null,
 )
@@ -94,7 +103,8 @@ class ProjectService(
 
     /**
      * Changes the fields present in `changes`. Renaming needs the manager role; the summary
-     * (`description`) and the overview document (`content`) can be written by anyone who may edit.
+     * (`description`), the overview document (`content`) and the properties (`status`, `priority`,
+     * `leadId`, `startDate`, `targetDate`, `labels`) can be written by anyone who may edit.
      */
     @Transactional
     suspend fun update(
@@ -113,10 +123,62 @@ class ProjectService(
         val errors = detailErrors(name, description)
         if (errors.isNotEmpty()) throw ValidationException(errors)
         val document = if ("content" in changes) changes["content"]?.let { richText.parse(it) } else null
+        val current = memberStore.summary(project.id, user.id)
+        val properties = properties(project.id, current, changes)
 
-        repository.updateDetails(project.id, name, description, clock.instant())
+        val now = clock.instant()
+        repository.updateDetails(project.id, name, description, now)
+        if (PROPERTY_FIELDS.any { it in changes }) memberStore.updateProperties(project.id, properties, now)
         if ("content" in changes) richText.store(RichText.ContentTable.PROJECTS, project.id, document)
         return detail(project.id, user)
+    }
+
+    /** The current properties with the ones present in `changes` applied and checked. */
+    private suspend fun properties(
+        projectId: UUID,
+        current: ProjectSummaryRow,
+        changes: Map<String, Any?>,
+    ): ProjectProperties {
+        fun invalid(field: String) = ValidationException(field, "INVALID", "값이 올바르지 않습니다")
+
+        fun string(field: String): String? = changes[field]?.let { it as? String ?: throw invalid(field) }
+
+        fun <T> parsed(
+            field: String,
+            parse: (String) -> T,
+        ): T? = string(field)?.let { runCatching { parse(it) }.getOrElse { throw invalid(field) } }
+
+        val status = if ("status" in changes) parsed("status", ProjectStatus::valueOf) ?: throw invalid("status") else current.status
+        val priority =
+            if ("priority" in changes) parsed("priority", ProjectPriority::valueOf) ?: throw invalid("priority") else current.priority
+        val leadId = if ("leadId" in changes) parsed("leadId", UUID::fromString) else current.lead?.id
+        val startDate = if ("startDate" in changes) parsed("startDate", LocalDate::parse) else current.startDate
+        val targetDate = if ("targetDate" in changes) parsed("targetDate", LocalDate::parse) else current.targetDate
+        val labels = if ("labels" in changes) labels(changes["labels"]) else current.labels
+
+        if (leadId != null && leadId != current.lead?.id && !memberStore.isActiveMember(projectId, leadId)) {
+            throw ValidationException("leadId", "NOT_A_MEMBER", "리드는 이 프로젝트의 구성원이어야 합니다")
+        }
+        if (startDate != null && targetDate != null && startDate > targetDate) {
+            throw ValidationException("targetDate", "BEFORE_START", "종료일은 시작일보다 앞설 수 없습니다")
+        }
+        return ProjectProperties(status, priority, leadId, startDate, targetDate, labels)
+    }
+
+    /** Trimmed, without duplicates (ignoring case), in the order given. */
+    private fun labels(raw: Any?): List<String> {
+        val items = raw as? List<*> ?: throw ValidationException("labels", "INVALID", "값이 올바르지 않습니다")
+        val labels =
+            items
+                .map { (it as? String)?.trim() ?: throw ValidationException("labels", "INVALID", "값이 올바르지 않습니다") }
+                .distinctBy { it.lowercase(Locale.ROOT) }
+        if (labels.any { it.isEmpty() || it.length > Project.LABEL_MAX_LENGTH }) {
+            throw ValidationException("labels", "INVALID_LABEL", "라벨은 1~${Project.LABEL_MAX_LENGTH}자여야 합니다")
+        }
+        if (labels.size > Project.LABELS_MAX) {
+            throw ValidationException("labels", "TOO_MANY", "라벨은 ${Project.LABELS_MAX}개까지 붙일 수 있습니다")
+        }
+        return labels
     }
 
     private suspend fun detail(
@@ -196,6 +258,12 @@ class ProjectService(
         myRole = checkNotNull(effectiveRole(row.memberRole, user)),
         memberCount = row.memberCount,
         createdAt = row.createdAt,
+        status = row.status,
+        priority = row.priority,
+        lead = row.lead,
+        startDate = row.startDate,
+        targetDate = row.targetDate,
+        labels = row.labels,
     )
 
     private fun effectiveRole(
@@ -227,6 +295,8 @@ class ProjectService(
     private val AuthenticatedUser.isAdmin: Boolean
         get() = role == UserRole.ADMIN
 }
+
+private val PROPERTY_FIELDS = listOf("status", "priority", "leadId", "startDate", "targetDate", "labels")
 
 data class ProjectAccess(
     val project: Project,

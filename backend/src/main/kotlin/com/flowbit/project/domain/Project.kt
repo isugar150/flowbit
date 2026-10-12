@@ -22,6 +22,24 @@ enum class ProjectRole {
         get() = this == MANAGER
 }
 
+/** Where a project stands, in the order it moves through. */
+enum class ProjectStatus {
+    BACKLOG,
+    PLANNED,
+    IN_PROGRESS,
+    COMPLETED,
+    CANCELED,
+}
+
+/** Same scale as issue priority. */
+enum class ProjectPriority {
+    NONE,
+    URGENT,
+    HIGH,
+    MEDIUM,
+    LOW,
+}
+
 /** Home of issues and the unit of access control (docs/features/M3-projects-and-issues.md). */
 @Table("projects")
 class Project(
@@ -41,6 +59,8 @@ class Project(
         const val NAME_MAX_LENGTH = 80
         const val DESCRIPTION_MAX_LENGTH = 500
         val KEY_PATTERN = Regex("^[A-Z][A-Z0-9]{1,9}$")
+        const val LABELS_MAX = 10
+        const val LABEL_MAX_LENGTH = 30
     }
 }
 

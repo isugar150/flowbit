@@ -3,8 +3,9 @@ import { BoxIcon, CalendarIcon, HashIcon, ShieldIcon, UsersIcon } from "lucide-r
 import { Person } from "@/components/person";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
+import { ProjectProperties } from "@/features/projects/components/project-properties";
 import type { Project, ProjectMember } from "@/features/projects/types";
-import { requireUser, serverGet } from "@/lib/current-user";
+import { getProjects, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
 
 const m = messages.projects;
@@ -21,12 +22,14 @@ function formatDate(iso: string, timeZone: string): string {
 export default async function ProjectOverviewPage({ params }: PageProps<"/project/[key]">) {
   const { key } = await params;
   const path = `/api/v1/projects/${encodeURIComponent(key)}`;
-  const [user, project, members] = await Promise.all([
+  const [user, project, members, projects] = await Promise.all([
     requireUser(),
     serverGet<Project>(path),
     serverGet<ProjectMember[]>(`${path}/members`),
+    getProjects(),
   ]);
   if (!project || !members) notFound();
+  const labelSuggestions = [...new Set(projects.flatMap((other) => other.labels))].sort((a, b) => a.localeCompare(b, "ko"));
   const role = messages.roles[project.myRole];
   const created = formatDate(project.createdAt, user.timezone);
 
@@ -67,6 +70,12 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
       <aside className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 lg:mx-0 lg:w-80">
         <PropertyCard title={m.properties}>
           <dl className="flex flex-col">
+            <ProjectProperties
+              project={project}
+              members={members}
+              labelSuggestions={labelSuggestions}
+              canEdit={project.myRole !== "VIEWER"}
+            />
             <PropertyRow label={m.propKey}>
               <span className="tabular-nums">{project.key}</span>
             </PropertyRow>

@@ -98,10 +98,15 @@
 | `projects.next_issue_number` | `int` | 다음에 발급할 이슈 번호. 2단계에서 쓴다 |
 | `projects.created_by` | `uuid` FK → `users` | |
 | `projects.archived_at` | `timestamptz` null | 보관 기능용. 아직 쓰지 않는다 |
+| `projects.status` (`V6`) | `text` | `BACKLOG` \| `PLANNED` \| `IN_PROGRESS` \| `COMPLETED` \| `CANCELED`, 기본 `BACKLOG` |
+| `projects.priority` (`V6`) | `text` | `NONE` \| `URGENT` \| `HIGH` \| `MEDIUM` \| `LOW`, 기본 `NONE` |
+| `projects.lead_id` (`V6`) | `uuid` null FK → `users` (지워지면 null) | 프로젝트 리드 |
+| `projects.start_date`, `target_date` (`V6`) | `date` null | 기간. 둘 다 있으면 `start_date <= target_date` |
+| `projects.labels` (`V6`) | `text[]` | 라벨 이름, 최대 10개. 기본 빈 배열 |
 | `project_members.project_id`, `user_id` | `uuid` | 복합 기본 키. 프로젝트나 사용자가 지워지면 함께 지워진다 |
 | `project_members.role` | `text` | `MANAGER` \| `EDITOR` \| `VIEWER` |
 
-`project_members` 는 기본 키가 두 컬럼이라 Spring Data 리포지토리 대신 `ProjectMemberStore` 가 SQL 로 직접 다룬다.
+`project_members` 는 기본 키가 두 컬럼이라, `projects` 의 속성 컬럼은 배열(`labels`)이 있어서 Spring Data 리포지토리 대신 `ProjectMemberStore` 가 SQL 로 직접 다룬다.
 
 ### `issues` (`V4`), 문서 컬럼 (`V5`)
 

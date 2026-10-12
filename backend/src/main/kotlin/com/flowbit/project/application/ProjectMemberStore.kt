@@ -1,12 +1,15 @@
 package com.flowbit.project.application
 
+import com.flowbit.project.domain.ProjectPriority
 import com.flowbit.project.domain.ProjectRole
+import com.flowbit.project.domain.ProjectStatus
 import io.r2dbc.spi.Readable
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Component
 import java.time.Instant
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -20,6 +23,29 @@ data class ProjectSummaryRow(
     val memberRole: ProjectRole?,
     val memberCount: Int,
     val createdAt: Instant,
+    val status: ProjectStatus,
+    val priority: ProjectPriority,
+    val lead: ProjectPerson?,
+    val startDate: LocalDate?,
+    val targetDate: LocalDate?,
+    val labels: List<String>,
+)
+
+data class ProjectPerson(
+    val id: UUID,
+    val loginId: String,
+    val displayName: String?,
+    val avatarKey: String?,
+)
+
+/** The property columns of a project, written together. */
+data class ProjectProperties(
+    val status: ProjectStatus,
+    val priority: ProjectPriority,
+    val leadId: UUID?,
+    val startDate: LocalDate?,
+    val targetDate: LocalDate?,
+    val labels: List<String>,
 )
 
 data class ProjectMemberRow(
@@ -31,8 +57,9 @@ data class ProjectMemberRow(
 )
 
 /**
- * SQL for project membership. `project_members` has a two-column key, which Spring Data
- * repositories do not model, so it is read and written here directly.
+ * SQL for project membership and project summaries. `project_members` has a two-column key and
+ * `projects.labels` is an array, neither of which Spring Data repositories model, so they are
+ * read and written here directly.
  */
 @Component
 class ProjectMemberStore(
@@ -84,6 +111,50 @@ class ProjectMemberStore(
             .fetch()
             .rowsUpdated()
             .awaitSingle()
+    }
+
+    /** Whether the user is an active member of the project (the only people who can lead it). */
+    suspend fun isActiveMember(
+        projectId: UUID,
+        userId: UUID,
+    ): Boolean =
+        databaseClient
+            .sql(
+                """
+                select exists(
+                    select 1 from project_members pm join users u on u.id = pm.user_id
+                    where pm.project_id = :projectId and pm.user_id = :userId and u.status = 'ACTIVE'
+                ) as member
+                """.trimIndent(),
+            ).bind("projectId", projectId)
+            .bind("userId", userId)
+            .map { row -> checkNotNull(row.get("member", Boolean::class.javaObjectType)) }
+            .one()
+            .awaitSingle()
+
+    suspend fun updateProperties(
+        projectId: UUID,
+        properties: ProjectProperties,
+        now: Instant,
+    ) {
+        var spec =
+            databaseClient
+                .sql(
+                    """
+                    update projects
+                    set status = :status, priority = :priority, lead_id = :leadId, start_date = :startDate,
+                        target_date = :targetDate, labels = :labels, updated_at = :now
+                    where id = :id
+                    """.trimIndent(),
+                ).bind("id", projectId)
+                .bind("status", properties.status.name)
+                .bind("priority", properties.priority.name)
+                .bind("labels", properties.labels.toTypedArray())
+                .bind("now", OffsetDateTime.ofInstant(now, ZoneOffset.UTC))
+        spec = properties.leadId?.let { spec.bind("leadId", it) } ?: spec.bindNull("leadId", UUID::class.java)
+        spec = properties.startDate?.let { spec.bind("startDate", it) } ?: spec.bindNull("startDate", LocalDate::class.java)
+        spec = properties.targetDate?.let { spec.bind("targetDate", it) } ?: spec.bindNull("targetDate", LocalDate::class.java)
+        spec.fetch().rowsUpdated().awaitSingle()
     }
 
     /** Managers of the project, locking their rows so a concurrent change cannot remove the last one. */
@@ -141,9 +212,13 @@ class ProjectMemberStore(
                 .sql(
                     """
                     select p.id, p.key, p.name, p.description, p.created_at, pm.role as member_role,
-                           (select count(*) from project_members m where m.project_id = p.id) as member_count
+                           (select count(*) from project_members m where m.project_id = p.id) as member_count,
+                           p.status, p.priority, p.start_date, p.target_date, p.labels,
+                           l.id as lead_id, l.login_id as lead_login_id,
+                           l.display_name as lead_display_name, l.avatar_key as lead_avatar_key
                     from projects p
                     left join project_members pm on pm.project_id = p.id and pm.user_id = :userId
+                    left join users l on l.id = p.lead_id
                     where p.archived_at is null and $condition
                     order by lower(p.name), p.key
                     """.trimIndent(),
@@ -160,6 +235,20 @@ class ProjectMemberStore(
                     memberRole = row.get("member_role", String::class.java)?.let(ProjectRole::valueOf),
                     memberCount = checkNotNull(row.get("member_count", Long::class.javaObjectType)).toInt(),
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
+                    status = ProjectStatus.valueOf(checkNotNull(row.get("status", String::class.java))),
+                    priority = ProjectPriority.valueOf(checkNotNull(row.get("priority", String::class.java))),
+                    lead =
+                        row.get("lead_id", UUID::class.java)?.let { id ->
+                            ProjectPerson(
+                                id = id,
+                                loginId = checkNotNull(row.get("lead_login_id", String::class.java)),
+                                displayName = row.get("lead_display_name", String::class.java),
+                                avatarKey = row.get("lead_avatar_key", String::class.java),
+                            )
+                        },
+                    startDate = row.get("start_date", LocalDate::class.java),
+                    targetDate = row.get("target_date", LocalDate::class.java),
+                    labels = row.get("labels", Array<String>::class.java)?.toList().orEmpty(),
                 )
             }.all()
             .collectList()
