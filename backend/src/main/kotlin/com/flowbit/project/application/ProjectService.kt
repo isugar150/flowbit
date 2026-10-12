@@ -45,6 +45,11 @@ data class ProjectView(
     val startDate: LocalDate?,
     val targetDate: LocalDate?,
     val labels: List<String>,
+    /** Issues of the project, canceled ones not counted; progress is doneCount / issueCount. */
+    val issueCount: Int,
+    val doneCount: Int,
+    /** The first milestone that is not finished yet. */
+    val currentMilestone: String?,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
     val content: String? = null,
 )
@@ -264,6 +269,9 @@ class ProjectService(
         startDate = row.startDate,
         targetDate = row.targetDate,
         labels = row.labels,
+        issueCount = row.issueCount,
+        doneCount = row.doneCount,
+        currentMilestone = row.currentMilestone,
     )
 
     private fun effectiveRole(

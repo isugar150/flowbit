@@ -45,6 +45,9 @@ data class ProjectResponse(
     val startDate: LocalDate?,
     val targetDate: LocalDate?,
     val labels: List<String>,
+    val issueCount: Int,
+    val doneCount: Int,
+    val currentMilestone: String?,
     /** The overview document as editor JSON; present only when one project is requested. */
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
@@ -66,6 +69,9 @@ data class ProjectResponse(
                 startDate = view.startDate,
                 targetDate = view.targetDate,
                 labels = view.labels,
+                issueCount = view.issueCount,
+                doneCount = view.doneCount,
+                currentMilestone = view.currentMilestone,
                 content = view.content,
             )
     }

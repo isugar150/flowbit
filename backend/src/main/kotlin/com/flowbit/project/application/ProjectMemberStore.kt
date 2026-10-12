@@ -29,6 +29,11 @@ data class ProjectSummaryRow(
     val startDate: LocalDate?,
     val targetDate: LocalDate?,
     val labels: List<String>,
+    /** Issues of the project, canceled ones not counted. */
+    val issueCount: Int,
+    val doneCount: Int,
+    /** The first milestone (in milestone order) that is not finished yet. */
+    val currentMilestone: String?,
 )
 
 data class ProjectPerson(
@@ -215,7 +220,19 @@ class ProjectMemberStore(
                            (select count(*) from project_members m where m.project_id = p.id) as member_count,
                            p.status, p.priority, p.start_date, p.target_date, p.labels,
                            l.id as lead_id, l.login_id as lead_login_id,
-                           l.display_name as lead_display_name, l.avatar_key as lead_avatar_key
+                           l.display_name as lead_display_name, l.avatar_key as lead_avatar_key,
+                           (select count(*) from issues i where i.project_id = p.id and i.status <> 'CANCELED') as issue_count,
+                           (select count(*) from issues i where i.project_id = p.id and i.status = 'DONE') as done_count,
+                           (
+                               -- Finished means it has issues and all of them are done (or canceled).
+                               select ms.name from milestones ms
+                               where ms.project_id = p.id
+                                 and (not exists (select 1 from issues i where i.milestone_id = ms.id and i.status <> 'CANCELED')
+                                      or exists (select 1 from issues i where i.milestone_id = ms.id
+                                                 and i.status not in ('DONE', 'CANCELED')))
+                               order by ms.target_date nulls last, ms.created_at
+                               limit 1
+                           ) as current_milestone
                     from projects p
                     left join project_members pm on pm.project_id = p.id and pm.user_id = :userId
                     left join users l on l.id = p.lead_id
@@ -249,6 +266,9 @@ class ProjectMemberStore(
                     startDate = row.get("start_date", LocalDate::class.java),
                     targetDate = row.get("target_date", LocalDate::class.java),
                     labels = row.get("labels", Array<String>::class.java)?.toList().orEmpty(),
+                    issueCount = checkNotNull(row.get("issue_count", Long::class.javaObjectType)).toInt(),
+                    doneCount = checkNotNull(row.get("done_count", Long::class.javaObjectType)).toInt(),
+                    currentMilestone = row.get("current_milestone", String::class.java),
                 )
             }.all()
             .collectList()

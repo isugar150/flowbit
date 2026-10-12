@@ -182,7 +182,7 @@
 | `POST /api/v1/admin/members` | `{ loginId, password, displayName?, role }` → 201 | 관리자 |
 | `PATCH /api/v1/admin/members/{id}` | `{ role?, status? }` | 관리자 |
 | `PUT /api/v1/admin/members/{id}/password` | `{ password }` → 204 | 관리자 |
-| `GET /api/v1/projects` | 내가 들어갈 수 있는 프로젝트 (관리자는 전부) | 로그인 |
+| `GET /api/v1/projects` | 내가 들어갈 수 있는 프로젝트 (관리자는 전부). 속성과 함께 `issueCount`(취소 제외), `doneCount`, `currentMilestone`(끝나지 않은 첫 마일스톤 이름)이 온다 | 로그인 |
 | `POST /api/v1/projects` | `{ name, key, description? }` → 201 | 로그인 |
 | `GET /api/v1/projects/{key}` | 프로젝트와 내 역할 | 프로젝트 구성원 |
 | `PATCH /api/v1/projects/{key}` | `{ name?, description? }` (속성은 위 "프로젝트 속성") | 관리 |
@@ -197,6 +197,7 @@
 | 경로 | 내용 |
 |---|---|
 | 사이드바 "프로젝트" | 내가 들어갈 수 있는 프로젝트 목록, `+` 로 새 프로젝트 |
+| `/` (전체 프로젝트) | Linear 의 프로젝트 목록처럼 표로 보인다 (D-046): 이름 + 현재 마일스톤(◆), 우선순위, 리드, 목표일, 이슈 수(취소 제외), 상태 아이콘 + 진행률(완료 ÷ 취소 제외 이슈). 줄 전체가 링크. 좁은 화면에서는 이름과 상태만. 머리 오른쪽에 "새 프로젝트" |
 | `/project/{key}` | 프로젝트 머리(키, 이름, 설명). 이슈 목록 자리에는 아직 빈 상태 안내 |
 | `/project/{key}/settings` | 이름·설명 고치기, 구성원 추가·역할 변경·내보내기 (관리 역할만) |
 | `/admin/members` | 워크스페이스 구성원 목록, 추가, 역할 변경, 비활성화, 비밀번호 재설정 (관리자만) |

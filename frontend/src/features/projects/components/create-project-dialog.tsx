@@ -34,8 +34,11 @@ type Input = z.input<typeof createProjectSchema>;
 type Values = z.output<typeof createProjectSchema>;
 const DEFAULTS: Input = { name: "", key: "", description: "" };
 
-/** `variant="icon"` is the small plus in the sidebar; `"button"` is the labelled button on pages. */
-export function CreateProjectDialog({ variant }: { variant: "icon" | "button" }) {
+/**
+ * `variant="icon"` is the small plus in the sidebar; `"button"` is the labelled button on pages;
+ * `"ghost"` is the quiet labelled button in a page header.
+ */
+export function CreateProjectDialog({ variant }: { variant: "icon" | "button" | "ghost" }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -88,6 +91,11 @@ export function CreateProjectDialog({ variant }: { variant: "icon" | "button" })
       {variant === "icon" ? (
         <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label={m.new} />}>
           <PlusIcon />
+        </DialogTrigger>
+      ) : variant === "ghost" ? (
+        <DialogTrigger render={<Button variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" />}>
+          <PlusIcon data-icon="inline-start" />
+          {m.new}
         </DialogTrigger>
       ) : (
         <DialogTrigger render={<Button className="max-md:h-11" />}>

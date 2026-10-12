@@ -23,6 +23,11 @@ export type Project = {
   /** YYYY-MM-DD, never before startDate */
   targetDate: string | null;
   labels: string[];
+  /** Issues of the project, canceled ones not counted. */
+  issueCount: number;
+  doneCount: number;
+  /** Name of the first milestone that is not finished yet. */
+  currentMilestone: string | null;
   /** The overview document. Only sent when a single project is requested; null in lists. */
   content: RichDoc | null;
 };

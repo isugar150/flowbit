@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BoxIcon, LayoutGridIcon } from "lucide-react";
+import { BoxIcon, DiamondIcon, LayoutGridIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { PillTabs } from "@/components/pill-tabs";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { PriorityIcon, formatDueDate, priorityLabel } from "@/features/issues/meta";
+import { PersonAvatar } from "@/features/issues/options";
+import { milestoneProgress } from "@/features/milestones/types";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
+import { ProjectStatusIcon, projectStatusLabel } from "@/features/projects/meta";
 import type { Project } from "@/features/projects/types";
 import { getProjects } from "@/lib/current-user";
 import { messages } from "@/messages";
@@ -12,7 +17,16 @@ const m = messages.projects;
 
 export const metadata: Metadata = { title: m.title };
 
-/** Home: the projects this person can enter, one per row. */
+const headCell = "h-9 px-2 text-left text-[0.8125rem] leading-5 font-normal text-muted-foreground";
+const cell = "h-11 px-2 text-[0.8125rem] leading-5 max-md:h-14";
+/** Columns that only fit on wider screens; the name and the status always show. */
+const wide = "max-md:hidden";
+
+/**
+ * All projects as a table, after Linear's project list: name with the current milestone,
+ * priority, lead, target date, issue count, and status with progress. A whole row opens the
+ * project.
+ */
 export default async function HomePage() {
   // The same list the sidebar loaded for this request; no second call to the backend.
   const projects: Project[] = await getProjects();
@@ -20,8 +34,8 @@ export default async function HomePage() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: m.all, icon: <LayoutGridIcon /> }]}
-        actions={projects.length > 0 ? <CreateProjectDialog variant="button" /> : null}
+        crumbs={[{ label: m.title, icon: <LayoutGridIcon /> }]}
+        actions={projects.length > 0 ? <CreateProjectDialog variant="ghost" /> : null}
       />
       {projects.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-6">
@@ -39,29 +53,97 @@ export default async function HomePage() {
           </Empty>
         </div>
       ) : (
-        <ul className="flex flex-col border-t">
-          {projects.map((project) => (
-            <li key={project.id} className="border-b">
-              <Link
-                href={`/project/${project.key}`}
-                className="flex h-11 items-center gap-3 px-5 outline-none hover:bg-muted focus-visible:bg-muted max-md:h-14"
-              >
-                <BoxIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="truncate font-medium">{project.name}</span>
-                <span className="shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
-                  {project.key}
-                </span>
-                <span className="hidden min-w-0 flex-1 truncate text-[0.8125rem] leading-5 text-muted-foreground sm:block">
-                  {project.description}
-                </span>
-                <span className="ml-auto shrink-0 text-[0.8125rem] leading-5 text-muted-foreground">
-                  {messages.roles[project.myRole]} · {m.memberCount(project.memberCount)}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <>
+          <PillTabs label={m.listLabel} tabs={[{ href: "/", label: m.all }]} />
+          <table className="w-full table-fixed border-collapse">
+            <caption className="sr-only">{m.listLabel}</caption>
+            <thead>
+              <tr className="border-b">
+                <th scope="col" className={`${headCell} pl-11`}>
+                  {m.colName}
+                </th>
+                <th scope="col" className={`${headCell} ${wide} w-24`}>
+                  {m.propPriority}
+                </th>
+                <th scope="col" className={`${headCell} ${wide} w-36`}>
+                  {m.propLead}
+                </th>
+                <th scope="col" className={`${headCell} ${wide} w-28`}>
+                  {m.colTargetDate}
+                </th>
+                <th scope="col" className={`${headCell} ${wide} w-16 text-right`}>
+                  {m.colIssues}
+                </th>
+                <th scope="col" className={`${headCell} w-24 pr-5`}>
+                  {m.propStatus}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((project) => (
+                <ProjectRow key={project.id} project={project} />
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </>
+  );
+}
+
+function ProjectRow({ project }: { project: Project }) {
+  const percent = milestoneProgress(project);
+  const lead = project.lead;
+
+  return (
+    // The link in the name cell stretches over the whole row, so any part of it opens the project.
+    <tr className="relative border-b hover:bg-muted has-[a:focus-visible]:bg-muted">
+      <td className={`${cell} pl-5`}>
+        <div className="flex min-w-0 items-center gap-3">
+          <BoxIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <Link
+            href={`/project/${project.key}`}
+            className="min-w-0 truncate font-medium outline-none after:absolute after:inset-0"
+          >
+            {project.name}
+          </Link>
+          {project.currentMilestone ? (
+            <span className="flex min-w-0 shrink items-center gap-1 text-muted-foreground">
+              <DiamondIcon className="size-3.5 shrink-0 text-warning" aria-hidden="true" />
+              <span className="sr-only">{m.currentMilestone}: </span>
+              <span className="truncate">{project.currentMilestone}</span>
+            </span>
+          ) : null}
+        </div>
+      </td>
+      <td className={`${cell} ${wide}`}>
+        <span className="flex items-center" title={priorityLabel(project.priority)}>
+          <PriorityIcon priority={project.priority} className="text-muted-foreground" />
+          <span className="sr-only">{priorityLabel(project.priority)}</span>
+        </span>
+      </td>
+      <td className={`${cell} ${wide}`}>
+        {lead ? (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <PersonAvatar person={lead} />
+            <span className="truncate">{lead.displayName ?? lead.loginId}</span>
+          </span>
+        ) : null}
+      </td>
+      <td className={`${cell} ${wide} text-muted-foreground tabular-nums`}>
+        {project.targetDate ? formatDueDate(project.targetDate) : null}
+      </td>
+      <td className={`${cell} ${wide} text-right font-medium tabular-nums`}>{project.issueCount}</td>
+      <td className={`${cell} pr-5`}>
+        <span className="flex items-center gap-1.5" title={projectStatusLabel(project.status)}>
+          <ProjectStatusIcon status={project.status} />
+          <span className="sr-only">{projectStatusLabel(project.status)}, </span>
+          <span className="sr-only">{m.progress(percent)}</span>
+          <span className="font-medium tabular-nums" aria-hidden="true">
+            {percent}%
+          </span>
+        </span>
+      </td>
+    </tr>
   );
 }
