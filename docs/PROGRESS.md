@@ -15,9 +15,10 @@
 - **실시간 동기화(WebSocket)와 "보는 사람" 아바타가 구현됐다** (D-044, [02-architecture.md](02-architecture.md) "실시간 동기화"). 2026-10-13 에 에이전트가 두 계정으로 일부를 확인했다(아래 작업 기록). 편집 중인 글·커서 표시는 아직 아무도 확인하지 않았다.
 - **LDAP 연동, SSO(OpenID Connect) 연동, 이메일 아이디가 구현됐다** ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md), D-087~D-090). 관리자 설정의 "로그인 연동" 탭. 계정이 없으면 처음 로그인할 때 가입된다. 백엔드는 인메모리 LDAP·가짜 OIDC 서버로 테스트했고, **화면과 실제 LDAP·SSO 서버로는 아무도 확인하지 않았다.**
 - **알림 통로(메일 SMTP, Firebase 웹 푸시, API 알림)가 구현됐다** ([features/M7a-notification-channels.md](features/M7a-notification-channels.md), D-091~D-093). 관리자 설정의 "알림" 탭, 내 설정의 "알림". 백엔드는 가짜 SMTP·FCM·웹훅 서버로 테스트했고, **화면과 실제 서비스로는 확인하지 않았다.**
-- **알림은 구독한 사람에게만 간다** (D-102, 2026-10-13). 받는 사람 = 이슈 구독자 + 그 이슈의 프로젝트 구독자. 프로젝트 개요에 "구독" 버튼이 생겼고(`project_subscriptions`, `V6`), API 알림은 항상 받는 사람마다 한 번씩 부른다(전체 변경을 한 주소로 보내는 방식은 없앴다). **화면은 아무도 확인하지 않았다.**
-- 백엔드 테스트는 2026-10-12 기준 165개가 통과한다(`FLOWBIT_BUILD_DIR=build-check ./gradlew check`). 마이그레이션은 `V1`(스키마), `V2`(외부 로그인), `V3`(알림), `V4`(SSO 방식, API 알림 대상)이다. 위의 "96개"는 그 전 숫자다.
-- 개발 DB(`flowbit`)에는 사용자가 만든 관리자 계정이 있다. 지우지 않는다.
+- **알림은 구독한 사람에게만 간다** (D-102, 2026-10-13). 받는 사람 = 이슈 구독자 + 그 이슈의 프로젝트 구독자. 프로젝트 개요에 "구독" 버튼이 생겼고(`project_subscriptions`), API 알림은 항상 받는 사람마다 한 번씩 부른다(전체 변경을 한 주소로 보내는 방식은 없앴다). **화면은 아무도 확인하지 않았다.**
+- 백엔드 테스트는 2026-10-13 기준 170개가 통과한다(`FLOWBIT_BUILD_DIR=<세션마다 다른 폴더> ./gradlew check`). 위의 "96개"는 그 전 숫자다.
+- **마이그레이션은 `V1__schema.sql` 하나다** (D-104, 2026-10-13). 운영 배포를 앞두고 `V1`~`V6` 을 한 번 합쳤다. **이 파일은 이제 고치지 않는다. 스키마 변경은 `V2__….sql` 부터 새 파일로 추가한다.** 이 문서의 예전 작업 기록에 나오는 `V2`~`V9` 는 합치기 전 파일 번호다.
+- 개발 DB(`flowbit`)는 합치기 전 마이그레이션이 적용돼 있어 **지우고 다시 만들어야 백엔드가 뜬다**(Flyway 체크섬 불일치). 사용자가 직접 지우기로 했다. 에이전트는 지우지 않는다.
 
 ## 다음 작업
 
@@ -79,7 +80,7 @@
 
 - [x] 백엔드: `V3`, 메일·웹 푸시·API 알림 통로, 설정·내 알림 API, 통합 테스트 14개
 - [x] 프론트엔드: `/admin/notifications`, 내 설정의 알림, 서비스 워커
-- [x] 프로젝트 구독, API 알림을 받는 사람마다로만 (D-102, `V6`)
+- [x] 프로젝트 구독, API 알림을 받는 사람마다로만 (D-102)
 - [ ] 화면 확인(프로젝트 개요의 구독 버튼 포함), 실제 SMTP·Firebase·메신저 주소로 확인
 
 ### M3. 프로젝트와 이슈
@@ -179,13 +180,20 @@
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
 
+### 2026-10-13 — Flyway 마이그레이션을 하나로 (운영 배포 준비)
+
+- 사용자 지시: 운영 배포를 위해 Flyway DDL 을 전부 합칠 것. 일회성이다. 개발 DB 는 사용자가 지운다 (D-104).
+- 한 일: `V2`~`V6` 의 내용을 `V1__schema.sql` 에 넣고 다섯 파일을 지웠다. `ALTER` 는 `CREATE TABLE` 안으로 옮겼다(`users` 의 `auth_source`·`external_id`·`notify_email`·아이디 규칙·`password_hash` null 허용, `sso_settings` 의 직접 설정 컬럼, `webhooks.method` 의 `GET`·`DELETE`). 옛 데이터를 고치던 SQL(`per_recipient` 관련)은 뺐다. 코드 주석의 옛 파일 이름 세 곳을 테이블 이름으로 바꿨다.
+- 확인한 범위: `./gradlew check` 통과(170개, 실패 0). 테스트는 빈 PostgreSQL 18 컨테이너에 합친 `V1` 을 적용해 돈다. 합치기 전후의 스키마를 덤프로 비교하지는 않았다.
+- **다음 사람이 알아둘 것**: ① `V1__schema.sql` 은 다시 고치지 않는다. 변경은 `V2__….sql` 부터. ② 합치기 전 파일이 적용된 DB(사용자의 개발 DB, 그리고 `flowbit_e2e`)는 지우고 다시 만들어야 한다.
+
 ### 2026-10-13 — 알림을 이슈별·프로젝트별 구독자에게만
 
 - 사용자 지시: 알림을 모든 사람에게 보내지 말고 이슈별·프로젝트별로 따로 보낼 것. 확인한 답: "프로젝트별"은 **사용자가 프로젝트를 구독**하는 것, 구독과 무관하게 전체 변경을 한 주소로 보내는 API 알림은 **없앤다** (D-102, [features/M7a-notification-channels.md](features/M7a-notification-channels.md) "범위").
 - 한 일:
   - 백엔드: `V6__project_subscriptions.sql`(`project_subscriptions` 추가, `webhooks.per_recipient` 삭제). 받는 사람 계산을 `IssueActivityStore.recipientIds`(이슈 구독자 + 프로젝트 구독자 중 지금 들어갈 수 있는 사람)로. `PUT/DELETE /api/v1/projects/{id}/subscription`, 프로젝트 응답의 `subscribed`. `WebhookNotificationChannel` 은 항상 받는 사람마다 부른다. 표준 JSON 에서 `recipientIds` 를 빼고 `recipient` 를 항상 넣는다. `IssueAnnouncer` 는 받는 사람이 없으면 알림을 넘기지 않는다.
   - 프런트: 프로젝트 개요 속성 카드의 "구독" 버튼(`project-subscribe-button.tsx`), API 알림 폼에서 "받는 사람마다" 체크와 Slack·Discord·Teams 예시 삭제, 안내 문구.
-- **백엔드를 다시 시작하면 `V6` 가 적용된다. 그때 "받는 사람마다"를 끄고 만들어 둔 API 알림 항목은 꺼진다**(`enabled = false`). 채널 웹훅 주소를 그대로 다시 켜면 같은 글이 받는 사람 수만큼 올라가므로, 한 사람에게 보내는 형태(`{{recipient.email}}` 등)로 고친 뒤 켠다.
+- (같은 날 뒤에 `V6` 은 `V1` 로 합쳐졌다, D-104. 아래 항목 참고.) API 알림에 채널 웹훅 주소를 넣으면 같은 글이 받는 사람 수만큼 올라가므로, 한 사람에게 보내는 형태(`{{recipient.email}}` 등)로 쓴다.
 - 확인한 범위: `./gradlew check` 통과(170개, 실패 0. 프로젝트 구독 테스트 1개 추가, 웹훅 테스트 4개를 받는 사람이 있는 상황으로 고침), 프런트 typecheck·eslint. `next build` 는 하지 않았다. **화면은 보지 않았다**(다른 세션이 같은 저장소와 개발 서버를 쓰고 있었고, 에이전트는 개발 DB 계정으로 로그인할 수 없다).
 - 알아둘 것: 같은 시간에 다른 세션이 `build-check` 폴더로 빌드하고 있어 첫 실행이 `NoClassDefFoundError` 등으로 66개 실패했다(코드 문제가 아니다). 세션마다 `FLOWBIT_BUILD_DIR` 을 다른 폴더로 준다.
 - 화면에서 먼저 볼 것: ① 속성 카드 제목 옆 구독 버튼의 자리와 좁은 화면 ② 누른 뒤 "구독 취소"로 바뀌는지 ③ 관리자 알림 화면의 API 알림 폼.
