@@ -189,7 +189,7 @@ export const ko = {
     clear: "날짜 지우기",
     pickStart: "시작일을 고르세요",
     pickEnd: "종료일을 고르세요",
-    pickEndOrClose: "종료일을 고르세요. 하루만이면 그대로 닫으면 됩니다.",
+    pickEndOrClose: "종료일을 고르세요.",
   },
   issues: {
     new: "새 이슈",
