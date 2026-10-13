@@ -14,6 +14,8 @@ export type ChipOption<T extends string> = {
   value: T;
   label: string;
   icon?: React.ReactNode;
+  /** Drawn in grey on the chip: the value that stands for "nothing chosen". */
+  muted?: boolean;
 };
 
 export const chipClass =
@@ -64,7 +66,9 @@ export function ChipSelect<T extends string>({
         }
       >
         {current?.icon}
-        {iconOnly ? null : <span className="truncate">{current?.label}</span>}
+        {iconOnly ? null : (
+          <span className={cn("truncate", current?.muted && "font-normal text-muted-foreground")}>{current?.label}</span>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-52">
         <DropdownMenuGroup>

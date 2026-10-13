@@ -290,7 +290,6 @@ export const ko = {
     noProjectHint: "프로젝트는 고르지 않아도 됩니다. 고르지 않은 티켓은 구성원 누구나 보고 수정할 수 있습니다.",
     allProjects: "모든 프로젝트",
     projectFilter: "프로젝트로 거르기",
-    noMilestonesInProject: "목표 없음",
     subIssueOf: "상위 티켓",
     views: {
       label: "보기 방식",
@@ -402,7 +401,7 @@ export const ko = {
     allLabels: "모든 라벨",
     labelFilter: "라벨로 거르기",
     editLabels: "라벨 고르기",
-    setMilestone: "목표 설정",
+    emptyMilestone: "비어 있음",
     labelCount: (count: number) => `라벨 ${count}개`,
     labelSearchPlaceholder: "라벨 찾기 또는 추가",
     labelFilterPlaceholder: "라벨 찾기",

@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleSlashIcon, DiamondIcon } from "lucide-react";
+import { CircleSlashIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import type { Milestone } from "@/features/milestones/types";
@@ -84,11 +84,9 @@ export function IssuePropertyFields({
   milestones: Milestone[];
   disabled?: boolean;
 }) {
-  // "No milestone" reads as an invitation to set one, the way an empty due date does.
+  // No milestone chosen is shown as an empty field: grey words and no icon (the user's call).
   const milestoneChoices = milestoneOptions(milestones).map((option) =>
-    option.value === NONE
-      ? { ...option, label: m.setMilestone, icon: <DiamondIcon className="size-4 text-muted-foreground" aria-hidden /> }
-      : option,
+    option.value === NONE ? { value: option.value, label: m.emptyMilestone, muted: true } : option,
   );
 
   return (
@@ -171,10 +169,7 @@ export function IssuePropertyFields({
                 onChange={(value) => onChange({ milestoneId: value === NONE ? null : value })}
               />
             ) : (
-              <span className="flex h-8 items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
-                <DiamondIcon className="size-4" aria-hidden="true" />
-                {m.noMilestonesInProject}
-              </span>
+              <span className="flex h-8 items-center text-[0.8125rem] leading-5 text-muted-foreground">{m.emptyMilestone}</span>
             )}
           </Row>
         ) : (
