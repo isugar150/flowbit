@@ -9,7 +9,7 @@ import { Person, personName } from "@/components/person";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import type { UserSummary } from "@/features/members/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { putProjectMember, removeProjectMember } from "../api";
 import type { ProjectMember, ProjectRole } from "../types";
@@ -28,7 +28,7 @@ function RoleOptions() {
 /** Who can enter the project and what they may do. Only managers get the controls. */
 export function ProjectMembersPanel({
   projectId,
-  members,
+  members: saved,
   users,
   canManage,
   currentUserId,
@@ -44,14 +44,24 @@ export function ProjectMembersPanel({
   const [newRole, setNewRole] = useState<ProjectRole>("EDITOR");
   const put = useRefreshingMutation(putProjectMember, () => setNewUserId(""));
   const remove = useRefreshingMutation(removeProjectMember);
+  // A picked role shows right away; a list driven by the saved role alone would snap back to the
+  // old one until the page is read again.
+  const change = useOptimisticMutation(
+    saved,
+    (members, next: { id: string; userId: string; role: ProjectRole }) =>
+      members.map((member) => (member.userId === next.userId ? { ...member, role: next.role } : member)),
+    putProjectMember,
+  );
+  const members = change.value;
   const busy = put.isPending || remove.isPending;
-  const failure = put.error ?? remove.error;
+  const failure = put.error ?? remove.error ?? change.error;
   const memberIds = new Set(members.map((member) => member.userId));
   const candidates = users.filter((user) => !memberIds.has(user.id));
 
   const run = (action: () => void) => {
     put.reset();
     remove.reset();
+    change.reset();
     action();
   };
 
@@ -73,10 +83,10 @@ export function ProjectMembersPanel({
                     className="w-20 max-md:h-11"
                     aria-label={messages.members.roleOf(name)}
                     value={member.role}
-                    disabled={busy}
+                    disabled={remove.isPending}
                     onChange={(event) =>
                       run(() =>
-                        put.mutate({ id: projectId, userId: member.userId, role: event.target.value as ProjectRole }),
+                        change.mutate({ id: projectId, userId: member.userId, role: event.target.value as ProjectRole }),
                       )
                     }
                   >

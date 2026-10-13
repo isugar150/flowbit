@@ -11,7 +11,7 @@ import { putProjectMember, removeProjectMember } from "@/features/projects/api";
 import type { ProjectRole } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
-import { memberProjectRoles } from "../api";
+import { memberProjectRoles, type MemberProjectRole } from "../api";
 
 const m = messages.members;
 const NONE = "NONE";
@@ -41,6 +41,18 @@ export function MemberProjectRoles({ memberId }: { memberId: string }) {
       if (role)
         await putProjectMember({ id: projectId, userId: memberId, role });
       else await removeProjectMember({ id: projectId, userId: memberId });
+    },
+    // The picked role shows right away; a refused one goes back to what it was.
+    onMutate: async ({ projectId, role }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const before = queryClient.getQueryData<MemberProjectRole[]>(queryKey);
+      queryClient.setQueryData<MemberProjectRole[]>(queryKey, (current) =>
+        current?.map((project) => (project.projectId === projectId ? { ...project, role } : project)),
+      );
+      return { before };
+    },
+    onError: (_error, _change, context) => {
+      if (context?.before) queryClient.setQueryData(queryKey, context.before);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
@@ -82,7 +94,6 @@ export function MemberProjectRoles({ memberId }: { memberId: string }) {
               className="w-28 shrink-0 max-md:h-11"
               aria-label={m.projectRoleIn(project.name)}
               value={project.role ?? NONE}
-              disabled={change.isPending}
               onChange={(event) =>
                 change.mutate({
                   projectId: project.projectId,

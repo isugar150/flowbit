@@ -5,7 +5,9 @@ import { useInBrowser } from "@/components/dates";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { statusLabel } from "../meta";
+import { arrangeBySubIssues } from "../sub-issue-tree";
 import type { Issue } from "../types";
+import { SubIssueIndent } from "./sub-issue-rows";
 
 const m = messages.issues.views;
 
@@ -13,7 +15,7 @@ const DAY = 86_400_000;
 /** Width of one day on the chart. */
 const DAY_WIDTH = 18;
 /** Width of the column with the names, left of the chart. */
-const NAME_WIDTH = 240;
+const NAME_WIDTH = 280;
 /** One colour per milestone, in turn; distinct on both themes. */
 const COLORS = ["#30a46c", "#f2994a", "#3e8ee0", "#8e6ee0", "#d6409f", "#c9a400", "#0b7285", "#e5484d"];
 
@@ -49,7 +51,9 @@ function barOf(issue: Issue, today: number): Bar {
 /**
  * A timeline (Gantt) chart of issues grouped by milestone: one line per issue with a bar from the
  * day it was made to its due date, a summary bar and a diamond on the target date for each
- * milestone, and a line for today. Issues in no milestone form the last group.
+ * milestone, and a line for today. Issues in no milestone form the last group. Inside a milestone
+ * sub-issues sit under their parent, one step in for every level, as they do in the list; a parent
+ * that is in another milestone (or not on this chart) gets a dimmed line of its own without a bar.
  */
 export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
   // Where today falls depends on the clock, which only the browser may read while rendering.
@@ -81,6 +85,7 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
       ...group,
       color: group.key ? COLORS[index % COLORS.length] : "var(--muted-foreground)",
       bars: group.bars.sort((a, b) => a.start - b.start || a.end - b.end),
+      barOf: new Map(group.bars.map((bar) => [bar.issue.id, bar])),
     }));
 
   const edges = groups.flatMap((group) => [...group.bars.flatMap((bar) => [bar.start, bar.end]), ...(group.target === null ? [] : [group.target])]);
@@ -158,7 +163,24 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
                 </div>
               </div>
               <ul>
-                {group.bars.map(({ issue, start, end, open }) => {
+                {arrangeBySubIssues(group.bars.map((bar) => bar.issue)).map((row) => {
+                  if (row.kind === "context") {
+                    return (
+                      <li key={`parent-${row.parent.number}`} className="flex h-8 items-center">
+                        <Link
+                          href={`/issue/${row.parent.key}`}
+                          title={messages.issues.subIssues.parentContext}
+                          className="sticky left-0 z-20 flex h-full shrink-0 items-center gap-2 bg-background pr-3 pl-10 text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                          style={{ width: NAME_WIDTH }}
+                        >
+                          <span className="shrink-0 tabular-nums">{row.parent.key}</span>
+                          <span className="truncate">{row.parent.title}</span>
+                        </Link>
+                        <div className="h-full" style={{ width }} />
+                      </li>
+                    );
+                  }
+                  const { issue, start, end, open } = group.barOf.get(row.issue.id)!;
                   const closed = issue.status === "DONE" || issue.status === "CANCELED";
                   return (
                     <li key={issue.id} className="flex h-8 items-center hover:bg-muted/60">
@@ -167,6 +189,7 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
                         className="sticky left-0 z-20 flex h-full shrink-0 items-center gap-2 bg-background pr-3 pl-10 text-[0.8125rem] leading-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                         style={{ width: NAME_WIDTH }}
                       >
+                        <SubIssueIndent depth={row.depth} />
                         <span className="shrink-0 text-muted-foreground tabular-nums">{issue.key}</span>
                         <span className={cn("truncate", closed && "text-muted-foreground line-through")}>{issue.title}</span>
                       </Link>

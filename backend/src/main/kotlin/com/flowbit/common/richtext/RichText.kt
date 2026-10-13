@@ -155,6 +155,7 @@ class RichText(
         PROJECTS("projects"),
         ISSUES("issues"),
         DOCUMENTS("documents"),
+        MILESTONES("milestones"),
     }
 
     private companion object {

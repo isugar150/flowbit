@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { DiamondIcon, EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import dynamic from "next/dynamic";
+import { DiamondIcon, EllipsisIcon, FileTextIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,7 @@ import {
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { DateChip } from "@/features/issues/components/date-chips";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { useRemoteValue } from "@/lib/use-remote-value";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -23,6 +24,9 @@ import { milestoneProgress, type Milestone } from "../types";
 
 const m = messages.milestones;
 const NAME_MAX_LENGTH = 80;
+
+// Opened on request, so the overview does not carry it until then.
+const MilestoneDetailDialog = dynamic(() => import("./milestone-detail-dialog").then((module) => module.MilestoneDetailDialog), { ssr: false });
 
 /** The name field is saved on blur, so while it has focus the person's typing wins. */
 const isFocused = (input: HTMLInputElement) => document.activeElement === input;
@@ -33,11 +37,12 @@ const iconButtonClass =
 /**
  * The project's milestones on its overview: each with a progress bar (share of its issues that
  * are done), the issue count linking to those issues, and a target date. People who may edit
- * add, rename, date and delete them in place.
+ * add, rename, date and delete them in place. Each opens to its own page of notes
+ * (milestone-detail-dialog.tsx).
  */
 export function MilestonesSection({
   projectId,
-  milestones,
+  milestones: saved,
   canEdit,
 }: {
   projectId: string;
@@ -48,9 +53,18 @@ export function MilestonesSection({
   // After one is added the field starts over empty and stays, so several can be typed in a row.
   const [round, setRound] = useState(0);
   const create = useRefreshingMutation(createMilestone, () => setRound((current) => current + 1));
-  const update = useRefreshingMutation(updateMilestone);
+  // A new name or date shows right away and is saved behind it.
+  const update = useOptimisticMutation(
+    saved,
+    (milestones, { id, changes }: Parameters<typeof updateMilestone>[0]) =>
+      milestones.map((milestone) => (milestone.id === id ? { ...milestone, ...changes } : milestone)),
+    updateMilestone,
+  );
+  const milestones = update.value;
   const remove = useRefreshingMutation(deleteMilestone);
   const error = create.error ?? update.error ?? remove.error;
+  const [openId, setOpenId] = useState<string | null>(null);
+  const opened = milestones.find((milestone) => milestone.id === openId);
 
   return (
     <section className="flex flex-col gap-2" aria-labelledby="milestones-title">
@@ -75,10 +89,11 @@ export function MilestonesSection({
               projectId={projectId}
               milestone={milestone}
               canEdit={canEdit}
-              busy={update.isPending || remove.isPending}
+              busy={remove.isPending}
               onRename={(name) => update.mutate({ projectId, id: milestone.id, changes: { name } })}
               onDate={(targetDate) => update.mutate({ projectId, id: milestone.id, changes: { targetDate } })}
               onDelete={() => remove.mutate({ projectId, id: milestone.id })}
+              onOpen={() => setOpenId(milestone.id)}
             />
           ))}
           {adding ? (
@@ -112,6 +127,16 @@ export function MilestonesSection({
           ) : null}
         </ul>
       )}
+      {opened ? (
+        <MilestoneDetailDialog
+          // A different milestone starts with its own document.
+          key={opened.id}
+          projectId={projectId}
+          milestone={opened}
+          canEdit={canEdit}
+          onClose={() => setOpenId(null)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -124,6 +149,7 @@ function MilestoneRow({
   onRename,
   onDate,
   onDelete,
+  onOpen,
 }: {
   projectId: string;
   milestone: Milestone;
@@ -132,6 +158,7 @@ function MilestoneRow({
   onRename: (name: string) => void;
   onDate: (targetDate: string | null) => void;
   onDelete: () => void;
+  onOpen: () => void;
 }) {
   const percent = milestoneProgress(milestone);
   const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
@@ -202,6 +229,10 @@ function MilestoneRow({
             onChange={onDate}
           />
         ) : null}
+        <button type="button" aria-label={m.detailOf(milestone.name)} title={m.detail} className={iconButtonClass} onClick={onOpen}>
+          {/* Darker when something is written inside. */}
+          <FileTextIcon className={cn("size-4", milestone.content ? "text-foreground" : null)} aria-hidden="true" />
+        </button>
         {canEdit ? (
           <DropdownMenu>
             <DropdownMenuTrigger

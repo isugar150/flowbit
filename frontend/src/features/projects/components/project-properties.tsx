@@ -11,7 +11,7 @@ import { DateRangeChip } from "@/features/issues/components/date-chips";
 import { PersonAvatar, personName } from "@/components/person";
 import { NONE, priorityOptions } from "@/features/issues/options";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateProject } from "../api";
@@ -38,9 +38,22 @@ export function ProjectProperties({
   labelSuggestions: string[];
   canEdit: boolean;
 }) {
-  const mutation = useRefreshingMutation(updateProject);
+  // A pick shows right away and is saved behind it.
+  const mutation = useOptimisticMutation(
+    {
+      status: project.status,
+      priority: project.priority,
+      leadId: project.lead?.id ?? null,
+      startDate: project.startDate,
+      targetDate: project.targetDate,
+      labels: project.labels,
+    },
+    (values, { changes }: { id: string; changes: ProjectChanges }) => ({ ...values, ...changes }),
+    updateProject,
+  );
+  const shown = mutation.value;
   const change = (changes: ProjectChanges) => mutation.mutate({ id: project.id, changes });
-  const locked = !canEdit || mutation.isPending;
+  const locked = !canEdit;
 
   const leadOptions = [
     { value: NONE, label: m.noLead, icon: <UserIcon className="size-4 text-muted-foreground" aria-hidden /> },
@@ -65,7 +78,7 @@ export function ProjectProperties({
       <PropertyRow label={m.propStatus}>
         <ChipSelect
           label={m.propStatus}
-          value={project.status}
+          value={shown.status}
           options={projectStatusOptions}
           disabled={locked}
           onChange={(status) => change({ status })}
@@ -74,7 +87,7 @@ export function ProjectProperties({
       <PropertyRow label={m.propPriority}>
         <ChipSelect
           label={m.propPriority}
-          value={project.priority}
+          value={shown.priority}
           options={priorityOptions}
           disabled={locked}
           onChange={(priority) => change({ priority })}
@@ -83,7 +96,7 @@ export function ProjectProperties({
       <PropertyRow label={m.propLead}>
         <ChipSelect
           label={m.propLead}
-          value={project.lead?.id ?? NONE}
+          value={shown.leadId ?? NONE}
           options={leadOptions}
           disabled={locked}
           onChange={(value) => change({ leadId: value === NONE ? null : value })}
@@ -93,15 +106,15 @@ export function ProjectProperties({
         <DateRangeChip
           label={m.propDates}
           placeholder={m.noDates}
-          start={project.startDate}
-          end={project.targetDate}
+          start={shown.startDate}
+          end={shown.targetDate}
           disabled={locked}
           onChange={({ start, end }) => change({ startDate: start, targetDate: end })}
         />
       </PropertyRow>
       <PropertyRow label={m.propLabels}>
         <LabelsEditor
-          labels={project.labels}
+          labels={shown.labels}
           suggestions={labelSuggestions}
           disabled={locked}
           onChange={(labels) => change({ labels })}

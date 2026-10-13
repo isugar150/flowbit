@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarIcon, ChartGanttIcon, ListIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -29,10 +29,28 @@ export function useListAddress(): { pathname: string; searchParams: URLSearchPar
     : { pathname, searchParams: new URLSearchParams(query) };
 }
 
-/** Changes the list's query in the address only: the issues are already here, so the server is not asked again. */
-export function replaceListQuery(pathname: string, params: URLSearchParams) {
-  const query = params.toString();
-  window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+/**
+ * Changes the list's query (its view and filters) in the address. The address is changed at once,
+ * so the list redraws without waiting for anything; then the router is told the same address.
+ *
+ * The second step is not optional. An address changed only through `history` leaves the router
+ * believing the list is still at its old address. Nothing shows that until an issue is opened in
+ * a dialog over the list and something is saved: the refresh that follows (router.refresh) then
+ * gets an answer for a page the router does not think it is on, and Next.js falls back to
+ * loading the whole document again. The screen blinks, and the list behind the dialog comes
+ * back as the plain list of all issues, its view and filters gone.
+ */
+export function useReplaceListQuery(): (pathname: string, params: URLSearchParams) => void {
+  const router = useRouter();
+  return useCallback(
+    (pathname, params) => {
+      const query = params.toString();
+      const address = query ? `${pathname}?${query}` : pathname;
+      window.history.replaceState(null, "", address);
+      router.replace(address, { scroll: false });
+    },
+    [router],
+  );
 }
 
 /**
@@ -42,6 +60,7 @@ export function replaceListQuery(pathname: string, params: URLSearchParams) {
  */
 export function useIssueView(): [IssueViewMode, (view: IssueViewMode) => void] {
   const { pathname, searchParams } = useListAddress();
+  const replaceListQuery = useReplaceListQuery();
   const param = searchParams.get("view");
   const view = ISSUE_VIEWS.find((item) => item === param) ?? "list";
   const setView = (next: IssueViewMode) => {

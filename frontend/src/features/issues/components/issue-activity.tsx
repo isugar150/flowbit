@@ -4,9 +4,8 @@ import { BellIcon, BellOffIcon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import type { MentionPerson } from "@/components/editor/mention";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { setIssueSubscribed } from "../api";
 import { priorityLabel, statusLabel } from "../meta";
@@ -97,7 +96,12 @@ export function IssueActivity({
   /** The people "@" offers in a comment. */
   mentionables: MentionPerson[];
 }) {
-  const mutation = useRefreshingMutation(setIssueSubscribed);
+  const mutation = useOptimisticMutation(
+    feed.subscribed,
+    (_, next: { number: number; subscribed: boolean }) => next.subscribed,
+    setIssueSubscribed,
+  );
+  const subscribed = mutation.value;
   const subscriberNames = feed.subscribers.map(personName).join(", ");
 
   return (
@@ -124,17 +128,10 @@ export function IssueActivity({
           variant="ghost"
           size="sm"
           className="text-muted-foreground max-md:h-11"
-          disabled={mutation.isPending}
-          onClick={() => mutation.mutate({ number, subscribed: !feed.subscribed })}
+          onClick={() => mutation.mutate({ number, subscribed: !subscribed })}
         >
-          {mutation.isPending ? (
-            <Spinner data-icon="inline-start" aria-hidden="true" />
-          ) : feed.subscribed ? (
-            <BellOffIcon data-icon="inline-start" />
-          ) : (
-            <BellIcon data-icon="inline-start" />
-          )}
-          {feed.subscribed ? m.unsubscribe : m.subscribe}
+          {subscribed ? <BellOffIcon data-icon="inline-start" /> : <BellIcon data-icon="inline-start" />}
+          {subscribed ? m.unsubscribe : m.subscribe}
         </Button>
       </div>
       {mutation.isError ? (

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { SmilePlusIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { toggleReaction } from "../api";
@@ -11,13 +11,24 @@ import { REACTIONS, type Reaction } from "../types";
 
 const m = messages.issues.reactions;
 
+/** The reactions once the person's own `emoji` is added, or taken back when it is already there. */
+function toggled(reactions: Reaction[], emoji: string): Reaction[] {
+  const mine = reactions.find((reaction) => reaction.emoji === emoji);
+  if (!mine) return [...reactions, { emoji, count: 1, reacted: true, names: [] }];
+  return reactions
+    .map((reaction) =>
+      reaction === mine ? { ...mine, reacted: !mine.reacted, count: mine.count + (mine.reacted ? -1 : 1) } : reaction,
+    )
+    .filter((reaction) => reaction.count > 0);
+}
+
 /**
  * Emoji on an issue. Each one shows how many people chose it; pressing it adds or takes back your
  * own. Open to everyone who can see the issue. `readOnly` (a deleted issue) only shows them.
  */
 export function IssueReactions({
   number,
-  reactions,
+  reactions: saved,
   readOnly = false,
 }: {
   number: number;
@@ -25,7 +36,13 @@ export function IssueReactions({
   readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const mutation = useRefreshingMutation(toggleReaction);
+  // A press shows right away; the names behind each count come with the saved list.
+  const mutation = useOptimisticMutation(
+    saved,
+    (current, { emoji }: { number: number; emoji: string }) => toggled(current, emoji),
+    toggleReaction,
+  );
+  const reactions = mutation.value;
   const toggle = (emoji: string) => mutation.mutate({ number, emoji });
   if (readOnly && reactions.length === 0) return null;
 
@@ -38,7 +55,7 @@ export function IssueReactions({
           title={reaction.names.join(", ")}
           aria-label={m.count(reaction.emoji, reaction.count)}
           aria-pressed={reaction.reacted}
-          disabled={mutation.isPending || readOnly}
+          disabled={readOnly}
           onClick={() => toggle(reaction.emoji)}
           className={cn(
             "flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[0.8125rem] leading-5 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-9",

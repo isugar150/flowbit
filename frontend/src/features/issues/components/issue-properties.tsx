@@ -6,11 +6,11 @@ import { FormAlert } from "@/features/auth/components/form-alert";
 import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
 import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
-import type { Issue, IssuePriority, IssueStatus, Label } from "../types";
+import type { Issue, IssueChanges, IssuePriority, IssueStatus, Label } from "../types";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import { DateRangeChip } from "./date-chips";
 import { LabelChip } from "./label-chip";
@@ -184,7 +184,8 @@ export function IssuePropertyFields({
 }
 
 /**
- * The side panel of an existing issue: each pick is saved at once; there is no edit mode.
+ * The side panel of an existing issue: each pick is saved at once; there is no edit mode. A pick
+ * shows right away and is saved behind it (useOptimisticMutation).
  *
  * The issue is its own thing and the project only a link, so the project can be changed or
  * removed at any time (the milestone goes with the project it belonged to).
@@ -204,28 +205,42 @@ export function IssueProperties({
   milestones: Milestone[];
   canEdit: boolean;
 }) {
-  const mutation = useRefreshingMutation(updateIssue);
+  const saved: IssuePropertyValues = {
+    status: issue.status,
+    priority: issue.priority,
+    assigneeId: issue.assignee?.id ?? null,
+    startDate: issue.startDate,
+    dueDate: issue.dueDate,
+    labelIds: issue.labels.map((label) => label.id),
+    projectId: issue.project?.id ?? null,
+    milestoneId: issue.milestone?.id ?? null,
+  };
+  const mutation = useOptimisticMutation(
+    saved,
+    (values, { changes }: { number: number; changes: IssueChanges }) => ({
+      ...values,
+      ...changes,
+      // The milestone belongs to the project, so it goes when the project changes.
+      ...("projectId" in changes && changes.projectId !== values.projectId ? { milestoneId: null } : null),
+    }),
+    updateIssue,
+  );
+  const values = mutation.value;
+  // The milestones on hand are those of the saved project; another project's arrive with the
+  // refresh, so until then the milestone row has nothing to pick from.
+  const projectSaved = values.projectId === saved.projectId;
 
   return (
     <div className="flex flex-col gap-3">
       {mutation.isError ? <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert> : null}
       <IssuePropertyFields
-        values={{
-          status: issue.status,
-          priority: issue.priority,
-          assigneeId: issue.assignee?.id ?? null,
-          startDate: issue.startDate,
-          dueDate: issue.dueDate,
-          labelIds: issue.labels.map((label) => label.id),
-          projectId: issue.project?.id ?? null,
-          milestoneId: issue.milestone?.id ?? null,
-        }}
+        values={values}
         onChange={(changes) => mutation.mutate({ number: issue.number, changes })}
         members={members}
         labels={labels}
         projects={projects}
-        milestones={milestones}
-        disabled={!canEdit || mutation.isPending}
+        milestones={projectSaved ? milestones : []}
+        disabled={!canEdit}
       />
     </div>
   );

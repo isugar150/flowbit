@@ -1,10 +1,13 @@
 package com.flowbit.milestone.application
 
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonRawValue
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.UuidV7
 import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
+import com.flowbit.common.richtext.RichText
 import com.flowbit.milestone.domain.Milestone
 import com.flowbit.milestone.domain.MilestoneRepository
 import com.flowbit.project.application.ProjectAccess
@@ -29,6 +32,10 @@ data class MilestoneView(
     val issueCount: Int,
     val doneCount: Int,
     val createdAt: Instant,
+    /** The milestone's own document as editor JSON, or null when nothing was written. */
+    @get:JsonRawValue
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val content: String?,
 )
 
 /**
@@ -41,6 +48,7 @@ class MilestoneService(
     private val repository: MilestoneRepository,
     private val entityTemplate: R2dbcEntityTemplate,
     private val databaseClient: DatabaseClient,
+    private val richText: RichText,
     private val clock: Clock,
 ) {
     /** Dated milestones first, soonest first; undated ones after, in the order they were made. */
@@ -63,7 +71,7 @@ class MilestoneService(
         return views(project.id).single { it.id == milestone.id }
     }
 
-    /** Changes the fields present in `changes`: `name`, `targetDate` (null clears it). */
+    /** Changes the fields present in `changes`: `name`, `targetDate` and `content` (null clears either of the last two). */
     @Transactional
     suspend fun update(
         user: AuthenticatedUser,
@@ -82,8 +90,11 @@ class MilestoneService(
                     }
                 }
         }
+        val document = if ("content" in changes) changes["content"]?.let { richText.parse(it) } else null
         milestone.updatedAt = clock.instant()
         repository.save(milestone)
+        // The entity does not carry the document (it is not read with every milestone row).
+        if ("content" in changes) richText.store(RichText.ContentTable.MILESTONES, milestone.id, document)
         return views(project.id).single { it.id == milestone.id }
     }
 
@@ -109,7 +120,7 @@ class MilestoneService(
         databaseClient
             .sql(
                 """
-                select m.id, m.name, m.target_date, m.created_at,
+                select m.id, m.name, m.target_date, m.created_at, m.content::text as content,
                        count(i.id) filter (where i.status <> 'CANCELED') as issue_count,
                        count(i.id) filter (where i.status = 'DONE') as done_count
                 from milestones m
@@ -127,6 +138,7 @@ class MilestoneService(
                     issueCount = checkNotNull(row.get("issue_count", Long::class.javaObjectType)).toInt(),
                     doneCount = checkNotNull(row.get("done_count", Long::class.javaObjectType)).toInt(),
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
+                    content = row.get("content", String::class.java),
                 )
             }.all()
             .collectList()

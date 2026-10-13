@@ -23,19 +23,19 @@ import { FormAlert } from "@/features/auth/components/form-alert";
 import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
 import { STATUS_ORDER, StatusIcon, statusLabel } from "../meta";
 import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
 import { arrangeBySubIssues } from "../sub-issue-tree";
-import type { Issue, IssueStatus, Label } from "../types";
+import type { Issue, IssueChanges, IssueStatus, Label } from "../types";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import type { IssueDates } from "./issue-calendar";
 import { projectOptions } from "./issue-properties";
 import { IssueDue, IssueLabels, IssueProjectName, IssueTitleLink, PriorityMark } from "./issue-row";
-import { IssueViewSwitch, replaceListQuery, useIssueView, useListAddress } from "./issue-views";
+import { IssueViewSwitch, useIssueView, useListAddress, useReplaceListQuery } from "./issue-views";
 import { LabelFilterChip } from "./label-chip";
 import { SubIssueContextRow, SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
 
@@ -76,7 +76,7 @@ const NONE_PARAM = "none";
  */
 export function IssuesView({
   projectId,
-  issues: allIssues,
+  issues: savedIssues,
   members,
   milestones,
   labels,
@@ -104,6 +104,15 @@ export function IssuesView({
   /** False for the view-only role: the list is read-only and nothing can be created. */
   canEdit: boolean;
 }) {
+  // A status picked on a line, or an issue dragged to another day, shows right away: the line
+  // moves to its new group before the save has come back.
+  const mutation = useOptimisticMutation(
+    savedIssues,
+    (current, { number, changes }: { number: number; changes: Pick<IssueChanges, "status" | "startDate" | "dueDate"> }) =>
+      current.map((issue) => (issue.number === number ? { ...issue, ...changes } : issue)),
+    updateIssue,
+  );
+  const allIssues = mutation.value;
   const [dialogOpen, setDialogOpen] = useState(false);
   // The dialog is not rendered (or downloaded) until it is first asked for; after that it stays.
   const [dialogUsed, setDialogUsed] = useState(false);
@@ -111,6 +120,7 @@ export function IssuesView({
   // project overview open the list already narrowed, and back/forward and sharing keep it.
   // An issue open in a dialog changes the browser's address, not the list's (useListAddress).
   const { pathname, searchParams } = useListAddress();
+  const replaceListQuery = useReplaceListQuery();
   // A filter value from the address: "none" stands for NONE, anything unknown counts as no filter.
   const readFilter = (key: ChipKey, known: (value: string) => boolean): string => {
     const param = searchParams.get(key);
@@ -217,7 +227,6 @@ export function IssuesView({
   ];
   const labelChip = <LabelFilterChip labels={labels} value={labelFilter} onChange={setLabelFilter} noneValue={NONE} />;
   const [view, setView] = useIssueView();
-  const mutation = useRefreshingMutation(updateIssue);
   const { mutate } = mutation;
   const changeStatus = useCallback(
     (number: number, next: IssueStatus) => mutate({ number, changes: { status: next } }),
@@ -409,7 +418,6 @@ export function IssuesView({
                       issue={row.issue}
                       depth={row.depth}
                       editable={writable && mayEdit(row.issue)}
-                      pending={mutation.isPending}
                       showProject={projectId === null}
                       onStatusChange={changeStatus}
                     />
@@ -446,7 +454,6 @@ const IssueListRow = memo(function IssueListRow({
   issue,
   depth,
   editable,
-  pending,
   showProject,
   onStatusChange,
 }: {
@@ -454,8 +461,6 @@ const IssueListRow = memo(function IssueListRow({
   depth: number;
   /** Whether the status can be changed right in the list. */
   editable: boolean;
-  /** A change is on its way; the status menus wait for it. */
-  pending: boolean;
   /** On lists that span projects, each line says which project it is in. */
   showProject: boolean;
   onStatusChange: (number: number, status: IssueStatus) => void;
@@ -472,7 +477,6 @@ const IssueListRow = memo(function IssueListRow({
           label={m.statusOf(issue.key)}
           value={issue.status}
           options={statusOptions}
-          disabled={pending}
           onChange={(status) => onStatusChange(issue.number, status)}
         />
       ) : (

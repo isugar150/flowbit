@@ -158,6 +158,8 @@
 | `target_date` | `date` null | 목표일 |
 | `created_at`, `updated_at` | `timestamptz` | |
 
+`milestones.content`(`V2__milestone_content.sql`, D-113): `jsonb` null. 목표의 "정리" 문서(편집기 JSON, `RichText` 가 검증). 엔티티(`Milestone`)에는 싣지 않고 `RichText.store`/목록 조회의 SQL 로 읽고 쓴다(프로젝트·이슈의 `content` 와 같다).
+
 `issues.milestone_id`(`V7`): `uuid` null FK → `milestones`. 마일스톤을 지우면 null 이 된다. 같은 프로젝트의 마일스톤인지는 서비스가 확인한다.
 
 ### `issues`, 문서 컬럼

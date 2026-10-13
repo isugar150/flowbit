@@ -19,11 +19,11 @@ import {
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { initials } from "@/lib/initials";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateMember } from "../api";
-import type { Member, WorkspaceRole } from "../types";
+import type { Member, MemberStatus, WorkspaceRole } from "../types";
 import { CreateMemberDialog } from "./create-member-dialog";
 import { MemberProjectRoles } from "./member-project-roles";
 import { ResetPasswordDialog } from "./reset-password-dialog";
@@ -101,7 +101,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
  * left, the chosen person's settings on the right.
  */
 export function MembersPanel({
-  members,
+  members: saved,
   currentUserId,
   ldapEnabled,
 }: {
@@ -110,7 +110,14 @@ export function MembersPanel({
   /** With LDAP on, people arrive by signing in and their passwords live in the directory. */
   ldapEnabled: boolean;
 }) {
-  const mutation = useRefreshingMutation(updateMember);
+  // A picked role, or turning someone off or on, shows right away and is saved behind it.
+  const mutation = useOptimisticMutation(
+    saved,
+    (members, { id, ...changes }: { id: string; role?: WorkspaceRole; status?: MemberStatus }) =>
+      members.map((member) => (member.id === id ? { ...member, ...changes } : member)),
+    updateMember,
+  );
+  const members = mutation.value;
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(currentUserId);
   const needle = query.trim().toLowerCase();
@@ -210,7 +217,6 @@ export function MembersPanel({
             member={selected}
             isSelf={selected.id === currentUserId}
             ldapEnabled={ldapEnabled}
-            pending={mutation.isPending}
             error={mutation.isError ? apiErrorMessage(mutation.error) : null}
             onChange={(changes) => mutation.mutate({ id: selected.id, ...changes })}
           />
@@ -224,14 +230,12 @@ function MemberDetail({
   member,
   isSelf,
   ldapEnabled,
-  pending,
   error,
   onChange,
 }: {
   member: Member;
   isSelf: boolean;
   ldapEnabled: boolean;
-  pending: boolean;
   error: string | null;
   onChange: (changes: { role?: WorkspaceRole; status?: Member["status"] }) => void;
 }) {
@@ -297,7 +301,7 @@ function MemberDetail({
             aria-label={m.roleOf(name)}
             value={member.role}
             // Administrators cannot change themselves, so one always remains.
-            disabled={isSelf || pending}
+            disabled={isSelf}
             onChange={(event) =>
               onChange({ role: event.target.value as WorkspaceRole })
             }
@@ -330,7 +334,6 @@ function MemberDetail({
                 variant="outline"
                 size="sm"
                 className="max-md:h-11"
-                disabled={pending}
                 onClick={() =>
                   onChange({ status: disabled ? "ACTIVE" : "DISABLED" })
                 }

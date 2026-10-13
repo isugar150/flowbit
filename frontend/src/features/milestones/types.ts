@@ -1,3 +1,5 @@
+import type { RichDoc } from "@/components/editor/rich-text-editor";
+
 /** A stage of a project, with how far along its issues are (GET /api/v1/projects/{id}/milestones). */
 export type Milestone = {
   id: string;
@@ -8,6 +10,8 @@ export type Milestone = {
   issueCount: number;
   doneCount: number;
   createdAt: string;
+  /** The milestone's own document (where things stand), or null when nothing was written. */
+  content: RichDoc | null;
 };
 
 /** Share of the milestone's issues that are done, 0–100. An empty milestone is at 0. */
