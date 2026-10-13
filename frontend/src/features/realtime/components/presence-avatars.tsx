@@ -20,10 +20,10 @@ type PagePerson = PersonLike & { id: string; lastSeenAt: string | null };
 type Shown = PagePerson & { online: boolean };
 
 /**
- * Everyone who belongs on this page, as overlapping avatars: the people who have it open right
+ * Everyone who belongs on this page, as a row of avatars: the signed-in person, the people who have it open right
  * now first, then the others from whoever looked last, dimmed. Pointing at one (or giving it
  * focus) brings it forward and says at once whether they are looking now or when they last did.
- * The signed-in person is left out.
+ * The signed-in person comes first.
  */
 export function PresenceAvatars() {
   const viewers = useViewers();
@@ -43,7 +43,10 @@ export function PresenceAvatars() {
   });
 
   const online = new Set(viewers.map((viewer) => viewer.id));
+  // The signed-in person has the page open by definition, so they come first, as looking now.
+  const me = (members.data ?? []).find((person) => person.id === userId);
   const people: Shown[] = [
+    ...(me ? [{ ...me, lastSeenAt: null, online: true }] : []),
     ...viewers.map((viewer) => ({ ...viewer, lastSeenAt: null, online: true })),
     // Already in the order they last looked, those who never did at the end.
     ...(members.data ?? []).filter((person) => person.id !== userId && !online.has(person.id)).map((person) => ({ ...person, online: false })),
@@ -53,7 +56,8 @@ export function PresenceAvatars() {
   const hidden = people.slice(MAX_SHOWN);
 
   return (
-    <AvatarGroup role="group" aria-label={viewers.length > 0 ? m.viewersLabel(viewers.map(personName).join(", ")) : m.peopleLabel}>
+    // Side by side, not overlapping (the user's call, 2026-10-13: overlapped they could not be told apart).
+    <AvatarGroup role="group" className="space-x-0 gap-1" aria-label={viewers.length > 0 ? m.viewersLabel(viewers.map(personName).join(", ")) : m.peopleLabel}>
       {shown.map((person) => (
         <Tooltip key={person.id}>
           <TooltipTrigger
