@@ -342,3 +342,117 @@ test("project overview: status, following and a member's role show at once", asy
   noReloads();
   await page.close();
 });
+
+test("calendar: an issue dragged to another day is on that day at once", async () => {
+  const now = new Date();
+  const day = (date: number) => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(date).padStart(2, "0")}`;
+  const issue = await newIssue("캘린더에서 옮기기", { dueDate: day(15) });
+  const page = await newPage();
+  await page.goto(`/project/${project.id}/issues?view=calendar`);
+  const bar = page.locator("td a").filter({ hasText: issue.title });
+  await expect(bar).toBeVisible();
+  const noReloads = watchForReloads(page);
+  await slowDown(page);
+  await recordFrames(
+    page,
+    "day",
+    (title) => {
+      const cells = [...document.querySelectorAll("td")].filter((cell) =>
+        [...cell.querySelectorAll("a")].some((link) => link.textContent === title),
+      );
+      return cells.map((cell) => cell.querySelector("div")?.textContent).join(",") || "nowhere";
+    },
+    issue.title,
+  );
+
+  await bar.dragTo(page.locator("td").filter({ has: page.locator("div", { hasText: /^16$/ }) }).first());
+  await settled(page);
+
+  expect(await frames(page, "day")).toEqual(["15", "16"]);
+  noReloads();
+  expect((await api<{ dueDate: string }>(context, "GET", `/api/v1/issues/${issue.number}`)).dueDate).toBe(day(16));
+  await page.close();
+});
+
+test("project overview: a milestone's date shows at once", async () => {
+  await api(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "첫 목표", targetDate: null });
+  const page = await newPage();
+  await page.goto(`/project/${project.id}`);
+  const chip = page.getByRole("button", { name: /^목표일:/ });
+  await expect(chip).toBeVisible();
+  await slowDown(page);
+  await recordFrames(page, "date", () => {
+    const found = document.querySelector<HTMLButtonElement>('button[aria-label^="목표일:"]');
+    return `${found?.getAttribute("aria-label")?.replace(/\d{4}-\d{2}-/, "")}|${found?.disabled ? "disabled" : "enabled"}`;
+  });
+
+  await chip.click();
+  await page.locator("td button").filter({ hasText: /^20$/ }).first().click();
+  await settled(page);
+
+  expect(await frames(page, "date")).toEqual(["목표일: 목표일|enabled", "목표일: 20|enabled"]);
+  await page.close();
+});
+
+test("administrator's members: a role and a project permission show at once", async () => {
+  const page = await newPage();
+  await page.goto("/admin/members");
+  await page.getByRole("button", { name: new RegExp(member.name) }).click();
+  const role = page.getByRole("combobox", { name: `${member.name}의 역할` });
+  const permission = page.getByRole("combobox", { name: `${project.name}에서의 권한` });
+  await expect(permission).toBeVisible();
+  const before = await permission.inputValue();
+  const next = before === "MANAGER" ? "EDITOR" : "MANAGER";
+  await slowDown(page);
+  await recordFrames(
+    page,
+    "member",
+    ({ person, projectName }) => {
+      const state = (label: string) => {
+        const select = document.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`);
+        return `${select?.value} ${select?.disabled ? "disabled" : "enabled"}`;
+      };
+      return `${state(`${person}의 역할`)} / ${state(`${projectName}에서의 권한`)}`;
+    },
+    { person: member.name, projectName: project.name },
+  );
+
+  await role.selectOption("ADMIN");
+  await settled(page);
+  await permission.selectOption(next);
+  await settled(page);
+
+  expect(await frames(page, "member")).toEqual([
+    `MEMBER enabled / ${before} enabled`,
+    `ADMIN enabled / ${before} enabled`,
+    `ADMIN enabled / ${next} enabled`,
+  ]);
+  await page.close();
+});
+
+test("project settings: a member's role shows at once", async () => {
+  const page = await newPage();
+  await page.goto(`/project/${project.id}/settings`);
+  const role = page.getByRole("combobox", { name: `${member.name}의 역할` });
+  await expect(role).toBeVisible();
+  const before = await role.inputValue();
+  const next = before === "EDITOR" ? "VIEWER" : "EDITOR";
+  await slowDown(page);
+  await recordFrames(
+    page,
+    "role",
+    (name) => {
+      const select = document.querySelector<HTMLSelectElement>(`select[aria-label="${name}의 역할"]`);
+      return `${select?.value} ${select?.disabled ? "disabled" : "enabled"}`;
+    },
+    member.name,
+  );
+
+  await role.selectOption(next);
+  await settled(page);
+
+  expect(await frames(page, "role")).toEqual([`${before} enabled`, `${next} enabled`]);
+  const members = await api<{ userId: string; role: string }[]>(context, "GET", `/api/v1/projects/${project.id}/members`);
+  expect(members.find((item) => item.userId === member.id)?.role).toBe(next);
+  await page.close();
+});
