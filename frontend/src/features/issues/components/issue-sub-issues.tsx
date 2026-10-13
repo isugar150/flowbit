@@ -43,7 +43,10 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
     });
   };
 
-  if (issue.subIssues.length === 0 && !canEdit) return null;
+  // Sub-issues stop at a fixed depth; the deepest ones cannot be split further.
+  const canAdd = canEdit && issue.canAddSubIssue;
+
+  if (issue.subIssues.length === 0 && !canAdd) return null;
 
   return (
     <section data-presence-id="sub-issues" aria-labelledby="sub-issues-title" className="flex flex-col gap-1">
@@ -57,7 +60,7 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
           </span>
         ) : null}
         <span className="flex-1" />
-        {canEdit ? (
+        {canAdd ? (
           <Button
             type="button"
             variant="ghost"

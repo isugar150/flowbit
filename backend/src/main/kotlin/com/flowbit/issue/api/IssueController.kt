@@ -144,6 +144,8 @@ data class IssueResponse(
     val canEdit: Boolean? = null,
     /** Whether the caller may restore the issue; only on a deleted one. */
     val canRestore: Boolean? = null,
+    /** Whether a sub-issue may be made under it; false at the deepest level (10 below a top-level issue). */
+    val canAddSubIssue: Boolean? = null,
     val subIssues: List<IssueResponse>? = null,
     val reactions: List<ReactionSummary>? = null,
     val attachments: List<AttachmentResponse>? = null,
@@ -180,6 +182,7 @@ data class IssueResponse(
             from(detail.issue).copy(
                 canEdit = detail.canEdit,
                 canRestore = detail.canRestore.takeIf { detail.issue.deletedAt != null },
+                canAddSubIssue = detail.canAddSubIssue,
                 subIssues = detail.subIssues.map(::from),
                 reactions = detail.reactions,
                 attachments = detail.attachments.map(AttachmentResponse::from),

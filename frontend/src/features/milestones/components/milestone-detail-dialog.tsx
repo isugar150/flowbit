@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
@@ -12,7 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateChip } from "@/features/issues/components/date-chips";
 import { IssueTitleLink, PriorityMark, StatusMark } from "@/features/issues/components/issue-row";
+import { SubIssueIndent } from "@/features/issues/components/sub-issue-rows";
 import { STATUS_ORDER } from "@/features/issues/meta";
+import { arrangeBySubIssues } from "@/features/issues/sub-issue-tree";
 import type { Issue } from "@/features/issues/types";
 import { apiFetch } from "@/lib/api/client";
 import { useAutosave } from "@/lib/use-autosave";
@@ -64,6 +67,18 @@ export function MilestoneDetailDialog({
     },
     staleTime: 0,
   });
+  // The list is read by this dialog, not by the page, so the page reading itself again does not
+  // renew it. Both signs that an issue may have changed do: the overview arriving anew (a save
+  // here or by someone else hands over a new `milestone`) and the address changing (an issue
+  // opened from the list was closed).
+  const pathname = usePathname();
+  const refetchIssues = issues.refetch;
+  useEffect(() => {
+    // Not while a reading is already on its way (the first one, when the dialog opens).
+    void refetchIssues({ cancelRefetch: false });
+  }, [milestone, pathname, refetchIssues]);
+  // Sub-issues sit under their parents, one step in for every level, as in the issue lists.
+  const rows = useMemo(() => arrangeBySubIssues(issues.data ?? []), [issues.data]);
 
   const commitName = (input: HTMLInputElement) => {
     const name = input.value.trim();
@@ -195,20 +210,35 @@ export function MilestoneDetailDialog({
               <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.noIssues}</p>
             ) : (
               <ul className="-mx-2 flex flex-col">
-                {issues.data.map((issue) => (
-                  <li key={issue.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted max-md:h-11">
-                    <StatusMark status={issue.status} />
-                    <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{issue.key}</span>
-                    <IssueTitleLink issue={issue} />
-                    {issue.dueDate ? (
-                      <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
-                        <DueDate value={issue.dueDate} />
-                      </span>
-                    ) : null}
-                    <PriorityMark priority={issue.priority} />
-                    {issue.assignee ? <PersonMark person={issue.assignee} /> : null}
-                  </li>
-                ))}
+                {rows.map((row) =>
+                  row.kind === "context" ? (
+                    // The parent is in another milestone (or none); it only gives its sub-issues their place.
+                    <li key={`parent-${row.parent.number}`} className="flex h-9 items-center gap-2 px-2 max-md:h-11">
+                      <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.parent.key}</span>
+                      <Link
+                        href={`/issue/${row.parent.key}`}
+                        title={messages.issues.subIssues.parentContext}
+                        className="min-w-0 flex-1 truncate rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        {row.parent.title}
+                      </Link>
+                    </li>
+                  ) : (
+                    <li key={row.issue.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted max-md:h-11">
+                      <SubIssueIndent depth={row.depth} />
+                      <StatusMark status={row.issue.status} />
+                      <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.issue.key}</span>
+                      <IssueTitleLink issue={row.issue} />
+                      {row.issue.dueDate ? (
+                        <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
+                          <DueDate value={row.issue.dueDate} />
+                        </span>
+                      ) : null}
+                      <PriorityMark priority={row.issue.priority} />
+                      {row.issue.assignee ? <PersonMark person={row.issue.assignee} /> : null}
+                    </li>
+                  ),
+                )}
               </ul>
             )}
           </aside>

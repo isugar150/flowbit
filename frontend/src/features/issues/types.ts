@@ -100,6 +100,8 @@ export type IssueDetail = Issue & {
   canEdit: boolean;
   /** On a deleted issue: whether the signed-in person may restore it. */
   canRestore?: boolean;
+  /** False when the signed-in person may not edit, or the issue is at the deepest level of sub-issues. */
+  canAddSubIssue: boolean;
   subIssues: Issue[];
   reactions: Reaction[];
   attachments: Attachment[];

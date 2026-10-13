@@ -46,12 +46,14 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
   const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "베타 출시", targetDate: null });
   await newIssue("목표 안의 끝난 이슈", { milestoneId: milestone.id, status: "DONE" });
   const open = await newIssue("목표 안의 남은 이슈", { milestoneId: milestone.id });
+  // A sub-issue starts in its parent's milestone.
+  await newIssue("남은 이슈의 하위 이슈", { parentId: open.id, status: "DONE" });
   await newIssue("목표 밖의 이슈");
   const page = await newPage();
   await page.goto(`/project/${project.id}`);
   const line = page.locator(`li[data-presence-id="milestone:${milestone.id}"]`);
-  await expect(line).toContainText("50%");
-  await expect(line).toContainText("이슈 1/2");
+  await expect(line).toContainText("67%");
+  await expect(line).toContainText("이슈 2/3");
   // Nothing on the line is a field: it cannot be changed by accident.
   await expect(line.locator("input")).toHaveCount(0);
 
@@ -60,9 +62,9 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("textbox", { name: "목표 이름" })).toHaveValue("베타 출시");
   const issues = dialog.getByRole("complementary");
-  await expect(issues.getByRole("listitem")).toHaveCount(2);
-  // What is still to do comes before what is done.
-  await expect(issues.getByRole("listitem").first()).toContainText("목표 안의 남은 이슈");
+  // What is still to do comes before what is done, and a sub-issue sits under its parent, one step in.
+  await expect(issues.getByRole("listitem")).toContainText(["목표 안의 남은 이슈", "남은 이슈의 하위 이슈", "목표 안의 끝난 이슈"]);
+  await expect(issues.getByRole("listitem").nth(1).locator("span[aria-hidden='true']").first()).toHaveCSS("width", "20px");
   await expect(issues).not.toContainText("목표 밖의 이슈");
 
   await dialog.locator(".ProseMirror").click();
@@ -79,6 +81,9 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
   await page.keyboard.press("Escape");
   await expect(issueDialog).toHaveCount(0);
   await expect(page.getByRole("dialog").getByRole("textbox", { name: "목표 이름" })).toBeVisible();
+  // The list behind shows the change without being opened again: the issue is done now, so it
+  // (with its sub-issue) no longer comes before the one that already was.
+  await expect(issues.getByRole("listitem")).toContainText(["목표 안의 끝난 이슈", "목표 안의 남은 이슈", "남은 이슈의 하위 이슈"]);
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);

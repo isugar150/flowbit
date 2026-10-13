@@ -373,6 +373,28 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `하위 이슈는 10단계까지만 만들 수 있다`() {
+        fun sub(parentId: Any?) = editor.post("/api/v1/issues", """{"title":"하위","parentId":"$parentId"}""")
+        // levels[0] is the top-level issue, levels[n] the sub-issue n levels below it.
+        val levels = mutableListOf(editor.post("/api/v1/issues", """{"title":"상위"}""").json())
+        repeat(10) { levels += sub(levels.last()["id"]).json() }
+
+        val tooDeep = sub(levels[10]["id"])
+        assertEquals(409, tooDeep.status)
+        assertEquals("ISSUE_TOO_DEEP", tooDeep.json()["code"])
+        assertEquals(false, editor.get("/api/v1/issues/${levels[10]["number"]}").json()["canAddSubIssue"])
+        assertEquals(true, editor.get("/api/v1/issues/${levels[9]["number"]}").json()["canAddSubIssue"])
+
+        // An issue moves with what hangs under it, so its own sub-issue counts.
+        val other = editor.post("/api/v1/issues", """{"title":"따로"}""").json()
+        sub(other["id"])
+        val moved = editor.patch("/api/v1/issues/${other["number"]}", """{"parentId":"${levels[9]["id"]}"}""")
+        assertEquals(409, moved.status)
+        assertEquals("ISSUE_TOO_DEEP", moved.json()["code"])
+        assertEquals(200, editor.patch("/api/v1/issues/${other["number"]}", """{"parentId":"${levels[8]["id"]}"}""").status)
+    }
+
+    @Test
     fun `하위 이슈는 상위 이슈의 프로젝트와 목표를 물려받고 상위가 옮겨 가면 따라간다`() {
         remember("SEC", admin.post("/api/v1/projects", """{"name":"보안"}""").json()["id"])
         val beta = admin.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"베타"}""").json()["id"]

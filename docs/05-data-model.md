@@ -196,7 +196,7 @@ teams ──< team_members >── users
   ├──< cycles (번호, 시작일, 종료일)
   ├──< labels
   └──< issues ──< comments, issue_history, issue_relations
-          │ └── parent_issue_id (하위 이슈, 한 단계)
+          │ └── parent_issue_id (하위 이슈, 10단계까지)
           ├── status_id, assignee_id, cycle_id, project_id
           └──< issue_labels
 
@@ -252,7 +252,7 @@ notifications (수신함)
 | `instance_settings.next_issue_number` | 다음 이슈 번호. 워크스페이스 전체에서 하나의 일련번호 |
 | `issues.project_id` | **null 허용**. 이슈가 연결된 프로젝트(없으면 독립 이슈). 바꿔도 번호는 그대로 |
 | `issues.number` | 워크스페이스 전체에서 유일(`issues_number_key`) |
-| `issues.parent_id` | 상위 이슈(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다 |
+| `issues.parent_id` | 상위 이슈(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다. 하위 이슈는 최상위 이슈 아래로 10단계까지이고, DB 제약이 아니라 서버가 검사한다 (D-118) |
 | `issue_reactions` | `issue_id`, `user_id`, `emoji` (셋이 PK). 이모지는 서버가 정한 8개만 |
 | `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at` |
 | `documents` | `id`, `issue_id` null, `project_id` null, `parent_id` null(안에 들어 있는 상위 문서. 프로젝트 문서만, 5단계까지, 상위가 지워지면 함께 지워진다. D-083), `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 이슈나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |

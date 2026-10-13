@@ -94,6 +94,8 @@ data class IssueDetail(
     val canEdit: Boolean,
     /** Whether the caller's role would let them restore the issue if it is deleted. */
     val canRestore: Boolean,
+    /** Whether a sub-issue may be made under it: the caller may edit, and it is not at the deepest level. */
+    val canAddSubIssue: Boolean,
     val subIssues: List<IssueView>,
     val reactions: List<ReactionSummary>,
     val attachments: List<AttachmentView>,
@@ -220,6 +222,7 @@ class IssueService(
             issue = checkNotNull(detail(number)),
             canEdit = access.canEdit,
             canRestore = access.mayEdit,
+            canAddSubIssue = access.canEdit && depthOf(access.issue) < MAX_SUB_ISSUE_DEPTH,
             subIssues = queries.subIssues(viewer(user), id),
             reactions = extras.reactions(id, user.id),
             attachments = extras.attachments(id),
@@ -327,7 +330,11 @@ class IssueService(
             if (milestoneId != null) requireMilestone(issue.projectId, milestoneId)
             issue.milestoneId = milestoneId
         }
-        if (patch.has("parentId")) issue.parentId = patch.uuid("parentId")?.let { requireParent(user, it, issue).id }
+        if (patch.has("parentId")) {
+            val parentId = patch.uuid("parentId")
+            // Sending the parent it already has changes nothing and is not checked again.
+            if (parentId != issue.parentId) issue.parentId = parentId?.let { requireParent(user, it, issue).id }
+        }
         val labelIds = if (patch.has("labelIds")) requireLabels(patch.uuids("labelIds")) else null
         issue.version += 1
         issue.updatedAt = clock.instant()
@@ -719,6 +726,8 @@ class IssueService(
     /**
      * The issue to hang `child` under: one the caller may see, not the child itself and not one
      * of its own descendants (which would make a loop). `child` is null for an issue being created.
+     * Sub-issues go [MAX_SUB_ISSUE_DEPTH] levels below a top-level issue at most, counting the
+     * issues that already hang under `child` (409 `ISSUE_TOO_DEEP`).
      */
     private suspend fun requireParent(
         user: AuthenticatedUser,
@@ -727,15 +736,35 @@ class IssueService(
     ): Issue {
         val invalid = ValidationException("parentId", "INVALID_PARENT", "상위 이슈로 지정할 수 없는 이슈입니다")
         val parent = repository.findById(parentId)?.takeIf { accessOf(user, it) != null } ?: throw invalid
-        if (child != null) {
-            var ancestor: Issue? = parent
-            var depth = 0
-            while (ancestor != null) {
-                if (ancestor.id == child.id || ++depth > MAX_DEPTH) throw invalid
-                ancestor = ancestor.parentId?.let { repository.findById(it) }
-            }
+        // How deep the child would sit: one more than the number of issues above its parent.
+        var depth = 0
+        var ancestor: Issue? = parent
+        while (ancestor != null) {
+            if (ancestor.id == child?.id || ++depth > MAX_DEPTH) throw invalid
+            ancestor = ancestor.parentId?.let { repository.findById(it) }
+        }
+        val below = child?.let { levelsBelow(it, MAX_SUB_ISSUE_DEPTH) } ?: 0
+        if (depth + below > MAX_SUB_ISSUE_DEPTH) {
+            throw ConflictException("ISSUE_TOO_DEEP", "하위 이슈는 ${MAX_SUB_ISSUE_DEPTH}단계까지만 만들 수 있습니다")
         }
         return parent
+    }
+
+    /** How many issues are above this one; 0 for a top-level issue. */
+    private suspend fun depthOf(issue: Issue): Int {
+        var depth = 0
+        var ancestor = issue.parentId?.let { repository.findById(it) }
+        while (ancestor != null && ++depth < MAX_DEPTH) ancestor = ancestor.parentId?.let { repository.findById(it) }
+        return depth
+    }
+
+    /** How many levels of sub-issues hang under the issue, deleted ones included. Stops counting past `limit`. */
+    private suspend fun levelsBelow(
+        issue: Issue,
+        limit: Int,
+    ): Int {
+        if (limit == 0) return 0
+        return repository.findByParentId(issue.id).maxOfOrNull { 1 + levelsBelow(it, limit - 1) } ?: 0
     }
 
     /** A linked issue can be given to members of its project; an issue on its own to any active person. */
@@ -835,7 +864,12 @@ class IssueService(
         /** The emoji an issue can be reacted to with. */
         val REACTIONS = listOf("👍", "❤️", "🎉", "😄", "👀", "🚀", "🙏", "✅")
         private const val MAX_LABELS = 10
+
+        /** Stops walks up and down the tree should the data ever hold a loop. */
         private const val MAX_DEPTH = 50
+
+        /** How many levels of sub-issues a top-level issue can have under it (D-118). */
+        const val MAX_SUB_ISSUE_DEPTH = 10
         private const val FILE_NAME_MAX_LENGTH = 255
 
         /** How much of a comment a notification quotes. */
