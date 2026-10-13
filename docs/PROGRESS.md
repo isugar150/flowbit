@@ -17,6 +17,7 @@
 - **알림 통로(메일 SMTP, Firebase 웹 푸시, API 알림)가 구현됐다** ([features/M7a-notification-channels.md](features/M7a-notification-channels.md), D-091~D-093). 관리자 설정의 "알림" 탭, 내 설정의 "알림". 백엔드는 가짜 SMTP·FCM·웹훅 서버로 테스트했고, **화면과 실제 서비스로는 확인하지 않았다.**
 - **알림은 구독한 사람에게만 간다** (D-102, 2026-10-13). 받는 사람 = 이슈 구독자 + 그 이슈의 프로젝트 구독자. 프로젝트 개요에 "구독" 버튼이 생겼고(`project_subscriptions`), API 알림은 항상 받는 사람마다 한 번씩 부른다(전체 변경을 한 주소로 보내는 방식은 없앴다). **화면은 아무도 확인하지 않았다.**
 - **앱으로 설치할 수 있다(PWA, D-110, 2026-10-13).** 매니페스트와 아이콘만 있고 오프라인은 없다. HTTPS(또는 `localhost`)에서만 설치된다. **실제 설치는 아무도 확인하지 않았다.**
+- **관리자 설정에 "백업 및 복원"이 있다** (D-112, 2026-10-13, [features/admin-backup.md](features/admin-backup.md)). 워크스페이스·로그인 연동·알림 설정과 구성원을 파일로 받고 되돌린다. 이슈·프로젝트·올린 파일은 들어가지 않는다.
 - 백엔드 테스트는 2026-10-13 기준 170개가 통과한다(`FLOWBIT_BUILD_DIR=<세션마다 다른 폴더> ./gradlew check`). 위의 "96개"는 그 전 숫자다.
 - **마이그레이션은 `V1__schema.sql` 하나다** (D-104, 2026-10-13). 운영 배포를 앞두고 `V1`~`V6` 을 한 번 합쳤다. **이 파일은 이제 고치지 않는다. 스키마 변경은 `V2__….sql` 부터 새 파일로 추가한다.** 이 문서의 예전 작업 기록에 나오는 `V2`~`V9` 는 합치기 전 파일 번호다.
 - 개발 DB(`flowbit`)는 합치기 전 마이그레이션이 적용돼 있어 **지우고 다시 만들어야 백엔드가 뜬다**(Flyway 체크섬 불일치). 사용자가 직접 지우기로 했다. 에이전트는 지우지 않는다.
@@ -160,6 +161,17 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-13 — 관리자 설정의 백업 및 복원
+
+- 사용자 지시: 관리자 설정에 "백업 및 복원"을 만들고 설정을 백업할 수 있게 할 것(로그인 연동, 알림, 구성원 등) (D-112). 명세 [features/admin-backup.md](features/admin-backup.md).
+- 한 일
+  - 백엔드 `backup` 모듈: `Backup.kt`(파일 모양), `BackupCrypto.kt`(AES-256-GCM, PBKDF2), `BackupService.kt`, `BackupController.kt`(`POST /api/v1/admin/backup/export`, `/restore`). 감사 로그 `BACKUP_EXPORTED`·`BACKUP_RESTORED`. DB 변경 없음.
+  - 프런트 `features/backup/`(types, api, `components/backup-panel.tsx`), `/admin/backup` 화면, 관리자 설정 탭 "백업 및 복원", 문구 `messages.backup`.
+  - `.claude/launch.json` 에 `frontend-e2e-win` 추가(기존 `frontend-e2e` 는 `sh` 를 써서 Windows 에서 뜨지 않는다).
+- 확인한 범위: `ktlintCheck`, `BackupIntegrationTest` 6개 통과. 프런트 `lint`·`typecheck`·`next build` 통과. **화면**: 테스트용 서버(`flowbit_e2e`, 8081/3100)에서 암호를 정해 백업 → 웹훅 삭제·이름 변경 → 파일 고르기 → 암호 없음·틀린 암호의 오류 문구 → 맞는 암호로 복원해 값이 돌아오는 것까지 봤다(파일 내려받기는 브라우저 저장 대신 내용을 가로채 확인). 백엔드 전체 `check` 는 돌리지 않았다. 다크 모드·좁은 폭, 암호 없는 파일의 화면 흐름, 구성원이 실제로 추가되는 경우의 화면 문구는 보지 않았다(테스트로만 확인).
+- 알아둘 것: 파일에는 비밀 값과 비밀번호 해시가 그대로 들어간다(암호를 정하지 않으면 평문). 복원 요청은 256KB 를 넘으면 거부된다(명세 "알려진 한계").
+- 이 PC(Windows)의 JDK 25 는 `~/.jdks/corretto-25.0.4.1` 이다. 기본 `java` 는 11 이라 jar 를 직접 띄울 때는 이 경로를 쓴다.
 
 ### 2026-10-13 — "고치기"를 "수정"으로
 

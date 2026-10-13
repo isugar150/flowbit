@@ -30,6 +30,7 @@ export default async function AdminLayout({
           { href: "/admin/members", label: m.membersTab },
           { href: "/admin/auth", label: m.authTab },
           { href: "/admin/notifications", label: m.notificationsTab },
+          { href: "/admin/backup", label: m.backupTab },
         ]}
       />
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-10">

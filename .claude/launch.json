@@ -12,6 +12,12 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": ["-c", "cd frontend && BACKEND_URL=http://localhost:8081 exec npx next start -p 3100"],
       "port": 3100
+    },
+    {
+      "name": "frontend-e2e-win",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd frontend && set BACKEND_URL=http://localhost:8081&& npx next start -p 3100"],
+      "port": 3100
     }
   ]
 }

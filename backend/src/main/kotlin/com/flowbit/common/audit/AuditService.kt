@@ -26,6 +26,8 @@ enum class AuditEventType {
     MEMBER_CONVERTED,
     AUTH_SETTINGS_CHANGED,
     PROJECT_CREATED,
+    BACKUP_EXPORTED,
+    BACKUP_RESTORED,
 }
 
 /** Append-only record of security-relevant events. Never pass passwords or other secrets in `detail`. */
