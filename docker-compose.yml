@@ -1,6 +1,7 @@
 # 로컬 개발용 PostgreSQL. 값은 .env 로 바꿀 수 있다 (.env.example 참고).
 #   개발(DB 만):          docker compose up -d
 #   앱까지 컨테이너로:    docker compose --profile app up -d --build   → http://localhost:3000
+#   서버 배포는 script/ (Docker Hub 의 이미지를 받아 띄운다. docs/02-architecture.md)
 name: flowbit
 
 services:
@@ -68,7 +69,8 @@ services:
     environment:
       BACKEND_URL: http://backend:8080
     ports:
-      - "${FLOWBIT_WEB_PORT:-3000}:3000"
+      # FLOWBIT_WEB_BIND=127.0.0.1 이면 이 서버 안에서만 열린다 (앞에 nginx 를 둘 때)
+      - "${FLOWBIT_WEB_BIND:-0.0.0.0}:${FLOWBIT_WEB_PORT:-3000}:3000"
 
 volumes:
   postgres-data:

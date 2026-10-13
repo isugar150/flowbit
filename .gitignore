@@ -10,13 +10,6 @@
 /backend/data/
 /data/
 
-# 배포 스크립트(script/)가 서버에서 만드는 것: 서버별 설정, 실행 파일, 로그, pid, 업로드
-/script/app.local.env
-/script/app/
-/script/logs/
-/script/data/
-/script/*.pid
-
 # OS
 .DS_Store
 Thumbs.db

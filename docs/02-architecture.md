@@ -52,7 +52,7 @@ flowbit/
 ├─ backend/               Spring Boot(WebFlux) 애플리케이션
 │   └─ data/uploads/       올린 이미지의 기본 저장 위치 (git 추적 안 함)
 ├─ frontend/              Next.js 애플리케이션
-├─ script/                서버에서 git pull → 빌드 → 재시작하는 배포 스크립트 ("스크립트 배포")
+├─ script/                서버 배포: 이미지 push, 서버용 compose 와 deploy.sh, nginx 견본 ("서버 배포")
 ├─ docker/postgres/init/  DB 볼륨이 처음 만들어질 때 실행되는 SQL
 ├─ docker-compose.yml     로컬 개발용 PostgreSQL 18, `app` 프로필로 백엔드·프런트 컨테이너
 └─ .env.example           환경 변수 예시
@@ -188,34 +188,32 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 - 운영에서는 `.env` 에 `FLOWBIT_DB_PASSWORD` 를 바꾸고, `FLOWBIT_PUBLIC_URL` 을 실제 주소로 준다. 앞에 HTTPS 리버스 프록시(nginx 등)를 둘 때는 `Upgrade`/`Connection` 헤더를 넘긴다("실시간 동기화").
 - 아직 없는 것: 이미지 레지스트리에 올리기, CI 에서 이미지 빌드, Spring 프로필(`prod`).
 
-## 스크립트 배포 (D-105)
+## 서버 배포 (D-106)
 
-Docker 없이 서버 한 대에서 프로세스로 띄우는 방법이다. 저장소를 서버에 받아 두고 `script/deploy.sh` 를 돌리면 **git pull → 빌드 → 내리기 → 바꾸기 → 올리기**를 한다. 무중단이 아니다: 내리고 올리는 사이(수 초~수십 초)에는 접속이 끊긴다. 두 번째 인스턴스, nginx 전환, 릴리스 폴더는 없다.
+**개발 PC 에서 이미지를 만들어 Docker Hub 에 올리고, 서버는 받아서 띄우기만 한다.** 서버에는 Docker 만 있으면 된다(git, JDK, Node.js 를 깔지 않는다). **DB 는 이미지에도 compose 에도 넣지 않는다: 이미 있는 외부 PostgreSQL 18 에 붙고, 접속 정보는 `.env` 에 적는다** (사용자 지정, D-107).
 
-```bash
-cd /app/flowbit/script        # 저장소를 /app/flowbit 에 받았다면
-cp ../.env.example .env       # 앱 설정. 값을 고친다 (DB 비밀번호, FLOWBIT_PUBLIC_URL, FLOWBIT_STORAGE_PATH …)
-./deploy.sh                   # 무엇을 배포할지 묻는다. ./deploy.sh 1 | 2 | 3 으로 바로 고를 수 있다
-./shutdown.sh                 # 내리기 (인자: backend | frontend, 없으면 둘 다)
-./startup.sh                  # 마지막으로 빌드한 것을 올리기
+```
+개발 PC   ./script/push.sh      이미지 빌드 → isugar150/flowbit 에 push
+서버      ./deploy.sh           pull → 컨테이너 교체 → 떴는지 확인
 ```
 
-| 파일 | 내용 |
-|---|---|
-| `deploy.sh` | 1 백엔드+프런트, 2 백엔드, 3 프런트. 원격에 새 커밋이 있으면 바뀐 파일을 먼저 보여 준다. **고른 것을 전부 빌드한 뒤에 내리므로 빌드가 실패하면 돌던 서버는 그대로다.** 동시에 두 번 돌지 않게 잠근다(`/tmp/flowbit.deploy.lock`) |
-| `startup.sh`, `shutdown.sh` | 백엔드(`java -jar`), 프런트(`node server.js`)를 pid 파일로 올리고 내린다. pid 파일을 잃어도 그 포트를 듣는 java·node 프로세스를 찾아 내린다 |
-| `common.sh` | 위 셋이 함께 쓰는 함수. 직접 실행하지 않는다 |
-| `app.env` | **스크립트의 설정**(경로, JVM 옵션, 헬스체크, 종료 대기). git 이 추적하므로 서버에서는 고치지 않고, 바꿀 줄만 `script/app.local.env`(git 추적 안 함)에 적는다 |
-| `.env` | **앱의 설정**. `.env.example` 과 같은 키. `script/` 에 두면 스크립트가 읽어 백엔드·프런트 프로세스와 프런트 빌드에 환경 변수로 넘긴다. git 추적 안 함 |
+| 파일 | 어디서 | 내용 |
+|---|---|---|
+| `script/push.sh` | 개발 PC | `backend/`, `frontend/` 의 Dockerfile 로 이미지를 만들어 push 한다. 버전은 지금 커밋의 짧은 해시(커밋 안 한 변경이 있으면 `-dirty`), 인자로 직접 줄 수도 있다. `docker login` 이 되어 있어야 한다 |
+| `script/docker-compose.yml` | 서버 | 백엔드, 프런트 (DB 없음). 빌드하지 않고 이미지만 받는다. 루트의 `docker-compose.yml`(개발용)과 별개다 |
+| `script/deploy.sh` | 서버 | `docker compose pull` → `up -d` → `GET /api/v1/health`(프런트 → 백엔드 → DB 를 한 번에 확인). **전부 받은 뒤에 교체하므로 받기에 실패하면 돌던 것은 그대로다.** 인자로 버전을 주면 그 버전을 띄운다(되돌릴 때도 이것) |
+| `script/.env` | 서버 | 설정. **처음 실행하면 `deploy.sh` 가 빈 양식을 만들고 멈춘다. DB 접속 정보를 채우고 다시 실행한다.** git 추적 안 함 |
+| `script/nginx/flowbit.conf` | 서버(선택) | 80 포트로 특정 도메인만 받아 프런트로 넘기는 nginx 설정 견본 |
 
-- 서버에 필요한 것: git, JDK 25, Node.js 22 와 npm, curl, bash, `flock`(util-linux), 그리고 PostgreSQL 18(이 스크립트는 DB 를 띄우지 않는다).
-- JDK 를 골라 쓰려면 `app.env` 의 `JDK_HOME` 에 설치 폴더(그 아래 `bin/java`)를 적는다. 빌드(Gradle 의 `JAVA_HOME`)와 백엔드 실행이 둘 다 그 JDK 로 된다. 비우면 `PATH` 의 `java`. 폴더가 틀리면 스크립트가 바로 멈춘다.
-- 포트는 `.env` 에서 정한다: `SERVER_PORT`(백엔드, 기본 8080), `FLOWBIT_WEB_PORT`(프런트, 기본 3000). `BACKEND_URL` 을 적지 않으면 `http://127.0.0.1:<SERVER_PORT>` 로 정해져 프런트 빌드와 실행에 함께 쓰인다.
-- `.env` 는 셸 스크립트로 실행하지 않고 `KEY=VALUE` 줄로만 읽는다. 비밀번호에 `$` 나 공백이 있어도 적힌 그대로 들어간다. 값 양끝의 따옴표는 뗀다.
-- 실행 파일은 `script/app/backend/app.jar`, `script/app/frontend/` 에 복사해 두고 거기서 돈다. 바로 앞 빌드는 `app.jar.prev`, `frontend.prev` 로 하나만 남는다(새 것이 뜨지 않을 때 손으로 되돌리는 용도. 자동 롤백은 없다).
-- 로그는 `script/logs/backend.log`, `frontend.log`. 시작할 때마다 새 파일이고 바로 앞 것은 `.prev`.
-- 백엔드는 `script/` 에서 실행된다. `FLOWBIT_STORAGE_PATH` 가 상대 경로면 `script/data/uploads` 가 되므로 **운영에서는 백업되는 절대 경로를 준다.**
-- 떴는지 확인: 백엔드는 `GET /api/v1/health` 가 2xx(DB 까지 확인), 프런트는 포트가 응답하면 된 것으로 본다.
-- 프런트는 기본으로 `0.0.0.0:3000` 을 듣는다(`FRONT_HOST`). 앞에 nginx 를 둘 때는 `127.0.0.1` 로 바꾸고 `/` 전체를 프런트로 넘긴다(`Upgrade`/`Connection` 헤더 포함, "실시간 동기화"). 백엔드 포트는 밖에 열 필요가 없다.
-- **nginx 설정 견본: `script/nginx/flowbit.conf`.** 80 포트(HTTP)만 듣고, `server_name` 의 도메인으로 온 요청을 프런트(`127.0.0.1:3000`)로 넘긴다. `Host` 를 그대로 넘기고(실시간 연결의 Origin 확인에 필요), WebSocket 업그레이드 헤더, 본문 20MB 제한, 읽기 제한 120초를 둔다. 도메인과 포트를 고쳐 `/etc/nginx/sites-available`(또는 `conf.d`)에 복사한다. **HTTPS 가 없으므로 웹 푸시는 동작하지 않는다**(브라우저가 HTTPS 나 localhost 에서만 허용한다). 세션 쿠키도 `Secure` 없이 나간다.
-- 서버를 재부팅하면 자동으로 뜨지 않는다. 필요하면 `startup.sh` 를 부르는 systemd 유닛이나 cron `@reboot` 을 서버에 둔다(저장소에는 없다).
+- **이미지 이름**: 저장소가 `isugar150/flowbit` 하나라서 태그로 나눈다. `backend-<버전>`, `frontend-<버전>`, 그리고 가장 최근 것을 가리키는 `backend-latest`, `frontend-latest`. 다른 저장소를 쓰려면 `FLOWBIT_IMAGE`(push 할 때는 환경 변수, 서버에서는 `.env`).
+- **서버에 필요한 파일은 `deploy.sh` 와 `docker-compose.yml` 둘뿐이다.** 한 폴더에 두면 된다(저장소를 clone 해서 `script/` 에서 돌려도 된다). 저장소가 비공개면 서버에서 `docker login` 을 한 번 한다.
+- **DB**: `.env` 의 `FLOWBIT_DB_HOST`, `FLOWBIT_DB_PORT`(기본 5432), `FLOWBIT_DB_NAME`(기본 `flowbit`), `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD`. 빈 DB 와 계정만 만들어 두면 테이블은 백엔드가 뜰 때 Flyway 가 만든다. 호스트·계정·비밀번호가 비어 있으면 `deploy.sh` 가 아무것도 받거나 바꾸지 않고 멈춘다. **DB 가 같은 서버에 있으면 `localhost` 가 아니라 `host.docker.internal`** 을 적는다(컨테이너 안의 `localhost` 는 컨테이너 자신이라 `deploy.sh` 가 거부한다. compose 가 그 이름을 서버로 이어 준다). 그때 PostgreSQL 이 Docker 쪽 주소의 접속을 받게 `listen_addresses` 와 `pg_hba.conf` 를 열어야 한다. 비밀번호에 `$` 가 있으면 작은따옴표로 감싼다(compose 가 `.env` 의 `$` 를 변수로 읽는다).
+- **`.env` 의 그 밖의 값**: `FLOWBIT_WEB_PORT`(기본 3000. **80 으로 하면 nginx 없이 `http://서버주소` 로 열린다**), `FLOWBIT_WEB_BIND`(`127.0.0.1` 이면 서버 안에서만 열림. nginx 를 앞에 둘 때), `FLOWBIT_PUBLIC_URL`, `FLOWBIT_MAX_UPLOAD_SIZE`, `FLOWBIT_VERSION`(고정할 버전. 없으면 `latest`). 고친 뒤 `./deploy.sh` 를 다시 돌린다.
+- 프런트 이미지는 `BACKEND_URL=http://backend:8080` 으로 빌드된다. 그래서 서버 compose 의 백엔드 서비스 이름은 `backend` 여야 한다.
+- 올린 파일은 볼륨 `flowbit_uploads` 에 있다. **외부 DB 와 함께 백업 대상이다.** `docker compose down` 은 볼륨을 지우지 않지만 `down -v` 는 지운다.
+- 컨테이너는 `restart: unless-stopped` 라 서버를 재부팅해도 다시 뜬다(Docker 가 부팅 때 시작되게 되어 있으면).
+- 자주 쓰는 명령(서버의 그 폴더에서): `docker compose ps`, `docker compose logs -f backend`, `docker compose stop`, `docker compose start`.
+- 새 버전의 마이그레이션이 적용된 뒤 예전 버전으로 되돌리면 스키마가 앞서 있을 수 있다.
+- 개발 PC 가 ARM(Apple Silicon)이고 서버가 x86 이면 `push.sh` 의 `docker build` 에 `--platform linux/amd64` 가 필요하다(지금은 없다).
+- **nginx 를 앞에 둘 때** (`script/nginx/flowbit.conf`): 그 서버가 여러 도메인을 받거나 80 포트를 이미 nginx 가 쓰는 경우에만 필요하다. 80 포트(HTTP)만 듣고 `server_name` 의 도메인으로 온 요청을 `127.0.0.1:3000` 으로 넘긴다. `Host` 를 그대로 넘기고(실시간 연결의 Origin 확인에 필요), WebSocket 업그레이드 헤더, 본문 20MB 제한, 읽기 제한 120초를 둔다. **HTTPS 가 없으므로 웹 푸시는 동작하지 않는다**(브라우저가 HTTPS 나 localhost 에서만 허용한다). 세션 쿠키도 `Secure` 없이 나간다.
+- 없는 것: HTTPS, DB 백업, CI 에서 이미지 빌드. D-105 의 "서버에서 git pull 받아 프로세스로 띄우는 스크립트"는 D-106 으로 없앴다.

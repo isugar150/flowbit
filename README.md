@@ -53,17 +53,19 @@ docker compose --profile app up -d --build
 
 http://localhost:3000 에서 초기 설정부터 한다. 포트는 `.env` 의 `FLOWBIT_WEB_PORT` 로 바꾼다. 올린 이미지는 `uploads` 볼륨에, DB 는 `postgres-data` 볼륨에 있다. 자세한 내용은 [docs/02-architecture.md](docs/02-architecture.md) "Docker 이미지".
 
-## 서버에 스크립트로 배포하기
+## 서버에 배포하기
 
-Docker 없이 서버에서 git pull → 빌드 → 재시작을 한다 (무중단 아님). 서버에 git, JDK 25, Node.js 22, PostgreSQL 18 이 있어야 한다.
+개발 PC 에서 이미지를 만들어 Docker Hub(`isugar150/flowbit`)에 올리고, 서버는 받아서 띄운다. 서버에는 Docker 만 있으면 된다.
 
 ```bash
-cd script
-cp ../.env.example .env   # 앱 설정을 고친다
-./deploy.sh               # 1 백엔드+프런트, 2 백엔드, 3 프런트
+# 개발 PC (Docker 실행 중, docker login 완료)
+./script/push.sh
+
+# 서버: script/deploy.sh 와 script/docker-compose.yml 을 한 폴더에 두고
+./deploy.sh
 ```
 
-`./shutdown.sh`, `./startup.sh` 로 내리고 올린다. 자세한 내용은 [docs/02-architecture.md](docs/02-architecture.md) "스크립트 배포".
+DB 는 포함하지 않는다. 처음 실행하면 `.env` 양식이 만들어지고 멈추므로, 거기에 PostgreSQL 18 의 접속 정보(`FLOWBIT_DB_*`)를 적고 다시 실행한다. 포트는 그 파일의 `FLOWBIT_WEB_PORT` 로 바꾼다. 자세한 내용은 [docs/02-architecture.md](docs/02-architecture.md) "서버 배포".
 
 ## 설정
 

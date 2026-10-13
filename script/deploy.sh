@@ -1,241 +1,151 @@
 #!/usr/bin/env bash
-# git pull -> build -> stop -> replace -> start. The service is down for the moment between
-# stop and start (there is no second instance to switch to).
-#   ./deploy.sh        asks what to deploy
-#   ./deploy.sh 1      backend + frontend
-#   ./deploy.sh 2      backend
-#   ./deploy.sh 3      frontend
-# Everything is built before anything is stopped, so a build that fails leaves the running
-# servers as they are.
+# Run on the server: pulls the Flowbit images from Docker Hub and (re)starts the containers.
+# The server needs Docker only. This file and docker-compose.yml must be in the same folder.
+#
+#   ./deploy.sh             the newest images (…-latest)
+#   ./deploy.sh 1a2b3c4     a version pushed earlier (the tag push.sh printed); also the way back
+#
+# Settings are in .env next to this file. The first run creates it and stops: enter the address
+# and account of the PostgreSQL database there (Flowbit does not run a database of its own) and
+# run this again. Replacing a container takes the service down for a few seconds.
 set -euo pipefail
 
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/.env"
+HEALTH_TRIES=120
 
-validate_operator
+cd "$SCRIPT_DIR"
 
-mkdir -p "$(dirname "$DEPLOY_LOCK_FILE")"
+command -v docker >/dev/null || { echo "docker not found. Install Docker first."; exit 1; }
+docker compose version >/dev/null 2>&1 || { echo "The docker compose plugin is missing."; exit 1; }
 
-exec 9>"$DEPLOY_LOCK_FILE"
+# One value from .env, without running the file as a shell script.
+env_value() {
+  local key="$1" default="$2" line
+  line="$(grep -E "^[[:space:]]*${key}[[:space:]]*=" "$ENV_FILE" 2>/dev/null | tail -n 1 || true)"
+  if [[ -z "$line" ]]; then
+    echo "$default"
+    return 0
+  fi
+  line="${line#*=}"
+  line="${line%$'\r'}"
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
+  line="${line%\"}"
+  line="${line#\"}"
+  echo "${line:-$default}"
+}
 
-if ! flock -n 9; then
-  echo "Another deploy is already running."
-  echo "Check: lsof $DEPLOY_LOCK_FILE"
+create_env_file() {
+  echo "=== Create .env ==="
+
+  cat > "$ENV_FILE" <<'EOF'
+# Flowbit 서버 설정. 고친 뒤 ./deploy.sh 를 다시 실행하면 적용된다.
+
+# 데이터베이스 (PostgreSQL 18). Flowbit 은 DB 를 띄우지 않고 이미 있는 DB 에 붙는다.
+# 빈 DB 와 계정만 만들어 두면 테이블은 백엔드가 처음 뜰 때 만든다.
+# DB 가 이 서버에 있으면 localhost 가 아니라 host.docker.internal 을 적는다
+# (컨테이너 안에서 localhost 는 컨테이너 자신이다).
+FLOWBIT_DB_HOST=
+FLOWBIT_DB_PORT=5432
+FLOWBIT_DB_NAME=flowbit
+FLOWBIT_DB_USER=
+# 비밀번호에 $ 가 있으면 작은따옴표로 감싼다: FLOWBIT_DB_PASSWORD='pa$$word'
+FLOWBIT_DB_PASSWORD=
+
+# 브라우저로 여는 포트. 80 으로 바꾸면 http://서버주소 로 바로 열린다.
+FLOWBIT_WEB_PORT=3000
+# 그 포트를 여는 주소. 앞에 nginx 를 두고 이 서버 안에서만 열려면 127.0.0.1
+# FLOWBIT_WEB_BIND=127.0.0.1
+
+# 사람들이 Flowbit 을 여는 주소. 메일과 API 알림에 넣는 이슈 링크에 쓴다.
+# FLOWBIT_PUBLIC_URL=http://flowbit.example.com
+
+# 올릴 수 있는 이미지 한 장의 최대 크기
+# FLOWBIT_MAX_UPLOAD_SIZE=5MB
+EOF
+  chmod 600 "$ENV_FILE" 2>/dev/null || true
+
+  echo "Created $ENV_FILE"
+  echo "Fill in the database settings (FLOWBIT_DB_HOST, FLOWBIT_DB_USER, FLOWBIT_DB_PASSWORD)"
+  echo "and run this script again."
+}
+
+# Stops before anything is pulled or replaced when the database settings are not usable.
+check_database_settings() {
+  local missing=() key host
+  for key in FLOWBIT_DB_HOST FLOWBIT_DB_USER FLOWBIT_DB_PASSWORD; do
+    if [[ -z "$(env_value "$key" "")" ]]; then missing+=("$key"); fi
+  done
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Missing in $ENV_FILE: ${missing[*]}"
+    echo "Flowbit uses an existing PostgreSQL database; enter its address and account."
+    exit 1
+  fi
+
+  host="$(env_value FLOWBIT_DB_HOST "")"
+  if [[ "$host" == "localhost" || "$host" == "127.0.0.1" || "$host" == "::1" ]]; then
+    echo "FLOWBIT_DB_HOST=$host points at the container itself, not at this server."
+    echo "For a database on this server use FLOWBIT_DB_HOST=host.docker.internal"
+    exit 1
+  fi
+}
+
+wait_until_up() {
+  local port="$1"
+  # Through the frontend to the backend to the database: one request checks all three.
+  local url="http://127.0.0.1:${port}/api/v1/health"
+
+  if ! command -v curl >/dev/null; then
+    echo "curl not found. Skip the health check; see: docker compose ps"
+    return 0
+  fi
+
+  echo "=== Wait until Flowbit answers: $url ==="
+  for ((i = 1; i <= HEALTH_TRIES; i++)); do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      echo "Health check OK"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Flowbit did not answer within ${HEALTH_TRIES}s. If the backend cannot reach the database,"
+  echo "check FLOWBIT_DB_* in .env and that the database accepts connections from this server."
+  echo "Last backend logs:"
+  docker compose logs --tail 80 backend || true
+  docker compose ps || true
+  return 1
+}
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  create_env_file
   exit 1
 fi
 
-cleanup_lock() {
-  flock -u 9 || true
-}
+check_database_settings
 
-trap cleanup_lock EXIT
-
-print_deploy_menu() {
-  echo "Select deploy target:"
-  echo "  1) backend + frontend"
-  echo "  2) backend"
-  echo "  3) frontend"
-}
-
-select_deploy_target() {
-  local selected="${1:-}"
-
-  if [[ -z "$selected" ]]; then
-    print_deploy_menu
-    read -r -p "Select [1-3, default: 1]: " selected || selected=""
-  fi
-
-  selected="${selected//[[:space:]]/}"
-  selected="${selected:-1}"
-
-  case "$selected" in
-    1)
-      DEPLOY_BACKEND=true
-      DEPLOY_FRONTEND=true
-      DEPLOY_TARGET_LABEL="backend + frontend"
-      ;;
-    2)
-      DEPLOY_BACKEND=true
-      DEPLOY_FRONTEND=false
-      DEPLOY_TARGET_LABEL="backend"
-      ;;
-    3)
-      DEPLOY_BACKEND=false
-      DEPLOY_FRONTEND=true
-      DEPLOY_TARGET_LABEL="frontend"
-      ;;
-    *)
-      echo "Invalid deploy target: $selected"
-      echo "Use 1, 2, or 3."
-      exit 1
-      ;;
-  esac
-}
-
-show_remote_updates() {
-  echo "=== Check remote updates ==="
-  cd "$SOURCE_DIR"
-
-  local upstream=""
-  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-
-  if [[ -z "$upstream" ]]; then
-    echo "No upstream branch configured. Skip remote file preview."
-    echo "Current branch: $(git rev-parse --abbrev-ref HEAD)"
-    return 0
-  fi
-
-  echo "Fetch remote: $upstream"
-  git fetch --prune
-
-  local remote_commit_count="0"
-  remote_commit_count="$(git rev-list --count HEAD.."$upstream" 2>/dev/null || echo "0")"
-
-  if [[ "$remote_commit_count" == "0" ]]; then
-    echo "No remote updates. Local HEAD is up to date with $upstream."
-    return 0
-  fi
-
-  echo "Remote updates found: ${remote_commit_count} commit(s)"
-  echo "Updated files from remote:"
-  git diff --name-status HEAD.."$upstream"
-
-  echo "Recent remote commits:"
-  git log --oneline --decorate --max-count=10 HEAD.."$upstream"
-}
-
-pull_latest_source() {
-  echo "=== Pull latest source ==="
-  cd "$SOURCE_DIR"
-  git pull
-}
-
-build_backend() {
-  echo "=== Build backend ==="
-  cd "$SOURCE_DIR/backend"
-  # `sh`: works even when the checkout lost gradlew's executable bit.
-  sh ./gradlew --no-daemon clean bootJar
-
-  BUILT_JAR="$(find "$SOURCE_DIR/backend/build/libs" -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' | head -n 1)"
-
-  [[ -n "$BUILT_JAR" && -f "$BUILT_JAR" ]] || {
-    echo "JAR not found in $SOURCE_DIR/backend/build/libs"
-    exit 1
-  }
-  echo "Built: $BUILT_JAR"
-}
-
-build_frontend() {
-  echo "=== Build frontend ==="
-  cd "$SOURCE_DIR/frontend"
-
-  # BACKEND_URL (exported by common.sh) is written into the build: the /api rewrite.
-  echo "BACKEND_URL: $BACKEND_URL"
-  npm ci --no-audit --no-fund
-  NEXT_TELEMETRY_DISABLED=1 npm run build
-
-  # The self-contained server (next.config.ts `output: "standalone"`).
-  BUILT_SERVER_JS="$(find "$SOURCE_DIR/frontend/.next/standalone" -maxdepth 3 -name server.js -not -path '*/node_modules/*' | head -n 1)"
-
-  [[ -n "$BUILT_SERVER_JS" && -f "$BUILT_SERVER_JS" ]] || {
-    echo "Frontend build not found: $SOURCE_DIR/frontend/.next/standalone/server.js"
-    exit 1
-  }
-}
-
-deploy_backend() {
-  echo "=== Deploy backend ==="
-  mkdir -p "$BACKEND_RUN_DIR"
-
-  # Copied next to the old one first, so the server is only down for stop + start.
-  cp -f "$BUILT_JAR" "$BACKEND_JAR.new"
-
-  stop_service backend
-
-  if [[ -f "$BACKEND_JAR" ]]; then
-    mv -f "$BACKEND_JAR" "$BACKEND_JAR.prev"
-  fi
-  mv -f "$BACKEND_JAR.new" "$BACKEND_JAR"
-
-  start_service backend || {
-    echo "Backend did not start. The previous build is kept as $BACKEND_JAR.prev"
-    exit 1
-  }
-}
-
-deploy_frontend() {
-  echo "=== Deploy frontend ==="
-  local standalone_dir staging="$FRONT_RUN_DIR.new"
-
-  standalone_dir="$(dirname "$BUILT_SERVER_JS")"
-
-  # The standalone server does not carry the static files and public/: they go next to it.
-  rm -rf "$staging"
-  mkdir -p "$staging"
-  cp -a "$SOURCE_DIR/frontend/.next/standalone/." "$staging/"
-
-  local staged_server_dir="$staging${standalone_dir#"$SOURCE_DIR/frontend/.next/standalone"}"
-  mkdir -p "$staged_server_dir/.next"
-  cp -a "$SOURCE_DIR/frontend/.next/static" "$staged_server_dir/.next/static"
-  cp -a "$SOURCE_DIR/frontend/public" "$staged_server_dir/public"
-
-  # startup.sh expects server.js right in $FRONT_RUN_DIR.
-  if [[ "$staged_server_dir" != "$staging" ]]; then
-    echo "Frontend server is nested in the build ($staged_server_dir). Expected it at the top."
-    echo "Check that frontend/ has its own package-lock.json and no lockfile sits above it."
-    rm -rf "$staging"
-    exit 1
-  fi
-
-  stop_service frontend
-
-  rm -rf "$FRONT_RUN_DIR.prev"
-  if [[ -d "$FRONT_RUN_DIR" ]]; then
-    mv "$FRONT_RUN_DIR" "$FRONT_RUN_DIR.prev"
-  fi
-  mv "$staging" "$FRONT_RUN_DIR"
-
-  start_service frontend || {
-    echo "Frontend did not start. The previous build is kept as $FRONT_RUN_DIR.prev"
-    exit 1
-  }
-}
-
-print_deploy_summary() {
-  echo "=== Deploy completed ==="
-  echo "Deploy target: $DEPLOY_TARGET_LABEL"
-  echo "Commit: $(cd "$SOURCE_DIR" && git log --oneline --max-count=1)"
-
-  if [[ "$DEPLOY_BACKEND" == "true" ]]; then
-    echo "Backend:  http://127.0.0.1:${BACKEND_PORT}  ($BACKEND_JAR)"
-  fi
-
-  if [[ "$DEPLOY_FRONTEND" == "true" ]]; then
-    echo "Frontend: http://127.0.0.1:${FRONT_PORT}  ($FRONT_RUN_DIR)"
-  fi
-}
-
-show_remote_updates
-
-select_deploy_target "${1:-}"
-
-echo "Deploy target: $DEPLOY_TARGET_LABEL"
-
-pull_latest_source
-
-if [[ "$DEPLOY_BACKEND" == "true" ]]; then
-  build_backend
+# Wins over a FLOWBIT_VERSION line in .env, so the next plain ./deploy.sh is the newest again.
+if [[ -n "${1:-}" ]]; then
+  export FLOWBIT_VERSION="$1"
 fi
+echo "Version: ${FLOWBIT_VERSION:-$(env_value FLOWBIT_VERSION latest)}"
 
-if [[ "$DEPLOY_FRONTEND" == "true" ]]; then
-  build_frontend
-fi
+WEB_PORT="$(env_value FLOWBIT_WEB_PORT 3000)"
 
-if [[ "$DEPLOY_BACKEND" == "true" ]]; then
-  deploy_backend
-fi
+# Everything is downloaded before anything is replaced: a failed pull leaves what is running.
+echo "=== Pull images ==="
+docker compose pull
 
-if [[ "$DEPLOY_FRONTEND" == "true" ]]; then
-  deploy_frontend
-fi
+echo "=== Start containers ==="
+docker compose up -d --remove-orphans
 
-print_deploy_summary
+wait_until_up "$WEB_PORT"
+
+# The images that were just replaced.
+docker image prune -f >/dev/null 2>&1 || true
+
+echo "=== Deploy completed ==="
+docker compose ps
+echo "Open: http://<this server>:${WEB_PORT}"

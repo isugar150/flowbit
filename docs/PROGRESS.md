@@ -180,6 +180,16 @@
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
 
+### 2026-10-13 — 서버 배포를 Docker 이미지로 (아래 "배포 스크립트" 항목을 대체)
+
+- 사용자 지시: 프로세스로 띄우는 스크립트는 손이 너무 많이 가니 Docker 로 빌드해서 올리게 할 것. 레지스트리는 Docker Hub `isugar150/flowbit` (D-106, [02-architecture.md](02-architecture.md) "서버 배포").
+- 한 일: `script/push.sh`(개발 PC: 빌드 + push), `script/docker-compose.yml`(서버용, 이미지만 받음), `script/deploy.sh`(서버: pull → up → 헬스체크, `.env` 자동 생성). **지운 것**: `script/app.env`, `common.sh`, `startup.sh`, `shutdown.sh`(git 기록에는 남아 있다), `.gitignore` 의 그 스크립트용 줄. `script/nginx/flowbit.conf` 는 선택 사항으로 남기고 설명을 고쳤다. 개발용 `docker-compose.yml` 에 `FLOWBIT_WEB_BIND` 추가.
+- 태그 규칙: `isugar150/flowbit:backend-<버전>`, `frontend-<버전>`, `backend-latest`, `frontend-latest`. 버전은 커밋 짧은 해시.
+- 확인한 범위: `bash -n`, 그리고 가짜 `docker`·`curl` 로 `deploy.sh` 의 흐름(첫 실행의 `.env` 생성, 버전 지정, 포트 읽기, pull 실패 시 교체 안 함). **실제 이미지는 한 번도 빌드해 보지 못했다**(이 PC 의 Docker Desktop 이 떠 있지 않았다. Dockerfile 을 만든 2026-10-12 작업에서도 빌드하지 않았다). `push.sh` 도 실행해 보지 않았다. `script/docker-compose.yml` 은 `docker compose config` 로 검사하지 못했다. `nginx -t` 도 못 했다.
+- **다음에 먼저 할 것**: 개발 PC 에서 Docker 를 켜고 `./script/push.sh` 를 돌려 두 이미지가 빌드·push 되는지 본다. 막히기 쉬운 곳: 백엔드 이미지의 Gradle 의존성 받기, 프런트의 `next build`, `docker login`.
+- 같은 날 바꿈(사용자 지정, D-107): **서버 배포에 DB 를 넣지 않는다.** `script/docker-compose.yml` 에서 PostgreSQL 을 뺐고, `.env` 에 `FLOWBIT_DB_HOST/PORT/NAME/USER/PASSWORD` 를 적는다. `deploy.sh` 는 처음에 양식만 만들고 멈추며, 값이 비었거나 호스트가 `localhost` 면 멈춘다(같은 서버의 DB 는 `host.docker.internal`). 가짜 `docker` 로 네 경우(첫 실행, 미입력, localhost, 입력됨)를 확인했다. 실제 외부 DB 로는 띄워 보지 않았다. 위 항목의 "무작위 DB 비밀번호" 는 없어졌다.
+- 커밋하지 않았다(스테이징만: `script/` 의 추가·삭제와 실행 권한).
+
 ### 2026-10-13 — 배포 스크립트 (`script/`)
 
 - 사용자 지시: 쓰던 "무중단 + git" 스크립트에서 무중단만 빼고 이 프로젝트의 `script/` 폴더에 넣을 것. 설정한 경로에서 git pull → 빌드 → 바로 배포. 앱의 env 파일을 스크립트 경로에 넣으면 알아서 읽게 (D-105, [02-architecture.md](02-architecture.md) "스크립트 배포").
