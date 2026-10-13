@@ -85,7 +85,7 @@ export function MilestoneDetailDialog({
       {/* Hung from the top rather than centred, so it does not jump as the document grows. */}
       <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl lg:max-w-5xl">
         {/* The scroll box is inside, not the dialog itself, so the editor's menus are not clipped. */}
-        <div className="flex max-h-[88dvh] min-h-64 flex-col overflow-y-auto overscroll-contain rounded-xl lg:flex-row lg:items-start">
+        <div className="flex max-h-[88dvh] min-h-64 flex-col overflow-y-auto overscroll-contain rounded-xl lg:flex-row">
           <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 pt-6">
             <div className="flex flex-col gap-3">
               <DialogTitle className="sr-only">{milestone.name}</DialogTitle>
@@ -165,7 +165,7 @@ export function MilestoneDetailDialog({
           </div>
           <aside
             aria-labelledby="milestone-issues-title"
-            className="flex w-full shrink-0 flex-col gap-2 border-t p-5 lg:sticky lg:top-0 lg:w-96 lg:border-t-0 lg:border-l lg:pt-6"
+            className="flex w-full shrink-0 flex-col gap-2 border-t p-5 lg:w-96 lg:border-t-0 lg:border-l lg:pt-6"
           >
             <div className="flex items-center justify-between gap-2 lg:pr-8">
               <h3 id="milestone-issues-title" className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">

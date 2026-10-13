@@ -111,7 +111,7 @@ test("the editor role opens a milestone; the view of it is the same without the 
 test("a project is archived from its settings, shows greyed under 아카이브됨, and is restored", async () => {
   const name = `치울 프로젝트 ${run}`;
   const doomed = await api<Project>(context, "POST", "/api/v1/projects", { name, description: "" });
-  await newIssue("아카이브와 함께 숨는 이슈", {}, doomed.id);
+  await newIssue("아카이브와 함께 숨는 이슈 " + run, {}, doomed.id);
   const page = await newPage();
   await page.goto(`/project/${doomed.id}/settings`);
 
@@ -130,7 +130,7 @@ test("a project is archived from its settings, shows greyed under 아카이브�
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("row").filter({ hasText: name })).toHaveCount(0);
   await page.goto("/issues");
-  await expect(page.getByText("아카이브와 함께 숨는 이슈")).toHaveCount(0);
+  await expect(page.getByText(`아카이브와 함께 숨는 이슈 ${run}`)).toHaveCount(0);
   // Its address leads nowhere while it is put away.
   await page.goto(`/project/${doomed.id}`);
   await expect(page.getByText("404")).toBeVisible();
@@ -143,7 +143,7 @@ test("a project is archived from its settings, shows greyed under 아카이브�
   await page.getByRole("link", { name: "전체 프로젝트" }).last().click();
   await expect(page.getByRole("row").filter({ hasText: name }).getByRole("link", { name })).toBeVisible();
   await page.goto("/issues");
-  await expect(page.getByText("아카이브와 함께 숨는 이슈")).toBeVisible();
+  await expect(page.getByText(`아카이브와 함께 숨는 이슈 ${run}`)).toBeVisible();
   await page.close();
 });
 

@@ -121,7 +121,7 @@
 | `projects.name` | `text` | 1~80자 |
 | `projects.description` | `text` | 500자 이하, 기본 빈 문자열 |
 | `projects.created_by` | `uuid` FK → `users` | |
-| `projects.archived_at` | `timestamptz` null | 보관 기능용. 아직 쓰지 않는다 |
+| `projects.archived_at` | `timestamptz` null | 아카이브한 때(D-115). 값이 있으면 프로젝트와 그 이슈가 모든 목록에서 빠지고 들어갈 수 없다. 복원하면 null |
 | `projects.status` (`V6`) | `text` | `BACKLOG` \| `PLANNED` \| `IN_PROGRESS` \| `COMPLETED` \| `CANCELED`, 기본 `BACKLOG` |
 | `projects.priority` (`V6`) | `text` | `NONE` \| `URGENT` \| `HIGH` \| `MEDIUM` \| `LOW`, 기본 `NONE` |
 | `projects.lead_id` (`V6`) | `uuid` null FK → `users` (지워지면 null) | 프로젝트 리드 |

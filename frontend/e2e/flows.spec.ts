@@ -118,7 +118,8 @@ test("milestones are added one after another, renamed from the menu and deleted"
   const name = page.getByRole("dialog").getByRole("textbox", { name: "목표 이름" });
   await name.fill("알파 2");
   await name.press("Enter");
-  await expect(page.getByRole("button", { name: "알파 2 열기" })).toHaveCount(1);
+  // The line behind the dialog has the new name at once (it is hidden from assistive tech meanwhile).
+  await expect(page.locator("button[data-open-milestone]").filter({ hasText: "알파 2" })).toHaveCount(1);
   await settled(page);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);

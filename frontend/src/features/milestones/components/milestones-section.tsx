@@ -176,7 +176,7 @@ function MilestoneRow({
           </button>
           {milestone.content ? <span className="shrink-0 text-xs leading-4 text-muted-foreground">{m.hasNotes}</span> : null}
         </div>
-        <div className="flex items-center gap-3 pl-6 text-[0.8125rem] leading-5 text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-6 text-[0.8125rem] leading-5 whitespace-nowrap text-muted-foreground">
           <span className="flex items-center gap-2">
             <span
               role="progressbar"
@@ -184,7 +184,7 @@ function MilestoneRow({
               aria-valuemax={100}
               aria-valuenow={percent}
               aria-label={m.progress(percent)}
-              className="h-1.5 w-24 overflow-hidden rounded-full bg-muted-foreground/20"
+              className="h-1.5 w-24 overflow-hidden rounded-full bg-muted-foreground/20 max-sm:w-16"
             >
               <span className="block h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
             </span>
