@@ -1,5 +1,6 @@
 package com.flowbit.common.web
 
+import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.stereotype.Component
 
@@ -20,6 +21,14 @@ class PublicUrl(
             .trim()
             .trimEnd('/')
             .ifEmpty { null }
+
+    init {
+        // A value that is not an address (a typo in .env) quietly loses the links in notifications.
+        val address = base
+        if (address != null && !address.startsWith("http://") && !address.startsWith("https://")) {
+            LoggerFactory.getLogger(javaClass).warn("FLOWBIT_PUBLIC_URL is not an http(s) address, so notifications will carry no link: {}", address)
+        }
+    }
 
     /** The full address of [path], or the path itself when the address of this installation is unknown. */
     fun of(path: String): String = base?.let { it + path } ?: path

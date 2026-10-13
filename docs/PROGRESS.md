@@ -162,6 +162,13 @@
 
 ## 작업 기록
 
+### 2026-10-13 — 알림에 주소가 안 붙던 이유: `.env` 의 값이 잘못 들어가 있었다
+
+- 사용자 지적: `FLOWBIT_PUBLIC_URL` 을 넣었는데도 API 알림에 주소가 없다.
+- 원인: `script/.env` 의 줄이 `FLOWBIT_PUBLIC_URL=BACKEND_URL=http://…` 였다(두 줄이 붙었다). 값이 `http` 로 시작하지 않아 주소 줄을 붙이지 않았다.
+- 한 일: 그 줄을 `FLOWBIT_PUBLIC_URL=http://192.168.0.75:3000` 으로 고쳤다(`script/.env` 는 git 에 없는 파일이다). `PublicUrl` 이 시작할 때 값이 http(s) 주소가 아니면 경고 로그를 남긴다. 컨테이너를 다시 만들어야 반영된다(`script/` 에서 `docker compose up -d`).
+- 확인한 범위: `ktlintCheck`·`compileKotlin`. 실제 알림 수신은 확인하지 않았다.
+
 ### 2026-10-13 — 프로젝트 구성원 추가를 대화상자 대신 목록으로
 
 - 사용자 지시: 구성원 추가 버튼을 누르면 대화상자가 아니라 "라벨 추가"처럼 입력하고 골라서 추가하게.
