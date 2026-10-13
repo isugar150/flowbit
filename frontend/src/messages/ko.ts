@@ -298,7 +298,9 @@ export const ko = {
       today: "오늘",
       weekdays: ["일", "월", "화", "수", "목", "금", "토"],
       more: (count: number) => `+${count}개 더`,
-      calendarHint: "이슈를 끌어 날짜를 옮기고, 빈 날짜를 누르거나 끌어 새 이슈를 만듭니다.",
+      calendarHint: "이슈를 끌어 날짜를 옮기고, 양 끝을 끌어 시작일·종료일을 바꿉니다. 빈 날짜를 누르거나 끌면 새 이슈를 만듭니다.",
+      resizeStart: "끌어서 시작일 바꾸기",
+      resizeEnd: "끌어서 종료일 바꾸기",
       undated: (count: number) => `기한이 없는 이슈 ${count}개는 캘린더에 나오지 않습니다.`,
     },
     reactions: {
@@ -386,6 +388,7 @@ export const ko = {
       deleteConfirm: "한 번 더 누르면 삭제됩니다",
     },
     labels: "라벨",
+    columns: { key: "번호", title: "제목" },
     noLabels: "라벨 없음",
     allLabels: "모든 라벨",
     labelFilter: "라벨로 거르기",

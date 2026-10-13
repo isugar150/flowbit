@@ -397,7 +397,10 @@ export function IssuesView({
               onMove={writable ? (issue, dates) => mutation.mutate({ number: issue.number, changes: dates }) : undefined}
               onCreate={writable ? openDialog : undefined}
             />
-          ) : groups.map((group) => (
+          ) : (
+            <>
+              <IssueListHeader showProject={projectId === null} />
+              {groups.map((group) => (
             <section key={group.status} aria-label={statusLabel(group.status)}>
               <h2 className="flex h-9 items-center gap-2 border-y bg-muted px-5 text-[0.8125rem] leading-5 font-medium">
                 <StatusIcon status={group.status} />
@@ -425,7 +428,9 @@ export function IssuesView({
                 )}
               </ul>
             </section>
-          ))}
+              ))}
+            </>
+          )}
         </div>
       )}
       {writable && dialogUsed ? (
@@ -450,6 +455,42 @@ export function IssuesView({
  * One line of the list. Kept from rendering again unless its own issue changed, so typing in the
  * search box or opening a menu does not redo every line of a long list.
  */
+/**
+ * The columns at the end of a line, each with a width of its own so that they sit under one
+ * another and under the header. The narrower the screen, the fewer there are.
+ */
+const COLUMNS = {
+  project: "hidden w-32 shrink-0 overflow-hidden xl:block",
+  labels: "hidden w-44 shrink-0 overflow-hidden xl:flex",
+  milestone: "hidden w-32 shrink-0 overflow-hidden lg:flex",
+  due: "hidden w-16 shrink-0 sm:block",
+};
+
+/**
+ * The names of the columns, laid out exactly as a line is. It stays under the page header (and
+ * under the tabs, on pages that have them) while the list scrolls beneath it.
+ */
+function IssueListHeader({ showProject }: { showProject: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="sticky top-11 z-20 flex h-8 items-center gap-2 bg-background pr-5 pl-3 text-xs leading-4 text-muted-foreground group-has-[[data-pill-tabs]]/main:top-20 max-md:group-has-[[data-pill-tabs]]/main:top-22"
+    >
+      <span className="w-7 shrink-0" />
+      <span className="w-4 shrink-0" />
+      <span className="w-16 shrink-0">{m.columns.key}</span>
+      <span className="min-w-0 flex-1">{m.columns.title}</span>
+      {showProject ? <span className={COLUMNS.project}>{m.project}</span> : null}
+      <span className={COLUMNS.labels}>{m.labels}</span>
+      <span className={COLUMNS.milestone}>{m.milestone}</span>
+      <span className={COLUMNS.due}>{m.dueDate}</span>
+      <span className="w-4.5 shrink-0 overflow-hidden whitespace-nowrap lg:w-28">
+        <span className="max-lg:hidden">{m.assignee}</span>
+      </span>
+    </div>
+  );
+}
+
 const IssueListRow = memo(function IssueListRow({
   issue,
   depth,
@@ -490,15 +531,26 @@ const IssueListRow = memo(function IssueListRow({
       </span>
       <IssueTitleLink issue={issue} />
       <SubIssueProgress issue={issue} />
-      {showProject ? <IssueProjectName issue={issue} /> : null}
-      <IssueLabels issue={issue} />
-      {issue.milestone ? (
-        <span className="hidden max-w-40 shrink-0 items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground md:flex">
-          <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="truncate">{issue.milestone.name}</span>
+      {/* Every line has the same columns whether or not it has the value, so they line up down the list. */}
+      {showProject ? (
+        <span className={COLUMNS.project}>
+          <IssueProjectName issue={issue} />
         </span>
       ) : null}
-      <IssueDue issue={issue} />
+      <span className={COLUMNS.labels}>
+        <IssueLabels issue={issue} max={2} />
+      </span>
+      <span className={cn(COLUMNS.milestone, "items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground")}>
+        {issue.milestone ? (
+          <>
+            <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">{issue.milestone.name}</span>
+          </>
+        ) : null}
+      </span>
+      <span className={COLUMNS.due}>
+        <IssueDue issue={issue} />
+      </span>
       <IssueAssignee issue={issue} />
     </li>
   );

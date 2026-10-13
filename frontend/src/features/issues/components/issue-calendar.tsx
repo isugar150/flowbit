@@ -60,6 +60,31 @@ const MAX_SPAN_DAYS = 92;
 const DRAG_TYPE = "application/x-flowbit-issue";
 
 /**
+ * One end of an issue's bar. Dragging it to another day changes the first day (the left end) or
+ * the last day (the right end) and leaves the other where it is.
+ */
+function BarEdge({ edge, label, data }: { edge: "start" | "end"; label: string; data: { number: number; from: string } }) {
+  return (
+    <span
+      draggable
+      title={label}
+      onDragStart={(event) => {
+        // Not the bar's own drag, which moves the whole span.
+        event.stopPropagation();
+        event.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ ...data, edge }));
+        event.dataTransfer.effectAllowed = "move";
+      }}
+      // The bar is a link; pressing its end must not open the issue.
+      onClick={(event) => event.preventDefault()}
+      className={cn(
+        "absolute inset-y-0 w-2 cursor-ew-resize rounded-sm bg-primary/60 opacity-0 group-hover/bar:opacity-100",
+        edge === "start" ? "left-0" : "right-0",
+      )}
+    />
+  );
+}
+
+/**
  * Issues on a month calendar: on their due date, or on every day from their start to their due
  * date. Dragging an issue to another day moves its dates by that many days. Clicking an empty
  * part of a day, or dragging across days, starts a new issue with those dates. Issues without a
@@ -157,10 +182,20 @@ export function IssueCalendarView({
     const data = event.dataTransfer.getData(DRAG_TYPE);
     if (!data || !onMove) return;
     event.preventDefault();
-    const { number, from } = JSON.parse(data) as { number: number; from: string };
+    const { number, from, edge } = JSON.parse(data) as { number: number; from: string; edge?: "start" | "end" };
     const issue = issues.find((item) => item.number === number);
+    if (!issue?.dueDate) return;
+    if (edge) {
+      // One end was dragged: only that day changes. An end cannot cross the other one, and a
+      // span pulled back to a single day is a single day again.
+      const first = edge === "start" ? key : (issue.startDate ?? issue.dueDate);
+      const last = edge === "end" ? key : issue.dueDate;
+      if (first > last || (first === (issue.startDate ?? issue.dueDate) && last === issue.dueDate)) return;
+      onMove(issue, { startDate: first === last ? null : first, dueDate: last });
+      return;
+    }
     const shift = toDays(key) - toDays(from);
-    if (!issue?.dueDate || shift === 0) return;
+    if (shift === 0) return;
     // The whole span moves together and keeps its length.
     onMove(issue, {
       startDate: issue.startDate ? fromDays(toDays(issue.startDate) + shift) : null,
@@ -246,7 +281,7 @@ export function IssueCalendarView({
                                 }}
                                 title={`${issue.key} ${issue.title} · ${statusLabel(issue.status)} · ${dates}`}
                                 className={cn(
-                                  "flex h-6 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+                                  "group/bar relative flex h-6 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
                                   // A span reads as one bar: its inner days are joined to their neighbours.
                                   issue.startDate && cell.key !== issue.startDate && "-ml-1 rounded-l-none",
                                   issue.startDate && cell.key !== issue.dueDate && "-mr-1 rounded-r-none",
@@ -257,6 +292,12 @@ export function IssueCalendarView({
                               >
                                 <StatusIcon status={issue.status} className="size-3" />
                                 <span className="truncate">{issue.title}</span>
+                                {movable && cell.key === (issue.startDate ?? issue.dueDate) ? (
+                                  <BarEdge edge="start" label={m.resizeStart} data={{ number: issue.number, from: cell.key }} />
+                                ) : null}
+                                {movable && cell.key === issue.dueDate ? (
+                                  <BarEdge edge="end" label={m.resizeEnd} data={{ number: issue.number, from: cell.key }} />
+                                ) : null}
                               </Link>
                             </li>
                           );

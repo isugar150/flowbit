@@ -17,7 +17,7 @@ export function PillTabs({ label, tabs }: { label: string; tabs: PillTab[] }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label={label} className="sticky top-11 z-30 flex shrink-0 items-center gap-1.5 overflow-x-auto bg-background px-4 pb-2">
+    <nav aria-label={label} data-pill-tabs className="sticky top-11 z-30 flex shrink-0 items-center gap-1.5 overflow-x-auto bg-background px-4 pb-2">
       {tabs.map((tab) => {
         const current = pathname === tab.href;
         return (

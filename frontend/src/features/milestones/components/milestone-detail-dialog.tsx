@@ -268,13 +268,14 @@ export function MilestoneDetailDialog({
                         <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.issue.key}</span>
                         <span className="min-w-0 truncate font-medium">{row.issue.title}</span>
                       </Link>
-                      {row.issue.dueDate ? (
-                        <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
-                          <DueDate value={row.issue.dueDate} />
-                        </span>
-                      ) : null}
+                      {/* The same columns on every line, with or without a value, so they line up. */}
+                      <span className="w-14 shrink-0 text-right text-xs leading-4 text-muted-foreground tabular-nums">
+                        {row.issue.dueDate ? <DueDate value={row.issue.dueDate} /> : null}
+                      </span>
                       <PriorityMark priority={row.issue.priority} />
-                      {row.issue.assignee ? <PersonMark person={row.issue.assignee} /> : null}
+                      <span className="flex w-5 shrink-0 justify-center">
+                        {row.issue.assignee ? <PersonMark person={row.issue.assignee} /> : null}
+                      </span>
                     </li>
                   ),
                 )}

@@ -51,7 +51,7 @@ export function AppShell({
                 </div>
                 <UserMenu user={user} placement="header" />
               </div>
-              <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+              <main className="group/main flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
                 {/* Around the pages so the settings can start the tour again; what it draws covers the whole window. */}
                 <TourProvider completedAt={user.tourCompletedAt}>{children}</TourProvider>
               </main>
