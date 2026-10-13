@@ -180,6 +180,16 @@
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
 
+### 2026-10-13 — Docker Hub 에 올린 이미지를 받아 시험 (코드 변경은 `deploy.sh` 한 줄)
+
+- 사용자 지시: Docker Hub 에 올렸으니 받아서 테스트할 것. 사용자가 `./script/push.sh` 로 `isugar150/flowbit:b42d168`, `latest` 를 올렸다.
+- 방법: 이 PC 의 그 이미지를 지우고 `docker pull` 로 다시 받았다(다이제스트 `sha256:310f2f23…`). 임시 폴더에 `script/deploy.sh` 와 `script/docker-compose.yml` 만 복사해 **서버에서 하는 그대로** 실행했다. DB 는 임시 PostgreSQL 18 컨테이너를 호스트 포트로 열고 `FLOWBIT_DB_HOST=host.docker.internal` 로 붙였다. compose 프로젝트 이름은 `COMPOSE_PROJECT_NAME` 으로 바꿔 개발용 것과 섞이지 않게 했다.
+- 확인한 것 (전부 통과): 첫 실행의 `.env` 양식 생성과 멈춤, 값을 채운 뒤 pull → 실행 → 헬스체크. API 로 초기 설정(관리자 생성), `/me`, 프로젝트 생성, 이슈 생성(`HT-1`), 상태 변경, 댓글, 프로젝트 구독, 활동 기록, **프로필 사진 올리기(PNG → WebP 변환, 볼륨에 저장, 다시 받기)**, 화면 7개(`/`, 프로젝트, 이슈 목록, 이슈 상세, 내 설정, 관리자 알림·구성원)가 200 과 맞는 제목, 실시간 WebSocket 업그레이드(101), 컨테이너 재시작 뒤 로그인·데이터·올린 파일 유지(다시 뜨는 데 약 7초). 백엔드 로그에 `ERROR` 없음.
+- 확인하지 못한 것: 브라우저로 직접 누르는 화면(이 세션의 Browser 패널이 숨겨져 있어 페이지가 그려지지 않았다), 메일·푸시·LDAP·SSO, 실제 서버와 실제 외부 DB.
+- 고친 것: `deploy.sh` 의 `docker compose up -d --remove-orphans` 에서 `--remove-orphans` 를 뺐다. 서버용 compose 와 개발용 compose 의 프로젝트 이름이 둘 다 `flowbit` 이라, 개발 PC 에서 돌리면 개발용 DB 컨테이너(`flowbit-postgres`)를 "남는 것"으로 보고 지울 수 있었다.
+- 시작 직후 로그에 `Failed to proxy http://127.0.0.1:8080/api/v1/health … ECONNREFUSED` 가 몇 줄 남는다. 백엔드가 뜨기 전(약 7초)에 `deploy.sh` 가 헬스체크를 보낸 것이라 정상이다.
+- 시험에 쓴 컨테이너·볼륨·임시 DB 는 지웠다. 받은 이미지 `isugar150/flowbit:latest` 는 이 PC 에 남아 있다.
+
 ### 2026-10-13 — 한 이미지(백엔드 + 프런트), Amazon Corretto 25 (아래 "서버 배포를 Docker 이미지로" 항목의 이미지 부분을 대체)
 
 - 사용자 지시: ① JDK 는 버전만이 아니라 Amazon Corretto 25 여야 한다 (D-108). ② 이미지를 프런트·백엔드로 나누지 말고 한 이미지에. 가벼운 리눅스 이미지에 JDK 25 와 Node 22 만 설치 (D-109, [02-architecture.md](02-architecture.md) "Docker 이미지").

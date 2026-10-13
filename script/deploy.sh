@@ -139,7 +139,7 @@ echo "=== Pull image ==="
 docker compose pull
 
 echo "=== Start container ==="
-docker compose up -d --remove-orphans
+docker compose up -d
 
 wait_until_up "$WEB_PORT"
 
