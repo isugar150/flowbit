@@ -110,7 +110,7 @@ class MailNotificationChannel(
         // Without a public address there is nothing a mail client could open.
         val link =
             if (message.url.startsWith("http")) {
-                """<p><a href="${HtmlUtils.htmlEscape(message.url)}">이슈 열기</a></p>"""
+                """<p><a href="${HtmlUtils.htmlEscape(message.url)}">티켓 열기</a></p>"""
             } else {
                 ""
             }

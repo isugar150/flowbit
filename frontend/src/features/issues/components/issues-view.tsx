@@ -90,7 +90,7 @@ export function IssuesView({
   deleted?: boolean;
   /** Who a new issue made from this list is assigned to at first: the person whose issues these are. */
   defaultAssigneeId?: string | null;
-  /** What to say when there are no issues at all, where the usual words do not fit ("내 이슈"). */
+  /** What to say when there are no issues at all, where the usual words do not fit ("내 티켓"). */
   empty?: { title: string; description: string };
   /** The project whose issues these are; null on the list of every issue. */
   projectId: string | null;

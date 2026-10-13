@@ -39,7 +39,7 @@ com.flowbit
 │   ├─ domain/          UserSession, LdapSettings, SsoSettings
 │   └─ config/          SecurityConfig, SessionSecurityContextRepository
 ├─ project/           프로젝트, 프로젝트 구성원과 역할 (접근 판단은 ProjectService 가 한다)
-├─ issue/             이슈 (IssueService, 조회용 IssueQueries)
+├─ issue/             티켓 (IssueService, 조회용 IssueQueries)
 ├─ notification/      알림 통로(메일, 웹 푸시, API 알림)와 그 설정. 계층을 나누지 않은 작은 모듈
 ├─ setup/             초기 설정
 └─ media/             이미지 변환(ImageProcessor), 파일 저장(ImageStorage), 파일 제공, 업로드 읽기
@@ -104,7 +104,7 @@ com.flowbit
 - 비밀번호, 세션 토큰을 로그나 감사 기록에 남기지 않는다. 세션 토큰은 DB 에도 해시로만 저장한다.
 - 모든 엔드포인트는 기본적으로 인증이 필요하다. 공개 엔드포인트는 `SecurityConfig` 에 명시적으로 나열한다.
 - 관리자 전용 API 는 `/api/v1/admin/` 아래에 둔다. `SecurityConfig` 가 그 경로 전체에 `ADMIN` 역할을 요구한다.
-- **프로젝트에 속한 것을 다루는 코드는 반드시 `ProjectService.access(user, key)` 를 먼저 거친다.** 이 함수가 프로젝트와 호출자의 역할을 돌려주고, 들어올 수 없는 사람에게는 "없음"(404)으로 답한다. 이슈·댓글 같은 하위 리소스도 프로젝트 ID 를 직접 받아 조회하지 말고 이 결과에서 얻는다. 쓰기는 `role.canEdit`, 설정은 `role.canManage` 를 확인한다.
+- **프로젝트에 속한 것을 다루는 코드는 반드시 `ProjectService.access(user, key)` 를 먼저 거친다.** 이 함수가 프로젝트와 호출자의 역할을 돌려주고, 들어올 수 없는 사람에게는 "없음"(404)으로 답한다. 티켓·댓글 같은 하위 리소스도 프로젝트 ID 를 직접 받아 조회하지 말고 이 결과에서 얻는다. 쓰기는 `role.canEdit`, 설정은 `role.canManage` 를 확인한다.
 - 업로드한 파일은 내용으로 판단한다. 파일 이름과 `Content-Type` 을 믿지 않고, 저장 파일 이름은 서버가 만든다. 이미지는 반드시 `ImageProcessor` 를 거쳐 다시 인코딩한 것만 저장한다(원본을 그대로 저장하거나 내보내지 않는다).
 - 파일 입출력과 이미지 변환은 블로킹이므로 `Dispatchers.IO` 에서 한다 (`ImageStorage`, `ImageProcessor`).
 - 상태를 바꾸는 요청에는 CSRF 보호가 적용된다 ([06-api-conventions.md](06-api-conventions.md)).

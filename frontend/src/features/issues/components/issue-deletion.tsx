@@ -39,7 +39,7 @@ export function DeletedIssueBanner({ issue }: { issue: IssueDetail }) {
 }
 
 /**
- * "이슈 삭제" at the bottom of the issue's side panel. Asks for a second press. The issue stays
+ * "티켓 삭제" at the bottom of the issue's side panel. Asks for a second press. The issue stays
  * open afterwards, now read-only with the banner above: deleting hides it from the lists, it does
  * not destroy it.
  */

@@ -95,7 +95,7 @@ Flowbit을 처음 설치한 사람이 브라우저에서 **워크스페이스 �
 { "loginId": "admin", "password": "...", "workspaceName": "우리 회사", "workspaceKey": "ACME" }
 ```
 
-`workspaceName`, `workspaceKey` 는 선택(생략하면 `Flowbit`, `FB`). `workspaceKey` 는 이슈 번호 앞에 붙는 글자로, 대문자로 바꿔 저장하고 영문 대문자로 시작하는 2~10자의 영문 대문자·숫자여야 한다. 워크스페이스 이름(한글일 수 있다)과 따로 받는다 (D-068). 검증 오류의 필드 이름은 `workspaceName`, `workspaceKey`.
+`workspaceName`, `workspaceKey` 는 선택(생략하면 `Flowbit`, `FB`). `workspaceKey` 는 티켓 번호 앞에 붙는 글자로, 대문자로 바꿔 저장하고 영문 대문자로 시작하는 2~10자의 영문 대문자·숫자여야 한다. 워크스페이스 이름(한글일 수 있다)과 따로 받는다 (D-068). 검증 오류의 필드 이름은 `workspaceName`, `workspaceKey`.
 
 성공: 201, 세션 쿠키 발급, 본문은 `GET /api/v1/me` 와 같은 형태.
 오류: 409 `SETUP_ALREADY_COMPLETED`, 422 `VALIDATION_FAILED`, 429

@@ -44,16 +44,16 @@ test.afterAll(async () => {
 
 test("a milestone line opens the milestone: its issues on the right, notes on the left", async () => {
   const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "베타 출시", targetDate: null });
-  await newIssue("목표 안의 끝난 이슈", { milestoneId: milestone.id, status: "DONE" });
-  const open = await newIssue("목표 안의 남은 이슈", { milestoneId: milestone.id });
+  await newIssue("목표 안의 끝난 티켓", { milestoneId: milestone.id, status: "DONE" });
+  const open = await newIssue("목표 안의 남은 티켓", { milestoneId: milestone.id });
   // A sub-issue starts in its parent's milestone.
-  await newIssue("남은 이슈의 하위 이슈", { parentId: open.id, status: "DONE" });
-  await newIssue("목표 밖의 이슈");
+  await newIssue("남은 티켓의 하위 티켓", { parentId: open.id, status: "DONE" });
+  await newIssue("목표 밖의 티켓");
   const page = await newPage();
   await page.goto(`/project/${project.id}`);
   const line = page.locator(`li[data-presence-id="milestone:${milestone.id}"]`);
   await expect(line).toContainText("67%");
-  await expect(line).toContainText("이슈 2/3");
+  await expect(line).toContainText("티켓 2/3");
   // Nothing on the line is a field: it cannot be changed by accident.
   await expect(line.locator("input")).toHaveCount(0);
 
@@ -63,16 +63,16 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
   await expect(dialog.getByRole("textbox", { name: "목표 이름" })).toHaveValue("베타 출시");
   const issues = dialog.getByRole("complementary");
   // What is still to do comes before what is done, and a sub-issue sits under its parent, one step in.
-  await expect(issues.getByRole("listitem")).toContainText(["목표 안의 남은 이슈", "남은 이슈의 하위 이슈", "목표 안의 끝난 이슈"]);
+  await expect(issues.getByRole("listitem")).toContainText(["목표 안의 남은 티켓", "남은 티켓의 하위 티켓", "목표 안의 끝난 티켓"]);
   await expect(issues.getByRole("listitem").nth(1).locator("span[aria-hidden='true']").first()).toHaveCSS("width", "20px");
-  await expect(issues).not.toContainText("목표 밖의 이슈");
+  await expect(issues).not.toContainText("목표 밖의 티켓");
 
   await dialog.locator(".ProseMirror").click();
   await page.keyboard.type("QA 는 다음 주에 끝난다");
   await expect(dialog.getByText("저장됨")).toBeVisible();
 
   // An issue opens over the milestone and can be changed there; closing it returns to the milestone.
-  await issues.getByRole("link", { name: "목표 안의 남은 이슈" }).click();
+  await issues.getByRole("link", { name: "목표 안의 남은 티켓" }).click();
   const issueDialog = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^상태:/ }) });
   await issueDialog.getByRole("button", { name: /^상태:/ }).click();
   await page.getByRole("menuitemradio").filter({ hasText: "완료" }).click();
@@ -83,7 +83,7 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
   await expect(page.getByRole("dialog").getByRole("textbox", { name: "목표 이름" })).toBeVisible();
   // The list behind shows the change without being opened again: the issue is done now, so it
   // (with its sub-issue) no longer comes before the one that already was.
-  await expect(issues.getByRole("listitem")).toContainText(["목표 안의 끝난 이슈", "목표 안의 남은 이슈", "남은 이슈의 하위 이슈"]);
+  await expect(issues.getByRole("listitem")).toContainText(["목표 안의 끝난 티켓", "목표 안의 남은 티켓", "남은 티켓의 하위 티켓"]);
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -116,7 +116,7 @@ test("the editor role opens a milestone; the view of it is the same without the 
 test("a project is archived from its settings, shows greyed under 아카이브됨, and is restored", async () => {
   const name = `치울 프로젝트 ${run}`;
   const doomed = await api<Project>(context, "POST", "/api/v1/projects", { name, description: "" });
-  await newIssue("아카이브와 함께 숨는 이슈 " + run, {}, doomed.id);
+  await newIssue("아카이브와 함께 숨는 티켓 " + run, {}, doomed.id);
   const page = await newPage();
   await page.goto(`/project/${doomed.id}/settings`);
 
@@ -135,7 +135,7 @@ test("a project is archived from its settings, shows greyed under 아카이브�
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("row").filter({ hasText: name })).toHaveCount(0);
   await page.goto("/issues");
-  await expect(page.getByText(`아카이브와 함께 숨는 이슈 ${run}`)).toHaveCount(0);
+  await expect(page.getByText(`아카이브와 함께 숨는 티켓 ${run}`)).toHaveCount(0);
   // Its address leads nowhere while it is put away.
   await page.goto(`/project/${doomed.id}`);
   await expect(page.getByText("404")).toBeVisible();
@@ -148,7 +148,7 @@ test("a project is archived from its settings, shows greyed under 아카이브�
   await page.getByRole("link", { name: "전체 프로젝트" }).last().click();
   await expect(page.getByRole("row").filter({ hasText: name }).getByRole("link", { name })).toBeVisible();
   await page.goto("/issues");
-  await expect(page.getByText(`아카이브와 함께 숨는 이슈 ${run}`)).toBeVisible();
+  await expect(page.getByText(`아카이브와 함께 숨는 티켓 ${run}`)).toBeVisible();
   await page.close();
 });
 

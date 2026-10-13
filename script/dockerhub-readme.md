@@ -1,6 +1,6 @@
 # Flowbit
 
-Linear처럼 빠르고 단순한 이슈 트래커입니다. 한 조직이 자기 서버에 설치해서 씁니다.
+Linear처럼 빠르고 단순한 티켓 트래커입니다. 한 조직이 자기 서버에 설치해서 씁니다.
 
 이 이미지 하나에 백엔드(Spring Boot)와 프런트엔드(Next.js)가 함께 들어 있습니다. **데이터베이스는 들어 있지 않습니다.** 이미 있는 PostgreSQL 18에 연결해서 씁니다.
 
@@ -65,7 +65,7 @@ volumes:
 | `FLOWBIT_DB_NAME` | `flowbit` | 데이터베이스 이름 |
 | `FLOWBIT_DB_USER` | `flowbit` | 계정 |
 | `FLOWBIT_DB_PASSWORD` | `flowbit` | 비밀번호. **반드시 지정합니다** |
-| `FLOWBIT_PUBLIC_URL` | (없음) | 사람들이 Flowbit을 여는 주소. 알림 메일과 API 알림의 이슈 링크에 쓰입니다 |
+| `FLOWBIT_PUBLIC_URL` | (없음) | 사람들이 Flowbit을 여는 주소. 알림 메일과 API 알림의 티켓 링크에 쓰입니다 |
 | `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 이미지 한 장의 최대 크기 |
 
 LDAP, SSO, 메일(SMTP), 웹 푸시, API 알림은 환경 변수가 아니라 로그인한 뒤 관리자 설정 화면에서 설정합니다.

@@ -66,7 +66,7 @@ export function NewIssueDialog({
   labels: Label[];
   /** Pre-selected when the list is filtered to one milestone. */
   defaultMilestoneId?: string | null;
-  /** Pre-selected on a list of one person's issues ("내 이슈"), so the new issue shows up there. */
+  /** Pre-selected on a list of one person's issues ("내 티켓"), so the new issue shows up there. */
   defaultAssigneeId?: string | null;
   /** Dates to start with, when the dialog is opened from a day or a span of days on the calendar. */
   defaultDates?: { startDate: string | null; dueDate: string } | null;

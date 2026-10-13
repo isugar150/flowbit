@@ -56,7 +56,7 @@ export function TourDemo({
           // The two lists are different screens: each starts on its own.
           key={screen}
           projectId={null}
-          // "내 이슈" is the same list with only what the person has; the first example person plays them.
+          // "내 티켓" is the same list with only what the person has; the first example person plays them.
           issues={screen === "my" ? demo.issues.filter((item) => item.assignee?.id === me) : demo.issues}
           defaultAssigneeId={screen === "my" ? me : null}
           members={demo.members}

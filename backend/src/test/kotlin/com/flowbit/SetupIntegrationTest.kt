@@ -126,7 +126,7 @@ class SetupIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `설정에서 정한 이슈 키가 저장되고 형식이 틀리면 설정은 끝나지 않는다`() {
+    fun `설정에서 정한 티켓 키가 저장되고 형식이 틀리면 설정은 끝나지 않는다`() {
         val rejected = client().setup("admin", PASSWORD, "우리 회사", "한글")
 
         assertEquals(422, rejected.status)

@@ -58,7 +58,7 @@ FLOWBIT_WEB_PORT=3000
 # 그 포트를 여는 주소. 앞에 nginx 를 두고 이 서버 안에서만 열려면 127.0.0.1
 # FLOWBIT_WEB_BIND=127.0.0.1
 
-# 사람들이 Flowbit 을 여는 주소. 메일과 API 알림에 넣는 이슈 링크에 쓴다.
+# 사람들이 Flowbit 을 여는 주소. 메일과 API 알림에 넣는 티켓 링크에 쓴다.
 # FLOWBIT_PUBLIC_URL=http://flowbit.example.com
 
 # 올릴 수 있는 이미지 한 장의 최대 크기

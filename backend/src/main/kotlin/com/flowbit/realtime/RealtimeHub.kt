@@ -103,7 +103,7 @@ class RealtimeHub {
     }
 
     companion object {
-        /** Topic for "some issue changed", heard by the lists that span projects (전체 이슈, 내 이슈). */
+        /** Topic for "some issue changed", heard by the lists that span projects (전체 티켓, 내 티켓). */
         const val ISSUES = "issues"
 
         /**

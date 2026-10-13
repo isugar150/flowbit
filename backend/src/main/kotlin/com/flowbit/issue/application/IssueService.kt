@@ -168,7 +168,7 @@ class IssueService(
         deleted: Boolean = false,
     ): List<IssueView> = queries.list(viewer(user), projectId?.let { projectService.access(user, it).project.id }, deleted)
 
-    /** The caller's own issues ("내 이슈"). */
+    /** The caller's own issues ("내 티켓"). */
     suspend fun mine(
         user: AuthenticatedUser,
         scope: MyIssueScope,
@@ -611,7 +611,7 @@ class IssueService(
     ): DocumentSummary {
         val parent = extras.findDocument(parentId) ?: throw notFound()
         if (!ownerOf(user, parent).canEdit || parent.deletedAt != null) throw noEditRight()
-        if (parent.issueId != null) throw ConflictException("DOCUMENT_TOO_DEEP", "이슈의 문서 안에는 문서를 만들 수 없습니다")
+        if (parent.issueId != null) throw ConflictException("DOCUMENT_TOO_DEEP", "티켓의 문서 안에는 문서를 만들 수 없습니다")
         if (extras.documentAncestors(parent.id).size + 1 >= MAX_DOCUMENT_DEPTH) {
             throw ConflictException("DOCUMENT_TOO_DEEP", "문서는 ${MAX_DOCUMENT_DEPTH}단계까지만 만들 수 있습니다")
         }
@@ -750,7 +750,7 @@ class IssueService(
 
     private fun editable(access: IssueAccess): IssueAccess {
         if (!access.mayEdit) throw noEditRight()
-        if (access.issue.deletedAt != null) throw ForbiddenException("삭제된 이슈는 수정할 수 없습니다. 먼저 복원하세요")
+        if (access.issue.deletedAt != null) throw ForbiddenException("삭제된 티켓은 수정할 수 없습니다. 먼저 복원하세요")
         return access
     }
 
@@ -775,7 +775,7 @@ class IssueService(
         parentId: UUID,
         child: Issue?,
     ): Issue {
-        val invalid = ValidationException("parentId", "INVALID_PARENT", "상위 이슈로 지정할 수 없는 이슈입니다")
+        val invalid = ValidationException("parentId", "INVALID_PARENT", "상위 티켓으로 지정할 수 없는 티켓입니다")
         val parent = repository.findById(parentId)?.takeIf { accessOf(user, it) != null } ?: throw invalid
         // How deep the child would sit: one more than the number of issues above its parent.
         var depth = 0
@@ -786,7 +786,7 @@ class IssueService(
         }
         val below = child?.let { levelsBelow(it, MAX_SUB_ISSUE_DEPTH) } ?: 0
         if (depth + below > MAX_SUB_ISSUE_DEPTH) {
-            throw ConflictException("ISSUE_TOO_DEEP", "하위 이슈는 ${MAX_SUB_ISSUE_DEPTH}단계까지만 만들 수 있습니다")
+            throw ConflictException("ISSUE_TOO_DEEP", "하위 티켓은 ${MAX_SUB_ISSUE_DEPTH}단계까지만 만들 수 있습니다")
         }
         return parent
     }
@@ -868,8 +868,8 @@ class IssueService(
     ): List<FieldError> =
         listOfNotNull(
             when {
-                title.isEmpty() -> FieldError("title", "REQUIRED", "이슈 제목을 입력하세요")
-                title.length > Issue.TITLE_MAX_LENGTH -> FieldError("title", "TOO_LONG", "이슈 제목은 ${Issue.TITLE_MAX_LENGTH}자 이하여야 합니다")
+                title.isEmpty() -> FieldError("title", "REQUIRED", "티켓 제목을 입력하세요")
+                title.length > Issue.TITLE_MAX_LENGTH -> FieldError("title", "TOO_LONG", "티켓 제목은 ${Issue.TITLE_MAX_LENGTH}자 이하여야 합니다")
                 else -> null
             },
             if (description.length > Issue.DESCRIPTION_MAX_LENGTH) {
@@ -879,9 +879,9 @@ class IssueService(
             },
         )
 
-    private fun noEditRight() = ForbiddenException("이 이슈를 쓰거나 수정할 권한이 없습니다")
+    private fun noEditRight() = ForbiddenException("이 티켓을 쓰거나 수정할 권한이 없습니다")
 
-    private fun notFound() = NotFoundException("ISSUE_NOT_FOUND", "이슈를 찾을 수 없습니다")
+    private fun notFound() = NotFoundException("ISSUE_NOT_FOUND", "티켓을 찾을 수 없습니다")
 
     private fun commentNotFound() = NotFoundException("COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다")
 

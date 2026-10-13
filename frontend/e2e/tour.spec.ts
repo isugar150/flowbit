@@ -51,19 +51,19 @@ test("the tour opens on the first visit, the example issues can be worked on, an
 
   // What each place of the menu opens, as the real screens with example issues.
   await onward();
-  await expect(heading).toHaveText("내 이슈");
+  await expect(heading).toHaveText("내 티켓");
   await expect(demo).toContainText("EX-1");
   await expect(demo).not.toContainText("EX-2");
   await tour.getByRole("button", { name: "이전" }).click();
   await expect(heading).toHaveText("메뉴");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
-  await expect(heading).toHaveText("전체 이슈");
+  await expect(heading).toHaveText("전체 티켓");
   await expect(demo).toContainText("EX-2");
   await onward();
   await expect(heading).toHaveText("찾기와 보기");
   await onward();
-  await expect(heading).toHaveText("이슈 한 줄");
+  await expect(heading).toHaveText("티켓 한 줄");
 
   // The list works as the real one does.
   await demo.getByRole("button", { name: "EX-3 상태 바꾸기: 백로그" }).click();

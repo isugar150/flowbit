@@ -9,7 +9,7 @@ data class NotificationMessage(
     val title: String,
     /** One line per change: `상태: 백로그 → 진행 중`. */
     val lines: List<String>,
-    /** `김지민 님이 이슈를 수정했습니다` */
+    /** `김지민 님이 티켓을 수정했습니다` */
     val headline: String,
     /** `/issue/FB-12` */
     val path: String,
@@ -33,11 +33,11 @@ class NotificationText(
         val types = notification.events.map { it.type }
         val did =
             when {
-                "CREATED" in types -> "이슈를 만들었습니다"
-                "DELETED" in types -> "이슈를 삭제했습니다"
-                "RESTORED" in types -> "이슈를 복원했습니다"
+                "CREATED" in types -> "티켓을 만들었습니다"
+                "DELETED" in types -> "티켓을 삭제했습니다"
+                "RESTORED" in types -> "티켓을 복원했습니다"
                 "COMMENT_ADDED" in types -> "댓글을 남겼습니다"
-                else -> "이슈를 수정했습니다"
+                else -> "티켓을 수정했습니다"
             }
         val path = "/issue/${notification.issueKey}"
         return NotificationMessage(
@@ -62,7 +62,7 @@ class NotificationText(
             "DUE_DATE_CHANGED" -> change("기한", detail)
             "MILESTONE_CHANGED" -> change("목표", detail)
             "PROJECT_CHANGED" -> change("프로젝트", detail)
-            "PARENT_CHANGED" -> change("상위 이슈", detail)
+            "PARENT_CHANGED" -> change("상위 티켓", detail)
             "LABELS_CHANGED" -> "라벨: " + (names(detail["added"]).map { "+$it" } + names(detail["removed"]).map { "-$it" }).joinToString(", ")
             "ATTACHMENT_ADDED" -> "파일 추가: ${detail["to"]}"
             "ATTACHMENT_REMOVED" -> "파일 삭제: ${detail["from"]}"

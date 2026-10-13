@@ -169,7 +169,7 @@ test("issue dialog: a change the server refuses goes back, with the reason", asy
 
 test("issue list: a status picked on a line moves that line at once and greys nothing out", async () => {
   const issue = await newIssue("목록에서 상태 바꾸기");
-  await newIssue("옆에 있는 다른 이슈");
+  await newIssue("옆에 있는 다른 티켓");
   const page = await newPage();
   await page.goto(`/project/${project.id}/issues`);
   const row = page.locator(`li[data-presence-id="issue-row:${issue.number}"]`);
@@ -264,7 +264,7 @@ test("issue dialog: a sent comment is never missing from both the box and the li
 });
 
 test("issue dialog: a new sub-issue is never missing from both the field and the list", async () => {
-  const issue = await newIssue("하위 이슈 만들기");
+  const issue = await newIssue("하위 티켓 만들기");
   const page = await newPage();
   await openIssue(page, issue);
   await slowDown(page);
@@ -285,7 +285,7 @@ test("issue dialog: a new sub-issue is never missing from both the field and the
 });
 
 test("issue dialog: the body is there in the first frame the issue is", async () => {
-  const issue = await newIssue("본문이 있는 이슈", { content: paragraph("본문 첫 줄입니다") });
+  const issue = await newIssue("본문이 있는 티켓", { content: paragraph("본문 첫 줄입니다") });
   const page = await newPage();
   await page.goto(`/project/${project.id}/issues`);
   await expect(page.locator(`li[data-presence-id="issue-row:${issue.number}"]`)).toBeVisible();

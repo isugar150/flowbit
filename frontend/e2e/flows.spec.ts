@@ -62,21 +62,21 @@ test.afterAll(async () => {
 });
 
 test("a new issue is made with C and Ctrl+Enter, and is in the list when the dialog closes", async () => {
-  await newIssue("먼저 있던 이슈");
+  await newIssue("먼저 있던 티켓");
   const page = await newPage();
   await page.goto(`/project/${project.id}/issues`);
-  await expect(page.getByRole("button", { name: /새 이슈/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /새 티켓/ })).toBeVisible();
   // The button is in the page as the server sent it; the shortcut works once the scripts have run.
   await settled(page);
   const noReloads = watchForReloads(page);
 
   await page.keyboard.press("c");
   const dialog = page.getByRole("dialog");
-  await dialog.getByRole("textbox", { name: /제목/ }).fill("단축키로 만든 이슈");
+  await dialog.getByRole("textbox", { name: /제목/ }).fill("단축키로 만든 티켓");
   await page.keyboard.press("Control+Enter");
 
   await expect(dialog).toBeHidden();
-  await expect(page.locator("li[data-presence-id^='issue-row:']").filter({ hasText: "단축키로 만든 이슈" })).toBeVisible();
+  await expect(page.locator("li[data-presence-id^='issue-row:']").filter({ hasText: "단축키로 만든 티켓" })).toBeVisible();
   noReloads();
   await page.close();
 });
@@ -188,9 +188,9 @@ test("an issue is deleted and restored", async () => {
   await openIssue(page, issue);
   const dialog = page.getByRole("dialog");
 
-  await dialog.getByRole("button", { name: "이슈 삭제" }).click();
+  await dialog.getByRole("button", { name: "티켓 삭제" }).click();
   await dialog.getByRole("button", { name: /한 번 더/ }).click();
-  await expect(dialog.getByRole("status")).toContainText("삭제된 이슈입니다");
+  await expect(dialog.getByRole("status")).toContainText("삭제된 티켓입니다");
   // Read-only now: the status can no longer be picked.
   await expect(dialog.getByRole("button", { name: /^상태:/ })).toBeDisabled();
 
@@ -251,7 +251,7 @@ test("the view role sees everything and can change nothing", async ({ browser, b
   const row = page.locator(`li[data-presence-id="issue-row:${issue.number}"]`);
   await expect(row).toBeVisible();
   await expect(row.getByRole("button", { name: /상태 바꾸기/ })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /새 이슈/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /새 티켓/ })).toHaveCount(0);
 
   await row.locator("a").click();
   const dialog = page.getByRole("dialog");

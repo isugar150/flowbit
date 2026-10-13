@@ -1,6 +1,6 @@
 # 05. 데이터 모델
 
-> **스키마의 바탕은 `backend/src/main/resources/db/migration/V1__schema.sql` 이다** (D-067). 이 파일은 더 고치지 않고, 이후의 변경은 `V2` 부터 새 파일로 추가한다 (D-084). 첫 운영 배포 전에 그동안의 단계별 마이그레이션을 **한 번 더, 마지막으로** 이 파일 하나로 합쳤다(2026-10-13, D-104). 지금 마이그레이션 파일은 `V1__schema.sql` 하나뿐이다. **아래 표에 남아 있는 `V2`~`V9` 같은 표시는 합치기 전 파일 번호로, 그 컬럼이 언제 생겼는지의 기록일 뿐이다.** 모두 `V1` 안에 있다. 이 문서의 표는 그 파일의 설명이고, 어긋나면 파일이 기준이다. `issues.project_id` 는 프로젝트가 지워지면 null 이 된다(이슈는 남는다).
+> **스키마의 바탕은 `backend/src/main/resources/db/migration/V1__schema.sql` 이다** (D-067). 이 파일은 더 고치지 않고, 이후의 변경은 `V2` 부터 새 파일로 추가한다 (D-084). 첫 운영 배포 전에 그동안의 단계별 마이그레이션을 **한 번 더, 마지막으로** 이 파일 하나로 합쳤다(2026-10-13, D-104). 지금 마이그레이션 파일은 `V1__schema.sql` 하나뿐이다. **아래 표에 남아 있는 `V2`~`V9` 같은 표시는 합치기 전 파일 번호로, 그 컬럼이 언제 생겼는지의 기록일 뿐이다.** 모두 `V1` 안에 있다. 이 문서의 표는 그 파일의 설명이고, 어긋나면 파일이 기준이다. `issues.project_id` 는 프로젝트가 지워지면 null 이 된다(티켓은 남는다).
 
 스키마 설계나 검토 시 `agent-skills/wshobson-agents/plugins/database-design/skills/postgresql-table-design/SKILL.md` 를 참고한다.
 
@@ -113,7 +113,7 @@
 
 ### 이미지 파일
 
-이미지 자체는 DB 가 아니라 파일로 저장한다(`FLOWBIT_STORAGE_PATH/images/`). DB 에는 위의 `*_key` 컬럼에 파일 이름만 둔다. 규칙은 [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md). 이슈 첨부처럼 한 대상에 이미지가 여러 개 붙게 되면 그때 별도 테이블을 만든다.
+이미지 자체는 DB 가 아니라 파일로 저장한다(`FLOWBIT_STORAGE_PATH/images/`). DB 에는 위의 `*_key` 컬럼에 파일 이름만 둔다. 규칙은 [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md). 티켓 첨부처럼 한 대상에 이미지가 여러 개 붙게 되면 그때 별도 테이블을 만든다.
 
 ### `projects`, `project_members` (M3 1단계)
 
@@ -123,7 +123,7 @@
 | `projects.name` | `text` | 1~80자 |
 | `projects.description` | `text` | 500자 이하, 기본 빈 문자열 |
 | `projects.created_by` | `uuid` FK → `users` | |
-| `projects.archived_at` | `timestamptz` null | 아카이브한 때(D-115). 값이 있으면 프로젝트와 그 이슈가 모든 목록에서 빠지고 들어갈 수 없다. 복원하면 null |
+| `projects.archived_at` | `timestamptz` null | 아카이브한 때(D-115). 값이 있으면 프로젝트와 그 티켓이 모든 목록에서 빠지고 들어갈 수 없다. 복원하면 null |
 | `projects.status` (`V6`) | `text` | `BACKLOG` \| `PLANNED` \| `IN_PROGRESS` \| `COMPLETED` \| `CANCELED`, 기본 `BACKLOG` |
 | `projects.priority` (`V6`) | `text` | `NONE` \| `URGENT` \| `HIGH` \| `MEDIUM` \| `LOW`, 기본 `NONE` |
 | `projects.lead_id` (`V6`) | `uuid` null FK → `users` (지워지면 null) | 프로젝트 리드 |
@@ -150,7 +150,7 @@
 
 ### `milestones`
 
-프로젝트 안의 단계. 이슈를 묶어 단계별 진행률을 본다 ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "마일스톤").
+프로젝트 안의 단계. 티켓을 묶어 단계별 진행률을 본다 ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "마일스톤").
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -160,7 +160,7 @@
 | `target_date` | `date` null | 목표일 |
 | `created_at`, `updated_at` | `timestamptz` | |
 
-`milestones.content`(`V2__milestone_content.sql`, D-113): `jsonb` null. 목표의 "정리" 문서(편집기 JSON, `RichText` 가 검증). 엔티티(`Milestone`)에는 싣지 않고 `RichText.store`/목록 조회의 SQL 로 읽고 쓴다(프로젝트·이슈의 `content` 와 같다).
+`milestones.content`(`V2__milestone_content.sql`, D-113): `jsonb` null. 목표의 "정리" 문서(편집기 JSON, `RichText` 가 검증). 엔티티(`Milestone`)에는 싣지 않고 `RichText.store`/목록 조회의 SQL 로 읽고 쓴다(프로젝트·티켓의 `content` 와 같다).
 
 `issues.milestone_id`(`V7`): `uuid` null FK → `milestones`. 마일스톤을 지우면 null 이 된다. 같은 프로젝트의 마일스톤인지는 서비스가 확인한다.
 
@@ -189,7 +189,7 @@
 
 방향만 적어 둔다. 각 마일스톤을 시작할 때 기능 명세에서 확정하고 이 문서에 반영한다.
 
-이슈·프리셋·상태·댓글의 모델 초안은 [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) 의 "데이터 모델"이 기준이다. 아래 그림은 팀 개념이 있던 때의 것이고, **`teams` 는 `projects` 로 읽는다** (D-032).
+티켓·프리셋·상태·댓글의 모델 초안은 [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) 의 "데이터 모델"이 기준이다. 아래 그림은 팀 개념이 있던 때의 것이고, **`teams` 는 `projects` 로 읽는다** (D-032).
 
 ```
 teams ──< team_members >── users
@@ -198,7 +198,7 @@ teams ──< team_members >── users
   ├──< cycles (번호, 시작일, 종료일)
   ├──< labels
   └──< issues ──< comments, issue_history, issue_relations
-          │ └── parent_issue_id (하위 이슈, 10단계까지)
+          │ └── parent_issue_id (하위 티켓, 10단계까지)
           ├── status_id, assignee_id, cycle_id, project_id
           └──< issue_labels
 
@@ -206,29 +206,29 @@ projects ──< project_updates          views (저장한 필터)
 notifications (수신함)
 ```
 
-- 이슈 키: `teams.key` + 팀별 일련번호 (`FLOW-123`). 번호는 팀 행의 카운터를 잠그고 증가시켜 발급한다.
+- 티켓 키: `teams.key` + 팀별 일련번호 (`FLOW-123`). 번호는 팀 행의 카운터를 잠그고 증가시켜 발급한다.
 - 목록·보드의 순서: 사이에 끼워 넣기가 쉬운 순위 문자열(LexoRank 계열)을 쓴다.
-- 이슈에는 `version`(증가하는 정수)을 둔다. 낙관적 업데이트의 중복 제거와 실시간 이벤트의 순서 판단에 쓴다.
-- 이슈 변경 이력은 필드 단위로 남긴다. 실행 취소와 활동 기록이 이것을 쓴다.
+- 티켓에는 `version`(증가하는 정수)을 둔다. 낙관적 업데이트의 중복 제거와 실시간 이벤트의 순서 판단에 쓴다.
+- 티켓 변경 이력은 필드 단위로 남긴다. 실행 취소와 활동 기록이 이것을 쓴다.
 - 삭제는 `deleted_at` 으로 표시하고 일정 기간 뒤에 실제로 지운다(실행 취소가 가능해야 한다).
 
 ### `labels`, `issue_labels` (D-060)
 
-워크스페이스 전체가 함께 쓰는 이슈 라벨. 이슈 하나에 여러 개 붙는다(최대 10개).
+워크스페이스 전체가 함께 쓰는 티켓 라벨. 티켓 하나에 여러 개 붙는다(최대 10개).
 
 | 테이블 | 컬럼 | 설명 |
 |---|---|---|
 | `labels` | `id` uuid PK, `name` text(1~30자, 대소문자 무시하고 유일), `color` text(`#rrggbb`), `created_at` | 처음부터 `버그`, `기능`, `중요` 세 개가 들어 있다. 목록은 만든 순서 |
-| `issue_labels` | `issue_id`, `label_id` (둘이 PK, 둘 다 `ON DELETE CASCADE`) | 이슈와 라벨의 연결 |
+| `issue_labels` | `issue_id`, `label_id` (둘이 PK, 둘 다 `ON DELETE CASCADE`) | 티켓과 라벨의 연결 |
 
 
 ### `issue_activities`, `issue_subscriptions` (D-061)
 
 | 테이블 | 컬럼 | 설명 |
 |---|---|---|
-| `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`, `type` text, `detail` jsonb, `created_at` | 이슈의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨은 `{added,removed}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
-| `issue_subscriptions` | `issue_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 이슈를 구독하는 사람. 알림의 받는 사람 |
-| `project_subscriptions` (D-102) | `project_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 프로젝트를 구독하는 사람. 그 프로젝트에 연결된 모든 이슈의 알림을 받는다. 프로젝트에서 빠져도 행은 남지만, 받는 사람을 고를 때 지금 구성원(또는 워크스페이스 관리자)인지 확인한다 |
+| `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`, `type` text, `detail` jsonb, `created_at` | 티켓의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨은 `{added,removed}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
+| `issue_subscriptions` | `issue_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 티켓을 구독하는 사람. 알림의 받는 사람 |
+| `project_subscriptions` (D-102) | `project_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 프로젝트를 구독하는 사람. 그 프로젝트에 연결된 모든 티켓의 알림을 받는다. 프로젝트에서 빠져도 행은 남지만, 받는 사람을 고를 때 지금 구성원(또는 워크스페이스 관리자)인지 확인한다 |
 
 ### `issue_comments` (`V5`, D-101)
 
@@ -244,19 +244,19 @@ notifications (수신함)
 
 인덱스 `(issue_id, created_at, id)`. `COMMENT_ADDED`·`MENTIONED` 는 알림에만 쓰는 종류이고 `issue_activities` 에는 쌓이지 않는다.
 
-마이그레이션이 기존 이슈마다 `CREATED` 한 줄을 넣고, 만든 사람과 담당자를 구독시켰다.
+마이그레이션이 기존 티켓마다 `CREATED` 한 줄을 넣고, 만든 사람과 담당자를 구독시켰다.
 
-### 독립 이슈, 하위 이슈, 리액션, 첨부, 문서 (D-062~D-066)
+### 독립 티켓, 하위 티켓, 리액션, 첨부, 문서 (D-062~D-066)
 
 | 대상 | 내용 |
 |---|---|
-| `instance_settings.workspace_key` | 모든 이슈 키의 앞부분(기본 `FB`). 관리자가 바꾼다. 형식은 프로젝트 키와 같다 |
-| `instance_settings.next_issue_number` | 다음 이슈 번호. 워크스페이스 전체에서 하나의 일련번호 |
-| `issues.project_id` | **null 허용**. 이슈가 연결된 프로젝트(없으면 독립 이슈). 바꿔도 번호는 그대로 |
+| `instance_settings.workspace_key` | 모든 티켓 키의 앞부분(기본 `FB`). 관리자가 바꾼다. 형식은 프로젝트 키와 같다 |
+| `instance_settings.next_issue_number` | 다음 티켓 번호. 워크스페이스 전체에서 하나의 일련번호 |
+| `issues.project_id` | **null 허용**. 티켓이 연결된 프로젝트(없으면 독립 티켓). 바꿔도 번호는 그대로 |
 | `issues.number` | 워크스페이스 전체에서 유일(`issues_number_key`) |
-| `issues.parent_id` | 상위 이슈(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다. 하위 이슈는 최상위 이슈 아래로 10단계까지이고, DB 제약이 아니라 서버가 검사한다 (D-118) |
+| `issues.parent_id` | 상위 티켓(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다. 하위 티켓은 최상위 티켓 아래로 10단계까지이고, DB 제약이 아니라 서버가 검사한다 (D-118) |
 | `issue_reactions` | `issue_id`, `user_id`, `emoji` (셋이 PK). 이모지는 서버가 정한 8개만 |
 | `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at` |
-| `documents` | `id`, `issue_id` null, `project_id` null, `parent_id` null(안에 들어 있는 상위 문서. 프로젝트 문서만, 5단계까지, 상위가 지워지면 함께 지워진다. D-083), `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 이슈나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |
-| `issues.start_date` | 이슈가 기간을 가질 때의 첫날. `due_date` 가 있어야 하고 그보다 늦을 수 없다(`issues_dates_order`) (D-077) |
-| `issues.deleted_at`, `issues.deleted_by` | 삭제 표시. 삭제된 이슈는 목록·집계에서 빠지지만 행은 남는다 (D-079) |
+| `documents` | `id`, `issue_id` null, `project_id` null, `parent_id` null(안에 들어 있는 상위 문서. 프로젝트 문서만, 5단계까지, 상위가 지워지면 함께 지워진다. D-083), `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 티켓이나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |
+| `issues.start_date` | 티켓이 기간을 가질 때의 첫날. `due_date` 가 있어야 하고 그보다 늦을 수 없다(`issues_dates_order`) (D-077) |
+| `issues.deleted_at`, `issues.deleted_by` | 삭제 표시. 삭제된 티켓은 목록·집계에서 빠지지만 행은 남는다 (D-079) |

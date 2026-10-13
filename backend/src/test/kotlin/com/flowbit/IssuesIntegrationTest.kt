@@ -37,7 +37,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `제목만으로 이슈를 만들 수 있고 번호가 차례로 붙는다`() {
+    fun `제목만으로 티켓을 만들 수 있고 번호가 차례로 붙는다`() {
         val first = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"  결제 버튼이 두 번 눌린다 "}""")
         val second = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"영수증 메일"}""")
 
@@ -90,7 +90,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `보기 역할은 이슈를 읽을 수 있지만 만들거나 고칠 수 없다`() {
+    fun `보기 역할은 티켓을 읽을 수 있지만 만들거나 고칠 수 없다`() {
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"읽기 전용 확인"}""")
 
         assertEquals(1, viewer.get("/api/v1/projects/${p("PAY")}/issues").jsonList().size)
@@ -100,8 +100,8 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로젝트 밖의 사람에게는 이슈도 프로젝트도 없는 것으로 보인다`() {
-        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"숨겨진 이슈"}""")
+    fun `프로젝트 밖의 사람에게는 티켓도 프로젝트도 없는 것으로 보인다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"숨겨진 티켓"}""")
 
         val list = outsider.get("/api/v1/projects/${p("PAY")}/issues")
         assertEquals(404, list.status)
@@ -142,7 +142,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `없는 이슈는 404 다`() {
+    fun `없는 티켓은 404 다`() {
         val response = editor.get("/api/v1/issues/99")
 
         assertEquals(404, response.status)
@@ -150,7 +150,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `동시에 만들어도 이슈 번호가 겹치지 않는다`() {
+    fun `동시에 만들어도 티켓 번호가 겹치지 않는다`() {
         val clients = (1..6).map { client().also { c -> c.login("editor", PASSWORD) } }
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(clients.size)
@@ -170,7 +170,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `목록은 최근에 만든 이슈가 먼저 나온다`() {
+    fun `목록은 최근에 만든 티켓이 먼저 나온다`() {
         listOf("첫째", "둘째", "셋째").forEach { editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"$it"}""") }
 
         assertEquals(listOf("셋째", "둘째", "첫째"), editor.get("/api/v1/projects/${p("PAY")}/issues").jsonList().map { it["title"] })
@@ -180,7 +180,7 @@ class IssuesIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/admin/members", """{"loginId":"$loginId","password":"$PASSWORD"}""").json()["id"] as String
 
     @Test
-    fun `내 이슈는 내가 담당하거나 만든 이슈를 들어갈 수 있는 프로젝트에서만 모아 준다`() {
+    fun `내 티켓은 내가 담당하거나 만든 티켓을 들어갈 수 있는 프로젝트에서만 모아 준다`() {
         remember("SEC", admin.post("/api/v1/projects", """{"name":"비공개"}""").json()["id"])
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"내가 만들고 내가 맡음","assigneeId":"$editorId"}""")
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"내가 만들기만 함"}""")
@@ -216,7 +216,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로젝트에서 빠지면 그 프로젝트의 이슈는 내 이슈에 나오지 않는다`() {
+    fun `프로젝트에서 빠지면 그 프로젝트의 티켓은 내 티켓에 나오지 않는다`() {
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"맡은 일","assigneeId":"$editorId"}""")
 
         admin.delete("/api/v1/projects/${p("PAY")}/members/$editorId")
@@ -239,7 +239,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈에 라벨을 여러 개 붙이고 바꾸고 모두 뗄 수 있다`() {
+    fun `티켓에 라벨을 여러 개 붙이고 바꾸고 모두 뗄 수 있다`() {
         val labels = admin.get("/api/v1/labels").jsonList().associate { it["name"] to it["id"] }
         val created =
             editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패","labelIds":["${labels["버그"]}","${labels["중요"]}"]}""")
@@ -267,7 +267,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈를 만들고 고친 일이 차례로 활동에 남는다`() {
+    fun `티켓을 만들고 고친 일이 차례로 활동에 남는다`() {
         val bug = admin.get("/api/v1/labels").jsonList().first()["id"]
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
 
@@ -315,8 +315,8 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로젝트 없이 만든 이슈는 누구나 보고 고치고 프로젝트에 연결하면 그 프로젝트 사람만 본다`() {
-        val created = outsider.post("/api/v1/issues", """{"title":"혼자 있는 이슈","assigneeId":"$outsiderId"}""")
+    fun `프로젝트 없이 만든 티켓은 누구나 보고 고치고 프로젝트에 연결하면 그 프로젝트 사람만 본다`() {
+        val created = outsider.post("/api/v1/issues", """{"title":"혼자 있는 티켓","assigneeId":"$outsiderId"}""")
 
         assertEquals(201, created.status)
         assertEquals("FB-1", created.json()["key"])
@@ -346,7 +346,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     fun `프로젝트 연결을 바꾸면 목표는 떨어지고 번호는 그대로다`() {
         remember("SEC", admin.post("/api/v1/projects", """{"name":"보안"}""").json()["id"])
         val milestone = admin.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"베타"}""").json()["id"]
-        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"옮길 이슈","milestoneId":"$milestone"}""")
+        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"옮길 티켓","milestoneId":"$milestone"}""")
 
         val moved = admin.patch("/api/v1/issues/1", """{"projectId":"${p("SEC")}"}""").json()
 
@@ -357,7 +357,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `하위 이슈를 만들면 상위 이슈에 보이고 서로 물리는 관계는 만들 수 없다`() {
+    fun `하위 티켓을 만들면 상위 티켓에 보이고 서로 물리는 관계는 만들 수 없다`() {
         val parent = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"상위"}""").json()
         val child = editor.post("/api/v1/issues", """{"title":"하위","projectId":"${p("PAY")}","parentId":"${parent["id"]}"}""").json()
 
@@ -374,7 +374,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `하위 이슈는 10단계까지만 만들 수 있다`() {
+    fun `하위 티켓은 10단계까지만 만들 수 있다`() {
         fun sub(parentId: Any?) = editor.post("/api/v1/issues", """{"title":"하위","parentId":"$parentId"}""")
         // levels[0] is the top-level issue, levels[n] the sub-issue n levels below it.
         val levels = mutableListOf(editor.post("/api/v1/issues", """{"title":"상위"}""").json())
@@ -396,7 +396,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `하위 이슈는 상위 이슈의 프로젝트와 목표를 물려받고 상위가 옮겨 가면 따라간다`() {
+    fun `하위 티켓은 상위 티켓의 프로젝트와 목표를 물려받고 상위가 옮겨 가면 따라간다`() {
         remember("SEC", admin.post("/api/v1/projects", """{"name":"보안"}""").json()["id"])
         val beta = admin.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"베타"}""").json()["id"]
         val release = admin.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"출시"}""").json()["id"]
@@ -425,7 +425,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈에 이모지를 달고 다시 누르면 지워진다`() {
+    fun `티켓에 이모지를 달고 다시 누르면 지워진다`() {
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
 
         editor.post("/api/v1/issues/1/reactions", """{"emoji":"👍"}""")
@@ -442,7 +442,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈에 파일을 붙이고 내려받고 지울 수 있고 보기 역할은 내려받기만 한다`() {
+    fun `티켓에 파일을 붙이고 내려받고 지울 수 있고 보기 역할은 내려받기만 한다`() {
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
         val content = "<script>alert(1)</script>".toByteArray()
 
@@ -467,7 +467,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈에 문서를 만들어 쓰고 지울 수 있다`() {
+    fun `티켓에 문서를 만들어 쓰고 지울 수 있다`() {
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
         val body = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"원인 분석"}]}]}"""
 
@@ -494,7 +494,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈의 날짜는 하루이거나 시작일과 종료일이고 종료일을 지우면 시작일도 지워진다`() {
+    fun `티켓의 날짜는 하루이거나 시작일과 종료일이고 종료일을 지우면 시작일도 지워진다`() {
         val created = editor.post("/api/v1/issues", """{"title":"출시 준비","startDate":"2026-11-02","dueDate":"2026-11-06"}""").json()
         assertEquals("2026-11-02" to "2026-11-06", created["startDate"] to created["dueDate"])
 
@@ -510,9 +510,9 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈를 삭제하면 목록에서 빠지고 삭제된 목록과 활동으로 볼 수 있으며 복원할 수 있다`() {
-        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"지울 이슈","assigneeId":"$editorId"}""")
-        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"남는 이슈"}""")
+    fun `티켓을 삭제하면 목록에서 빠지고 삭제된 목록과 활동으로 볼 수 있으며 복원할 수 있다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"지울 티켓","assigneeId":"$editorId"}""")
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"남는 티켓"}""")
 
         assertEquals(403, viewer.delete("/api/v1/issues/1").status)
         assertEquals(204, editor.delete("/api/v1/issues/1").status)
@@ -556,7 +556,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로젝트의 문서는 다섯 단계까지 안에 문서를 만들 수 있고 이슈의 문서는 한 단계뿐이다`() {
+    fun `프로젝트의 문서는 다섯 단계까지 안에 문서를 만들 수 있고 티켓의 문서는 한 단계뿐이다`() {
         fun child(parentId: Any?) = editor.post("/api/v1/documents/$parentId/documents", """{"title":"하위"}""")
         val top = editor.post("/api/v1/projects/${p("PAY")}/documents", """{"title":"1단계"}""").json()["id"]
 
@@ -612,7 +612,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `관리자가 이슈 키를 바꾸면 모든 이슈의 키가 바뀌고 번호는 그대로다`() {
+    fun `관리자가 티켓 키를 바꾸면 모든 티켓의 키가 바뀌고 번호는 그대로다`() {
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
 
         val changed = admin.patch("/api/v1/admin/workspace", """{"workspaceKey":"flow"}""")
@@ -651,7 +651,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `댓글과 본문에서 태그된 프로젝트 구성원은 이슈를 구독하게 된다`() {
+    fun `댓글과 본문에서 태그된 프로젝트 구성원은 티켓을 구독하게 된다`() {
         admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"태그 확인"}""")
         val mention = """{"type":"mention","attrs":{"id":"%s","label":"이름"}}"""
         val tagging = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[${mention.format(editorId)},${mention.format(outsiderId)}]}]}}"""
@@ -670,8 +670,8 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `삭제된 이슈에는 댓글을 쓸 수 없다`() {
-        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"지울 이슈"}""")
+    fun `삭제된 티켓에는 댓글을 쓸 수 없다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"지울 티켓"}""")
         editor.delete("/api/v1/issues/1")
 
         assertEquals(403, editor.post("/api/v1/issues/1/comments", commentJson("늦은 댓글")).status)

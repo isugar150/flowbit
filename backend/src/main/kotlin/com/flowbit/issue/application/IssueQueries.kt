@@ -76,7 +76,7 @@ data class IssueView(
     val content: String? = null,
 )
 
-/** Which of a person's issues to list on "내 이슈". The column name never comes from input. */
+/** Which of a person's issues to list on "내 티켓". The column name never comes from input. */
 enum class MyIssueScope(
     val column: String,
 ) {
@@ -95,7 +95,7 @@ private const val LIST_LIMIT = 1000
 
 /**
  * An issue linked to no project is open to everyone; a linked one follows its project, which must
- * be in use and one the viewer may enter (docs/features/M3-projects-and-issues.md, "독립 이슈").
+ * be in use and one the viewer may enter (docs/features/M3-projects-and-issues.md, "독립 티켓").
  */
 private const val VISIBLE =
     """(i.project_id is null or (p.archived_at is null and (:seesAll or exists(
@@ -121,7 +121,7 @@ class IssueQueries(
             if (projectId != null) spec.bind("projectId", projectId) else spec
         }
 
-    /** The viewer's own issues ("내 이슈"), most recently changed first. */
+    /** The viewer's own issues ("내 티켓"), most recently changed first. */
     suspend fun listForUser(
         viewer: Viewer,
         scope: MyIssueScope,

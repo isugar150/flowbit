@@ -127,7 +127,7 @@ class RichTextIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈를 문서와 함께 만들면 본문이 저장되고 설명은 문서의 글자로 채워진다`() {
+    fun `티켓을 문서와 함께 만들면 본문이 저장되고 설명은 문서의 글자로 채워진다`() {
         val created = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"환불 흐름","content":$DOCUMENT}""")
 
         assertEquals(201, created.status)
@@ -138,7 +138,7 @@ class RichTextIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈 본문을 고치면 설명도 함께 바뀌고 다른 속성은 그대로다`() {
+    fun `티켓 본문을 고치면 설명도 함께 바뀌고 다른 속성은 그대로다`() {
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"환불 흐름","priority":"HIGH","content":$DOCUMENT}""")
         val shorter = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"다시 씀"}]}]}"""
 

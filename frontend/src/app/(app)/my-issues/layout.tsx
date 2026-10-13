@@ -8,7 +8,7 @@ const m = messages.myIssues;
 
 export const metadata: Metadata = { title: m.title };
 
-/** "내 이슈": the header and the two tabs. Each tab is a page of its own under this layout. */
+/** "내 티켓": the header and the two tabs. Each tab is a page of its own under this layout. */
 export default function MyIssuesLayout({ children }: LayoutProps<"/my-issues">) {
   return (
     <>

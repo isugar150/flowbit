@@ -52,12 +52,12 @@ class RealtimeIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈가 바뀌면 그 프로젝트를 보는 사람에게 알리고 볼 수 없는 주제는 구독되지 않는다`() {
+    fun `티켓이 바뀌면 그 프로젝트를 보는 사람에게 알리고 볼 수 없는 주제는 구독되지 않는다`() {
         remember("SEC", admin.post("/api/v1/projects", """{"name":"비공개"}""").json()["id"])
         val b = Socket(editor)
         b.send("""{"type":"subscribe","topics":["project:${p("PAY")}","project:${p("SEC")}","issues"],"presence":"project:${p("SEC")}"}""")
 
-        admin.post("/api/v1/projects/${p("SEC")}/issues", """{"title":"비공개 이슈"}""")
+        admin.post("/api/v1/projects/${p("SEC")}/issues", """{"title":"비공개 티켓"}""")
         admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
 
         val topics = (1..3).map { b.awaitChanged() }

@@ -1,6 +1,6 @@
 # Flowbit — 에이전트 진입점
 
-Flowbit은 **Linear처럼 빠르고 단순한 이슈 트래커**다. 한국 사용자에게 맞춰 만들고, 단일 조직이 직접 설치해서 쓰는 형태(self-hosted)를 전제로 한다. 제품과 화면의 기준은 [docs/01-product.md](docs/01-product.md) 다.
+Flowbit은 **Linear처럼 빠르고 단순한 티켓 트래커**다. 한국 사용자에게 맞춰 만들고, 단일 조직이 직접 설치해서 쓰는 형태(self-hosted)를 전제로 한다. 제품과 화면의 기준은 [docs/01-product.md](docs/01-product.md) 다.
 
 이 파일은 AI 에이전트가 작업을 시작할 때 가장 먼저 읽는 문서다. 상세 내용은 모두 `docs/` 에 있다.
 

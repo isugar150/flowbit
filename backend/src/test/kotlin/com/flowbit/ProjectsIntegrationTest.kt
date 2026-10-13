@@ -184,7 +184,7 @@ class ProjectsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `아카이브한 프로젝트는 목록과 이슈 목록에서 빠지고 아카이브 목록에 나오며 복원하면 돌아온다`() {
+    fun `아카이브한 프로젝트는 목록과 티켓 목록에서 빠지고 아카이브 목록에 나오며 복원하면 돌아온다`() {
         createProject("PAY")
         createProject("OPS")
         val issue = owner.post("/api/v1/issues", """{"title":"결제 오류","projectId":"${p("PAY")}"}""")

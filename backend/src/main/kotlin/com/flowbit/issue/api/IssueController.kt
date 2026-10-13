@@ -620,7 +620,7 @@ class ProjectDocumentController(
     }
 }
 
-/** "내 이슈": the caller's issues across projects. `scope` is `assigned` (default) or `created`. */
+/** "내 티켓": the caller's issues across projects. `scope` is `assigned` (default) or `created`. */
 @RestController
 @RequestMapping("/api/v1/me/issues")
 class MyIssuesController(

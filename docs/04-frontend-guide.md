@@ -73,10 +73,10 @@ frontend/
 - 한 요청 안에서 같은 데이터를 두 번 가져오지 않는다. 여러 곳에서 쓰는 조회는 `lib/current-user.ts` 에 React `cache()` 로 감싸 둔다(`getCurrentUser`, `getWorkspace`, `getProjects`). 서로 무관한 조회는 `Promise.all` 로 함께 보낸다.
 - `(app)/loading.tsx` 가 있어서 링크를 누르면 내용 영역이 바로 스켈레톤으로 바뀐다. 데이터를 오래 읽는 구역을 새로 만들면 그 구역에 맞는 `loading.tsx` 를 둔다.
 - **비밀번호를 받는 폼은 `method="post"` 를 단다.** 스크립트가 붙기 전에(느린 로딩, 개발 서버의 다른 호스트 차단) 사용자가 제출하면 브라우저가 폼을 직접 보내는데, `method` 가 없으면 GET 이라 아이디와 비밀번호가 주소에 들어간다(실제로 겪었다). `proxy.ts` 는 주소에 `password` 가 있으면 지우고 다시 보낸다.
-- **목록의 필터처럼 주소로 열 수 있는 화면 상태는 `useState` 가 아니라 주소(`useSearchParams`)에 둔다.** Next 16 은 다녀간 화면을 살려 두므로, 처음 값만 받는 `useState` 는 다른 주소로 다시 들어와도 예전 값을 보여 줄 수 있다(마일스톤 필터에서 겪었다). 바꿀 때는 `useReplaceListQuery()`(`issue-views.tsx`)를 쓴다: `window.history.replaceState` 로 주소를 바로 바꾸고(화면이 기다리지 않는다) **이어서 `router.replace` 로 라우터에도 같은 주소를 알린다.** `history` 만 바꾸면 라우터는 예전 주소에 있다고 믿는다. 그 상태에서 이슈를 대화상자로 열고 무엇이든 저장하면 `router.refresh()` 의 응답이 라우터가 아는 화면과 맞지 않아 Next 가 문서를 통째로 다시 불러온다: 화면이 깜빡이고, 뒤의 목록이 보기·필터를 잃고 전체 이슈 목록으로 돌아온다(2026-10-13 에 재현하고 고쳤다). **주소를 `history` 로만 바꾸는 코드를 새로 만들지 않는다.**
-- **레이아웃은 최상위에서 `params` 나 백엔드 데이터를 `await` 하지 않는다.** `cacheComponents` 에서는 같은 레이아웃 안에서 이동할 때(예: 프로젝트의 개요 → 이슈 탭) 그 레이아웃 아래에 `<Suspense>` 가 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다. 데이터를 읽는 부분은 별도 비동기 컴포넌트로 빼서 `<Suspense>` 로 감싸고, 그 레이아웃 바로 아래 페이지들을 위해 같은 폴더에 `loading.tsx` 를 둔다 (`project/[id]/layout.tsx`, `project/[id]/loading.tsx` 가 예).
-- **`serverGet` 은 같은 주소를 한 요청에서 한 번만 부른다** (React `cache()`). 레이아웃, 페이지, `generateMetadata` 가 같은 것을 각자 읽어도 백엔드 호출은 하나다(프로젝트, 이슈, 라벨, 사용자 목록). 그래서 돌려받은 값은 여럿이 함께 쓰는 것이니 고치지 않는다(`map`/`filter` 로 새로 만든다).
-- **열어야 쓰는 무거운 것은 `next/dynamic` 으로 늦게 불러온다** (D-099). 문서 편집기를 품은 새 이슈 창(`new-issue-dialog.tsx`), 달력(`components/ui/calendar.tsx`, react-day-picker), 프로젝트 만들기 폼(`create-project-form.tsx`, react-hook-form·zod), 이슈 목록의 목표·캘린더 보기가 그렇다. 사이드바나 목록처럼 모든 화면에 깔리는 컴포넌트에서 이런 것을 정적으로 import 하지 않는다. 버튼에 포인터나 포커스가 오면 미리 받아 두고(`onPointerEnter`/`onFocus` 에서 같은 `import()` 호출), 처음 열 때부터 렌더한다. 늦게 붙는 컴포넌트는 "처음 렌더될 때 이미 열려 있을 수 있다"는 것을 전제로 쓴다(초기값을 열림 상태에서도 채우기, 포커스는 마운트 뒤 직접 주기).
+- **목록의 필터처럼 주소로 열 수 있는 화면 상태는 `useState` 가 아니라 주소(`useSearchParams`)에 둔다.** Next 16 은 다녀간 화면을 살려 두므로, 처음 값만 받는 `useState` 는 다른 주소로 다시 들어와도 예전 값을 보여 줄 수 있다(마일스톤 필터에서 겪었다). 바꿀 때는 `useReplaceListQuery()`(`issue-views.tsx`)를 쓴다: `window.history.replaceState` 로 주소를 바로 바꾸고(화면이 기다리지 않는다) **이어서 `router.replace` 로 라우터에도 같은 주소를 알린다.** `history` 만 바꾸면 라우터는 예전 주소에 있다고 믿는다. 그 상태에서 티켓을 대화상자로 열고 무엇이든 저장하면 `router.refresh()` 의 응답이 라우터가 아는 화면과 맞지 않아 Next 가 문서를 통째로 다시 불러온다: 화면이 깜빡이고, 뒤의 목록이 보기·필터를 잃고 전체 티켓 목록으로 돌아온다(2026-10-13 에 재현하고 고쳤다). **주소를 `history` 로만 바꾸는 코드를 새로 만들지 않는다.**
+- **레이아웃은 최상위에서 `params` 나 백엔드 데이터를 `await` 하지 않는다.** `cacheComponents` 에서는 같은 레이아웃 안에서 이동할 때(예: 프로젝트의 개요 → 티켓 탭) 그 레이아웃 아래에 `<Suspense>` 가 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다. 데이터를 읽는 부분은 별도 비동기 컴포넌트로 빼서 `<Suspense>` 로 감싸고, 그 레이아웃 바로 아래 페이지들을 위해 같은 폴더에 `loading.tsx` 를 둔다 (`project/[id]/layout.tsx`, `project/[id]/loading.tsx` 가 예).
+- **`serverGet` 은 같은 주소를 한 요청에서 한 번만 부른다** (React `cache()`). 레이아웃, 페이지, `generateMetadata` 가 같은 것을 각자 읽어도 백엔드 호출은 하나다(프로젝트, 티켓, 라벨, 사용자 목록). 그래서 돌려받은 값은 여럿이 함께 쓰는 것이니 고치지 않는다(`map`/`filter` 로 새로 만든다).
+- **열어야 쓰는 무거운 것은 `next/dynamic` 으로 늦게 불러온다** (D-099). 문서 편집기를 품은 새 티켓 창(`new-issue-dialog.tsx`), 달력(`components/ui/calendar.tsx`, react-day-picker), 프로젝트 만들기 폼(`create-project-form.tsx`, react-hook-form·zod), 티켓 목록의 목표·캘린더 보기가 그렇다. 사이드바나 목록처럼 모든 화면에 깔리는 컴포넌트에서 이런 것을 정적으로 import 하지 않는다. 버튼에 포인터나 포커스가 오면 미리 받아 두고(`onPointerEnter`/`onFocus` 에서 같은 `import()` 호출), 처음 열 때부터 렌더한다. 늦게 붙는 컴포넌트는 "처음 렌더될 때 이미 열려 있을 수 있다"는 것을 전제로 쓴다(초기값을 열림 상태에서도 채우기, 포커스는 마운트 뒤 직접 주기).
 - **긴 목록의 줄은 `memo` 한 컴포넌트로 두고, 걸러 내기·묶기는 `useMemo` 로 한다** (`issues-view.tsx` 의 `IssueListRow`). 검색어는 `useDeferredValue` 로 넘겨 입력란이 목록을 기다리지 않게 한다. 줄에 넘기는 콜백은 `useCallback` 으로 고정한다(안 그러면 `memo` 가 소용없다).
 - 개발 모드(`npm run dev`)는 처음 여는 화면마다 1~2초 컴파일하고 링크 미리 가져오기도 하지 않는다. 속도를 판단할 때는 `npm run build && npm run start` 로 본다. 측정값: `/login` 응답이 개발 모드 약 75ms, 프로덕션 약 13ms.
 
@@ -85,34 +85,34 @@ frontend/
 | 조각 | 파일 | 쓰는 곳 |
 |---|---|---|
 | 경로 표시 | `components/page-header.tsx` | 모든 화면의 맨 위. 마지막 항목이 그 화면의 `<h1>` 이다 |
-| 알약 탭 | `components/pill-tabs.tsx` | 한 대상의 여러 보기(개요 / 이슈 / 설정) |
+| 알약 탭 | `components/pill-tabs.tsx` | 한 대상의 여러 보기(개요 / 티켓 / 설정) |
 | 속성 카드 | `components/property-card.tsx` | 오른쪽 열의 카드와 그 안의 "이름: 값" 줄 |
 | 속성 칩 | `features/issues/components/chip-select.tsx`, `date-chips.tsx` | 값을 보여 주고 눌러서 바꾸는 둥근 칩 |
 | 날짜 칩 | `features/issues/components/date-chips.tsx` | `DateChip`(날짜 하나: 기한), `DateRangeChip`(기간: 첫 클릭이 시작일, 두 번째 클릭이 종료일). 달력은 `components/ui/calendar.tsx`(react-day-picker, 한국어), 팝오버는 `components/ui/popover.tsx` (D-043) |
-| 찾아서 고르는 목록 | `components/multi-combobox.tsx` | 팝오버 안에서 입력으로 좁히고 고르는 목록: 이슈 라벨, 프로젝트 라벨, 프로젝트 구성원 추가. 항목에 `hint`(같이 검색되는 흐린 글자), 목록 아래에 `footer`(고른 것에 함께 적용할 값)를 줄 수 있다. 고르는 일에 대화상자를 새로 만들지 않는다 |
-| 문서 편집기 | `components/editor/rich-text-editor.tsx` | 프로젝트 설명, 이슈 본문 |
+| 찾아서 고르는 목록 | `components/multi-combobox.tsx` | 팝오버 안에서 입력으로 좁히고 고르는 목록: 티켓 라벨, 프로젝트 라벨, 프로젝트 구성원 추가. 항목에 `hint`(같이 검색되는 흐린 글자), 목록 아래에 `footer`(고른 것에 함께 적용할 값)를 줄 수 있다. 고르는 일에 대화상자를 새로 만들지 않는다 |
+| 문서 편집기 | `components/editor/rich-text-editor.tsx` | 프로젝트 설명, 티켓 본문 |
 | 자동 저장 | `lib/use-autosave.ts`, `components/editor/save-status.tsx` | 저장 버튼 없이 저장하는 모든 곳 |
 | 사람 | `components/person.tsx` | `personName()`(표시 이름. `displayName ?? loginId` 를 직접 쓰지 않는다), `PersonAvatar`(작은 아바타), `PersonMark`(아바타 + 이름 툴팁), `Person`(아바타·이름·아이디) |
-| 이슈 줄의 조각 | `features/issues/components/issue-row.tsx` | `PriorityMark`, `StatusMark`, `IssueTitleLink`, `IssueProjectName`, `IssueLabels`, `IssueDue`. 이슈를 한 줄로 그리는 곳(목록, 하위 이슈)은 이것을 조합한다 |
+| 티켓 줄의 조각 | `features/issues/components/issue-row.tsx` | `PriorityMark`, `StatusMark`, `IssueTitleLink`, `IssueProjectName`, `IssueLabels`, `IssueDue`. 티켓을 한 줄로 그리는 곳(목록, 하위 티켓)은 이것을 조합한다 |
 | 내비게이션 항목 | `app/(app)/_components/nav-destinations.ts` | 사이드바와 좁은 화면 메뉴가 함께 쓰는 목적지 목록, `isCurrentPath()` |
 
-- **자주 고치는 내용은 설정 화면에 넣지 않는다.** 보이는 그 자리에서 고치고 자동 저장한다(프로젝트 요약·설명, 이슈 제목·본문). 설정 화면에는 드물게 바꾸는 것(이름, 구성원)만 둔다.
+- **자주 고치는 내용은 설정 화면에 넣지 않는다.** 보이는 그 자리에서 고치고 자동 저장한다(프로젝트 요약·설명, 티켓 제목·본문). 설정 화면에는 드물게 바꾸는 것(이름, 구성원)만 둔다.
 - 편집기에 새 블록을 추가하려면 세 곳을 함께 고친다: 편집기의 `/` 메뉴(`SLASH_ITEMS`), 백엔드의 허용 목록(`RichText.kt` 의 `NODE_TYPES`), 글꼴·간격(`globals.css` 의 `.rich-text`).
 - 표는 `components/editor/table-extensions.ts`(칸의 `align`, `verticalAlign` 속성)와 `table-toolbar.tsx`(커서가 표 안에 있을 때 뜨는 도구 모음)에 있다. 칸에 새 속성을 더하면 `RichText.kt` 의 칸 검증도 함께 고친다.
 - 편집기의 이미지는 `components/editor/upload-image.ts` 로 먼저 올리고 받은 주소를 `image` 블록에 넣는다. 밖의 주소나 base64 는 넣지 않는다(서버가 거부한다).
 - 지금 시각이 있어야 그릴 수 있는 화면(캘린더의 "이번 달")은 `useInBrowser()`(`components/dates.tsx`)로 브라우저에서만 그린다.
 - **렌더 중에 현재 시각을 읽지 않는다** (`Date.now()`, `new Date()`). `cacheComponents` 에서는 서버 렌더 중의 시각 읽기가 오류다("unstable value `Date.now()` while prerendering"). "3분 전"이나 "올해면 연도 생략"처럼 지금 시각에 기대는 글자는 `components/dates.tsx` 의 `<TimeAgo>`, `<DueDate>` 로 그린다(서버는 날짜 그대로, 브라우저가 바꿔 보여 준다).
-- **대화상자로 여는 페이지**는 가로채기 경로로 만든다. `(app)/layout.tsx` 가 `modal` 슬롯을 그리고, `(app)/@modal/(.)issue/[key]/page.tsx` 가 대화상자다(앱 어느 화면에서 이슈를 눌러도 그 위에 뜬다). 슬롯에는 `default.tsx` 와 `page.tsx`(모두 null)를 둔다. **슬롯에 `[...catchAll]` 을 두지 않는다**: `(app)` 은 주소에 나타나지 않는 묶음이라 그 catch-all 이 `/setup`, `/unavailable` 같은 `(public)` 의 주소까지 가로채 404 를 만든다(실제로 겪었다). 대신 대화상자(`issue-dialog.tsx`)가 주소를 보고, `/issue/…` 가 아니면 스스로 사라진다. 닫기는 `router.back()`. 주소를 직접 연 경우(`issue/[key]/page.tsx`)는 전체 이슈 목록(`all-issues.tsx`)을 뒤에 그리고 같은 대화상자를 띄우며, 닫으면 `/issues` 로 간다. 그 대화상자 안에서 다른 이슈(하위 이슈)를 누르면 가로챈 대화상자가 뜨므로, 페이지의 대화상자는 자기 주소가 아닐 때 숨는다(`path`).
-- **대화상자 뒤의 목록은 자기 주소를 기억한다.** 이슈를 대화상자로 열면 브라우저 주소가 `/issue/…` 로 바뀌어 목록의 보기(`?view=calendar`)와 필터가 주소에서 사라진다. 목록은 `usePathname`/`useSearchParams` 를 직접 읽지 않고 `useListAddress()`(`issue-views.tsx`)로 읽는다: 주소가 `/issue/…` 인 동안에는 마지막으로 보던 목록 주소를 돌려준다.
+- **대화상자로 여는 페이지**는 가로채기 경로로 만든다. `(app)/layout.tsx` 가 `modal` 슬롯을 그리고, `(app)/@modal/(.)issue/[key]/page.tsx` 가 대화상자다(앱 어느 화면에서 티켓을 눌러도 그 위에 뜬다). 슬롯에는 `default.tsx` 와 `page.tsx`(모두 null)를 둔다. **슬롯에 `[...catchAll]` 을 두지 않는다**: `(app)` 은 주소에 나타나지 않는 묶음이라 그 catch-all 이 `/setup`, `/unavailable` 같은 `(public)` 의 주소까지 가로채 404 를 만든다(실제로 겪었다). 대신 대화상자(`issue-dialog.tsx`)가 주소를 보고, `/issue/…` 가 아니면 스스로 사라진다. 닫기는 `router.back()`. 주소를 직접 연 경우(`issue/[key]/page.tsx`)는 전체 티켓 목록(`all-issues.tsx`)을 뒤에 그리고 같은 대화상자를 띄우며, 닫으면 `/issues` 로 간다. 그 대화상자 안에서 다른 티켓(하위 티켓)를 누르면 가로챈 대화상자가 뜨므로, 페이지의 대화상자는 자기 주소가 아닐 때 숨는다(`path`).
+- **대화상자 뒤의 목록은 자기 주소를 기억한다.** 티켓을 대화상자로 열면 브라우저 주소가 `/issue/…` 로 바뀌어 목록의 보기(`?view=calendar`)와 필터가 주소에서 사라진다. 목록은 `usePathname`/`useSearchParams` 를 직접 읽지 않고 `useListAddress()`(`issue-views.tsx`)로 읽는다: 주소가 `/issue/…` 인 동안에는 마지막으로 보던 목록 주소를 돌려준다.
 - 편집기나 팝오버 안에서 `Esc` 로 닫는 것(`/` 메뉴 등)은 그 키 이벤트를 `stopPropagation()` 한다. 안 그러면 바깥의 대화상자까지 닫힌다.
 - 경로 표시(`PageHeader`)와 알약 탭(`PillTabs`)은 `sticky` 로 내용 패널 위쪽에 붙어 있다(`z-30`). 내용 안에서 `sticky` 를 쓰면 그보다 낮은 `z-index` 를 준다.
 - 사진 없는 아바타의 글자는 `lib/initials.ts`: 사람은 `initials()`(한글 이름은 뒤 두 글자), 24px 보다 작은 아바타는 `initial()`(한 글자), 사람이 아닌 것(워크스페이스)은 `mark()`(앞 글자).
-- 같은 폴더 안에서 페이지끼리 오가면(이슈 상세 ↔ 이슈 목록) 그 폴더에도 `loading.tsx` 가 있어야 한다(`project/[id]/issues/loading.tsx`). 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다.
-- 편집기 위에 띄우는 것(`/` 메뉴, 표 도구 모음)은 `position: fixed` 로 두되 좌표에서 `fixedOrigin()`(`components/editor/fixed-origin.ts`)을 뺀다. 대화상자는 `transform` 으로 가운데에 놓이기 때문에 그 안의 `fixed` 는 창이 아니라 대화상자 모서리가 기준이다. 빼지 않으면 새 이슈 창에서 메뉴가 엉뚱한 곳에 뜬다.
+- 같은 폴더 안에서 페이지끼리 오가면(티켓 상세 ↔ 티켓 목록) 그 폴더에도 `loading.tsx` 가 있어야 한다(`project/[id]/issues/loading.tsx`). 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다.
+- 편집기 위에 띄우는 것(`/` 메뉴, 표 도구 모음)은 `position: fixed` 로 두되 좌표에서 `fixedOrigin()`(`components/editor/fixed-origin.ts`)을 뺀다. 대화상자는 `transform` 으로 가운데에 놓이기 때문에 그 안의 `fixed` 는 창이 아니라 대화상자 모서리가 기준이다. 빼지 않으면 새 티켓 창에서 메뉴가 엉뚱한 곳에 뜬다.
 - `@` 메뉴는 `/` 메뉴(고정 폭 `w-56`)와 달리 내용만큼 넓어진다: 이름은 줄이지 않고, 이메일까지 보이도록 편집기의 오른쪽 끝까지 커진다(사용자 지정 2026-10-13: 이름이 "김…"으로 잘려 누구인지 알 수 없었다). 그래도 넘치면 이메일 쪽이 줄어든다.
 - `@` 태그(D-101): `RichTextEditor` 에 `mentionables`(`mentionablesOf(members)`)를 주면 `@` 메뉴가 생긴다. `/` 메뉴와 같은 코드(`readSlash`, `menuItems`)를 쓴다. 블록은 `components/editor/mention.tsx`(React 노드 뷰: 칩 + 올리면 뜨는 사람 카드. 사람 정보는 `MentionPeopleContext` 로 받는다. 모양은 `globals.css` 가 아니라 컴포넌트의 Tailwind 클래스다), 서버 검증은 `RichText.kt` 의 `mention`. 주지 않으면 `@` 는 보통 글자다.
 - 댓글(`features/issues/components/issue-comments.tsx`)도 `RichTextEditor` 다. 읽을 때는 `editable={false}`, 보낸 뒤 비우기와 고치기 취소는 `key` 를 바꿔서 한다.
-- 편집기는 `RichTextEditor` 하나뿐이다(개요 설명, 이슈 본문, 새 이슈 창, 댓글). 블록이나 도구를 더하면 세 곳 모두에 생긴다.
+- 편집기는 `RichTextEditor` 하나뿐이다(개요 설명, 티켓 본문, 새 티켓 창, 댓글). 블록이나 도구를 더하면 세 곳 모두에 생긴다.
 - 편집기 내용을 밖에서 바꿔야 하면(프리셋 적용 등) `key` 를 바꿔 새로 시작시킨다.
 - 대화상자는 열릴 때 커서가 갈 곳을 `DialogContent` 의 `initialFocus` 로 지정한다. 입력란의 `autoFocus` 는 Base UI 대화상자 안에서 믿을 수 없다.
 - 온보딩 투어가 가리키는 곳은 `data-tour="nav"` 같은 속성으로 표시한다(`features/tour/steps.ts` 의 `target`). 앱 틀(사이드바, 위쪽 막대)을 고칠 때 이 속성을 지우지 않는다. 단계를 더하려면 `steps.ts` 와 `messages.tour.steps`, 명세의 표를 함께 고친다. 투어는 `z-40` 이라 메뉴·팝오버(`z-50`)가 그 위에 뜬다.
@@ -130,7 +130,7 @@ frontend/
 - 브라우저는 항상 같은 출처의 `/api/v1/...` 를 부른다. Next.js 가 백엔드로 넘긴다 ([02-architecture.md](02-architecture.md)).
 - 브라우저 쪽 호출은 `lib/api/client.ts` 의 `apiFetch` 하나를 거친다. 컴포넌트에서 `fetch` 를 직접 쓰지 않는다. `apiFetch` 가 CSRF 헤더 추가(토큰이 없으면 먼저 받아 옴, 거절되면 한 번 재시도), 문제 문서 → `ApiError` 변환, 네트워크 실패 → `NetworkError` 변환을 맡는다.
 - 파일 하나를 올리는 요청의 본문은 `fileForm(file)`(`lib/api/client.ts`)로 만든다.
-- 프로젝트에 속하지 않은 이슈의 담당자 후보(전체 사용자)는 `usersAsMembers()`(`features/projects/types.ts`)로 구성원 모양으로 바꾼다.
+- 프로젝트에 속하지 않은 티켓의 담당자 후보(전체 사용자)는 `usersAsMembers()`(`features/projects/types.ts`)로 구성원 모양으로 바꾼다.
 - 분기는 `ApiError.code` 로 한다. 서버가 준 문구로 분기하지 않는다.
 - 요청/응답 타입은 지금은 `features/<기능>/types.ts` 에 직접 적는다. 엔드포인트가 늘어나면 OpenAPI 에서 생성하는 방식으로 바꾼다 (D-023).
 - 서버 오류의 필드별 메시지(`errors[]`)는 해당 폼 필드 아래에 표시한다. 필드와 무관한 오류는 폼 위의 `Alert` 로 보여준다.
@@ -164,7 +164,7 @@ frontend/
 - 문구는 컴포넌트에 직접 쓰지 않고 `messages/ko.ts` 에 둔다. 지금은 한국어만 있고 다국어 라이브러리는 쓰지 않는다(파일 하나를 직접 import). 영어를 추가할 때 도입한다.
 - 한국어로 처음부터 쓴다. 간결한 합니다체와 명사형. 버튼은 동작을 말한다("관리자 계정 만들기"). 오류는 무엇이 잘못됐고 무엇을 하면 되는지 말한다. 사과하지 않는다.
 - **버튼과 메뉴의 동작 이름은 한국어 서비스에서 흔히 쓰는 말을 쓴다.** 내용을 바꾸는 동작은 "수정"이다("고치기", "고쳤습니다"라고 쓰지 않는다. 사용자 지정, 2026-10-13). 서버가 돌려주는 오류 문구와 알림 문구도 같다.
-- 같은 동작은 화면 어디서나 같은 이름이다. 용어는 [01-product.md](01-product.md) 2장.
+- 같은 동작은 화면 어디서나 같은 이름이다. 용어는 [01-product.md](01-product.md) 2장. **"이슈"라고 쓰지 않고 "티켓"이라고 쓴다** (D-122. 코드 식별자는 `issue` 그대로).
 
 ## 접근성
 
@@ -180,7 +180,7 @@ frontend/
 - **E2E (Playwright)**: `frontend/e2e/`, `npm run test:e2e`. 서버를 스스로 띄우지 않는다. 개발 데이터를 건드리지 않도록 **빈 DB 를 쓰는 별도 백엔드(8081)와 그쪽을 보는 프로덕션 빌드(3100)** 를 먼저 띄운다([PROGRESS.md](PROGRESS.md) "화면을 직접 확인하는 방법"). 주소는 `E2E_BASE_URL`(기본 `http://localhost:3100`), 브라우저는 `E2E_BROWSER_CHANNEL`(기본 `msedge`: 시스템 브라우저를 쓴다)로 바꾼다. 테스트는 빈 DB 에 자기 계정과 프로젝트를 만들고, 돌릴 때마다 새 프로젝트를 더한다.
   - `changes.spec.ts`: **변경하는 동안 화면에 무엇이 보였는지**를 본다. `recordFrames`(`e2e/support.ts`)가 그려진 프레임마다 값을 기록하고, 네트워크를 일부러 늦춰(`slowDown`) 잠깐 보였다 사라지는 상태도 잡는다. 기대값은 "예전 값 → 새 값" 두 줄이다. 값을 고르는 컨트롤을 새로 만들면 여기에 한 건 더한다.
   - `flows.spec.ts`: 만들기·수정·삭제·보기 권한·다른 사람의 변경이 실시간으로 오는 것까지, 화면에서 하는 일이 끝까지 되는지.
-  - `features.spec.ts`: 목표의 상세(이슈 목록, 정리, 그 위에 이슈 열기), 프로젝트 아카이브와 복원, 다른 사람에게 보이는 하이라이트(올리기만 하면 안 뜨고 누르거나 입력하면 뜬다).
+  - `features.spec.ts`: 목표의 상세(티켓 목록, 정리, 그 위에 티켓 열기), 프로젝트 아카이브와 복원, 다른 사람에게 보이는 하이라이트(올리기만 하면 안 뜨고 누르거나 입력하면 뜬다).
   - `tour.spec.ts`: 온보딩 투어([features/onboarding-tour.md](features/onboarding-tour.md)). **다른 테스트에서 계정으로 로그인할 때는 `logIn()`(`e2e/support.ts`)을 쓴다.** 투어를 본 것으로 표시해 준다. `/api/v1/auth/login` 을 직접 부르면 투어가 화면을 덮어 아무것도 누를 수 없다. 로그인은 IP당 분당 10회로 제한되니 새 계정 로그인을 늘릴 때 주의한다.
   - 대화상자가 열려 있는 동안 뒤의 화면은 보조 기술에서 숨겨진다. 그때 뒤의 요소는 `getByRole` 이 아니라 `locator` 로 찾는다.
   - 화면이 서버에서 온 그대로 보여도 스크립트가 붙기 전에는 단축키가 동작하지 않는다. 키를 누르기 전에 `settled(page)` 로 기다린다.

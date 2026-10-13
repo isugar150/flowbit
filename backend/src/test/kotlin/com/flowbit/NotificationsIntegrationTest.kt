@@ -98,7 +98,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `이슈가 바뀌면 구독자 가운데 주소가 있고 메일을 켠 사람에게만 메일이 간다`() {
+    fun `티켓이 바뀌면 구독자 가운데 주소가 있고 메일을 켠 사람에게만 메일이 간다`() {
         saveSmtp()
         kim.patch("/api/v1/me/notifications", """{"email":"kim@example.com","notifyEmail":true}""")
         val leeId = admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD"}""").json()["id"]
@@ -118,7 +118,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `댓글에서 태그된 사람은 구독하지 않던 이슈여도 메일을 받는다`() {
+    fun `댓글에서 태그된 사람은 구독하지 않던 티켓이어도 메일을 받는다`() {
         saveSmtp()
         kim.patch("/api/v1/me/notifications", """{"email":"kim@example.com","notifyEmail":true}""")
         admin.post("/api/v1/issues", """{"title":"배포 일정"}""")
@@ -242,7 +242,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로젝트를 구독하면 그 프로젝트의 이슈 변경을 받고 아무도 구독하지 않은 변경은 보내지 않는다`() {
+    fun `프로젝트를 구독하면 그 프로젝트의 티켓 변경을 받고 아무도 구독하지 않은 변경은 보내지 않는다`() {
         admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/followed"))
         val pay = admin.post("/api/v1/projects", """{"name":"결제"}""").json()["id"]
         val search = admin.post("/api/v1/projects", """{"name":"검색"}""").json()["id"]
