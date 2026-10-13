@@ -13,6 +13,8 @@ description = "Flowbit backend"
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
+        // Amazon Corretto, not just any JDK 25: the same one the Docker image builds and runs on.
+        vendor = JvmVendorSpec.AMAZON
     }
 }
 

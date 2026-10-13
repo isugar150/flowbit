@@ -1,2 +1,4 @@
-# The deploy scripts run on Linux: keep LF line endings on a Windows checkout too.
+# Shell scripts run on Linux (the deploy scripts, the container entrypoint): keep LF line endings
+# on a Windows checkout too.
 /script/** text eol=lf
+/docker/entrypoint.sh text eol=lf

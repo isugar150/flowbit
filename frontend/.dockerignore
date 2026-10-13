@@ -1,8 +1,0 @@
-# Installed and built inside the image.
-node_modules
-.next
-out
-tsconfig.tsbuildinfo
-.env
-.env.*
-npm-debug.log*

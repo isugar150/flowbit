@@ -11,7 +11,7 @@
 | Spring Boot | 4.1.1 | start.spring.io 기준. 4.2.0 은 아직 마일스톤이라 쓰지 않는다 |
 | 웹 | **Spring WebFlux** (Netty) | 사용자 지정 (D-019). Spring MVC 를 쓰지 않는다 |
 | Kotlin | 2.3.21 | start.spring.io 가 Boot 4.1.1 에 고정한 버전. 코루틴(`suspend`) 사용 |
-| JDK | 25 (LTS) | Gradle toolchain 이 자동으로 내려받는다(foojay). Gradle 자체는 JDK 17 이상으로 실행 |
+| JDK | **Amazon Corretto 25** (LTS) | 사용자 지정(D-108). 버전만이 아니라 배포판까지 고정한다: `build.gradle.kts` 의 toolchain 이 `vendor = JvmVendorSpec.AMAZON` 이고, Docker 이미지도 `amazoncorretto:25` 로 빌드하고 실행한다. PC 에 Corretto 25 가 없으면 Gradle 이 Corretto 25 를 내려받는다(foojay). Gradle 자체는 JDK 17 이상으로 실행 |
 | 빌드 | Gradle 9.7.1 (Kotlin DSL, Wrapper) | |
 | DB | PostgreSQL 18 | 사용자 지정. `docker-compose.yml` 의 `postgres:18` |
 | DB 접근 | **Spring Data R2DBC** (`r2dbc-postgresql`) | WebFlux 에 맞춘 논블로킹 접근. JPA 는 쓰지 않는다 (D-019) |
@@ -168,25 +168,31 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 
 PostgreSQL 18 이미지는 볼륨을 `/var/lib/postgresql` 에 마운트한다 (17 이하의 `/var/lib/postgresql/data` 와 다르다).
 
-## Docker 이미지 (D-100)
+## Docker 이미지 (D-100, D-109)
 
-백엔드와 프런트엔드는 각각 Dockerfile 이 있다. `docker-compose.yml` 의 `app` 프로필로 DB 와 함께 띄운다.
+**백엔드와 프런트엔드가 한 이미지에 들어 있다** (루트의 `Dockerfile`, 사용자 지정 D-109). DB 는 들어 있지 않다.
 
 ```bash
-docker compose --profile app up -d --build   # http://localhost:3000 (FLOWBIT_WEB_PORT)
+docker build -t flowbit .                    # 이미지 하나
+docker compose --profile app up -d --build   # 개발 PC 에서 DB 와 함께: http://localhost:3000 (FLOWBIT_WEB_PORT)
 docker compose up -d                         # 개발: DB 만 (지금까지와 같다)
 ```
 
-| 이미지 | 파일 | 내용 |
+| 단계 | 바탕 | 내용 |
 |---|---|---|
-| `flowbit-backend` | `backend/Dockerfile` | JDK 25 로 `bootJar` 를 만들고(테스트는 빼고) JRE 25 위에서 실행. Ubuntu 기반(WebP 변환기가 glibc 를 쓴다). 비루트 사용자, 8080. 올린 파일은 `/var/lib/flowbit/uploads`(볼륨, **백업 대상**) |
-| `flowbit-frontend` | `frontend/Dockerfile` | `npm ci` → `next build`(standalone 출력) → `node server.js`. 비루트 사용자, 3000 |
+| 백엔드 빌드 | `amazoncorretto:25` | `bootJar` (테스트는 빼고). Gradle wrapper 가 쓰는 `xargs` 때문에 `findutils` 를 깐다 |
+| 프런트 빌드 | `node:22-bookworm-slim` | `npm ci` → `next build` (standalone 출력) |
+| 실행 | `debian:bookworm-slim` | 작은 Debian 에 **Amazon Corretto 25 와 Node.js 22 두 가지만** 더한다. 각각의 공식 이미지에서 복사한다(`/opt/corretto-25`, `/usr/local/bin/node`). 비루트 사용자 `flowbit`. Debian(glibc)인 것은 WebP 변환기 때문이다 |
 
-- **`BACKEND_URL` 은 프런트 이미지를 빌드할 때 고정된다.** `/api` rewrite 주소가 빌드 결과에 들어가기 때문이다. 빌드 인자 `BACKEND_URL` 과 실행할 때의 환경 변수 `BACKEND_URL`(서버 컴포넌트가 백엔드를 부르는 주소)을 같게 준다. compose 는 둘 다 `http://backend:8080`.
-- 백엔드는 포트를 열지 않는다. 브라우저는 프런트의 `/api`(WebSocket `/api/v1/realtime` 포함)를 거쳐서만 백엔드에 닿는다.
+- **컨테이너 안에서 두 프로세스가 돈다**: `docker/entrypoint.sh` 가 백엔드(`java -jar`, 8080)와 프런트(`node server.js`, 3000)를 띄운다. 둘 중 하나가 죽으면 나머지도 내리고 컨테이너가 끝나므로 재시작 정책이 둘을 함께 다시 올린다. `docker stop` 의 종료 신호는 둘 다에게 넘긴다.
+- **여는 포트는 3000 하나다.** 백엔드(8080)는 컨테이너 밖으로 열지 않고, 브라우저는 프런트의 `/api`(WebSocket `/api/v1/realtime` 포함)를 거쳐서만 닿는다.
+- 프런트는 `BACKEND_URL=http://127.0.0.1:8080` 으로 빌드된다(`/api` rewrite 주소가 빌드 결과에 들어간다). 같은 컨테이너 안이라 바꿀 일이 없다.
+- 넣어 줘야 하는 환경 변수: `FLOWBIT_DB_HOST`, `FLOWBIT_DB_PORT`, `FLOWBIT_DB_NAME`, `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD`, 그리고 선택으로 `FLOWBIT_PUBLIC_URL`, `FLOWBIT_MAX_UPLOAD_SIZE`. 올린 파일은 `/var/lib/flowbit/uploads`(볼륨, **백업 대상**).
+- 루트의 `.dockerignore` 가 빌드에 보내는 것을 `backend/`, `frontend/`, `docker/entrypoint.sh` 로 줄인다.
 - `next.config.ts` 에 `output: "standalone"` 을 두었다. `next dev`, `next start` 에는 영향이 없다.
-- 운영에서는 `.env` 에 `FLOWBIT_DB_PASSWORD` 를 바꾸고, `FLOWBIT_PUBLIC_URL` 을 실제 주소로 준다. 앞에 HTTPS 리버스 프록시(nginx 등)를 둘 때는 `Upgrade`/`Connection` 헤더를 넘긴다("실시간 동기화").
-- 아직 없는 것: 이미지 레지스트리에 올리기, CI 에서 이미지 빌드, Spring 프로필(`prod`).
+- 이미지 크기는 약 1.1GB 로 표시된다(JDK 전체 약 330MB, Node 약 120MB). 더 줄이려면 `jlink` 로 필요한 모듈만 든 런타임을 만들 수 있으나 하지 않았다.
+- 확인함(2026-10-13): 빌드, 임시 PostgreSQL 18 에 붙여 실행, `GET /api/v1/health` 응답(시작 약 7초), 스키마 생성, `/setup` 화면과 정적 파일, `java -version`(Corretto 25), `node -v`(22), 비루트 실행, `docker stop` 으로 종료(약 9초).
+- 아직 없는 것: CI 에서 이미지 빌드, Spring 프로필(`prod`).
 
 ## 서버 배포 (D-106)
 
@@ -199,20 +205,20 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 
 | 파일 | 어디서 | 내용 |
 |---|---|---|
-| `script/push.sh` | 개발 PC | `backend/`, `frontend/` 의 Dockerfile 로 이미지를 만들어 push 한다. 버전은 지금 커밋의 짧은 해시(커밋 안 한 변경이 있으면 `-dirty`), 인자로 직접 줄 수도 있다. `docker login` 이 되어 있어야 한다 |
-| `script/docker-compose.yml` | 서버 | 백엔드, 프런트 (DB 없음). 빌드하지 않고 이미지만 받는다. 루트의 `docker-compose.yml`(개발용)과 별개다 |
+| `script/push.sh` | 개발 PC | 루트의 `Dockerfile` 로 이미지 하나를 만들어 push 한다. 버전은 지금 커밋의 짧은 해시(커밋 안 한 변경이 있으면 `-dirty`), 인자로 직접 줄 수도 있다. `docker login` 이 되어 있어야 한다 |
+| `script/docker-compose.yml` | 서버 | 서비스 하나(`flowbit`: 백엔드 + 프런트). DB 없음. 빌드하지 않고 이미지만 받는다. 루트의 `docker-compose.yml`(개발용)과 별개다 |
 | `script/deploy.sh` | 서버 | `docker compose pull` → `up -d` → `GET /api/v1/health`(프런트 → 백엔드 → DB 를 한 번에 확인). **전부 받은 뒤에 교체하므로 받기에 실패하면 돌던 것은 그대로다.** 인자로 버전을 주면 그 버전을 띄운다(되돌릴 때도 이것) |
 | `script/.env` | 서버 | 설정. **처음 실행하면 `deploy.sh` 가 빈 양식을 만들고 멈춘다. DB 접속 정보를 채우고 다시 실행한다.** git 추적 안 함 |
+| `script/dockerhub-readme.md` | Docker Hub | 저장소 소개 글. Docker Hub 의 저장소 화면(Overview)에 붙여 넣는다. 환경 변수나 포트가 바뀌면 함께 고친다 |
 | `script/nginx/flowbit.conf` | 서버(선택) | 80 포트로 특정 도메인만 받아 프런트로 넘기는 nginx 설정 견본 |
 
-- **이미지 이름**: 저장소가 `isugar150/flowbit` 하나라서 태그로 나눈다. `backend-<버전>`, `frontend-<버전>`, 그리고 가장 최근 것을 가리키는 `backend-latest`, `frontend-latest`. 다른 저장소를 쓰려면 `FLOWBIT_IMAGE`(push 할 때는 환경 변수, 서버에서는 `.env`).
+- **이미지 이름**: `isugar150/flowbit:<버전>` 과 가장 최근 것을 가리키는 `isugar150/flowbit:latest`. 버전은 커밋의 짧은 해시다. 다른 저장소를 쓰려면 `FLOWBIT_IMAGE`(push 할 때는 환경 변수, 서버에서는 `.env`).
 - **서버에 필요한 파일은 `deploy.sh` 와 `docker-compose.yml` 둘뿐이다.** 한 폴더에 두면 된다(저장소를 clone 해서 `script/` 에서 돌려도 된다). 저장소가 비공개면 서버에서 `docker login` 을 한 번 한다.
 - **DB**: `.env` 의 `FLOWBIT_DB_HOST`, `FLOWBIT_DB_PORT`(기본 5432), `FLOWBIT_DB_NAME`(기본 `flowbit`), `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD`. 빈 DB 와 계정만 만들어 두면 테이블은 백엔드가 뜰 때 Flyway 가 만든다. 호스트·계정·비밀번호가 비어 있으면 `deploy.sh` 가 아무것도 받거나 바꾸지 않고 멈춘다. **DB 가 같은 서버에 있으면 `localhost` 가 아니라 `host.docker.internal`** 을 적는다(컨테이너 안의 `localhost` 는 컨테이너 자신이라 `deploy.sh` 가 거부한다. compose 가 그 이름을 서버로 이어 준다). 그때 PostgreSQL 이 Docker 쪽 주소의 접속을 받게 `listen_addresses` 와 `pg_hba.conf` 를 열어야 한다. 비밀번호에 `$` 가 있으면 작은따옴표로 감싼다(compose 가 `.env` 의 `$` 를 변수로 읽는다).
 - **`.env` 의 그 밖의 값**: `FLOWBIT_WEB_PORT`(기본 3000. **80 으로 하면 nginx 없이 `http://서버주소` 로 열린다**), `FLOWBIT_WEB_BIND`(`127.0.0.1` 이면 서버 안에서만 열림. nginx 를 앞에 둘 때), `FLOWBIT_PUBLIC_URL`, `FLOWBIT_MAX_UPLOAD_SIZE`, `FLOWBIT_VERSION`(고정할 버전. 없으면 `latest`). 고친 뒤 `./deploy.sh` 를 다시 돌린다.
-- 프런트 이미지는 `BACKEND_URL=http://backend:8080` 으로 빌드된다. 그래서 서버 compose 의 백엔드 서비스 이름은 `backend` 여야 한다.
 - 올린 파일은 볼륨 `flowbit_uploads` 에 있다. **외부 DB 와 함께 백업 대상이다.** `docker compose down` 은 볼륨을 지우지 않지만 `down -v` 는 지운다.
 - 컨테이너는 `restart: unless-stopped` 라 서버를 재부팅해도 다시 뜬다(Docker 가 부팅 때 시작되게 되어 있으면).
-- 자주 쓰는 명령(서버의 그 폴더에서): `docker compose ps`, `docker compose logs -f backend`, `docker compose stop`, `docker compose start`.
+- 자주 쓰는 명령(서버의 그 폴더에서): `docker compose ps`, `docker compose logs -f`, `docker compose stop`, `docker compose start`.
 - 새 버전의 마이그레이션이 적용된 뒤 예전 버전으로 되돌리면 스키마가 앞서 있을 수 있다.
 - 개발 PC 가 ARM(Apple Silicon)이고 서버가 x86 이면 `push.sh` 의 `docker build` 에 `--platform linux/amd64` 가 필요하다(지금은 없다).
 - **nginx 를 앞에 둘 때** (`script/nginx/flowbit.conf`): 그 서버가 여러 도메인을 받거나 80 포트를 이미 nginx 가 쓰는 경우에만 필요하다. 80 포트(HTTP)만 듣고 `server_name` 의 도메인으로 온 요청을 `127.0.0.1:3000` 으로 넘긴다. `Host` 를 그대로 넘기고(실시간 연결의 Origin 확인에 필요), WebSocket 업그레이드 헤더, 본문 20MB 제한, 읽기 제한 120초를 둔다. **HTTPS 가 없으므로 웹 푸시는 동작하지 않는다**(브라우저가 HTTPS 나 localhost 에서만 허용한다). 세션 쿠키도 `Secure` 없이 나간다.

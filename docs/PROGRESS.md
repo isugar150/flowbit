@@ -180,6 +180,15 @@
 
 최신 항목을 위에 추가한다. 한 번의 작업 세션마다 한 항목.
 
+### 2026-10-13 — 한 이미지(백엔드 + 프런트), Amazon Corretto 25 (아래 "서버 배포를 Docker 이미지로" 항목의 이미지 부분을 대체)
+
+- 사용자 지시: ① JDK 는 버전만이 아니라 Amazon Corretto 25 여야 한다 (D-108). ② 이미지를 프런트·백엔드로 나누지 말고 한 이미지에. 가벼운 리눅스 이미지에 JDK 25 와 Node 22 만 설치 (D-109, [02-architecture.md](02-architecture.md) "Docker 이미지").
+- 한 일: 루트 `Dockerfile`(백엔드 빌드 `amazoncorretto:25` → 프런트 빌드 `node:22-bookworm-slim` → 실행 `debian:bookworm-slim` + Corretto 25 + Node 22), `docker/entrypoint.sh`(두 프로세스), 루트 `.dockerignore`. **지운 것**: `backend/Dockerfile`, `frontend/Dockerfile`, 각 `.dockerignore`. `build.gradle.kts` toolchain 에 `vendor = JvmVendorSpec.AMAZON`. 개발용 `docker-compose.yml` 의 `app` 프로필을 서비스 하나(`app`)로. `script/push.sh`·`script/docker-compose.yml`·`script/deploy.sh` 를 이미지 하나에 맞춤(태그 `isugar150/flowbit:<버전>`, `latest`).
+- **확인한 범위 (실제로 돌려 봄)**: `docker build` 성공. 임시 PostgreSQL 18 컨테이너에 붙여 실행해 `GET /api/v1/health` 가 약 7초 만에 `UP`, 테이블 생성, `/setup` 200, 정적 CSS·`push-sw.js` 200, `java -version` = Corretto 25.0.4.1, `node -v` = v22, 비루트(`flowbit`), `docker stop` 약 9초. 두 compose 파일은 `docker compose config` 통과. 시험용 컨테이너와 네트워크는 지웠다(이미지 `flowbit-test` 는 이 PC 에 남아 있다).
+- 확인하지 못한 것: `./script/push.sh` 로 Docker Hub 에 올리기(로그인이 필요하다), 서버에서 `deploy.sh` 로 받아 띄우기, 로그인 뒤의 화면, `vendor = AMAZON` 을 넣은 뒤의 로컬 `./gradlew check`(이 PC 에 Corretto 25 가 없으면 Gradle 이 내려받는다).
+- 같은 날 추가(사용자 요청): Docker Hub 에 보일 소개 글 `script/dockerhub-readme.md`(태그, 실행 예, 환경 변수, 포트·볼륨, 같은 서버의 DB, 업데이트). Docker Hub 에는 자동으로 올라가지 않는다. 저장소 화면에 붙여 넣어야 한다. 그리고 `vendor = AMAZON` 을 넣은 뒤 로컬 `./gradlew compileKotlin` 이 통과했다.
+- 알아둘 것: 이미지가 약 1.1GB 다. `docker stop` 이 9초 걸린다(기본 제한 10초에 가깝다. 프런트가 늦게 끝나는 것으로 보이며 원인은 보지 않았다).
+
 ### 2026-10-13 — 서버 배포를 Docker 이미지로 (아래 "배포 스크립트" 항목을 대체)
 
 - 사용자 지시: 프로세스로 띄우는 스크립트는 손이 너무 많이 가니 Docker 로 빌드해서 올리게 할 것. 레지스트리는 Docker Hub `isugar150/flowbit` (D-106, [02-architecture.md](02-architecture.md) "서버 배포").

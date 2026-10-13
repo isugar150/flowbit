@@ -1,18 +1,19 @@
-# Flowbit on a server, from the images on Docker Hub (isugar150/flowbit). Nothing is built here.
+# Flowbit on a server, from the image on Docker Hub (isugar150/flowbit). Nothing is built here.
 # The server needs Docker only: copy this file and deploy.sh into one folder and run ./deploy.sh
 # Settings come from .env next to this file (deploy.sh creates it on the first run).
 #
-# The database is NOT part of this: Flowbit connects to an existing PostgreSQL 18 whose address
-# and account are in .env (FLOWBIT_DB_*). The backend creates its tables there when it starts.
+# One image holds the backend and the frontend. The database is NOT part of it: Flowbit connects
+# to an existing PostgreSQL 18 whose address and account are in .env (FLOWBIT_DB_*). The backend
+# creates its tables there when it starts.
 #
-# The images are made and pushed on a development PC with script/push.sh:
-#   isugar150/flowbit:backend-<version>    isugar150/flowbit:frontend-<version>
+# The image is made and pushed on a development PC with script/push.sh:
+#   isugar150/flowbit:<version>    isugar150/flowbit:latest
 name: flowbit
 
 services:
-  backend:
-    image: ${FLOWBIT_IMAGE:-isugar150/flowbit}:backend-${FLOWBIT_VERSION:-latest}
-    container_name: flowbit-backend
+  flowbit:
+    image: ${FLOWBIT_IMAGE:-isugar150/flowbit}:${FLOWBIT_VERSION:-latest}
+    container_name: flowbit
     restart: unless-stopped
     environment:
       FLOWBIT_DB_HOST: ${FLOWBIT_DB_HOST:?Set FLOWBIT_DB_HOST in .env}
@@ -30,18 +31,8 @@ services:
     volumes:
       # Uploaded files. Back this up together with the database.
       - uploads:/var/lib/flowbit/uploads
-    # No port: browsers reach the backend only through the frontend's /api.
-
-  frontend:
-    # Built with BACKEND_URL=http://backend:8080, so the service above must be called "backend".
-    image: ${FLOWBIT_IMAGE:-isugar150/flowbit}:frontend-${FLOWBIT_VERSION:-latest}
-    container_name: flowbit-frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      BACKEND_URL: http://backend:8080
     ports:
+      # Only the frontend (3000) is opened; the backend is reached through its /api.
       # FLOWBIT_WEB_BIND=127.0.0.1 opens it to this server only (nginx in front).
       - "${FLOWBIT_WEB_BIND:-0.0.0.0}:${FLOWBIT_WEB_PORT:-3000}:3000"
 

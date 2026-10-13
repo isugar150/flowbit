@@ -1,0 +1,26 @@
+# The image is built from the repository root (Dockerfile). Only backend/, frontend/ and
+# docker/entrypoint.sh are needed; everything installed or built is made again inside the image.
+.git
+.idea
+.claude
+agent-skills
+docs
+data
+script
+*.md
+
+backend/.gradle
+backend/build
+backend/build-check
+backend/data
+backend/.idea
+backend/*.iml
+
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/tsconfig.tsbuildinfo
+frontend/npm-debug.log*
+
+**/.env
+**/.env.*

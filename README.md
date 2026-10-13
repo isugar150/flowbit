@@ -7,7 +7,7 @@ Linear처럼 빠르고 단순한 이슈 트래커. 한 조직이 자기 서버�
 ## 필요한 것
 
 - Docker (PostgreSQL 18 컨테이너, 백엔드 테스트의 Testcontainers)
-- JDK 17 이상 (Gradle 실행용. 빌드에 쓰는 JDK 25 는 Gradle 이 자동으로 내려받는다)
+- JDK 17 이상 (Gradle 실행용. 빌드에 쓰는 JDK 는 Amazon Corretto 25 로 고정되어 있고, 없으면 Gradle 이 내려받는다)
 - Node.js 22 이상
 
 ## 로컬 실행
@@ -45,7 +45,7 @@ npm run start
 
 ## Docker 로 띄우기
 
-DB, 백엔드, 프런트를 모두 컨테이너로 띄운다. 처음에는 이미지를 빌드하느라 몇 분 걸린다.
+DB 와 앱(백엔드와 프런트가 한 이미지, 루트의 `Dockerfile`)을 컨테이너로 띄운다. 처음에는 이미지를 빌드하느라 몇 분 걸린다.
 
 ```bash
 docker compose --profile app up -d --build

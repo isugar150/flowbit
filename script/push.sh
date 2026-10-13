@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Run on a development PC (Docker running, `docker login` done): builds the backend and frontend
-# images from this checkout and pushes them to Docker Hub. The server then only runs deploy.sh.
+# Run on a development PC (Docker running, `docker login` done): builds the Flowbit image (the
+# backend and the frontend together, ../Dockerfile) from this checkout and pushes it to Docker
+# Hub. The server then only runs deploy.sh.
 #
 #   ./script/push.sh             version = the current commit (short hash)
 #   ./script/push.sh 1.0.0       a version of your own
 #
-# Both images go to the one repository, told apart by the tag:
-#   isugar150/flowbit:backend-<version>     isugar150/flowbit:backend-latest
-#   isugar150/flowbit:frontend-<version>    isugar150/flowbit:frontend-latest
+# Pushed tags:  isugar150/flowbit:<version>   and   isugar150/flowbit:latest
 # Another repository: FLOWBIT_IMAGE=someone/flowbit ./script/push.sh
 set -euo pipefail
 
@@ -24,25 +23,18 @@ VERSION="${1:-}"
 if [[ -z "$VERSION" ]]; then
   VERSION="$(git rev-parse --short HEAD)"
   # The image would not be what that commit says.
-  if [[ -n "$(git status --porcelain -- backend frontend)" ]]; then
+  if [[ -n "$(git status --porcelain -- backend frontend Dockerfile docker/entrypoint.sh)" ]]; then
     VERSION="${VERSION}-dirty"
-    echo "Uncommitted changes in backend/ or frontend/: version is $VERSION"
+    echo "Uncommitted changes in what goes into the image: version is $VERSION"
   fi
 fi
 
-echo "=== Build backend: $IMAGE:backend-$VERSION ==="
-docker build -t "$IMAGE:backend-$VERSION" -t "$IMAGE:backend-latest" backend
-
-# The address is written into the build (the /api rewrite): the backend's name in
-# script/docker-compose.yml.
-echo "=== Build frontend: $IMAGE:frontend-$VERSION ==="
-docker build --build-arg BACKEND_URL=http://backend:8080 \
-  -t "$IMAGE:frontend-$VERSION" -t "$IMAGE:frontend-latest" frontend
+echo "=== Build $IMAGE:$VERSION ==="
+docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 
 echo "=== Push ==="
-for tag in "backend-$VERSION" "backend-latest" "frontend-$VERSION" "frontend-latest"; do
-  docker push "$IMAGE:$tag"
-done
+docker push "$IMAGE:$VERSION"
+docker push "$IMAGE:latest"
 
 echo "=== Pushed ==="
 echo "Version: $VERSION"

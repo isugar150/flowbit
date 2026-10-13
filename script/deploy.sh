@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run on the server: pulls the Flowbit images from Docker Hub and (re)starts the containers.
+# Run on the server: pulls the Flowbit image from Docker Hub and (re)starts the container.
 # The server needs Docker only. This file and docker-compose.yml must be in the same folder.
 #
-#   ./deploy.sh             the newest images (…-latest)
+#   ./deploy.sh             the newest image (latest)
 #   ./deploy.sh 1a2b3c4     a version pushed earlier (the tag push.sh printed); also the way back
 #
 # Settings are in .env next to this file. The first run creates it and stops: enter the address
@@ -111,10 +111,10 @@ wait_until_up() {
     sleep 1
   done
 
-  echo "Flowbit did not answer within ${HEALTH_TRIES}s. If the backend cannot reach the database,"
+  echo "Flowbit did not answer within ${HEALTH_TRIES}s. If it cannot reach the database,"
   echo "check FLOWBIT_DB_* in .env and that the database accepts connections from this server."
-  echo "Last backend logs:"
-  docker compose logs --tail 80 backend || true
+  echo "Last logs:"
+  docker compose logs --tail 80 || true
   docker compose ps || true
   return 1
 }
@@ -135,10 +135,10 @@ echo "Version: ${FLOWBIT_VERSION:-$(env_value FLOWBIT_VERSION latest)}"
 WEB_PORT="$(env_value FLOWBIT_WEB_PORT 3000)"
 
 # Everything is downloaded before anything is replaced: a failed pull leaves what is running.
-echo "=== Pull images ==="
+echo "=== Pull image ==="
 docker compose pull
 
-echo "=== Start containers ==="
+echo "=== Start container ==="
 docker compose up -d --remove-orphans
 
 wait_until_up "$WEB_PORT"

@@ -29,12 +29,13 @@ services:
       timeout: 3s
       retries: 10
 
-  # 아래 둘은 --profile app 일 때만 뜬다. 개발할 때는 백엔드와 프런트를 직접 실행한다.
-  backend:
+  # --profile app 일 때만 뜬다. 개발할 때는 백엔드와 프런트를 직접 실행한다.
+  # 백엔드와 프런트가 한 이미지에 들어 있다 (루트의 Dockerfile).
+  app:
     profiles: ["app"]
-    build: ./backend
-    image: flowbit-backend
-    container_name: flowbit-backend
+    build: .
+    image: flowbit
+    container_name: flowbit
     restart: unless-stopped
     depends_on:
       postgres:
@@ -52,24 +53,9 @@ services:
     volumes:
       # 올린 이미지. 백업 대상이다
       - uploads:/var/lib/flowbit/uploads
-    # 포트를 열지 않는다. 브라우저는 프런트(Next.js)의 /api 를 거쳐서만 백엔드에 닿는다
-
-  frontend:
-    profiles: ["app"]
-    build:
-      context: ./frontend
-      args:
-        # /api rewrite 주소는 빌드할 때 고정된다. 아래 environment 와 같아야 한다
-        BACKEND_URL: http://backend:8080
-    image: flowbit-frontend
-    container_name: flowbit-frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      BACKEND_URL: http://backend:8080
     ports:
-      # FLOWBIT_WEB_BIND=127.0.0.1 이면 이 서버 안에서만 열린다 (앞에 nginx 를 둘 때)
+      # 프런트(3000)만 연다. 백엔드는 컨테이너 안에서 프런트의 /api 를 거쳐서만 닿는다.
+      # FLOWBIT_WEB_BIND=127.0.0.1 이면 이 PC 안에서만 열린다
       - "${FLOWBIT_WEB_BIND:-0.0.0.0}:${FLOWBIT_WEB_PORT:-3000}:3000"
 
 volumes:
