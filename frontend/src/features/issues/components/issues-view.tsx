@@ -318,7 +318,7 @@ export function IssuesView({
         </div>
       ) : (
         <div className="flex flex-col">
-          <div className="flex flex-wrap items-center gap-2 px-4 pb-2">
+          <div data-tour="issue-toolbar" className="flex flex-wrap items-center gap-2 px-4 pb-2">
             <div className="relative">
               <SearchIcon
                 className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
@@ -509,6 +509,7 @@ const IssueListRow = memo(function IssueListRow({
   return (
     <li
       data-presence-id={`issue-row:${issue.number}`}
+      data-tour="issue-row"
       className="flex h-10 items-center gap-2 border-b pr-5 pl-3 hover:bg-muted max-md:h-12"
     >
       <SubIssueIndent depth={depth} />

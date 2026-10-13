@@ -55,15 +55,18 @@ export function MyNotificationSettings({ settings }: { settings: Settings }) {
               save.reset();
             }}
           />
-          <CheckSetting
-            id="notify-email-on"
-            label={m.notifyEmail}
-            checked={notifyEmail}
-            onChange={(value) => {
-              setNotifyEmail(value);
-              save.reset();
-            }}
-          />
+          {/* Nothing to switch while the administrator has not set mail up; the saved choice is kept as it is. */}
+          {settings.mailAvailable ? (
+            <CheckSetting
+              id="notify-email-on"
+              label={m.notifyEmail}
+              checked={notifyEmail}
+              onChange={(value) => {
+                setNotifyEmail(value);
+                save.reset();
+              }}
+            />
+          ) : null}
         </FieldGroup>
         <div className="flex items-center gap-2">
           <Button
@@ -97,6 +100,10 @@ function PushSetting({ config }: { config: PushClientConfig | null }) {
     mutationFn: () => (on ? disablePush(config) : enablePush(checked(config))),
   });
   const problem = toggle.isError ? pushProblem(toggle.error) : null;
+
+  // Hidden while the administrator has not set push up. A browser that still has it on from
+  // before keeps the section, so it can be turned off.
+  if (!config && !on) return null;
 
   return (
     <div className="flex flex-col gap-2">

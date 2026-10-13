@@ -44,39 +44,50 @@ test("the tour opens on the first visit, the example issues can be worked on, an
   const tour = page.getByRole("dialog");
   await expect(tour).toContainText("Flowbit에 오신 것을 환영합니다");
   await tour.getByRole("button", { name: "둘러보기" }).click();
-  await expect(tour).toContainText("메뉴");
-  await tour.getByRole("button", { name: "다음" }).click();
-  await expect(tour).toContainText("내 프로젝트");
+  const heading = tour.getByRole("heading");
+  const demo = page.locator("[data-tour-demo]");
+  const onward = () => tour.getByRole("button", { name: "다음" }).click();
+  await expect(heading).toHaveText("메뉴");
+
+  // What each place of the menu opens, as the real screens with example issues.
+  await onward();
+  await expect(heading).toHaveText("내 이슈");
+  await expect(demo).toContainText("EX-1");
+  await expect(demo).not.toContainText("EX-2");
   await tour.getByRole("button", { name: "이전" }).click();
-  await expect(tour).toContainText("내 이슈에는");
+  await expect(heading).toHaveText("메뉴");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
+  await expect(heading).toHaveText("전체 이슈");
+  await expect(demo).toContainText("EX-2");
+  await onward();
+  await expect(heading).toHaveText("찾기와 보기");
+  await onward();
+  await expect(heading).toHaveText("이슈 한 줄");
 
-  // Create.
-  await expect(tour.getByRole("heading")).toHaveText("이슈 만들기");
-  const rows = tour.getByRole("listitem");
-  await expect(rows).toHaveCount(3);
-  await tour.getByRole("textbox").fill("내가 만든 예시");
-  await page.keyboard.press("Enter");
-  await expect(rows).toHaveCount(4);
-  await expect(rows.last()).toContainText("EX-4");
-  await expect(tour.getByRole("status")).toHaveText("해 봤습니다");
-  await tour.getByRole("button", { name: "다음" }).click();
-
-  // Update: the same menu as the real list.
-  await expect(tour.getByRole("heading")).toHaveText("상태 바꾸기");
-  await expect(tour.getByRole("status")).toHaveCount(0);
-  await tour.getByRole("button", { name: "EX-4 상태 바꾸기: 백로그" }).click();
+  // The list works as the real one does.
+  await demo.getByRole("button", { name: "EX-3 상태 바꾸기: 백로그" }).click();
   await page.getByRole("menuitemradio", { name: "완료" }).click();
-  await expect(tour.getByRole("button", { name: "EX-4 상태 바꾸기: 완료" })).toBeVisible();
-  await expect(tour.getByRole("status")).toHaveText("해 봤습니다");
-  await tour.getByRole("button", { name: "다음" }).click();
+  await expect(demo.getByRole("button", { name: "EX-3 상태 바꾸기: 완료" })).toBeVisible();
 
-  // Delete.
-  await expect(tour.getByRole("heading")).toHaveText("이슈 삭제");
-  await tour.getByRole("button", { name: "EX-1 삭제" }).click();
-  await expect(rows).toHaveCount(3);
-  await tour.getByRole("button", { name: "다음" }).click();
+  // A title opens the issue in the next step, with the change made on the list.
+  await demo.getByRole("link", { name: "릴리스 노트 작성" }).click();
+  await expect(heading).toHaveText("제목과 본문");
+  await expect(demo.getByRole("textbox").first()).toHaveValue("릴리스 노트 작성");
+  await onward();
+  await expect(heading).toHaveText("속성");
+  await expect(demo.getByRole("button", { name: /상태: 완료/ })).toBeVisible();
+  await onward();
+
+  await expect(heading).toHaveText("내 프로젝트");
+  await onward();
+  await expect(heading).toHaveText("프로젝트 개요");
+  await expect(demo).toContainText("베타 출시");
+  await onward();
+  await expect(heading).toHaveText("목표");
+  await onward();
+  await expect(heading).toHaveText("프로젝트 업데이트");
+  await onward();
 
   await expect(tour.getByRole("heading")).toHaveText("내 설정");
   await tour.getByRole("button", { name: "다음" }).click();
@@ -117,7 +128,7 @@ test("skipping is remembered too, and the settings show the tour again without m
   await page.setViewportSize(viewport);
   await page.getByRole("button", { name: "둘러보기 다시 보기" }).click();
   const tour = page.getByRole("dialog");
-  for (let step = 0; step < 8; step += 1) {
+  for (let step = 0; step < 14; step += 1) {
     await expect(tour).toBeVisible();
     await expect(tour).not.toHaveClass(/opacity-0/);
     const box = (await tour.boundingBox())!;

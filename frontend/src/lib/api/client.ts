@@ -26,6 +26,18 @@ async function csrfToken(forceRefresh = false): Promise<string | null> {
 
 let lastWriteAt = 0;
 
+type DemoBackend = (method: string, path: string, body: unknown) => unknown;
+let demoBackend: DemoBackend | null = null;
+
+/**
+ * While set, nothing is sent to the server: every call is answered by `backend` instead. The
+ * onboarding tour uses it to show real screens with example data that is never saved
+ * (features/tour/demo.ts). Pass null to talk to the server again.
+ */
+export function setDemoBackend(backend: DemoBackend | null) {
+  demoBackend = backend;
+}
+
 /**
  * When this tab last sent a change. The realtime connection uses it to skip the echo of its own
  * writes (the page already refreshes after a mutation) while other tabs still pick them up.
@@ -45,6 +57,7 @@ type Options = {
  * requests, turns problem documents into ApiError, and network failures into NetworkError.
  */
 export async function apiFetch<T>(path: string, { method = "GET", body }: Options = {}): Promise<T> {
+  if (demoBackend) return demoBackend(method, path, body) as T;
   const request = async (refreshCsrf: boolean): Promise<Response> => {
     const headers = new Headers({ Accept: "application/json" });
     const isForm = body instanceof FormData;
