@@ -217,4 +217,5 @@ cp ../.env.example .env       # 앱 설정. 값을 고친다 (DB 비밀번호, F
 - 백엔드는 `script/` 에서 실행된다. `FLOWBIT_STORAGE_PATH` 가 상대 경로면 `script/data/uploads` 가 되므로 **운영에서는 백업되는 절대 경로를 준다.**
 - 떴는지 확인: 백엔드는 `GET /api/v1/health` 가 2xx(DB 까지 확인), 프런트는 포트가 응답하면 된 것으로 본다.
 - 프런트는 기본으로 `0.0.0.0:3000` 을 듣는다(`FRONT_HOST`). 앞에 nginx 를 둘 때는 `127.0.0.1` 로 바꾸고 `/` 전체를 프런트로 넘긴다(`Upgrade`/`Connection` 헤더 포함, "실시간 동기화"). 백엔드 포트는 밖에 열 필요가 없다.
+- **nginx 설정 견본: `script/nginx/flowbit.conf`.** 80 포트(HTTP)만 듣고, `server_name` 의 도메인으로 온 요청을 프런트(`127.0.0.1:3000`)로 넘긴다. `Host` 를 그대로 넘기고(실시간 연결의 Origin 확인에 필요), WebSocket 업그레이드 헤더, 본문 20MB 제한, 읽기 제한 120초를 둔다. 도메인과 포트를 고쳐 `/etc/nginx/sites-available`(또는 `conf.d`)에 복사한다. **HTTPS 가 없으므로 웹 푸시는 동작하지 않는다**(브라우저가 HTTPS 나 localhost 에서만 허용한다). 세션 쿠키도 `Secure` 없이 나간다.
 - 서버를 재부팅하면 자동으로 뜨지 않는다. 필요하면 `startup.sh` 를 부르는 systemd 유닛이나 cron `@reboot` 을 서버에 둔다(저장소에는 없다).
