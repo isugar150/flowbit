@@ -80,12 +80,19 @@ export function IssuesView({
   canEdit,
   deleted = false,
   empty,
+  underTabs = false,
   defaultAssigneeId = null,
 }: {
   /** True when `issues` are the deleted ones: the list is then read-only, there to look things up. */
   deleted?: boolean;
   /** Who a new issue made from this list is assigned to at first: the person whose issues these are. */
   defaultAssigneeId?: string | null;
+  /**
+   * True on pages with a row of tabs under the page header: the column names then stick below
+   * the tabs. Told by the page, not read from the document: a page left a moment ago stays in
+   * the document, hidden, and its tabs would be counted.
+   */
+  underTabs?: boolean;
   /** What to say when there are no issues at all, where the usual words do not fit ("내 티켓"). */
   empty?: { title: string; description: string };
   /** The project whose issues these are; null on the list of every issue. */
@@ -395,7 +402,7 @@ export function IssuesView({
             />
           ) : (
             <>
-              <IssueListHeader showProject={projectId === null} />
+              <IssueListHeader showProject={projectId === null} underTabs={underTabs} />
               {groups.map((group) => (
             <section key={group.status} aria-label={statusLabel(group.status)}>
               <h2 className="flex h-9 items-center gap-2 border-y bg-muted px-5 text-[0.8125rem] leading-5 font-medium">
@@ -466,11 +473,14 @@ const COLUMNS = {
  * The names of the columns, laid out exactly as a line is. It stays under the page header (and
  * under the tabs, on pages that have them) while the list scrolls beneath it.
  */
-function IssueListHeader({ showProject }: { showProject: boolean }) {
+function IssueListHeader({ showProject, underTabs }: { showProject: boolean; underTabs: boolean }) {
   return (
     <div
       aria-hidden="true"
-      className="sticky top-11 z-20 flex h-8 items-center gap-2 bg-background pr-5 pl-3 text-xs leading-4 text-muted-foreground group-has-[[data-pill-tabs]]/main:top-20 max-md:group-has-[[data-pill-tabs]]/main:top-22"
+      className={cn(
+        "sticky z-20 flex h-8 items-center gap-2 bg-background pr-5 pl-3 text-xs leading-4 text-muted-foreground",
+        underTabs ? "top-20 max-md:top-22" : "top-11",
+      )}
     >
       <span className="w-7 shrink-0" />
       <span className="w-4 shrink-0" />

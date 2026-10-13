@@ -23,6 +23,7 @@ export async function MyIssuesList({ scope, deleted = false }: { scope: "assigne
   return (
     <IssuesView
       projectId={null}
+      underTabs
       issues={issues ?? []}
       members={usersAsMembers(users)}
       milestones={[]}

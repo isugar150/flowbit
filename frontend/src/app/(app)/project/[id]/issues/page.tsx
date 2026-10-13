@@ -22,6 +22,7 @@ export default async function ProjectIssuesPage({ params, searchParams }: PagePr
   return (
     <IssuesView
       projectId={project.id}
+      underTabs
       issues={issues}
       members={members}
       milestones={milestones}
