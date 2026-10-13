@@ -16,6 +16,7 @@
 - **LDAP 연동, SSO(OpenID Connect) 연동, 이메일 아이디가 구현됐다** ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md), D-087~D-090). 관리자 설정의 "로그인 연동" 탭. 계정이 없으면 처음 로그인할 때 가입된다. 백엔드는 인메모리 LDAP·가짜 OIDC 서버로 테스트했고, **화면과 실제 LDAP·SSO 서버로는 아무도 확인하지 않았다.**
 - **알림 통로(메일 SMTP, Firebase 웹 푸시, API 알림)가 구현됐다** ([features/M7a-notification-channels.md](features/M7a-notification-channels.md), D-091~D-093). 관리자 설정의 "알림" 탭, 내 설정의 "알림". 백엔드는 가짜 SMTP·FCM·웹훅 서버로 테스트했고, **화면과 실제 서비스로는 확인하지 않았다.**
 - **알림은 구독한 사람에게만 간다** (D-102, 2026-10-13). 받는 사람 = 이슈 구독자 + 그 이슈의 프로젝트 구독자. 프로젝트 개요에 "구독" 버튼이 생겼고(`project_subscriptions`), API 알림은 항상 받는 사람마다 한 번씩 부른다(전체 변경을 한 주소로 보내는 방식은 없앴다). **화면은 아무도 확인하지 않았다.**
+- **앱으로 설치할 수 있다(PWA, D-110, 2026-10-13).** 매니페스트와 아이콘만 있고 오프라인은 없다. HTTPS(또는 `localhost`)에서만 설치된다. **실제 설치는 아무도 확인하지 않았다.**
 - 백엔드 테스트는 2026-10-13 기준 170개가 통과한다(`FLOWBIT_BUILD_DIR=<세션마다 다른 폴더> ./gradlew check`). 위의 "96개"는 그 전 숫자다.
 - **마이그레이션은 `V1__schema.sql` 하나다** (D-104, 2026-10-13). 운영 배포를 앞두고 `V1`~`V6` 을 한 번 합쳤다. **이 파일은 이제 고치지 않는다. 스키마 변경은 `V2__….sql` 부터 새 파일로 추가한다.** 이 문서의 예전 작업 기록에 나오는 `V2`~`V9` 는 합치기 전 파일 번호다.
 - 개발 DB(`flowbit`)는 합치기 전 마이그레이션이 적용돼 있어 **지우고 다시 만들어야 백엔드가 뜬다**(Flyway 체크섬 불일치). 사용자가 직접 지우기로 했다. 에이전트는 지우지 않는다.
@@ -156,8 +157,15 @@
 - hrm `/api/works/send` 에 쓸 만료되지 않는 토큰을 받을 수 있는지(문서에 없다). 없으면 API 알림의 고정 헤더로는 못 쓴다.
 - 알림: 첨부 파일·문서 변경도 알릴지(지금은 안 간다), 프로젝트에서 빠진 사람의 이슈 구독을 정리할지, 이메일 주소 확인 절차와 수신함이 필요한지, 프로젝트 구독을 자동으로 걸지(만든 사람·리드·새 구성원)와 구독자 목록을 보일지, 사람마다 받을 변경 종류를 고르게 할지. ([features/M7a-notification-channels.md](features/M7a-notification-channels.md) "확인이 필요한 것")
 - DB 에 평문으로 둔 비밀 값(LDAP 검색 계정 비밀번호, SSO 시크릿, SMTP 비밀번호, Firebase 서비스 계정 키, 웹훅 서명 값·헤더)을 암호화할지. 하려면 암호화 키를 환경 변수로 받아야 한다.
+- 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-13 — 앱으로 설치 (PWA)
+
+- 사용자 지시: 앱처럼 쓸 수 있게 PWA 를 추가할 것 (D-110).
+- 한 일: `frontend/src/app/manifest.ts`, 아이콘(`public/icons/` 3개, `src/app/apple-icon.png`)과 그것을 만드는 `frontend/scripts/generate-icons.mjs`, `layout.tsx` 의 `appleWebApp`. 서비스 워커와 백엔드는 그대로다. 문서: 04 "앱으로 설치", 02 의 nginx 항목, D-110.
+- 확인한 범위: `npm run lint`, `npm run typecheck`. 개발 서버에서 `/manifest.webmanifest`(200, `application/manifest+json`), 아이콘 4개(200), `<head>` 의 manifest·apple 태그. **실제로 설치해 보지는 않았다**(Chrome·Edge 의 설치 메뉴, iOS 홈 화면에 추가, 설치한 창에서의 로그인과 화면 이동). `next build` 도 돌리지 않았다.
 
 ### 2026-10-12 — Dockerfile
 

@@ -6,6 +6,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: messages.app.name, template: `%s · ${messages.app.name}` },
   description: messages.app.description,
+  // iOS ignores most of the manifest; this is what makes "홈 화면에 추가" open without browser bars.
+  appleWebApp: { capable: true, title: messages.app.name, statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

@@ -20,6 +20,8 @@ frontend/
 │  │  │  └─ error.tsx        데이터를 못 불러왔을 때
 │  │  ├─ session-expired/    쓸 수 없게 된 세션 쿠키를 지우고 로그인으로 보낸다
 │  │  ├─ layout.tsx          lang="ko", Providers
+│  │  ├─ manifest.ts         웹 앱 매니페스트 (앱으로 설치, D-110)
+│  │  ├─ apple-icon.png      iOS 홈 화면 아이콘 (scripts/generate-icons.mjs 가 만든다)
 │  │  └─ globals.css         디자인 토큰 (기준: docs/01-product.md 5장)
 │  ├─ components/
 │  │  ├─ ui/                 shadcn CLI 가 생성한 컴포넌트 (직접 만든 파일을 두지 않는다)
@@ -177,4 +179,13 @@ frontend/
 - 서비스 워커는 `public/push-sw.js` 하나뿐이고 푸시 알림만 다룬다. 캐시나 요청 가로채기를 넣지 않는다. `proxy.ts` 는 확장자가 있는 주소를 건드리지 않으므로 그대로 내려간다.
 - `firebase` 는 푸시를 켜는 순간에만 필요하다. 정적으로 import 하지 말고 `features/notifications/push.ts` 처럼 동적으로 불러온다.
 - 브라우저에만 있는 상태(이 브라우저에서 푸시를 켰는지)는 `useSyncExternalStore` 로 읽는다. 렌더 중에 `localStorage` 나 `Notification` 을 직접 읽으면 서버 렌더와 어긋난다.
+
+## 앱으로 설치 (PWA, D-110)
+
+- `app/manifest.ts` 가 `/manifest.webmanifest` 로 내려가고 Next 가 `<link rel="manifest">` 를 붙인다. 브라우저의 설치 메뉴(Chrome·Edge 주소창의 설치 아이콘, iOS Safari 의 "홈 화면에 추가")로 설치하면 주소창 없는 독립 창으로 열린다. 앱 안에 설치 버튼은 없다.
+- **설치까지만이다.** 오프라인에서는 열리지 않는다. 서비스 워커는 여전히 푸시 전용이고 캐시를 넣지 않는다(위 절).
+- **HTTPS 가 있어야 설치된다** (`localhost` 는 예외). `http://` 사내 주소로 연 경우 브라우저가 설치 메뉴를 보여 주지 않는다. iOS 의 웹 푸시도 홈 화면에 추가한 뒤에만 된다.
+- 아이콘은 `public/icons/`(192, 512, maskable 512)와 `app/apple-icon.png`(180)다. 모양을 바꾸려면 `scripts/generate-icons.mjs` 를 고치고 `frontend/` 에서 `node scripts/generate-icons.mjs` 를 돌린다(색은 `globals.css` 의 `--primary` 와 같은 값을 직접 적어 두었다). PNG 를 손으로 고치지 않는다.
+- 매니페스트와 아이콘은 확장자가 있는 주소라 `proxy.ts` 를 거치지 않는다. 로그인 전에도 받아진다. 그래서 워크스페이스 이름·로고 같은 로그인 뒤의 값은 넣지 않는다.
+- 독립 창에는 브라우저의 뒤로 가기·새로 고침 버튼이 없다. 화면마다 앱 안에서 돌아갈 길(경로 표시, 사이드바)이 있어야 한다.
 
