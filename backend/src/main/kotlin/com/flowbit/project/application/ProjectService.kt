@@ -146,7 +146,7 @@ class ProjectService(
         val access = access(user, projectId)
         val project = access.project
         if (!access.role.canEdit || ("name" in changes && !access.role.canManage)) {
-            throw ForbiddenException("프로젝트를 고칠 권한이 없습니다")
+            throw ForbiddenException("프로젝트를 수정할 권한이 없습니다")
         }
         val name = if ("name" in changes) (changes["name"] as? String)?.trim().orEmpty() else project.name
         val description =

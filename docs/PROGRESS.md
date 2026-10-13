@@ -161,6 +161,35 @@
 
 ## 작업 기록
 
+### 2026-10-13 — "고치기"를 "수정"으로
+
+- 사용자 지적: 관리자 설정 > 알림 > API 알림의 수정 버튼이 "고치기"로 나온다. 어색하다. "수정"이 자연스럽다.
+- 한 일: 화면 문구(`messages/ko.ts` 7곳: API 알림의 "수정", "댓글 수정", "님이 이슈를/본문을 수정했습니다" 등), 서버의 오류 문구(이슈·댓글·목표·프로젝트 권한)와 알림 문구(`NotificationText.kt`)에서 "고치다"를 "수정하다"로 바꿨다. 규칙은 04 "문구". "새로 고친 뒤"(새로 고침)는 그대로다.
+- 확인한 범위: 문자열만 바꿨고 검사는 돌리지 않았다. 문서(`docs/features/M3-…` 등)의 설명 글에 남은 "고치다"는 화면 문구가 아니라 그대로 두었다.
+
+### 2026-10-13 — API 알림 글 맨 아래에 이슈 주소
+
+- 사용자 지시: NAVER WORKS 알림이 오는 것은 확인했는데 내용만 와서 불편하다. 바로 접속할 주소를 맨 아래에 붙일 것 (D-111).
+- 한 일: `NotificationMessage.text` 가 마지막 줄에 `url` 을 붙인다(`NotificationText.kt`). `FLOWBIT_PUBLIC_URL` 이 없으면 붙이지 않는다. 테스트 `NotificationMessageTest` 2개. 문서: M7a 명세, 02 의 환경 변수 표.
+- 확인한 범위: `ktlintCheck`, `NotificationMessageTest`, `NotificationsIntegrationTest` 통과(별도 빌드 폴더). 전체 `check` 와 실제 NAVER WORKS 수신은 확인하지 않았다.
+- **서버의 `.env` 에 `FLOWBIT_PUBLIC_URL` 이 있어야 주소가 붙는다.** 이미지를 다시 빌드해 올려야 반영된다.
+
+### 2026-10-13 — Docker 이미지에서 밖으로 나가는 HTTPS 실패 (SSO 로그인)
+
+- 사용자가 준 컨테이너 로그: SSO 로그인의 코드 교환에서 `SSLException ... the trustAnchors parameter must be non-empty`.
+- 원인: Corretto 이미지의 `lib/security/cacerts` 는 `/etc/pki/java/cacerts` 로 가는 링크다. 실행 이미지는 JDK 폴더만 복사해 와서 링크가 끊겨 있었고, 신뢰할 인증 기관이 하나도 없었다. SSO 뿐 아니라 HTTPS 로 나가는 모든 호출(API 알림, FCM, LDAPS)이 같은 식으로 실패한다.
+- 한 일: 루트 `Dockerfile` 이 Corretto 이미지의 `cacerts` 를 `/etc/pki/java/cacerts` 로 복사한다. 문서는 02 "Docker 이미지".
+- 확인한 범위: 기존 이미지에서 HTTPS 요청이 같은 오류로 실패하고, 그 이미지에 같은 `COPY` 한 줄을 얹으면 TLS 연결이 되는 것. **고친 Dockerfile 전체로 다시 빌드하지는 않았고, 실제 SSO 로그인도 해 보지 않았다.**
+- 사설 인증 기관으로 서명한 SSO·LDAP 서버를 쓰려면 그 인증서를 이 저장소에 더하는 방법이 따로 필요하다(지금은 없다).
+
+### 2026-10-13 — Docker 이미지에서 JPEG 올리기 실패
+
+- 사용자가 준 컨테이너 로그: 로고 올리기(`PUT /api/v1/admin/workspace/logo`)에서 `UnsatisfiedLinkError: libjavajpeg.so: libjpeg.so.62` 뒤 프런트가 `socket hang up`.
+- 원인: 실행 이미지는 Corretto 폴더만 복사해 오는데, Corretto 의 JPEG 읽기는 시스템 libjpeg 을 쓴다. `debian:bookworm-slim` 에는 없다. JPEG 을 읽는 모든 올리기(로고, 프로필, 프로젝트 아이콘, 편집기 이미지)가 같은 식으로 실패한다.
+- 한 일: 루트 `Dockerfile` 의 실행 단계에 `libjpeg62-turbo` 설치. 문서는 02 "Docker 이미지".
+- 확인한 범위: 기존 이미지(`isugar150/flowbit:latest`)에서 JPEG 쓰기·읽기가 같은 오류로 실패하고, 그 컨테이너에 `libjpeg62-turbo` 를 깔면 통과하는 것. **고친 Dockerfile 로 이미지를 다시 빌드하지는 않았다.** 다시 빌드해 올리고 서버에서 받아야 반영된다.
+- JDK 의 다른 네이티브 라이브러리 중 글꼴(`libfreetype`)·X11 을 찾는 것도 이미지에 없다. 지금 코드는 쓰지 않지만, 서버에서 글자를 그리는 기능을 넣으면 같은 종류의 오류가 난다.
+
 ### 2026-10-13 — 앱으로 설치 (PWA)
 
 - 사용자 지시: 앱처럼 쓸 수 있게 PWA 를 추가할 것 (D-110).

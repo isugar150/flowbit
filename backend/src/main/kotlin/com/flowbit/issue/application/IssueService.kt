@@ -423,7 +423,7 @@ class IssueService(
     ): CommentResult {
         val existing = comments.find(commentId) ?: throw commentNotFound()
         val access = editable(accessById(user, existing.issueId))
-        if (existing.author.id != user.id) throw ForbiddenException("다른 사람의 댓글은 고칠 수 없습니다")
+        if (existing.author.id != user.id) throw ForbiddenException("다른 사람의 댓글은 수정할 수 없습니다")
         val document = commentDocument(content)
         comments.update(commentId, document, clock.instant())
         val tagged = tag(access.issue, document.mentions - richText.mentionsIn(existing.content), user)
@@ -702,7 +702,7 @@ class IssueService(
 
     private fun editable(access: IssueAccess): IssueAccess {
         if (!access.mayEdit) throw noEditRight()
-        if (access.issue.deletedAt != null) throw ForbiddenException("삭제된 이슈는 고칠 수 없습니다. 먼저 복원하세요")
+        if (access.issue.deletedAt != null) throw ForbiddenException("삭제된 이슈는 수정할 수 없습니다. 먼저 복원하세요")
         return access
     }
 
@@ -809,7 +809,7 @@ class IssueService(
             },
         )
 
-    private fun noEditRight() = ForbiddenException("이 이슈를 쓰거나 고칠 권한이 없습니다")
+    private fun noEditRight() = ForbiddenException("이 이슈를 쓰거나 수정할 권한이 없습니다")
 
     private fun notFound() = NotFoundException("ISSUE_NOT_FOUND", "이슈를 찾을 수 없습니다")
 

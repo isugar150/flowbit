@@ -148,7 +148,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 | `FLOWBIT_STORAGE_PATH` | backend | `./data/uploads` | 올린 이미지를 저장할 폴더. 상대 경로는 백엔드를 실행한 폴더 기준. **백업 대상** |
 | `FLOWBIT_MAX_UPLOAD_SIZE` | backend | `5MB` | 올릴 수 있는 파일 하나의 최대 크기 |
 | `SERVER_PORT` | backend | `8080` | 백엔드 포트 |
-| `FLOWBIT_PUBLIC_URL` | backend | 없음 | 사람들이 Flowbit 을 여는 주소(`https://flowbit.example.com`). **메일과 API 알림의 이슈 링크**에 쓴다(없으면 `/issue/FB-12` 같은 경로만 들어간다). SSO 리다이렉트 URI 에도 쓰는데, 그쪽은 비워 두면 요청의 `X-Forwarded-*` 로 알아낸다 |
+| `FLOWBIT_PUBLIC_URL` | backend | 없음 | 사람들이 Flowbit 을 여는 주소(`https://flowbit.example.com`). **메일과 API 알림의 이슈 링크**에 쓴다(없으면 `/issue/FB-12` 같은 경로만 들어가고, API 알림의 `text` 맨 아래 주소는 아예 붙지 않는다). SSO 리다이렉트 URI 에도 쓰는데, 그쪽은 비워 두면 요청의 `X-Forwarded-*` 로 알아낸다 |
 | `BACKEND_URL` | frontend | `http://localhost:8080` | Next.js 가 `/api` 를 넘기고 서버에서 직접 부를 백엔드 주소. Docker 이미지에서는 빌드 인자로도 준다 ("Docker 이미지") |
 | `FLOWBIT_WEB_PORT` | docker-compose (`app` 프로필) | `3000` | 프런트 컨테이너를 호스트에 여는 포트 |
 | `FLOWBIT_DEV_ORIGINS` | frontend (개발 서버만) | 없음 | `npm run dev` 를 localhost 가 아닌 주소(예: 사내망 `192.168.0.75`)로 열 때 허용할 호스트, 쉼표로 구분, `192.168.0.*` 같은 와일드카드 가능. 없으면 Next 16 이 그 주소에 `/_next` 스크립트를 403 으로 막아 화면이 동작하지 않는다(`next.config.ts` 의 `allowedDevOrigins`) |
@@ -182,7 +182,7 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 |---|---|---|
 | 백엔드 빌드 | `amazoncorretto:25` | `bootJar` (테스트는 빼고). Gradle wrapper 가 쓰는 `xargs` 때문에 `findutils` 를 깐다 |
 | 프런트 빌드 | `node:22-bookworm-slim` | `npm ci` → `next build` (standalone 출력) |
-| 실행 | `debian:bookworm-slim` | 작은 Debian 에 **Amazon Corretto 25 와 Node.js 22 두 가지만** 더한다. 각각의 공식 이미지에서 복사한다(`/opt/corretto-25`, `/usr/local/bin/node`). 비루트 사용자 `flowbit`. Debian(glibc)인 것은 WebP 변환기 때문이다 |
+| 실행 | `debian:bookworm-slim` | 작은 Debian 에 **Amazon Corretto 25 와 Node.js 22 두 가지만** 더한다. 각각의 공식 이미지에서 복사한다(`/opt/corretto-25`, `/usr/local/bin/node`). 비루트 사용자 `flowbit`. Debian(glibc)인 것은 WebP 변환기 때문이다. **JDK 의 인증서 저장소(`cacerts`)를 따로 복사한다**(`/etc/pki/java/cacerts`): Corretto 이미지에서 `lib/security/cacerts` 는 시스템 파일로 가는 링크라 폴더만 가져오면 끊긴 링크가 되고, 밖으로 나가는 HTTPS(SSO, API 알림, FCM, LDAPS)가 전부 `trustAnchors parameter must be non-empty` 로 실패한다(2026-10-13 에 SSO 로그인에서 겪었다). 시스템 패키지는 `libjpeg62-turbo` 하나를 깐다: Corretto 의 JPEG 읽기(`libjavajpeg.so`)가 시스템 libjpeg 에 기대는데 JDK 폴더만 복사해서는 따라오지 않는다. 없으면 JPEG 을 올릴 때 `UnsatisfiedLinkError` 로 요청이 응답 없이 끊긴다(2026-10-13 에 로고 올리기에서 겪었다) |
 
 - **컨테이너 안에서 두 프로세스가 돈다**: `docker/entrypoint.sh` 가 백엔드(`java -jar`, 8080)와 프런트(`node server.js`, 3000)를 띄운다. 둘 중 하나가 죽으면 나머지도 내리고 컨테이너가 끝나므로 재시작 정책이 둘을 함께 다시 올린다. `docker stop` 의 종료 신호는 둘 다에게 넘긴다.
 - **여는 포트는 3000 하나다.** 백엔드(8080)는 컨테이너 밖으로 열지 않고, 브라우저는 프런트의 `/api`(WebSocket `/api/v1/realtime` 포함)를 거쳐서만 닿는다.

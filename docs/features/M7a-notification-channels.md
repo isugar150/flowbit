@@ -36,7 +36,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch   (
 
 - **요청을 늦추지 않는다.** 이슈를 고친 요청은 알림을 기다리지 않고 끝난다. 통로 하나가 실패해도 다른 통로와 요청에는 영향이 없고 로그만 남는다.
 - **디스크에 쌓지 않는다.** 보내는 중에 서버가 꺼지면 그 알림은 사라진다. 아웃박스 테이블은 수신함을 만들 때 함께 만든다.
-- 문구는 `NotificationText` 한 곳에서 만든다: 제목 `[FB-12] 이슈 제목`, 머리말 `김지민 님이 이슈를 고쳤습니다`, 변경마다 한 줄(`상태: 백로그 → 진행 중`). 세 통로가 같은 말을 한다.
+- 문구는 `NotificationText` 한 곳에서 만든다: 제목 `[FB-12] 이슈 제목`, 머리말 `김지민 님이 이슈를 수정했습니다`, 변경마다 한 줄(`상태: 백로그 → 진행 중`). 세 통로가 같은 말을 한다.
 - 링크는 `FLOWBIT_PUBLIC_URL` 이 있으면 `https://…/issue/FB-12`, 없으면 경로(`/issue/FB-12`)만이다. **메일과 API 알림에 열 수 있는 링크를 넣으려면 `FLOWBIT_PUBLIC_URL` 을 정해야 한다.** 푸시는 같은 사이트라 경로만으로 열린다.
 
 ## 메일
@@ -84,10 +84,12 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch   (
   "actor": { "id": "…", "name": "김지민" },
   "changes": [ { "type": "STATUS_CHANGED", "detail": { "from": "BACKLOG", "to": "IN_PROGRESS" } } ],
   "recipient": { "id": "…", "loginId": "kimjm", "name": "김지민", "email": "kim@example.com" },
-  "title": "[FB-12] …", "headline": "김지민 님이 이슈를 고쳤습니다",
-  "lines": ["상태: 백로그 → 진행 중"], "text": "제목 — 머리말\n줄…"
+  "title": "[FB-12] …", "headline": "김지민 님이 이슈를 수정했습니다",
+  "lines": ["상태: 백로그 → 진행 중"], "text": "제목 — 머리말\n줄…\nhttps://…/issue/FB-12"
 }
 ```
+
+**`text` 의 마지막 줄은 이슈를 여는 주소다** (사용자 지정, 2026-10-13: 내용만 오면 바로 들어갈 수 없다). `{{text}}` 자리표시자도 같다. `FLOWBIT_PUBLIC_URL` 이 없으면 붙이지 않는다(경로 `/issue/FB-12` 만으로는 열 수 없다). 그래서 `{{text}}` 를 쓰는 템플릿에 `{{issue.url}}` 을 따로 더하면 주소가 두 번 나온다. `title`·`headline`·`lines`·`{{changes}}` 에는 주소가 없다.
 
 `event` 는 `issue.created`·`issue.updated`·`issue.deleted`·`issue.restored`·`issue.commented`. `recipient` 는 이 호출이 향하는 한 사람이다(`email` 은 없으면 `null`). 다른 받는 사람의 목록(`recipientIds`)은 D-102 로 뺐다. 같은 값이 `X-Flowbit-Event` 헤더로도 간다. `X-Flowbit-Delivery` 는 호출마다 다르다(재시도는 같다).
 
@@ -95,7 +97,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch   (
 
 **받는 사람마다 호출**: 받는 사람(위 "범위")마다 한 번씩 부른다. 주소나 본문에 `{{recipient.email}}` 을 썼는데 이메일이 없는 사람은 건너뛴다. 내 설정의 "메일로 알림 받기"와는 무관하다. 받는 사람이 없는 변경에는 호출이 없다. 채널 수신 웹훅(Slack 등)처럼 받는 사람을 가리지 않는 주소를 넣으면 같은 글이 사람 수만큼 올라가므로 맞지 않는다.
 
-**hrm 의 NAVER WORKS 메시지** (`GET /api/works/send`): 화면의 "예시 넣기 > NAVER WORKS 메시지 (hrm)" 이 채워 준다. 메서드 `GET`, 주소 `https://hrm.motherk.link/api/works/send?botId=봇ID&email={{recipient.email}}&message={{text}}`, 헤더 `Authorization: Bearer 토큰`. 관리자는 봇 ID 와 토큰을 넣는다. 받는 사람은 내 설정의 이메일(또는 LDAP·SSO 로 가입할 때 들어온 이메일)로 정해진다. 메시지가 주소에 실리므로 hrm 과 중간 서버의 접근 로그에 남는다(그 API 의 설계다).
+**hrm 의 NAVER WORKS 메시지** (`GET /api/works/send`): 화면의 "예시 넣기 > NAVER WORKS 메시지 (hrm)" 이 채워 준다. 메서드 `GET`, 주소 `https://hrm.motherk.link/api/works/send?botId=봇ID&email={{recipient.email}}&message={{text}}`, 헤더 `Authorization: Bearer 토큰`. 관리자는 봇 ID 와 토큰을 넣는다. 받는 사람은 내 설정의 이메일(또는 LDAP·SSO 로 가입할 때 들어온 이메일)로 정해진다. 메시지 맨 아래에 이슈 주소가 붙으려면 서버에 `FLOWBIT_PUBLIC_URL` 이 있어야 한다. 메시지가 주소에 실리므로 hrm 과 중간 서버의 접근 로그에 남는다(그 API 의 설계다).
 
 **전달**: 시간 제한 10초. 응답이 없거나 5xx 이면 1초·2초 간격으로 두 번 더 한다. 4xx 는 다시 하지 않는다. 리다이렉트는 따라가지 않는다. 마지막 결과(상태 코드, 오류, 시각)를 항목에 남겨 화면에 보여 준다. 테스트는 저장하지 않은 입력값으로 가짜 변경 한 건을 한 번만 보낸다. 받는 사람은 버튼을 누른 관리자다.
 

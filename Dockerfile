@@ -38,7 +38,15 @@ FROM debian:bookworm-slim
 ENV JAVA_HOME=/opt/corretto-25
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 COPY --from=amazoncorretto:25 /usr/lib/jvm/java-25-amazon-corretto ${JAVA_HOME}
+# The JDK's trust store (lib/security/cacerts) is a link to the system one in the Corretto image,
+# so the folder alone arrives with a dangling link and every outgoing HTTPS call (SSO, webhooks,
+# FCM) fails with "trustAnchors parameter must be non-empty". Put the file where the link points.
+COPY --from=amazoncorretto:25 /etc/pki/ca-trust/extracted/java/cacerts /etc/pki/java/cacerts
 COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+# Corretto's JPEG reader (libjavajpeg.so) links the system libjpeg instead of bundling one. Without
+# it the first JPEG upload dies with UnsatisfiedLinkError and the request never gets an answer.
+RUN apt-get update && apt-get install -y --no-install-recommends libjpeg62-turbo \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system flowbit && useradd --system --gid flowbit --home /app flowbit \
     && mkdir -p /app/backend /app/frontend /var/lib/flowbit/uploads \

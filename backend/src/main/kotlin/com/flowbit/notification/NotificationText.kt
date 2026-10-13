@@ -9,16 +9,20 @@ data class NotificationMessage(
     val title: String,
     /** One line per change: `상태: 백로그 → 진행 중`. */
     val lines: List<String>,
-    /** `김지민 님이 이슈를 고쳤습니다` */
+    /** `김지민 님이 이슈를 수정했습니다` */
     val headline: String,
     /** `/issue/FB-12` */
     val path: String,
     /** The full address when this installation knows its own, otherwise the path. */
     val url: String,
 ) {
-    /** Everything in one paragraph, for places with a single text field (chat messages). */
+    /**
+     * Everything in one paragraph, for places with a single text field (chat messages). The last
+     * line is the address of the issue, so the reader can open it from the message; it is left out
+     * when this installation does not know its own address, since a bare path opens nothing.
+     */
     val text: String
-        get() = (listOf("$title — $headline") + lines).joinToString("\n")
+        get() = (listOf("$title — $headline") + lines + listOfNotNull(url.takeIf { it.startsWith("http") })).joinToString("\n")
 }
 
 @Component
@@ -33,7 +37,7 @@ class NotificationText(
                 "DELETED" in types -> "이슈를 삭제했습니다"
                 "RESTORED" in types -> "이슈를 복원했습니다"
                 "COMMENT_ADDED" in types -> "댓글을 남겼습니다"
-                else -> "이슈를 고쳤습니다"
+                else -> "이슈를 수정했습니다"
             }
         val path = "/issue/${notification.issueKey}"
         return NotificationMessage(
@@ -51,7 +55,7 @@ class NotificationText(
         return when (event.type) {
             "CREATED", "DELETED", "RESTORED" -> null
             "TITLE_CHANGED" -> change("제목", detail)
-            "DESCRIPTION_CHANGED" -> "본문을 고쳤습니다"
+            "DESCRIPTION_CHANGED" -> "본문을 수정했습니다"
             "STATUS_CHANGED" -> change("상태", detail, STATUSES)
             "PRIORITY_CHANGED" -> change("우선순위", detail, PRIORITIES)
             "ASSIGNEE_CHANGED" -> change("담당자", detail)

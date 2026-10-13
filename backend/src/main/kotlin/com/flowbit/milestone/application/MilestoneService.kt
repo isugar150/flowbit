@@ -133,7 +133,7 @@ class MilestoneService(
             .awaitSingle()
 
     private fun editable(access: ProjectAccess): ProjectAccess {
-        if (!access.role.canEdit) throw ForbiddenException("이 프로젝트의 목표를 고칠 권한이 없습니다")
+        if (!access.role.canEdit) throw ForbiddenException("이 프로젝트의 목표를 수정할 권한이 없습니다")
         return access
     }
 
