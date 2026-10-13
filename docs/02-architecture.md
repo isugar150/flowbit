@@ -209,6 +209,7 @@ cp ../.env.example .env       # 앱 설정. 값을 고친다 (DB 비밀번호, F
 | `.env` | **앱의 설정**. `.env.example` 과 같은 키. `script/` 에 두면 스크립트가 읽어 백엔드·프런트 프로세스와 프런트 빌드에 환경 변수로 넘긴다. git 추적 안 함 |
 
 - 서버에 필요한 것: git, JDK 25, Node.js 22 와 npm, curl, bash, `flock`(util-linux), 그리고 PostgreSQL 18(이 스크립트는 DB 를 띄우지 않는다).
+- JDK 를 골라 쓰려면 `app.env` 의 `JDK_HOME` 에 설치 폴더(그 아래 `bin/java`)를 적는다. 빌드(Gradle 의 `JAVA_HOME`)와 백엔드 실행이 둘 다 그 JDK 로 된다. 비우면 `PATH` 의 `java`. 폴더가 틀리면 스크립트가 바로 멈춘다.
 - 포트는 `.env` 에서 정한다: `SERVER_PORT`(백엔드, 기본 8080), `FLOWBIT_WEB_PORT`(프런트, 기본 3000). `BACKEND_URL` 을 적지 않으면 `http://127.0.0.1:<SERVER_PORT>` 로 정해져 프런트 빌드와 실행에 함께 쓰인다.
 - `.env` 는 셸 스크립트로 실행하지 않고 `KEY=VALUE` 줄로만 읽는다. 비밀번호에 `$` 나 공백이 있어도 적힌 그대로 들어간다. 값 양끝의 따옴표는 뗀다.
 - 실행 파일은 `script/app/backend/app.jar`, `script/app/frontend/` 에 복사해 두고 거기서 돈다. 바로 앞 빌드는 `app.jar.prev`, `frontend.prev` 로 하나만 남는다(새 것이 뜨지 않을 때 손으로 되돌리는 용도. 자동 롤백은 없다).

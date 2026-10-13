@@ -74,6 +74,16 @@ FRONT_RUN_DIR="$RUN_DIR/frontend"
 BACKEND_JAR="$BACKEND_RUN_DIR/app.jar"
 FRONT_SERVER_JS="$FRONT_RUN_DIR/server.js"
 
+# A JDK other than the one on PATH. Gradle builds with it (JAVA_HOME) and the backend runs on it.
+if [[ -n "${JDK_HOME:-}" ]]; then
+  if [[ ! -x "$JDK_HOME/bin/java" ]]; then
+    echo "JDK_HOME has no bin/java: $JDK_HOME"
+    exit 1
+  fi
+  export JAVA_HOME="$JDK_HOME"
+  export PATH="$JDK_HOME/bin:$PATH"
+fi
+
 validate_operator() {
   local current_uid current_user
   current_uid="$(id -u)"
@@ -225,6 +235,7 @@ start_service() {
   : > "$log_file"
 
   echo "Starting $APP_NAME $service"
+  if [[ "$service" == "backend" ]]; then echo "JAVA: $(command -v java)"; fi
   echo "PORT: $(port_of "$service")"
   echo "PID_FILE: $pid_file"
   echo "LOG_FILE: $log_file"

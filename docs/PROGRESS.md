@@ -187,6 +187,7 @@
 - 원본과 다른 점: nginx 전환·두 포트·릴리스 폴더가 없다. 프런트는 정적 파일 복사가 아니라 Next.js standalone 서버(`node server.js`)를 띄운다. `git pull` 은 원본 그대로다.
 - 확인한 범위: `bash -n`, 그리고 **리눅스 컨테이너에서 가짜 `java`·`node`·`git`·`npm`·`gradlew` 로** 다음을 돌려 봤다: `.env` 읽기(공백·`$`·따옴표·CRLF), 시작·이미 떠 있음·부분 종료·전체 종료, 배포(둘 다, 프런트만), 중복 실행 잠금, 빌드 실패 시 서버 유지. **실제 서버에서 진짜 빌드(Gradle, `next build`)와 헬스체크로는 돌려 보지 않았다.**
 - 첫 배포에서 먼저 볼 것: ① 서버의 JDK 가 25 인지(없으면 Gradle 이 내려받으려 한다) ② `next build` 뒤 `.next/standalone/server.js` 가 맨 위에 생기는지(저장소 루트에 lockfile 이 있으면 `frontend/` 아래로 들어가고, 스크립트가 그 경우 멈추고 알려 준다) ③ 백엔드 헬스체크가 90회 안에 통과하는지(첫 기동은 Flyway 때문에 더 걸린다) ④ `FLOWBIT_STORAGE_PATH` 를 절대 경로로 줬는지.
+- 같은 날 추가(사용자 요청): `app.env` 의 `JDK_HOME` 으로 JDK 경로를 지정한다(`common.sh` 가 `JAVA_HOME` 과 `PATH` 에 넣는다). Git Bash 에서 가짜 JDK 폴더로 확인(지정, 틀린 경로, 비움). 실제 Gradle 빌드로는 확인하지 않았다.
 - 없는 것: 자동 롤백(바로 앞 빌드가 `.prev` 로 남을 뿐), 재부팅 뒤 자동 시작, DB 백업.
 
 ### 2026-10-13 — Flyway 마이그레이션을 하나로 (운영 배포 준비)
