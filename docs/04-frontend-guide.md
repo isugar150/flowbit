@@ -187,6 +187,9 @@ frontend/
 - 단위 테스트(Vitest)는 도구만 설치되어 있고 **아직 테스트가 없다.** 추가할 때 `package.json` 에 `test` 스크립트를 만들고 이 절을 고친다.
 - UI 를 바꿨으면 실제 브라우저에서 라이트/다크, 좁은 폭(360px)을 확인한다.
 
+- **"이 화면에 무엇이 있는가"를 CSS 의 `:has()` 로 문서 전체에서 찾지 않는다.** 방금 떠난 화면이 숨겨진 채 문서에 남아 있어(`cacheComponents`) 그 화면의 요소까지 걸린다. 화면이 prop 으로 알려 준다(예: `IssuesView` 의 `underTabs`).
+- 본문 `<main>` 은 `relative` 다. `sr-only` 같은 `position: absolute` 요소가 창 전체를 기준으로 놓여 창이 스크롤되는 것을 막는다. 지우지 않는다.
+
 ## 화면 완료 전 점검
 
 1. 디자인 리뷰 스킬로 점검한다 ([07-skills-guide.md](07-skills-guide.md) 의 "리뷰" 항목).

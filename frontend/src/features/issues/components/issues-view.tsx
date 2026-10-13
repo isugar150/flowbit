@@ -14,6 +14,7 @@ import {
   Trash2Icon,
   UsersIcon,
   XIcon,
+  ArrowUpDownIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,8 @@ import { STATUS_ORDER, StatusIcon, statusLabel } from "../meta";
 import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
 import { arrangeBySubIssues } from "../sub-issue-tree";
 import type { Issue, IssueChanges, IssueStatus, Label } from "../types";
+import { NEW_ISSUE_EVENT } from "./new-issue-launcher";
+import { DEFAULT_ISSUE_SORT, ISSUE_SORTS, sortIssues, type IssueSort } from "../sort";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import type { IssueDates } from "./issue-calendar";
 import { projectOptions } from "./issue-properties";
@@ -58,6 +61,13 @@ const FILTER_KEYS = ["project", "status", "priority", "assignee", "label", "mile
 type ChipKey = Exclude<FilterKey, "label">;
 const CHIP_KEYS = FILTER_KEYS.filter((key): key is ChipKey => key !== "label");
 type FilterKey = (typeof FILTER_KEYS)[number];
+/** The order of the list in the address: `?sort=`. The default is left out. */
+const SORT_KEY = "sort";
+const SORT_OPTIONS: ChipOption<IssueSort>[] = ISSUE_SORTS.map((value) => ({
+  value,
+  label: m.sorts[value],
+  icon: <ArrowUpDownIcon className="size-4 text-muted-foreground" aria-hidden />,
+}));
 /** The title search in the address: `?q=`. */
 const SEARCH_KEY = "q";
 const ALL_ICON = { className: "size-4 text-muted-foreground", "aria-hidden": true } as const;
@@ -275,10 +285,23 @@ export function IssuesView({
       setDialogUsed(true);
       setDialogOpen(true);
     };
+    // The sidebar's "새 티켓" opens this list's dialog, so the new ticket starts in this project
+    // and under the milestone the list is filtered to.
+    const onNewIssue = (event: Event) => {
+      event.preventDefault();
+      setDialogDates(null);
+      setDialogUsed(true);
+      setDialogOpen(true);
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener(NEW_ISSUE_EVENT, onNewIssue);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener(NEW_ISSUE_EVENT, onNewIssue);
+    };
   }, [writable]);
 
+  // Only on an empty list, as its next step. Otherwise the one button is in the sidebar.
   const newIssueButton = writable ? (
     <Button
       className="max-md:h-11"
@@ -292,13 +315,25 @@ export function IssuesView({
     </Button>
   ) : null;
 
+  // The order inside each status. Sub-issues stay under their parent, in the order they were made.
+  const sortParam = searchParams.get(SORT_KEY);
+  const sort = ISSUE_SORTS.find((value) => value === sortParam) ?? DEFAULT_ISSUE_SORT;
+  const setSort = (value: IssueSort) =>
+    replaceQuery((params) => {
+      if (value === DEFAULT_ISSUE_SORT) params.delete(SORT_KEY);
+      else params.set(SORT_KEY, value);
+    });
+
   const groups = useMemo(
     () =>
       STATUS_ORDER.map((group) => {
-        const items = issues.filter((issue) => issue.status === group);
+        const items = sortIssues(
+          issues.filter((issue) => issue.status === group),
+          sort,
+        );
         return { status: group, count: items.length, rows: arrangeBySubIssues(items) };
       }).filter((group) => group.count > 0),
-    [issues],
+    [issues, sort],
   );
 
   return (
@@ -375,8 +410,9 @@ export function IssuesView({
             ) : null}
             <span className="flex-1" />
             {deletedToggle}
+            {/* The chart and the calendar have an order of their own (by milestone, by day). */}
+            {view === "list" ? <ChipSelect label={m.sort} value={sort} options={SORT_OPTIONS} onChange={setSort} /> : null}
             <IssueViewSwitch view={view} onChange={setView} />
-            {newIssueButton}
           </div>
           {deleted ? (
             <p className="border-t bg-muted/50 px-5 py-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedNotice}</p>

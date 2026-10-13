@@ -20,6 +20,12 @@ const loadDialog = () => import("./new-issue-dialog");
 const NewIssueDialog = dynamic(() => loadDialog().then((module) => module.NewIssueDialog), { ssr: false });
 const preloadDialog = () => void loadDialog();
 
+/**
+ * Sent on the window when the sidebar's button is pressed. A list of tickets on the page answers
+ * it (preventDefault) by opening its own dialog, which knows the project and the filters in effect.
+ */
+export const NEW_ISSUE_EVENT = "flowbit:new-issue";
+
 const NewIssueContext = createContext<(() => void) | null>(null);
 
 /** The project of the page being looked at (`/project/{id}/…`), if any. */
@@ -28,8 +34,8 @@ function projectIdOf(pathname: string): string | null {
 }
 
 /**
- * "새 티켓" from anywhere in the app: the button in the sidebar and `C` on pages that have no
- * list of their own. On a project's pages the new ticket starts linked to that project, when the
+ * "새 티켓" from anywhere in the app: the one button for it, in the sidebar, and `C` on pages that
+ * have no list of their own. On a project's pages the new ticket starts linked to that project, when the
  * person may add tickets to it. A list of tickets opens its own dialog for `C` (it knows the
  * filters in effect) and marks the key as handled, which is checked here a moment later.
  */
@@ -39,6 +45,7 @@ export function NewIssueProvider({ projects, children }: { projects: ProjectSumm
   // The dialog (and the editor in it) is loaded the first time it is asked for.
   const [used, setUsed] = useState(false);
   const show = useCallback(() => {
+    if (!window.dispatchEvent(new Event(NEW_ISSUE_EVENT, { cancelable: true }))) return;
     setUsed(true);
     setOpen(true);
   }, []);

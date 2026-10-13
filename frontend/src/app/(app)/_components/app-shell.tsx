@@ -56,7 +56,9 @@ export function AppShell({
                   <UserMenu user={user} placement="header" />
                 </div>
               </div>
-              <main className="group/main flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+              {/* `relative`: text for screen readers (sr-only) is positioned absolutely; without a positioned
+                  ancestor here it is laid out against the window and makes the window itself scroll. */}
+              <main className="group/main relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
                 {/* Around the pages so the settings can start the tour again; what it draws covers the whole window. */}
                 <TourProvider completedAt={user.tourCompletedAt}>{children}</TourProvider>
               </main>

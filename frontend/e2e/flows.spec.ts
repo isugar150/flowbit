@@ -65,8 +65,8 @@ test("a new issue is made with C and Ctrl+Enter, and is in the list when the dia
   await newIssue("먼저 있던 티켓");
   const page = await newPage();
   await page.goto(`/project/${project.id}/issues`);
-  // The list's own button; the sidebar has one too, on every page.
-  await expect(page.getByRole("main").getByRole("button", { name: /새 티켓/ })).toBeVisible();
+  // The one button for it is in the sidebar; on a list it opens that list's dialog.
+  await expect(page.getByRole("button", { name: /새 티켓/ })).toBeVisible();
   // The button is in the page as the server sent it; the shortcut works once the scripts have run.
   await settled(page);
   const noReloads = watchForReloads(page);
@@ -252,8 +252,6 @@ test("the view role sees everything and can change nothing", async ({ browser, b
   const row = page.locator(`li[data-presence-id="issue-row:${issue.number}"]`);
   await expect(row).toBeVisible();
   await expect(row.getByRole("button", { name: /상태 바꾸기/ })).toHaveCount(0);
-  // The sidebar still offers a new ticket (outside this project); the list of this one does not.
-  await expect(page.getByRole("main").getByRole("button", { name: /새 티켓/ })).toHaveCount(0);
 
   await row.locator("a").click();
   const dialog = page.getByRole("dialog");
