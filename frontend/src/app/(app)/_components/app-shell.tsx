@@ -6,6 +6,7 @@ import type { Me } from "@/features/auth/types";
 import type { ProjectSummary } from "@/features/projects/types";
 import { RealtimeProvider } from "@/features/realtime/realtime-provider";
 import type { Workspace } from "@/features/settings/types";
+import { TourProvider } from "@/features/tour/components/onboarding-tour";
 import { mark } from "@/lib/initials";
 import { MobileNav } from "./mobile-nav";
 import { SidebarNav } from "./sidebar-nav";
@@ -51,7 +52,8 @@ export function AppShell({
                 <UserMenu user={user} placement="header" />
               </div>
               <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-                {children}
+                {/* Around the pages so the settings can start the tour again; what it draws covers the whole window. */}
+                <TourProvider completedAt={user.tourCompletedAt}>{children}</TourProvider>
               </main>
             </div>
           </div>

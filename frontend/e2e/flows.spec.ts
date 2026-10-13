@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { api, pick, settled, signIn, trackRequests, watchForReloads } from "./support";
+import { api, logIn, pick, settled, signIn, trackRequests, watchForReloads } from "./support";
 
 /**
  * The everyday actions end to end: making, changing and deleting things from the screen, what a
@@ -245,7 +245,7 @@ test("moving an issue to no project drops its milestone and keeps the rest", asy
 test("the view role sees everything and can change nothing", async ({ browser, baseURL }) => {
   const issue = await newIssue("보기 권한");
   const viewer = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
-  await api(viewer, "POST", "/api/v1/auth/login", VIEWER);
+  await logIn(viewer, VIEWER);
   const page = await newPage(viewer);
   await page.goto(`/project/${project.id}/issues`);
   const row = page.locator(`li[data-presence-id="issue-row:${issue.number}"]`);
@@ -269,7 +269,7 @@ test("the view role sees everything and can change nothing", async ({ browser, b
 test("a change by someone else arrives on an open issue and on the list behind it", async ({ browser, baseURL }) => {
   const issue = await newIssue("실시간 반영");
   const viewer = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
-  await api(viewer, "POST", "/api/v1/auth/login", VIEWER);
+  await logIn(viewer, VIEWER);
   const theirs = await newPage(viewer);
   await openIssue(theirs, issue);
   const noReloads = watchForReloads(theirs);

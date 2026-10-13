@@ -24,7 +24,18 @@ export async function signIn(context: BrowserContext): Promise<{ id: string }> {
   } catch {
     // Already set up by an earlier run.
   }
-  return api<{ id: string }>(context, "POST", "/api/v1/auth/login", ADMIN);
+  return logIn(context, ADMIN);
+}
+
+/**
+ * Signs in as an account that already exists. The onboarding tour covers the whole app for
+ * someone who has not seen it, so it is marked as seen here; the test of the tour itself signs
+ * in without this.
+ */
+export async function logIn(context: BrowserContext, credentials: { loginId: string; password: string }): Promise<{ id: string }> {
+  const me = await api<{ id: string }>(context, "POST", "/api/v1/auth/login", credentials);
+  await api(context, "POST", "/api/v1/me/tour/complete");
+  return me;
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

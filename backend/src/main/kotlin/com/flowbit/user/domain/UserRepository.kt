@@ -97,6 +97,14 @@ interface UserRepository : CoroutineCrudRepository<User, UUID> {
         now: Instant,
     ): Int
 
+    /** Keeps the first time: seeing the tour again from the settings does not move it. */
+    @Modifying
+    @Query("update users set tour_completed_at = coalesce(tour_completed_at, :now), updated_at = :now where id = :id")
+    suspend fun completeTour(
+        id: UUID,
+        now: Instant,
+    ): Int
+
     /** Whether someone other than [id] already signs in with this value. */
     @Query("select exists(select 1 from users where (login_id = :value or email = :value) and id <> :id)")
     suspend fun isUsedByAnother(

@@ -54,7 +54,7 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
   const isAdmin = user.role === "ADMIN";
 
   return (
-    <div className="flex min-w-0 flex-col gap-1">
+    <div data-tour="user-menu" className="flex min-w-0 flex-col gap-1">
       {mutation.isError && !isSessionGone(mutation.error) ? (
         <p role="alert" className="px-2 text-[0.8125rem] leading-5 text-destructive">
           {m.logoutFailed}

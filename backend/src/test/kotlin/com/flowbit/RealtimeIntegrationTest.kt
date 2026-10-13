@@ -83,6 +83,26 @@ class RealtimeIntegrationTest : IntegrationTest() {
         b.close()
     }
 
+    @Test
+    fun `화면의 구성원 전부가 마지막으로 본 때와 함께 나오고 본 사람이 먼저다`() {
+        val idlerId = admin.post("/api/v1/admin/members", """{"loginId":"idler","password":"$PASSWORD"}""").json()["id"]
+        admin.put("/api/v1/projects/${p("PAY")}/members/$idlerId", """{"role":"VIEWER"}""")
+        admin.post("/api/v1/admin/members", """{"loginId":"outsider","password":"$PASSWORD"}""")
+        val outsider = client().also { it.login("outsider", PASSWORD) }
+        val b = Socket(editor)
+        b.send("""{"type":"subscribe","topics":[],"presence":"project:${p("PAY")}"}""")
+        b.awaitPresence { viewers -> viewers.size == 1 }
+
+        val people = admin.get("/api/v1/presence?key=project:${p("PAY")}").jsonList()
+
+        assertEquals(listOf("editor", "admin", "idler"), people.map { it["loginId"] })
+        assertNotNull(people[0]["lastSeenAt"])
+        assertNull(people[2]["lastSeenAt"])
+        assertEquals(404, outsider.get("/api/v1/presence?key=project:${p("PAY")}").status)
+        assertEquals(404, admin.get("/api/v1/presence?key=nothing").status)
+        b.close()
+    }
+
     private inner class Socket(
         client: ApiClient,
     ) : WebSocket.Listener {

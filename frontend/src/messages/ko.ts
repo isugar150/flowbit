@@ -201,7 +201,11 @@ export const ko = {
   },
   realtime: {
     viewersLabel: (names: string) => `지금 보고 있는 사람: ${names}`,
-    viewing: (name: string) => `${name} · 보는 중`,
+    peopleLabel: "이 화면의 구성원",
+    viewingNow: "지금 보는 중",
+    lastSeen: "마지막으로 본 때",
+    neverSeen: "아직 보지 않음",
+    morePeople: (count: number) => `그 밖에 ${count}명`,
     pointingHere: (names: string) => `${names} 님이 여기를 보고 있습니다`,
   },
   myIssues: {
@@ -877,6 +881,64 @@ export const ko = {
   },
   nav: {
     menu: "메뉴",
+  },
+  tour: {
+    skip: "건너뛰기",
+    previous: "이전",
+    next: "다음",
+    start: "둘러보기",
+    finish: "시작하기",
+    progress: (current: number, total: number) => `${current} / ${total}`,
+    replay: {
+      title: "사용 안내",
+      description: "처음 로그인했을 때 본 둘러보기를 다시 볼 수 있습니다.",
+      button: "둘러보기 다시 보기",
+    },
+    practice: {
+      notice: "연습용 예시입니다. 여기서 한 작업은 저장되지 않습니다.",
+      tried: "해 봤습니다",
+      listLabel: "예시 이슈",
+      empty: "예시 이슈가 없습니다. 아래에서 새로 추가해 보세요.",
+      titleLabel: "새 예시 이슈의 제목",
+      titlePlaceholder: "이슈 제목",
+      add: "추가",
+      deleteOf: (key: string) => `${key} 삭제`,
+      examples: ["로그인 화면 문구 다듬기", "모바일에서 목록이 잘리는 문제", "릴리스 노트 작성"],
+    },
+    steps: {
+      welcome: {
+        title: "Flowbit에 오신 것을 환영합니다",
+        body: "어디에 무엇이 있는지 잠깐 둘러봅니다. 1분이면 끝나고, 언제든지 건너뛸 수 있습니다.",
+      },
+      nav: {
+        title: "메뉴",
+        body: "내 이슈에는 내가 담당하거나 만든 이슈가 모입니다. 전체 이슈와 전체 프로젝트에서는 워크스페이스의 이슈와 프로젝트를 한눈에 볼 수 있습니다.",
+      },
+      projects: {
+        title: "내 프로젝트",
+        body: "내가 참여하는 프로젝트입니다. 프로젝트를 열면 개요와 이슈를 볼 수 있습니다.",
+      },
+      create: {
+        title: "이슈 만들기",
+        body: "아래 예시 목록에 제목을 입력해 이슈를 추가해 보세요. 실제 화면에서는 이슈 목록의 ‘새 이슈’ 버튼이나 C 키로 만듭니다.",
+      },
+      status: {
+        title: "상태 바꾸기",
+        body: "이슈 앞의 상태 아이콘을 눌러 상태를 바꿔 보세요. 실제 목록에서도 같은 자리에서 바로 바꿀 수 있고, 따로 저장할 필요가 없습니다.",
+      },
+      delete: {
+        title: "이슈 삭제",
+        body: "휴지통 버튼으로 예시 이슈를 삭제해 보세요. 실제 이슈는 이슈를 열어 ‘이슈 삭제’로 삭제하고, 삭제한 이슈는 복원할 수 있습니다.",
+      },
+      settings: {
+        title: "내 설정",
+        body: "프로필, 알림, 화면 테마는 여기에서 바꿉니다.",
+      },
+      done: {
+        title: "이제 시작해 보세요",
+        body: "이 안내는 내 설정의 ‘사용 안내’에서 언제든지 다시 볼 수 있습니다.",
+      },
+    },
   },
   userMenu: {
     label: "사용자 메뉴",

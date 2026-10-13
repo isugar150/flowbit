@@ -8,6 +8,8 @@ export type Me = {
   role: "ADMIN" | "MEMBER";
   locale: string;
   timezone: string;
+  /** When the person first finished or skipped the onboarding tour; null until then. */
+  tourCompletedAt: string | null;
 };
 
 export type Credentials = {

@@ -39,7 +39,7 @@ export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary
 
   return (
     <nav aria-label={m.title} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2 py-1">
-      <ul className="flex flex-col gap-px">
+      <ul data-tour="nav" className="flex flex-col gap-px">
         {NAV_DESTINATIONS.map(({ href, label, icon: Icon, exact }) => (
           <li key={href}>
             <NavItem href={href} current={isCurrentPath(pathname, href, exact)}>
@@ -49,7 +49,7 @@ export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary
           </li>
         ))}
       </ul>
-      <div className="flex flex-col gap-px">
+      <div data-tour="projects" className="flex flex-col gap-px">
         <div className="flex h-7 items-center justify-between">
           <button
             type="button"

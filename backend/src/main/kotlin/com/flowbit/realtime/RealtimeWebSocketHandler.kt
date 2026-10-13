@@ -2,10 +2,7 @@ package com.flowbit.realtime
 
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.auth.application.SessionService
-import com.flowbit.common.error.NotFoundException
-import com.flowbit.issue.application.IssueService
 import com.flowbit.media.application.ImageStorage
-import com.flowbit.project.application.ProjectService
 import com.flowbit.user.application.UserService
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import kotlinx.coroutines.reactor.mono
@@ -40,14 +37,15 @@ import java.util.concurrent.atomic.AtomicReference
  * - `{"type":"presence","key":"issue:12","viewers":[{id, loginId, displayName, avatarUrl, focus}]}`
  * - `{"type":"ping"}` every 20 seconds, so proxies with an idle timeout keep the connection.
  *
+ * Arriving on a page and leaving it are noted as when the person last saw it ([PagePresence.seen]).
+ *
  * The handshake is authenticated by the session cookie like any request (SecurityConfig). The
  * connection is closed when the session ends or the user is disabled.
  */
 @Component
 class RealtimeWebSocketHandler(
     private val hub: RealtimeHub,
-    private val projectService: ProjectService,
-    private val issueService: IssueService,
+    private val pages: PagePresence,
     private val sessionService: SessionService,
     private val userService: UserService,
     private val jsonMapper: JsonMapper,
@@ -88,11 +86,14 @@ class RealtimeWebSocketHandler(
                                 request.topics
                                     .orEmpty()
                                     .take(MAX_TOPICS)
-                                    .filter { canRead(user, it) }
+                                    .filter { pages.canRead(user, it) }
                                     .toSet()
-                            val key = request.presence?.takeIf { canRead(user, it) }
+                            val key = request.presence?.takeIf { pages.canRead(user, it) }
                             topics.set(readable)
-                            presenceKey.set(key)
+                            val previous = presenceKey.getAndSet(key)
+                            // Written before the others are told, so that whoever reads the
+                            // page's people on hearing of the change finds the new times.
+                            if (previous != key) listOfNotNull(previous, key).forEach { noteSeen(viewer, it) }
                             hub.setPresence(session.id, key, viewer)
                         } else if (request?.type == "focus") {
                             hub.setFocus(session.id, request.target?.takeIf { it.length <= MAX_TARGET_LENGTH })
@@ -129,29 +130,20 @@ class RealtimeWebSocketHandler(
 
         return Mono
             .firstWithSignal(input, output, sessionEnded)
-            .doFinally { hub.leave(session.id) }
+            .doFinally {
+                // The moment they left is when they last saw the page.
+                mono { presenceKey.get()?.let { noteSeen(viewer, it) } }
+                    .doFinally { hub.leave(session.id) }
+                    .subscribe()
+            }
     }
 
-    /**
-     * `project:<id>` is readable by whoever may enter the project, `issue:12` by whoever may see
-     * that issue, and `issues` and `projects` (something changed, with no detail) by every signed-in person.
-     */
-    private suspend fun canRead(
-        user: AuthenticatedUser,
-        topic: String,
-    ): Boolean {
-        if (topic == RealtimeHub.ISSUES || topic == RealtimeHub.PROJECTS) return true
-        if (topic.startsWith("issue:")) {
-            val number = topic.removePrefix("issue:").takeIf { ISSUE_NUMBER.matches(it) }?.toInt() ?: return false
-            return issueService.canRead(user, number)
-        }
-        if (!topic.startsWith("project:")) return false
-        return try {
-            projectService.access(user, topic.removePrefix("project:"))
-            true
-        } catch (_: NotFoundException) {
-            false
-        }
+    /** A failure to note the time must not cost the person their connection. */
+    private suspend fun noteSeen(
+        viewer: Viewer,
+        key: String,
+    ) {
+        runCatching { pages.seen(viewer.id, key) }.onFailure { log.warn("Could not note that {} saw {}", viewer.loginId, key, it) }
     }
 
     /**
@@ -182,7 +174,6 @@ class RealtimeWebSocketHandler(
     private companion object {
         const val MAX_TOPICS = 20
         const val MAX_TARGET_LENGTH = 100
-        val ISSUE_NUMBER = Regex("^\\d{1,9}$")
         val PING_INTERVAL: Duration = Duration.ofSeconds(20)
         val SESSION_CHECK_INTERVAL: Duration = Duration.ofSeconds(60)
         val SESSION_ENDED = CloseStatus(4401, "session ended")

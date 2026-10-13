@@ -16,6 +16,7 @@
 | M7 | 수신함과 트리아지 | 초안 | 미작성 |
 | M7a | 알림 통로: 메일(SMTP), 웹 푸시(Firebase), API 알림 (M7 의 일부를 먼저) | 구현됨 (화면·실제 서비스 확인 남음) | [features/M7a-notification-channels.md](features/M7a-notification-channels.md) |
 | (마일스톤 밖) | 관리자 설정의 백업 및 복원: 워크스페이스·로그인 연동·알림 설정과 구성원을 파일로 (사용자 지정, D-112) | 구현됨 | [features/admin-backup.md](features/admin-backup.md) |
+| (마일스톤 밖) | 온보딩 투어: 처음 로그인하면 뜨는 둘러보기, 예시 이슈로 연습, 건너뛰기, 내 설정에서 다시 보기 (사용자 지정, D-120) | 구현됨 | [features/onboarding-tour.md](features/onboarding-tour.md) |
 | M8 | 프로젝트 | 초안 | 미작성 |
 | M9 | 검색과 저장한 뷰 | 초안 | 미작성 |
 | M10 | 모바일 경험 다듬기 | 초안 | 미작성 |

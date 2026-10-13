@@ -31,7 +31,7 @@ export function MobileNav({ projects: allProjects }: { projects: ProjectSummary[
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-lg" aria-label={messages.nav.menu} className="size-11" />}>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-lg" aria-label={messages.nav.menu} data-tour="nav projects" className="size-11" />}>
         <MenuIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="start" className="max-h-[70dvh] w-64">

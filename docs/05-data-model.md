@@ -53,6 +53,7 @@
 | `failed_login_count` | `int` | 기본 0. 로그인 성공 시 0 으로 |
 | `locked_until` | `timestamptz` null | 이 시각까지 로그인 불가 |
 | `last_login_at` | `timestamptz` null | |
+| `tour_completed_at` | `timestamptz` null | 온보딩 투어를 처음 끝내거나 건너뛴 때. null 이면 앱을 열 때 투어가 뜬다. 다시 봐도 바뀌지 않는다 (`V4__user_tour.sql`, D-120, [features/onboarding-tour.md](features/onboarding-tour.md)) |
 | `created_at`, `updated_at` | `timestamptz` | |
 
 ### `ldap_settings`, `sso_settings` (`V2`, D-087·D-088)
@@ -74,6 +75,7 @@
 |---|---|---|
 | `users.notify_email` | `boolean` 기본 true | 메일 알림을 받을지. 주소는 `users.email` |
 | `notification_settings` | `smtp_enabled`, `smtp_host`, `smtp_port`, `smtp_security`(`NONE`\|`STARTTLS`\|`SSL`), `smtp_username`, `smtp_password`, `smtp_from_address`, `smtp_from_name`, `push_enabled`, `fcm_service_account`, `fcm_api_key`, `fcm_messaging_sender_id`, `fcm_app_id`, `fcm_vapid_key`, `updated_at` | 행 하나(`id = 1`). `smtp_password`, `fcm_service_account` 는 평문이고 API 로 내보내지 않는다 |
+| `page_views` | `page_key`(프레즌스 키: `project:<id>`, `issue:<번호>`) + `user_id` FK → `users`(함께 삭제) PK, `seen_at` | 그 사람이 그 화면을 마지막으로 본 때. 화면 오른쪽 위 아바타의 순서와 "마지막으로 본 때"에 쓴다 (`V3__page_views.sql`, D-119). 실시간 연결이 화면에 들어올 때와 떠날 때 쓴다 |
 | `push_tokens` | `token` PK, `user_id` FK → `users`(함께 삭제), `user_agent`, `created_at`, `last_seen_at` | 푸시를 켠 브라우저 하나당 한 행. 같은 토큰을 다른 계정이 등록하면 주인이 바뀐다 |
 | `webhooks` | `id`, `name`, `enabled`, `url`, `method`(`GET`\|`POST`\|`PUT`\|`PATCH`\|`DELETE`, `V4`), `content_type`, `headers`, `body_template`, `signing_secret`, `event_types`, `last_status`, `last_error`, `last_attempt_at`, `created_at`, `updated_at` | `headers` 는 JSON 객체를 담은 `text`(엔티티에 그대로 매핑하려고 `jsonb` 를 쓰지 않았다). `event_types` 는 쉼표로 이은 `IssueActivityType` 이름, 빈 값은 전부. 항상 받는 사람마다 부르므로 `per_recipient` 컬럼은 없다(D-102) |
 

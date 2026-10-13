@@ -236,6 +236,12 @@ class IssueService(
         number: Int,
     ): Boolean = repository.findByNumber(number)?.let { accessOf(user, it) } != null
 
+    /** The project an issue the caller may see is linked to; null when it is linked to none. */
+    suspend fun projectIdOf(
+        user: AuthenticatedUser,
+        number: Int,
+    ): UUID? = access(user, number).issue.projectId
+
     @Transactional
     suspend fun create(
         user: AuthenticatedUser,

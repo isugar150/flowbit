@@ -40,6 +40,19 @@ class SettingsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `투어를 마치면 시각이 남고 다시 마쳐도 처음 시각 그대로다`() {
+        assertNull(admin.me().json()["tourCompletedAt"])
+
+        val first = admin.post("/api/v1/me/tour/complete")
+
+        assertEquals(200, first.status)
+        val completedAt = assertNotNull(first.json()["tourCompletedAt"])
+        assertEquals(completedAt, admin.post("/api/v1/me/tour/complete").json()["tourCompletedAt"])
+        assertEquals(completedAt, admin.me().json()["tourCompletedAt"])
+        assertEquals(401, client().post("/api/v1/me/tour/complete").status)
+    }
+
+    @Test
     fun `50자를 넘는 이름은 거부한다`() {
         val response = admin.patch("/api/v1/me", """{"displayName":"${"가".repeat(51)}"}""")
 

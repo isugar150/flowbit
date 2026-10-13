@@ -32,6 +32,10 @@ type RealtimeContextValue = {
   register: (scope: Scope) => () => void;
   /** Others on the current page; the signed-in user is left out. */
   viewers: Viewer[];
+  /** The page this tab stands on for presence (`project:<id>`, `issue:<number>`); null on a page that has none. */
+  pageKey: string | null;
+  /** The signed-in user. */
+  userId: string;
   /** Tells the others which part of the page this person is on (null: none). */
   sendFocus: (target: string | null) => void;
 };
@@ -61,6 +65,7 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
   const focusTarget = useRef<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewers, setViewers] = useState<Viewer[]>([]);
+  const [pageKey, setPageKey] = useState<string | null>(null);
 
   const scheduleRefresh = useCallback(() => {
     if (refreshTimer.current) return;
@@ -78,6 +83,7 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
     if (presence !== presenceKey.current) {
       presenceKey.current = presence;
       setViewers([]);
+      setPageKey(presence);
     }
     const ws = socket.current;
     if (ws?.readyState === WebSocket.OPEN) {
@@ -159,8 +165,8 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
   );
 
   const value = useMemo(
-    () => ({ register, sendFocus, viewers: viewers.filter((viewer) => viewer.id !== userId) }),
-    [register, sendFocus, viewers, userId],
+    () => ({ register, sendFocus, viewers: viewers.filter((viewer) => viewer.id !== userId), pageKey, userId }),
+    [register, sendFocus, viewers, pageKey, userId],
   );
   return (
     <RealtimeContext.Provider value={value}>
@@ -196,6 +202,12 @@ export function RealtimeScope({
 
 export function useViewers(): Viewer[] {
   return useContext(RealtimeContext)?.viewers ?? [];
+}
+
+/** The page the avatars speak for, and who is asking; see PresenceAvatars. */
+export function usePresencePage(): { pageKey: string | null; userId: string | null } {
+  const context = useContext(RealtimeContext);
+  return { pageKey: context?.pageKey ?? null, userId: context?.userId ?? null };
 }
 
 export function useSendFocus(): (target: string | null) => void {

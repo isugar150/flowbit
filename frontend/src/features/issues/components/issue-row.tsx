@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { CircleUserRoundIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
-import { PersonMark } from "@/components/person";
+import { PersonAvatar, PersonMark, personName } from "@/components/person";
+import { messages } from "@/messages";
 import { PriorityIcon, StatusIcon, priorityLabel, statusLabel } from "../meta";
 import type { Issue, IssuePriority, IssueStatus } from "../types";
 import { LabelPill } from "./label-chip";
@@ -64,6 +66,25 @@ export function IssueDue({ issue }: { issue: Issue }) {
   return (
     <span className={`hidden shrink-0 tabular-nums sm:block ${metaText}`}>
       <DueDate value={issue.dueDate} />
+    </span>
+  );
+}
+
+/**
+ * Who has the issue, as a column of its own at the end of a line: the avatar, with the name beside
+ * it on screens wide enough. An issue no one has says so with an empty mark, so the column lines up.
+ */
+export function IssueAssignee({ issue }: { issue: Issue }) {
+  const name = issue.assignee ? personName(issue.assignee) : messages.issues.noAssignee;
+  return (
+    <span title={name} className="flex shrink-0 items-center gap-1.5 lg:w-28">
+      {issue.assignee ? (
+        <PersonAvatar person={issue.assignee} />
+      ) : (
+        <CircleUserRoundIcon className="size-4.5 text-muted-foreground/60" aria-hidden="true" />
+      )}
+      {issue.assignee ? <span className={`hidden min-w-0 truncate lg:block ${metaText}`}>{name}</span> : null}
+      <span className={issue.assignee ? "sr-only lg:hidden" : "sr-only"}>{name}</span>
     </span>
   );
 }

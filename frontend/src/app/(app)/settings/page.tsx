@@ -3,6 +3,7 @@ import { SettingsSection } from "@/components/settings-section";
 import { Separator } from "@/components/ui/separator";
 import { ProfileSettings } from "@/features/settings/components/profile-settings";
 import { ThemeSetting } from "@/features/settings/components/theme-setting";
+import { ReplayTourButton } from "@/features/tour/components/replay-tour-button";
 import { MyNotificationSettings } from "@/features/notifications/components/my-notification-settings";
 import type { MyNotificationSettings as MyNotifications } from "@/features/notifications/types";
 import { requireUser, serverGet } from "@/lib/current-user";
@@ -41,6 +42,10 @@ export default async function PersonalSettingsPage() {
         description={m.appearance.description}
       >
         <ThemeSetting />
+      </SettingsSection>
+      <Separator />
+      <SettingsSection title={messages.tour.replay.title} description={messages.tour.replay.description}>
+        <ReplayTourButton />
       </SettingsSection>
     </>
   );

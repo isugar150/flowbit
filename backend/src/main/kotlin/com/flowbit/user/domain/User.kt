@@ -33,6 +33,8 @@ class User(
     var avatarKey: String?,
     var locale: String?,
     var timezone: String?,
+    /** When the person first finished or skipped the onboarding tour; null until then. */
+    var tourCompletedAt: Instant?,
     var failedLoginCount: Int,
     var lockedUntil: Instant?,
     var lastLoginAt: Instant?,
@@ -120,6 +122,7 @@ class User(
             avatarKey = null,
             locale = null,
             timezone = null,
+            tourCompletedAt = null,
             failedLoginCount = 0,
             lockedUntil = null,
             lastLoginAt = null,

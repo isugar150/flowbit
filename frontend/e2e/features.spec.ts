@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { api, settled, signIn, trackRequests } from "./support";
+import { api, logIn, settled, signIn, trackRequests } from "./support";
 
 /**
  * Milestones on the project overview (a line opens the milestone: its notes and its issues),
@@ -97,7 +97,7 @@ test("the editor role opens a milestone; the view of it is the same without the 
   const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "읽기 확인", targetDate: "2026-12-24" });
   await api(context, "PUT", `/api/v1/projects/${project.id}/members/${editorId}`, { role: "VIEWER" });
   const viewer = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
-  await api(viewer, "POST", "/api/v1/auth/login", EDITOR);
+  await logIn(viewer, EDITOR);
   const page = await newPage(viewer);
   await page.goto(`/project/${project.id}`);
   const line = page.locator(`li[data-presence-id="milestone:${milestone.id}"]`);
@@ -157,7 +157,7 @@ test("only those who manage a project can archive or restore it", async ({ brows
   const theirs = await api<Project>(context, "POST", "/api/v1/projects", { name, description: "" });
   await api(context, "PUT", `/api/v1/projects/${theirs.id}/members/${editorId}`, { role: "EDITOR" });
   const editor = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
-  await api(editor, "POST", "/api/v1/auth/login", EDITOR);
+  await logIn(editor, EDITOR);
   const page = await newPage(editor);
   await page.goto(`/project/${theirs.id}/settings`);
   await expect(page.getByRole("textbox", { name: "이름" })).toBeVisible();
@@ -175,7 +175,7 @@ test("only those who manage a project can archive or restore it", async ({ brows
 test("others see where a person clicked or types, not where their pointer passes", async ({ browser, baseURL }) => {
   const issue = await newIssue("하이라이트 확인");
   const editor = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
-  await api(editor, "POST", "/api/v1/auth/login", EDITOR);
+  await logIn(editor, EDITOR);
   const watching = await newPage(editor);
   const acting = await newPage();
   for (const page of [watching, acting]) {

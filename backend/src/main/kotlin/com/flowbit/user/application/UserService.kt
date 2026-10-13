@@ -16,6 +16,7 @@ import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.stereotype.Service
 import java.time.Clock
+import java.time.Instant
 import java.util.UUID
 
 /** What the signed-in user sees about themselves. */
@@ -27,6 +28,7 @@ data class UserProfile(
     val role: UserRole,
     val locale: String,
     val timezone: String,
+    val tourCompletedAt: Instant?,
 )
 
 @Service
@@ -64,6 +66,7 @@ class UserService(
             role = user.role,
             locale = user.locale ?: defaults.locale,
             timezone = user.timezone ?: defaults.timezone,
+            tourCompletedAt = user.tourCompletedAt,
         )
     }
 
@@ -97,6 +100,13 @@ class UserService(
         val previous = requireActive(userId).avatarKey
         repository.updateAvatarKey(userId, null, clock.instant())
         imageStorage.delete(previous)
+        return profile(userId)
+    }
+
+    /** Records that the person finished or skipped the onboarding tour, so it is not shown again. */
+    suspend fun completeTour(userId: UUID): UserProfile {
+        requireActive(userId)
+        repository.completeTour(userId, clock.instant())
         return profile(userId)
     }
 

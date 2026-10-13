@@ -15,7 +15,7 @@ import {
   UsersIcon,
   XIcon,
 } from "lucide-react";
-import { PersonMark } from "@/components/person";
+
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Kbd } from "@/components/ui/kbd";
@@ -34,7 +34,7 @@ import type { Issue, IssueChanges, IssueStatus, Label } from "../types";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import type { IssueDates } from "./issue-calendar";
 import { projectOptions } from "./issue-properties";
-import { IssueDue, IssueLabels, IssueProjectName, IssueTitleLink, PriorityMark } from "./issue-row";
+import { IssueAssignee, IssueDue, IssueLabels, IssueProjectName, IssueTitleLink, PriorityMark } from "./issue-row";
 import { IssueViewSwitch, useIssueView, useListAddress, useReplaceListQuery } from "./issue-views";
 import { LabelFilterChip } from "./label-chip";
 import { SubIssueContextRow, SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
@@ -499,7 +499,7 @@ const IssueListRow = memo(function IssueListRow({
         </span>
       ) : null}
       <IssueDue issue={issue} />
-      {issue.assignee ? <PersonMark person={issue.assignee} /> : null}
+      <IssueAssignee issue={issue} />
     </li>
   );
 });

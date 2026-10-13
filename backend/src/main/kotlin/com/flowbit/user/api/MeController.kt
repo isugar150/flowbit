@@ -11,11 +11,13 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 import java.util.UUID
 
 data class MeResponse(
@@ -26,6 +28,8 @@ data class MeResponse(
     val role: String,
     val locale: String,
     val timezone: String,
+    /** Null until the person has finished or skipped the onboarding tour. */
+    val tourCompletedAt: Instant?,
 ) {
     companion object {
         fun from(profile: UserProfile) =
@@ -37,6 +41,7 @@ data class MeResponse(
                 role = profile.role.name,
                 locale = profile.locale,
                 timezone = profile.timezone,
+                tourCompletedAt = profile.tourCompletedAt,
             )
     }
 }
@@ -72,4 +77,9 @@ class MeController(
     suspend fun removeAvatar(
         @AuthenticationPrincipal principal: AuthenticatedUser,
     ): MeResponse = MeResponse.from(userService.removeAvatar(principal.id))
+
+    @PostMapping("/tour/complete")
+    suspend fun completeTour(
+        @AuthenticationPrincipal principal: AuthenticatedUser,
+    ): MeResponse = MeResponse.from(userService.completeTour(principal.id))
 }
