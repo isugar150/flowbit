@@ -62,6 +62,8 @@ data class ProjectView(
     val healthUpdatedAt: Instant?,
     /** Whether this person follows the project: is told about every change to its issues. */
     val subscribed: Boolean,
+    /** When the project was archived; null for a project in use. */
+    val archivedAt: Instant? = null,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
     val content: String? = null,
 )
@@ -94,6 +96,49 @@ class ProjectService(
 ) {
     /** Every active project; `myRole` is null for those the user may not enter. */
     suspend fun list(user: AuthenticatedUser): List<ProjectView> = memberStore.projectsVisibleTo(user.id, includeAll = true).map { view(it, user) }
+
+    /**
+     * The archived projects, for looking up what was put away. Like the list of active ones,
+     * everyone sees them all; `myRole` says who may restore one.
+     */
+    suspend fun listArchived(user: AuthenticatedUser): List<ProjectView> = memberStore.archivedProjects(user.id).map { view(it, user) }
+
+    /**
+     * Puts a project away: it leaves the lists and the sidebar, its issues leave the issue lists,
+     * and nobody can enter it until it is restored. Nothing is deleted. Managers only.
+     */
+    @Transactional
+    suspend fun archive(
+        user: AuthenticatedUser,
+        projectId: String,
+        client: ClientInfo,
+    ): UUID {
+        val project = manage(user, projectId)
+        val now = clock.instant()
+        repository.updateArchivedAt(project.id, now, now)
+        auditService.record(AuditEventType.PROJECT_ARCHIVED, user.id, client, mapOf("projectId" to project.id.toString()))
+        return project.id
+    }
+
+    /** Brings an archived project back as it was. Its managers only (and workspace administrators). */
+    @Transactional
+    suspend fun restore(
+        user: AuthenticatedUser,
+        projectId: String,
+        client: ClientInfo,
+    ): ProjectView {
+        val project =
+            runCatching { UUID.fromString(projectId) }
+                .getOrNull()
+                ?.let { repository.findById(it) }
+                ?.takeIf { it.archivedAt != null }
+                ?: throw notFound()
+        val role = effectiveRole(memberStore.roleOf(project.id, user.id), user)
+        if (role?.canManage != true) throw ForbiddenException("프로젝트를 관리할 권한이 없습니다")
+        repository.updateArchivedAt(project.id, null, clock.instant())
+        auditService.record(AuditEventType.PROJECT_RESTORED, user.id, client, mapOf("projectId" to project.id.toString()))
+        return detail(project.id, user)
+    }
 
     /** Answers anyone signed in: the project's name, the caller's role (null: no access) and its managers. */
     suspend fun entry(
@@ -373,6 +418,7 @@ class ProjectService(
         health = row.health,
         healthUpdatedAt = row.healthUpdatedAt,
         subscribed = row.subscribed,
+        archivedAt = row.archivedAt,
     )
 
     private fun effectiveRole(

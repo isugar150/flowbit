@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { SettingsSection } from "@/components/settings-section";
 import type { UserSummary } from "@/features/members/types";
+import { ArchiveProjectSection } from "@/features/projects/components/archive-project-section";
 import { ProjectDetailsForm } from "@/features/projects/components/project-details-form";
 import { ProjectIconField } from "@/features/projects/components/project-icon-field";
 import { ProjectMembersPanel } from "@/features/projects/components/project-members-panel";
@@ -38,6 +39,11 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
           currentUserId={user.id}
         />
       </SettingsSection>
+      {canManage ? (
+        <SettingsSection title={m.archiveTitle} description={m.archiveDescription}>
+          <ArchiveProjectSection projectId={project.id} />
+        </SettingsSection>
+      ) : null}
     </div>
   );
 }

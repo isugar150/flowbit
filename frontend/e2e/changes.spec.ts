@@ -374,15 +374,17 @@ test("calendar: an issue dragged to another day is on that day at once", async (
   await page.close();
 });
 
-test("project overview: a milestone's date shows at once", async () => {
+test("milestone: a date picked in the opened milestone shows at once", async () => {
   await api(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "첫 목표", targetDate: null });
   const page = await newPage();
   await page.goto(`/project/${project.id}`);
-  const chip = page.getByRole("button", { name: /^목표일:/ });
+  await page.getByRole("button", { name: "첫 목표 열기" }).click();
+  const chip = page.getByRole("dialog").getByRole("button", { name: /^목표일:/ });
   await expect(chip).toBeVisible();
+  await settled(page);
   await slowDown(page);
   await recordFrames(page, "date", () => {
-    const found = document.querySelector<HTMLButtonElement>('button[aria-label^="목표일:"]');
+    const found = document.querySelector<HTMLButtonElement>('[role=dialog] button[aria-label^="목표일:"]');
     return `${found?.getAttribute("aria-label")?.replace(/\d{4}-\d{2}-/, "")}|${found?.disabled ? "disabled" : "enabled"}`;
   });
 

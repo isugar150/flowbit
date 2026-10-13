@@ -1,22 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import dynamic from "next/dynamic";
-import { DiamondIcon, EllipsisIcon, FileTextIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { CalendarIcon, ChevronRightIcon, DiamondIcon, EllipsisIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { DueDate } from "@/components/dates";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import { DateChip } from "@/features/issues/components/date-chips";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
-import { useRemoteValue } from "@/lib/use-remote-value";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { createMilestone, deleteMilestone, updateMilestone } from "../api";
@@ -25,20 +23,21 @@ import { milestoneProgress, type Milestone } from "../types";
 const m = messages.milestones;
 const NAME_MAX_LENGTH = 80;
 
-// Opened on request, so the overview does not carry it until then.
-const MilestoneDetailDialog = dynamic(() => import("./milestone-detail-dialog").then((module) => module.MilestoneDetailDialog), { ssr: false });
-
-/** The name field is saved on blur, so while it has focus the person's typing wins. */
-const isFocused = (input: HTMLInputElement) => document.activeElement === input;
+// Opened on request, so the overview does not carry it (and the editor inside) until then.
+const loadDetail = () => import("./milestone-detail-dialog");
+const MilestoneDetailDialog = dynamic(() => loadDetail().then((module) => module.MilestoneDetailDialog), { ssr: false });
+const preloadDetail = () => void loadDetail();
 
 const iconButtonClass =
   "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:bg-muted max-md:size-9";
 
 /**
- * The project's milestones on its overview: each with a progress bar (share of its issues that
- * are done), the issue count linking to those issues, and a target date. People who may edit
- * add, rename, date and delete them in place. Each opens to its own page of notes
- * (milestone-detail-dialog.tsx).
+ * The project's milestones on its overview. Each line only shows: name, progress (share of its
+ * issues that are done), issue count and target date; the whole line opens the milestone
+ * (milestone-detail-dialog.tsx), where its issues are listed beside a document of notes and where
+ * the name and date are changed. The "…" menu holds "편집" (the same dialog) and "삭제". Lines
+ * are not edited in place: a field in every line made the list hard to read and easy to change by
+ * accident.
  */
 export function MilestonesSection({
   projectId,
@@ -82,18 +81,15 @@ export function MilestonesSection({
       {milestones.length === 0 && !adding ? (
         <p className="text-[0.8125rem] leading-5 text-muted-foreground">{canEdit ? m.empty : m.emptyReadOnly}</p>
       ) : (
-        <ul className="flex flex-col rounded-lg border">
+        <ul className="flex flex-col overflow-hidden rounded-lg border">
           {milestones.map((milestone) => (
             <MilestoneRow
               key={milestone.id}
-              projectId={projectId}
               milestone={milestone}
               canEdit={canEdit}
               busy={remove.isPending}
-              onRename={(name) => update.mutate({ projectId, id: milestone.id, changes: { name } })}
-              onDate={(targetDate) => update.mutate({ projectId, id: milestone.id, changes: { targetDate } })}
-              onDelete={() => remove.mutate({ projectId, id: milestone.id })}
               onOpen={() => setOpenId(milestone.id)}
+              onDelete={() => remove.mutate({ projectId, id: milestone.id })}
             />
           ))}
           {adding ? (
@@ -134,6 +130,7 @@ export function MilestonesSection({
           projectId={projectId}
           milestone={opened}
           canEdit={canEdit}
+          onChange={(changes) => update.mutate({ projectId, id: opened.id, changes })}
           onClose={() => setOpenId(null)}
         />
       ) : null}
@@ -142,116 +139,93 @@ export function MilestonesSection({
 }
 
 function MilestoneRow({
-  projectId,
   milestone,
   canEdit,
   busy,
-  onRename,
-  onDate,
-  onDelete,
   onOpen,
+  onDelete,
 }: {
-  projectId: string;
   milestone: Milestone;
   canEdit: boolean;
   busy: boolean;
-  onRename: (name: string) => void;
-  onDate: (targetDate: string | null) => void;
-  onDelete: () => void;
   onOpen: () => void;
+  onDelete: () => void;
 }) {
   const percent = milestoneProgress(milestone);
   const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
-  const nameInput = useRemoteValue<HTMLInputElement>(milestone.name, isFocused);
-
-  const commitName = (input: HTMLInputElement) => {
-    const name = input.value.trim();
-    if (!name) input.value = milestone.name;
-    else if (name !== milestone.name) onRename(name);
-  };
 
   return (
     <li
       data-presence-id={`milestone:${milestone.id}`}
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-3 py-2 first:border-t-0"
+      className="relative flex items-center gap-3 border-t py-2 pr-2 pl-3 first:border-t-0 hover:bg-muted has-[button[data-open-milestone]:focus-visible]:bg-muted"
     >
-      <div className="flex min-w-0 flex-1 basis-48 items-center gap-2">
-        <DiamondIcon
-          className={cn("size-4 shrink-0", done ? "fill-primary text-primary" : "text-muted-foreground")}
-          aria-hidden="true"
-        />
-        {canEdit ? (
-          <input
-            ref={nameInput}
-            defaultValue={milestone.name}
-            maxLength={NAME_MAX_LENGTH}
-            aria-label={m.nameLabel(milestone.name)}
-            autoComplete="off"
-            onBlur={(event) => commitName(event.currentTarget)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) event.currentTarget.blur();
-              if (event.key === "Escape") {
-                event.currentTarget.value = milestone.name;
-                event.currentTarget.blur();
-              }
-            }}
-            className="min-w-0 flex-1 truncate rounded-sm bg-transparent font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-        ) : (
-          <span className="min-w-0 flex-1 truncate font-medium">{milestone.name}</span>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <div
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percent}
-          aria-label={m.progress(percent)}
-          className="h-1.5 w-20 overflow-hidden rounded-full bg-muted"
-        >
-          <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <DiamondIcon className={cn("size-4 shrink-0", done ? "fill-primary text-primary" : "text-muted-foreground")} aria-hidden="true" />
+          {/* The name stretches over the whole line, so any part of it opens the milestone. */}
+          <button
+            type="button"
+            data-open-milestone
+            aria-label={m.detailOf(milestone.name)}
+            onClick={onOpen}
+            onPointerEnter={preloadDetail}
+            onFocus={preloadDetail}
+            className="min-w-0 truncate text-left font-medium outline-none after:absolute after:inset-0"
+          >
+            {milestone.name}
+          </button>
+          {milestone.content ? <span className="shrink-0 text-xs leading-4 text-muted-foreground">{m.hasNotes}</span> : null}
         </div>
-        <span className="w-9 text-right text-[0.8125rem] leading-5 tabular-nums">{percent}%</span>
-        <Link
-          href={`/project/${projectId}/issues?milestone=${milestone.id}`}
-          aria-label={m.issuesOf(milestone.name)}
-          className="w-16 rounded-sm text-[0.8125rem] leading-5 text-muted-foreground tabular-nums outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          {m.issues(milestone.doneCount, milestone.issueCount)}
-        </Link>
-        {canEdit || milestone.targetDate ? (
-          <DateChip
-            label={m.targetDate}
-            placeholder={m.noTargetDate}
-            value={milestone.targetDate}
-            disabled={!canEdit || busy}
-            onChange={onDate}
-          />
-        ) : null}
-        <button type="button" aria-label={m.detailOf(milestone.name)} title={m.detail} className={iconButtonClass} onClick={onOpen}>
-          {/* Darker when something is written inside. */}
-          <FileTextIcon className={cn("size-4", milestone.content ? "text-foreground" : null)} aria-hidden="true" />
-        </button>
-        {canEdit ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<button type="button" aria-label={m.actionsOf(milestone.name)} className={iconButtonClass} />}
+        <div className="flex items-center gap-3 pl-6 text-[0.8125rem] leading-5 text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <span
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+              aria-label={m.progress(percent)}
+              className="h-1.5 w-24 overflow-hidden rounded-full bg-muted-foreground/20"
             >
-              <EllipsisIcon className="size-4" aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="font-normal">{m.deleteHint}</DropdownMenuLabel>
-                <DropdownMenuItem variant="destructive" disabled={busy} onClick={onDelete}>
-                  <Trash2Icon />
-                  {m.delete}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
+              <span className="block h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
+            </span>
+            <span className="w-9 text-foreground tabular-nums">{percent}%</span>
+          </span>
+          <span className="tabular-nums">{m.issues(milestone.doneCount, milestone.issueCount)}</span>
+          {milestone.targetDate ? (
+            <span className="flex items-center gap-1 tabular-nums">
+              <CalendarIcon className="size-3.5" aria-hidden="true" />
+              <DueDate value={milestone.targetDate} />
+            </span>
+          ) : null}
+        </div>
       </div>
+      {canEdit ? (
+        <DropdownMenu>
+          {/* Above the stretched name button, so it gets its own clicks. */}
+          <DropdownMenuTrigger
+            render={<button type="button" aria-label={m.actionsOf(milestone.name)} className={cn(iconButtonClass, "relative z-10")} />}
+          >
+            <EllipsisIcon className="size-4" aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={onOpen}>
+                <PencilIcon />
+                {m.edit}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem variant="destructive" disabled={busy} onClick={onDelete} title={m.deleteHint}>
+                <Trash2Icon />
+                {m.delete}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      )}
     </li>
   );
 }

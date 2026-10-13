@@ -184,6 +184,46 @@ class ProjectsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `아카이브한 프로젝트는 목록과 이슈 목록에서 빠지고 아카이브 목록에 나오며 복원하면 돌아온다`() {
+        createProject("PAY")
+        createProject("OPS")
+        val issue = owner.post("/api/v1/issues", """{"title":"결제 오류","projectId":"${p("PAY")}"}""")
+        assertEquals(201, issue.status)
+
+        assertEquals(204, owner.post("/api/v1/projects/${p("PAY")}/archive", "{}").status)
+
+        assertEquals(listOf(p("OPS")), owner.get("/api/v1/projects").jsonList().map { it["id"] })
+        val archived = outsider.get("/api/v1/projects?archived=true").jsonList()
+        assertEquals(listOf(p("PAY")), archived.map { it["id"] })
+        assertEquals(true, archived.single()["archivedAt"] != null)
+        assertEquals(null, archived.single()["myRole"])
+        assertEquals(404, owner.get("/api/v1/projects/${p("PAY")}").status)
+        assertEquals(emptyList(), owner.get("/api/v1/issues").jsonList().map { it["title"] })
+        assertEquals(404, owner.post("/api/v1/projects/${p("PAY")}/archive", "{}").status)
+
+        val restored = owner.post("/api/v1/projects/${p("PAY")}/restore", "{}")
+        assertEquals(200, restored.status)
+        assertNull(restored.json()["archivedAt"])
+        val listed = owner.get("/api/v1/projects").jsonList().map { it["id"] }
+        assertEquals(setOf(p("PAY"), p("OPS")), listed.toSet())
+        assertEquals(emptyList(), owner.get("/api/v1/projects?archived=true").jsonList())
+        assertEquals(listOf("결제 오류"), owner.get("/api/v1/issues").jsonList().map { it["title"] })
+        assertEquals(404, owner.post("/api/v1/projects/${p("PAY")}/restore", "{}").status)
+    }
+
+    @Test
+    fun `아카이브와 복원은 관리 역할만 할 수 있다`() {
+        createProject("PAY")
+        owner.put("/api/v1/projects/${p("PAY")}/members/$outsiderId", """{"role":"EDITOR"}""")
+
+        assertEquals(403, outsider.post("/api/v1/projects/${p("PAY")}/archive", "{}").status)
+        assertEquals(204, owner.post("/api/v1/projects/${p("PAY")}/archive", "{}").status)
+        assertEquals(403, outsider.post("/api/v1/projects/${p("PAY")}/restore", "{}").status)
+        // A workspace administrator manages every project, archived ones included.
+        assertEquals(200, admin.post("/api/v1/projects/${p("PAY")}/restore", "{}").status)
+    }
+
+    @Test
     fun `로그인하지 않으면 프로젝트를 볼 수 없다`() {
         createProject("PAY")
 

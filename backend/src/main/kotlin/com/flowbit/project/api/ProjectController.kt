@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
@@ -59,6 +60,8 @@ data class ProjectResponse(
     val healthUpdatedAt: Instant?,
     /** Whether the caller follows the project. */
     val subscribed: Boolean,
+    /** When the project was archived; null for a project in use. */
+    val archivedAt: Instant?,
     /** The overview document as editor JSON; present only when one project is requested. */
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
@@ -86,6 +89,7 @@ data class ProjectResponse(
                 health = view.health,
                 healthUpdatedAt = view.healthUpdatedAt,
                 subscribed = view.subscribed,
+                archivedAt = view.archivedAt,
                 content = view.content,
             )
     }
@@ -145,10 +149,12 @@ class ProjectController(
     private val uploadReader: UploadReader,
     private val realtime: RealtimeHub,
 ) {
+    /** The projects in use, or with `?archived=true` the ones that were put away. */
     @GetMapping
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
-    ): List<ProjectResponse> = projectService.list(user).map(ProjectResponse::from)
+        @RequestParam(defaultValue = "false") archived: Boolean,
+    ): List<ProjectResponse> = (if (archived) projectService.listArchived(user) else projectService.list(user)).map(ProjectResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -183,6 +189,30 @@ class ProjectController(
     ): ProjectResponse {
         val project = projectService.update(user, projectId, body)
         realtime.publish("project:${project.id}", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
+        return ProjectResponse.from(project)
+    }
+
+    /** Managers only. The project leaves every list; nothing is deleted. */
+    @PostMapping("/{projectId}/archive")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun archive(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+        exchange: ServerWebExchange,
+    ) {
+        val id = projectService.archive(user, projectId, ClientInfo.from(exchange))
+        realtime.publish("project:$id", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
+    }
+
+    @PostMapping("/{projectId}/restore")
+    suspend fun restore(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+        exchange: ServerWebExchange,
+    ): ProjectResponse {
+        val project = projectService.restore(user, projectId, ClientInfo.from(exchange))
         realtime.publish(RealtimeHub.PROJECTS, user.id)
         return ProjectResponse.from(project)
     }

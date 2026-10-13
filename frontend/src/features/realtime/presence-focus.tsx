@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { personName } from "@/components/person";
 import { hasUnsavedEdits, onEditsSaved } from "@/lib/use-autosave";
 import { messages } from "@/messages";
@@ -8,7 +9,7 @@ import { useSendFocus, useViewers } from "./realtime-provider";
 
 const MARK = "data-presence-id";
 const SHOWN = "data-presence-by";
-/** Moving the pointer across the page passes over many regions; only where it rests is sent. */
+/** A click moves the focus and the caret in quick succession; what is sent is where they end up. */
 const SETTLE_MS = 120;
 /** Distinct on both themes with white text on top. */
 const COLORS = ["#d9480f", "#0b7285", "#9c36b5", "#2b8a3e", "#c2255c", "#5f3dc4"];
@@ -94,7 +95,7 @@ function caretRect(block: Element, offset: number): { left: number; top: number;
 
 /**
  * Shows where someone else is in an editor: their caret with a name flag when `offset` is given
- * (they are typing), otherwise a frame around the block (they are pointing at it). The editor
+ * (they are typing), otherwise a frame around the block (they clicked it). The editor
  * owns its own DOM and would undo anything set on a block, so this is a separate box laid over
  * it. It is placed again whenever the text changes, and hidden while the place it points at is
  * not here yet (their text arrives a moment after their caret). Styled here rather than in the
@@ -182,22 +183,36 @@ function colorOf(id: string): string {
 }
 
 /**
- * Shares which marked part of the page (`data-presence-id`) this person is typing in or pointing
- * at, and outlines the parts where the others are, with their names. In an editor that is their
- * caret while they type, or the block they point at, not the whole editor. Where the keyboard focus is
- * wins over where the pointer is. Renders nothing; the look is in globals.css.
+ * Shares which marked part of the page (`data-presence-id`) this person is working in, and outlines
+ * the parts where the others are, with their names. A part counts once the person does something
+ * in it: clicks it, or types or moves into it with the keyboard. The pointer merely passing over
+ * it does not count, or every move of the mouse would light something up on everyone else's
+ * screen; nor does focus the page gave by itself (a dialog opening puts it in its first field).
+ * In an editor it is the caret while they type, not the whole editor. Renders nothing; the look
+ * is in globals.css.
  */
 export function PresenceFocus() {
   const viewers = useViewers();
   const sendFocus = useSendFocus();
+  // The marked part this person last acted in; clicking outside every marked part clears it.
+  const acted = useRef<string | null>(null);
+
+  // Another page (or an issue opened over this one) starts with nothing marked.
+  const pathname = usePathname();
+  useEffect(() => {
+    acted.current = null;
+    sendFocus(null);
+  }, [pathname, sendFocus]);
 
   useEffect(() => {
-    let hovered: string | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const partOf = (target: string) => target.replace(/#.*$/, "");
     const report = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        const target = focusedTarget() ?? hovered;
+        // Inside the part they acted in, the keyboard says where exactly (the caret in an editor).
+        const focused = focusedTarget();
+        const target = acted.current && focused && partOf(focused) === partOf(acted.current) ? focused : acted.current;
         // A caret is a place in the text, so it is only true once the text it stands in has been
         // saved: it is sent after the save, and the others get the text and the caret together.
         // Moving the caret without typing has nothing to wait for.
@@ -206,31 +221,35 @@ export function PresenceFocus() {
       }, SETTLE_MS);
     };
     const stopListening = onEditsSaved(report);
-    const onPointer = (event: PointerEvent) => {
-      const next = targetOf(event.target);
-      if (next === hovered) return;
-      hovered = next;
+    const onPress = (event: PointerEvent) => {
+      acted.current = targetOf(event.target);
+      report();
+    };
+    // Typing, or arriving with Tab (the key goes up where the focus landed). Keys pressed in a
+    // menu that a part opened leave that part marked: the menu is drawn outside it.
+    const onKey = (event: KeyboardEvent) => {
+      const target = targetOf(document.activeElement);
+      if (target === null && event.key !== "Tab") return;
+      acted.current = target;
       report();
     };
     const onLeave = () => {
-      hovered = null;
+      acted.current = null;
       report();
     };
-    document.addEventListener("pointerover", onPointer);
-    document.addEventListener("focusin", report);
-    document.addEventListener("focusout", report);
+    document.addEventListener("pointerdown", onPress);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("keyup", onKey);
     // The caret moving inside an editor.
     document.addEventListener("selectionchange", report);
-    document.documentElement.addEventListener("pointerleave", onLeave);
     window.addEventListener("blur", onLeave);
     return () => {
       clearTimeout(timer);
       stopListening();
-      document.removeEventListener("pointerover", onPointer);
-      document.removeEventListener("focusin", report);
-      document.removeEventListener("focusout", report);
+      document.removeEventListener("pointerdown", onPress);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keyup", onKey);
       document.removeEventListener("selectionchange", report);
-      document.documentElement.removeEventListener("pointerleave", onLeave);
       window.removeEventListener("blur", onLeave);
       sendFocus(null);
     };

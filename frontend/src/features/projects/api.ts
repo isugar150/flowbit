@@ -17,6 +17,15 @@ export function setProjectSubscribed(input: { id: string; subscribed: boolean })
   });
 }
 
+/** Managers only. The project leaves the lists and cannot be entered until it is restored. */
+export function archiveProject(id: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/projects/${id}/archive`, { method: "POST" });
+}
+
+export function restoreProject(id: string): Promise<Project> {
+  return apiFetch<Project>(`/api/v1/projects/${id}/restore`, { method: "POST" });
+}
+
 export function putProjectMember(input: { id: string; userId: string; role: ProjectRole }): Promise<ProjectMember[]> {
   return apiFetch<ProjectMember[]>(`/api/v1/projects/${input.id}/members/${input.userId}`, {
     method: "PUT",

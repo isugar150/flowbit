@@ -97,29 +97,36 @@ test("a new project is made from the sidebar and opens", async () => {
   await page.close();
 });
 
-test("milestones are added one after another, renamed and deleted", async () => {
+test("milestones are added one after another, renamed from the menu and deleted", async () => {
   const page = await newPage();
   await page.goto(`/project/${project.id}`);
   await page.getByRole("button", { name: "목표 추가" }).click();
   const field = page.getByRole("textbox", { name: "새 목표 이름" });
   await field.fill("알파");
   await field.press("Enter");
-  await expect(page.getByRole("textbox", { name: "알파 이름" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "알파 열기" })).toBeVisible();
   // The field starts over empty and stays, for the next one.
   await expect(field).toHaveValue("");
   await field.fill("베타");
   await field.press("Enter");
-  await expect(page.getByRole("textbox", { name: "베타 이름" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "베타 열기" })).toBeVisible();
+  await field.press("Escape");
 
-  const alpha = page.getByRole("textbox", { name: "알파 이름" });
-  await alpha.fill("알파 2");
-  await alpha.press("Enter");
-  await expect(page.getByRole("textbox", { name: "알파 2 이름" })).toHaveValue("알파 2");
+  // "편집" in the line's menu opens the milestone, where its name is changed.
+  await page.getByRole("button", { name: "알파 메뉴" }).click();
+  await page.getByRole("menuitem", { name: "편집" }).click();
+  const name = page.getByRole("dialog").getByRole("textbox", { name: "목표 이름" });
+  await name.fill("알파 2");
+  await name.press("Enter");
+  await expect(page.getByRole("button", { name: "알파 2 열기" })).toHaveCount(1);
   await settled(page);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "알파 2 열기" })).toBeVisible();
 
   await page.getByRole("button", { name: "베타 메뉴" }).click();
   await page.getByRole("menuitem", { name: /삭제/ }).click();
-  await expect(page.getByRole("textbox", { name: "베타 이름" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "베타 열기" })).toHaveCount(0);
   const names = (await api<{ name: string }[]>(context, "GET", `/api/v1/projects/${project.id}/milestones`)).map((item) => item.name);
   expect(names).toEqual(["알파 2"]);
   await page.close();

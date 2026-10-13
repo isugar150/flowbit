@@ -76,6 +76,15 @@ interface ProjectRepository : CoroutineCrudRepository<Project, UUID> {
         now: Instant,
     ): Int
 
+    /** `archivedAt` null takes the project out of the archive. */
+    @Modifying
+    @Query("update projects set archived_at = :archivedAt, updated_at = :now where id = :id")
+    suspend fun updateArchivedAt(
+        id: UUID,
+        archivedAt: Instant?,
+        now: Instant,
+    ): Int
+
     @Query("select icon_key from projects where id = :id")
     suspend fun findIconKey(id: UUID): String?
 

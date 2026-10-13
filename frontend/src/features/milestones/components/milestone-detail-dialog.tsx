@@ -2,105 +2,216 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarIcon, DiamondIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
+import { DueDate } from "@/components/dates";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
+import { PersonMark } from "@/components/person";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DateChip } from "@/features/issues/components/date-chips";
+import { IssueTitleLink, PriorityMark, StatusMark } from "@/features/issues/components/issue-row";
+import { STATUS_ORDER } from "@/features/issues/meta";
+import type { Issue } from "@/features/issues/types";
+import { apiFetch } from "@/lib/api/client";
 import { useAutosave } from "@/lib/use-autosave";
+import { useRemoteValue } from "@/lib/use-remote-value";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateMilestone } from "../api";
 import { milestoneProgress, type Milestone } from "../types";
 
 const m = messages.milestones;
+const NAME_MAX_LENGTH = 80;
+
+/** The name field is saved on blur, so while it has focus the person's typing wins. */
+const isFocused = (input: HTMLInputElement) => document.activeElement === input;
 
 /**
- * One milestone opened from the project overview: how far along it is, and a document of its own
- * where the people working on it write down where things stand. Like the project's description
- * there is no edit mode and no save button; people who may edit just type, and it is saved.
+ * One milestone opened from the project overview. On the left, what it is and a document where
+ * the people working on it write down where things stand; on the right, the issues in it. People
+ * who may edit change the name and the target date here, and just type in the document: there is
+ * no edit mode and no save button.
  */
 export function MilestoneDetailDialog({
   projectId,
   milestone,
   canEdit,
+  onChange,
   onClose,
 }: {
   projectId: string;
   milestone: Milestone;
   canEdit: boolean;
+  /** A new name or target date; shown at once by whoever holds the list. */
+  onChange: (changes: { name?: string; targetDate?: string | null }) => void;
   onClose: () => void;
 }) {
   const router = useRouter();
   const notes = useAutosave((content: RichDoc | null) => updateMilestone({ projectId, id: milestone.id, changes: { content } }));
   const percent = milestoneProgress(milestone);
   const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
+  const nameInput = useRemoteValue<HTMLInputElement>(milestone.name, isFocused);
+  // Read each time the milestone is opened: issues move in and out of it elsewhere.
+  const issues = useQuery({
+    queryKey: ["milestone-issues", projectId, milestone.id],
+    queryFn: async () => {
+      const all = await apiFetch<Issue[]>(`/api/v1/projects/${encodeURIComponent(projectId)}/issues`);
+      return all
+        .filter((issue) => issue.milestone?.id === milestone.id)
+        .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.number - b.number);
+    },
+    staleTime: 0,
+  });
+
+  const commitName = (input: HTMLInputElement) => {
+    const name = input.value.trim();
+    if (!name) input.value = milestone.name;
+    else if (name !== milestone.name) onChange({ name });
+  };
 
   return (
     <Dialog
       open
       onOpenChange={(open) => {
         if (open) return;
-        // What was typed last is sent before the overview is read again, so the row behind
+        // What was typed last is sent before the overview is read again, so the line behind
         // (and the next opening of this dialog) starts from what was written.
         void notes.flush().then(() => router.refresh());
         onClose();
       }}
     >
       {/* Hung from the top rather than centred, so it does not jump as the document grows. */}
-      <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl">
+      <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl lg:max-w-5xl">
         {/* The scroll box is inside, not the dialog itself, so the editor's menus are not clipped. */}
-        <div className="flex max-h-[88dvh] min-h-64 flex-col gap-5 overflow-y-auto overscroll-contain rounded-xl p-5 pt-6">
-          <div className="flex flex-col gap-3">
-            <DialogTitle className="flex items-center gap-2 pr-8 text-lg leading-7 font-semibold">
-              <DiamondIcon className={cn("size-4 shrink-0", done ? "fill-primary text-primary" : "text-muted-foreground")} aria-hidden="true" />
-              <span className="min-w-0 truncate">{milestone.name}</span>
-            </DialogTitle>
-            <DialogDescription className="sr-only">{m.detailDescription}</DialogDescription>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5">
-              <span className="flex items-center gap-2">
-                <span
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={percent}
-                  aria-label={m.progress(percent)}
-                  className="h-1.5 w-24 overflow-hidden rounded-full bg-muted"
-                >
-                  <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+        <div className="flex max-h-[88dvh] min-h-64 flex-col overflow-y-auto overscroll-contain rounded-xl lg:flex-row lg:items-start">
+          <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 pt-6">
+            <div className="flex flex-col gap-3">
+              <DialogTitle className="sr-only">{milestone.name}</DialogTitle>
+              <DialogDescription className="sr-only">{m.detailDescription}</DialogDescription>
+              <div className="flex items-center gap-2 pr-8">
+                <DiamondIcon className={cn("size-5 shrink-0", done ? "fill-primary text-primary" : "text-muted-foreground")} aria-hidden="true" />
+                {canEdit ? (
+                  <input
+                    ref={nameInput}
+                    defaultValue={milestone.name}
+                    maxLength={NAME_MAX_LENGTH}
+                    aria-label={m.nameField}
+                    autoComplete="off"
+                    onBlur={(event) => commitName(event.currentTarget)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.nativeEvent.isComposing) event.currentTarget.blur();
+                      if (event.key === "Escape") {
+                        // Gives the typing up; the dialog stays open.
+                        event.stopPropagation();
+                        event.currentTarget.value = milestone.name;
+                        event.currentTarget.blur();
+                      }
+                    }}
+                    className="min-w-0 flex-1 rounded-sm bg-transparent text-lg leading-7 font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                ) : (
+                  <h2 className="min-w-0 truncate text-lg leading-7 font-semibold">{milestone.name}</h2>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5">
+                <span className="flex items-center gap-2">
+                  <span
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percent}
+                    aria-label={m.progress(percent)}
+                    className="h-1.5 w-28 overflow-hidden rounded-full bg-muted"
+                  >
+                    <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+                  </span>
+                  <span className="tabular-nums">{percent}%</span>
                 </span>
-                <span className="tabular-nums">{percent}%</span>
-              </span>
+                <span className="text-muted-foreground tabular-nums">{m.issues(milestone.doneCount, milestone.issueCount)}</span>
+                {canEdit || milestone.targetDate ? (
+                  <DateChip
+                    label={m.targetDate}
+                    placeholder={m.noTargetDate}
+                    value={milestone.targetDate}
+                    disabled={!canEdit}
+                    onChange={(targetDate) => onChange({ targetDate })}
+                  />
+                ) : (
+                  <span className="text-muted-foreground">{m.noTarget}</span>
+                )}
+              </div>
+            </div>
+            <section className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.notesTitle}</h3>
+                <SaveStatus status={notes.status} />
+              </div>
+              {canEdit || milestone.content ? (
+                <RichTextEditor
+                  initialContent={milestone.content}
+                  editable={canEdit}
+                  placeholder={m.notesPlaceholder}
+                  ariaLabel={m.notesLabel}
+                  className="min-h-48"
+                  onChange={notes.schedule}
+                  keepLocal={notes.isDirty}
+                />
+              ) : (
+                <p className="text-muted-foreground">{m.noNotes}</p>
+              )}
+            </section>
+          </div>
+          <aside
+            aria-labelledby="milestone-issues-title"
+            className="flex w-full shrink-0 flex-col gap-2 border-t p-5 lg:sticky lg:top-0 lg:w-96 lg:border-t-0 lg:border-l lg:pt-6"
+          >
+            <div className="flex items-center justify-between gap-2 lg:pr-8">
+              <h3 id="milestone-issues-title" className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">
+                {m.issuesTitle}
+                {issues.data ? <span className="ml-1.5 font-normal tabular-nums">{issues.data.length}</span> : null}
+              </h3>
               <Link
                 href={`/project/${projectId}/issues?milestone=${milestone.id}`}
-                className="rounded-sm text-muted-foreground tabular-nums outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex items-center gap-1 rounded-sm text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                {m.issues(milestone.doneCount, milestone.issueCount)}
+                {m.openInList}
+                <ArrowUpRightIcon className="size-3.5" aria-hidden="true" />
               </Link>
-              <span className="flex items-center gap-1.5 text-muted-foreground tabular-nums">
-                <CalendarIcon className="size-3.5" aria-hidden="true" />
-                {milestone.targetDate ?? m.noTarget}
-              </span>
             </div>
-          </div>
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.notesTitle}</h3>
-              <SaveStatus status={notes.status} />
-            </div>
-            {canEdit || milestone.content ? (
-              <RichTextEditor
-                initialContent={milestone.content}
-                editable={canEdit}
-                placeholder={m.notesPlaceholder}
-                ariaLabel={m.notesLabel}
-                className="min-h-48"
-                onChange={notes.schedule}
-                keepLocal={notes.isDirty}
-              />
+            {issues.isPending ? (
+              <div className="flex flex-col gap-2" aria-busy="true">
+                <span className="sr-only">{m.issuesLoading}</span>
+                <Skeleton className="h-8" />
+                <Skeleton className="h-8" />
+                <Skeleton className="h-8" />
+              </div>
+            ) : issues.isError ? (
+              <p role="alert" className="text-[0.8125rem] leading-5 text-destructive">
+                {m.issuesFailed}
+              </p>
+            ) : issues.data.length === 0 ? (
+              <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.noIssues}</p>
             ) : (
-              <p className="text-muted-foreground">{m.noNotes}</p>
+              <ul className="-mx-2 flex flex-col">
+                {issues.data.map((issue) => (
+                  <li key={issue.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted max-md:h-11">
+                    <StatusMark status={issue.status} />
+                    <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{issue.key}</span>
+                    <IssueTitleLink issue={issue} />
+                    {issue.dueDate ? (
+                      <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
+                        <DueDate value={issue.dueDate} />
+                      </span>
+                    ) : null}
+                    <PriorityMark priority={issue.priority} />
+                    {issue.assignee ? <PersonMark person={issue.assignee} /> : null}
+                  </li>
+                ))}
+              </ul>
             )}
-          </section>
+          </aside>
         </div>
       </DialogContent>
     </Dialog>

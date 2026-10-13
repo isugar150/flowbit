@@ -41,6 +41,8 @@ data class ProjectSummaryRow(
     val healthUpdatedAt: Instant?,
     /** Whether the reader follows the project: is told about every change to its issues. */
     val subscribed: Boolean,
+    /** When the project was archived; null for a project in use. */
+    val archivedAt: Instant? = null,
 )
 
 data class ProjectPerson(
@@ -235,6 +237,9 @@ class ProjectMemberStore(
         includeAll: Boolean,
     ): List<ProjectSummaryRow> = summaries("(:includeAll or pm.user_id is not null)", userId, includeAll, null)
 
+    /** Every archived project, for the list that shows what was put away. */
+    suspend fun archivedProjects(userId: UUID): List<ProjectSummaryRow> = summaries("true", userId, null, null, archived = true)
+
     suspend fun summary(
         projectId: UUID,
         userId: UUID,
@@ -245,12 +250,13 @@ class ProjectMemberStore(
         userId: UUID,
         includeAll: Boolean?,
         projectId: UUID?,
+        archived: Boolean = false,
     ): List<ProjectSummaryRow> {
         var spec =
             databaseClient
                 .sql(
                     """
-                    select p.id, p.name, p.description, p.icon_key, p.created_at, pm.role as member_role,
+                    select p.id, p.name, p.description, p.icon_key, p.created_at, p.archived_at, pm.role as member_role,
                            (select count(*) from project_members m where m.project_id = p.id) as member_count,
                            p.status, p.priority, p.start_date, p.target_date, p.labels,
                            l.id as lead_id, l.login_id as lead_login_id,
@@ -278,7 +284,7 @@ class ProjectMemberStore(
                     ) latest on true
                     left join project_members pm on pm.project_id = p.id and pm.user_id = :userId
                     left join users l on l.id = p.lead_id
-                    where p.archived_at is null and $condition
+                    where p.archived_at is ${if (archived) "not null" else "null"} and $condition
                     order by lower(p.name), p.id
                     """.trimIndent(),
                 ).bind("userId", userId)
@@ -314,6 +320,7 @@ class ProjectMemberStore(
                     health = row.get("health", String::class.java)?.let(ProjectHealth::valueOf),
                     healthUpdatedAt = row.get("health_updated_at", OffsetDateTime::class.java)?.toInstant(),
                     subscribed = checkNotNull(row.get("subscribed", Boolean::class.javaObjectType)),
+                    archivedAt = row.get("archived_at", OffsetDateTime::class.java)?.toInstant(),
                 )
             }.all()
             .collectList()
