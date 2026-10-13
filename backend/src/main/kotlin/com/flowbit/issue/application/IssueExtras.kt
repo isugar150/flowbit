@@ -36,6 +36,8 @@ data class DocumentSummary(
     val parentId: UUID?,
     val title: String,
     val updatedAt: Instant,
+    /** When it was deleted (archived); null for a document in use. */
+    val deletedAt: Instant? = null,
 )
 
 /** How deep documents nest in a project: a document on the overview is level 1. An issue's stay at level 1. */
@@ -133,12 +135,21 @@ class IssueExtrasStore(
 
     suspend fun deleteAttachment(id: UUID) = deleteById("issue_attachments", id)
 
-    suspend fun documents(issueId: UUID): List<DocumentSummary> = documentsWhere("issue_id = :id order by created_at, id", issueId)
+    suspend fun documents(issueId: UUID): List<DocumentSummary> = documentsWhere("issue_id = :id and deleted_at is null order by created_at, id", issueId)
 
     suspend fun projectDocuments(projectId: UUID): List<DocumentSummary> =
-        documentsWhere("project_id = :id and parent_id is null order by created_at, id", projectId)
+        documentsWhere("project_id = :id and parent_id is null and deleted_at is null order by created_at, id", projectId)
 
-    suspend fun childDocuments(documentId: UUID): List<DocumentSummary> = documentsWhere("parent_id = :id order by created_at, id", documentId)
+    /** The deleted documents of an issue, the last deleted first. */
+    suspend fun deletedDocuments(issueId: UUID): List<DocumentSummary> =
+        documentsWhere("issue_id = :id and deleted_at is not null order by deleted_at desc, id", issueId)
+
+    /** The deleted documents of a project at any depth, the last deleted first. */
+    suspend fun deletedProjectDocuments(projectId: UUID): List<DocumentSummary> =
+        documentsWhere("project_id = :id and deleted_at is not null order by deleted_at desc, id", projectId)
+
+    suspend fun childDocuments(documentId: UUID): List<DocumentSummary> =
+        documentsWhere("parent_id = :id and deleted_at is null order by created_at, id", documentId)
 
     /** The documents a document sits inside, the outermost first. */
     suspend fun documentAncestors(documentId: UUID): List<DocumentSummary> {
@@ -199,7 +210,33 @@ class IssueExtrasStore(
             .awaitSingle()
     }
 
-    suspend fun deleteDocument(id: UUID) = deleteById("documents", id)
+    /**
+     * Archives the document: the row stays, with who deleted it and when. The documents inside it
+     * are left as they are; they are reached through it, so they go and come back with it.
+     */
+    suspend fun deleteDocument(
+        id: UUID,
+        userId: UUID,
+        now: Instant,
+    ) {
+        databaseClient
+            .sql("update documents set deleted_at = :now, deleted_by = :userId where id = :id")
+            .bind("id", id)
+            .bind("userId", userId)
+            .bind("now", now)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
+    suspend fun restoreDocument(id: UUID) {
+        databaseClient
+            .sql("update documents set deleted_at = null, deleted_by = null where id = :id")
+            .bind("id", id)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
 
     private suspend fun deleteById(
         table: String,
@@ -238,7 +275,7 @@ class IssueExtrasStore(
         id: UUID,
     ): List<DocumentSummary> =
         databaseClient
-            .sql("select id, issue_id, project_id, parent_id, title, updated_at from documents where $where")
+            .sql("select id, issue_id, project_id, parent_id, title, updated_at, deleted_at from documents where $where")
             .bind("id", id)
             .map { row ->
                 DocumentSummary(
@@ -248,6 +285,7 @@ class IssueExtrasStore(
                     parentId = row.get("parent_id", UUID::class.java),
                     title = checkNotNull(row.get("title", String::class.java)),
                     updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
+                    deletedAt = row.get("deleted_at", OffsetDateTime::class.java)?.toInstant(),
                 )
             }.all()
             .collectList()

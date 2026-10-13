@@ -26,6 +26,7 @@ enum class IssueActivityType {
     ATTACHMENT_REMOVED,
     DOCUMENT_ADDED,
     DOCUMENT_REMOVED,
+    DOCUMENT_RESTORED,
     DELETED,
     RESTORED,
 

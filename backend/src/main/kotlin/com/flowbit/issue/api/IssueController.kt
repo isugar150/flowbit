@@ -93,9 +93,12 @@ data class DocumentSummaryResponse(
     val id: UUID,
     val title: String,
     val updatedAt: Instant,
+    /** When it was deleted; null for a document in use. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val deletedAt: Instant?,
 ) {
     companion object {
-        fun from(document: DocumentSummary) = DocumentSummaryResponse(document.id, document.title, document.updatedAt)
+        fun from(document: DocumentSummary) = DocumentSummaryResponse(document.id, document.title, document.updatedAt, document.deletedAt)
     }
 }
 
@@ -268,6 +271,10 @@ data class DocumentResponse(
     /** The documents inside it (page blocks in its body). */
     val children: List<DocumentSummaryResponse>,
     val canAddChild: Boolean,
+    /** When it was deleted; a deleted document is read-only until restored. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val deletedAt: Instant?,
+    val canRestore: Boolean,
 ) {
     companion object {
         fun from(detail: DocumentDetail) =
@@ -282,6 +289,8 @@ data class DocumentResponse(
                 ancestors = detail.ancestors.map(DocumentSummaryResponse::from),
                 children = detail.children.map(DocumentSummaryResponse::from),
                 canAddChild = detail.canAddChild,
+                deletedAt = detail.document.deletedAt,
+                canRestore = detail.canRestore,
             )
     }
 }
@@ -509,6 +518,13 @@ class IssueController(
         return AttachmentResponse.from(attachment)
     }
 
+    /** The deleted documents of the issue; the ones in use come with the issue itself. */
+    @GetMapping("/{number}/documents/deleted")
+    suspend fun deletedDocuments(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+    ): List<DocumentSummaryResponse> = issueService.deletedDocuments(user, number).map(DocumentSummaryResponse::from)
+
     @PostMapping("/{number}/documents")
     @ResponseStatus(HttpStatus.CREATED)
     suspend fun createDocument(
@@ -588,7 +604,8 @@ class ProjectDocumentController(
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable projectId: String,
-    ): List<DocumentSummaryResponse> = issueService.projectDocuments(user, projectId).map(DocumentSummaryResponse::from)
+        @RequestParam(defaultValue = "false") deleted: Boolean,
+    ): List<DocumentSummaryResponse> = issueService.projectDocuments(user, projectId, deleted).map(DocumentSummaryResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -728,5 +745,15 @@ class DocumentController(
         @PathVariable id: UUID,
     ) {
         announcer.documentChanged(user, issueService.removeDocument(user, id))
+    }
+
+    /** Brings a deleted document back. 404 when it is not deleted. */
+    @PostMapping("/{id}/restore")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun restore(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+    ) {
+        announcer.documentChanged(user, issueService.restoreDocument(user, id))
     }
 }

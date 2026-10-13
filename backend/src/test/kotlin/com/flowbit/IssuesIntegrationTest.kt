@@ -8,6 +8,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -486,8 +487,10 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals(404, outsider.get(url).status)
         assertEquals(422, editor.patch(url, """{"content":{"type":"script"}}""").status)
 
+        // Deleted documents are archived: gone from the issue, still readable, not writable.
         assertEquals(204, editor.delete(url).status)
-        assertEquals(404, editor.get(url).status)
+        assertNotNull(editor.get(url).json()["deletedAt"])
+        assertEquals(emptyList<Any>(), editor.get("/api/v1/issues/1").json()["documents"])
     }
 
     @Test
@@ -583,9 +586,29 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals(409, child(issueDocument).status)
         assertEquals(false, editor.get("/api/v1/documents/$issueDocument").json()["canAddChild"])
 
-        // Deleting a document takes the documents inside it along.
+        // Deleting a document archives it: it leaves the list, opens read-only and can be restored.
+        val listed = { deleted: Boolean -> editor.get("/api/v1/projects/${p("PAY")}/documents?deleted=$deleted").jsonList().map { it["id"] } }
         assertEquals(204, editor.delete("/api/v1/documents/$top").status)
-        assertEquals(404, editor.get("/api/v1/documents/${ids.last()}").status)
+        assertEquals(emptyList(), listed(false))
+        assertEquals(listOf(top), listed(true))
+        val archived = editor.get("/api/v1/documents/$top").json()
+        assertNotNull(archived["deletedAt"])
+        assertEquals(false, archived["canEdit"])
+        assertEquals(true, archived["canRestore"])
+        assertEquals(403, editor.patch("/api/v1/documents/$top", """{"title":"바꾸기"}""").status)
+        assertEquals(404, editor.delete("/api/v1/documents/$top").status)
+        // The documents inside it are untouched, so they come back with it.
+        assertEquals(204, editor.post("/api/v1/documents/$top/restore").status)
+        assertEquals(listOf(top), listed(false))
+        assertEquals(emptyList(), listed(true))
+        assertEquals(200, editor.get("/api/v1/documents/${ids.last()}").status)
+        assertEquals(404, editor.post("/api/v1/documents/$top/restore").status)
+
+        // An issue's document: the same, and both steps are in the issue's history.
+        assertEquals(204, editor.delete("/api/v1/documents/$issueDocument").status)
+        assertEquals(listOf(issueDocument), editor.get("/api/v1/issues/1/documents/deleted").jsonList().map { it["id"] })
+        assertEquals(204, editor.post("/api/v1/documents/$issueDocument/restore").status)
+        assertEquals(emptyList(), editor.get("/api/v1/issues/1/documents/deleted").jsonList())
     }
 
     @Test

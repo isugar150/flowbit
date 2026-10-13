@@ -13,6 +13,8 @@ import type { Issue } from "../types";
 const m = messages.issues.views;
 
 type Month = { year: number; month: number };
+/** How long after turning a month the wheel is ignored, so one gesture turns one month. */
+const WHEEL_PAUSE_MS = 250;
 /** The dates of an issue: one day (`startDate` null) or a first and a last day. */
 export type IssueDates = { startDate: string | null; dueDate: string };
 
@@ -102,6 +104,32 @@ export function IssueCalendarView({
     return () => window.removeEventListener("mouseup", finish);
   }, []);
 
+  // The wheel over the calendar turns the months: down for the next, up for the one before. The
+  // listener is added by hand because the page must not scroll with it, and React's own wheel
+  // handler may not prevent that.
+  const gridRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    let lastTurn = 0;
+    const onWheel = (event: WheelEvent) => {
+      // Zooming (Ctrl) and sideways scrolling of a calendar wider than the screen stay as they are.
+      if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY) || event.deltaY === 0) return;
+      event.preventDefault();
+      // One month per notch; a touchpad sends a stream of small moves for one gesture.
+      if (event.timeStamp - lastTurn < WHEEL_PAUSE_MS) return;
+      lastTurn = event.timeStamp;
+      const step = event.deltaY > 0 ? 1 : -1;
+      setChosen((current) => {
+        const from = current ?? today().month;
+        const next = new Date(from.year, from.month + step, 1);
+        return { year: next.getFullYear(), month: next.getMonth() };
+      });
+    };
+    grid.addEventListener("wheel", onWheel, { passive: false });
+    return () => grid.removeEventListener("wheel", onWheel);
+  }, [inBrowser]);
+
   if (!inBrowser) return <div className="h-96" aria-hidden="true" />;
 
   const now = today();
@@ -155,7 +183,7 @@ export function IssueCalendarView({
         </Button>
         {onCreate || onMove ? <p className="ml-auto text-xs leading-4 text-muted-foreground max-md:hidden">{m.calendarHint}</p> : null}
       </div>
-      <div className="overflow-x-auto">
+      <div ref={gridRef} className="overflow-x-auto">
         <table className="w-full min-w-[42rem] table-fixed border-collapse text-[0.8125rem] leading-5 select-none">
           <thead>
             <tr>

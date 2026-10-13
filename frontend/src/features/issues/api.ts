@@ -85,6 +85,11 @@ export function updateDocument(input: { id: string; changes: { title?: string; c
   return apiFetch<IssueDocument>(`/api/v1/documents/${input.id}`, { method: "PATCH", body: input.changes });
 }
 
+/** Deletes the document: it leaves where it was listed but is kept, and can be restored. */
 export function deleteDocument(id: string): Promise<void> {
   return apiFetch<void>(`/api/v1/documents/${id}`, { method: "DELETE" });
+}
+
+export function restoreDocument(id: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/documents/${id}/restore`, { method: "POST" });
 }

@@ -10,6 +10,7 @@ import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
 import { updateProject } from "../api";
 import type { Project } from "../types";
+import { DeletedDocuments } from "@/features/issues/components/deleted-documents";
 
 const m = messages.projects;
 
@@ -85,6 +86,7 @@ export function ProjectOverviewEditor({
         ) : (
           <p className="text-muted-foreground">{m.noDescription}</p>
         )}
+        <DeletedDocuments path={`/api/v1/projects/${encodeURIComponent(project.id)}/documents?deleted=true`} canEdit={canEdit} />
       </section>
     </div>
   );

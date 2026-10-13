@@ -9,6 +9,7 @@ import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
 import { createDocument, updateIssue } from "../api";
 import type { IssueDetail } from "../types";
+import { DeletedDocuments } from "./deleted-documents";
 
 const m = messages.issues;
 
@@ -94,6 +95,7 @@ export function IssueBody({
       ) : (
         <p className="text-muted-foreground">{m.noDescription}</p>
       )}
+      <DeletedDocuments path={`/api/v1/issues/${issue.number}/documents/deleted`} canEdit={canEdit} />
     </>
   );
 }

@@ -887,3 +887,15 @@
 - 사용자 지적: 아바타가 전부 겹쳐 보인다, 나는 왜 안 나오나. D-119 의 "겹쳐서, 나는 뺀다"를 바꾼다(09 에는 아직 옮기지 않았다. D-119 줄을 고칠 것).
 - `presence-avatars.tsx`: 아바타를 겹치지 않고 나란히(`gap-1`), 로그인한 사람을 맨 앞에 "지금 보는 중"으로 넣었다. 나는 `GET /api/v1/presence` 응답에 있을 때만 나온다(그 화면의 구성원이 아니면 안 나온다).
 - 확인: `typecheck`, `eslint` 통과. **화면은 확인하지 않았다.** 사람이 6명을 넘을 때의 `+n` 과 좁은 화면 폭도 보지 않았다.
+
+### 2026-10-13 — 사용자 요청 6건 (저장 경로, 목표 상세, 단축키 표시, 구성원 역할, 문서 아카이브, 캘린더 휠)
+
+1. **`FLOWBIT_STORAGE_PATH` 의 Windows 경로**: `.env` 는 properties 형식으로 읽혀 역슬래시가 이스케이프 문자다. `C:\data\uploads` 라고 쓰면 `C:datauploads` 가 되어 엉뚱한 폴더에 저장됐다. 값을 되살릴 수는 없어서 `StorageProperties` 가 그런 값이면 시작할 때 멈추고 슬래시로 쓰라고 알린다. `.env.example` 에 안내. **실제 Windows 경로로 띄워 보지는 않았다**(컴파일과 ktlint 만).
+2. **목표 상세의 이슈 줄** (`milestone-detail-dialog.tsx`): 키와 제목이 줄 높이만큼의 한 링크다. 편집할 수 있는 사람은 상태 아이콘을 눌러 상태를 바꾼다(목록과 같은 메뉴. 대화상자의 TanStack Query 캐시를 먼저 바꾸고 `router.refresh()`).
+3. **단축키 표시**: "업데이트 남기기" 버튼에 `Ctrl ↵`. 댓글·새 이슈 버튼에는 이미 있었다.
+4. **프로젝트 개요의 구성원 카드에서 역할 select 제거** (`project-member-list.tsx`). 역할은 글자로만 보이고, 바꾸는 것은 프로젝트 설정에서 한다. 같은 날 앞서 만든 것을 되돌린 것이다. "×" 로 제거하는 것은 그대로다.
+5. **문서 삭제를 아카이브로** (D-121): `V5__document_archive.sql`, `DELETE /api/v1/documents/{id}` 는 표시만, `POST /api/v1/documents/{id}/restore`, `GET /api/v1/projects/{id}/documents?deleted=true`, `GET /api/v1/issues/{번호}/documents/deleted`, 문서 응답의 `deletedAt`·`canRestore`. 화면: 삭제된 문서를 열면 안내와 "복원" 버튼(읽기 전용), 이슈 본문·프로젝트 설명 아래 접힌 "삭제된 문서" 목록(`deleted-documents.tsx`). 이슈는 이미 아카이브 방식이었다(D-079).
+6. **캘린더에서 휠로 달 넘기기** (`issue-calendar.tsx`): 아래로 다음 달, 위로 이전 달. 달력 위에서는 페이지가 스크롤되지 않는다. Ctrl+휠(확대)과 가로 스크롤은 그대로.
+
+- 확인한 범위: 백엔드 `ktlintCheck`, `IssuesIntegrationTest` 통과(문서 삭제 → 목록에서 빠짐 → 읽기 전용 → 복원, 이슈 문서 포함. 예전 "삭제하면 404" 기대 두 곳을 새 동작으로 고쳤다). 프런트 `lint`·`typecheck`. **화면은 하나도 확인하지 않았다. E2E 도 돌리지 않았다**(사용자가 토큰을 아끼라고 했다). 특히 볼 것: 캘린더 휠(터치패드에서 한 번에 여러 달 넘어가지 않는지), 목표 상세에서 상태를 바꾼 뒤 줄 순서가 바뀌는 순간, 삭제된 문서 목록.
+- 알아둘 것: 배포하면 `V5` 가 적용된다. 프로젝트 문서의 삭제·복원은 활동 기록이 없고 행의 `deleted_at`·`deleted_by` 뿐이다(복원하면 둘 다 비워진다). 감사 로그에 남길지는 정하지 않았다. `docs/05-data-model.md` 의 `documents` 줄과 M3 명세의 문서 줄은 아직 "함께 지워진다"로 남아 있다. **고칠 것.**

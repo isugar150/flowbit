@@ -11,7 +11,7 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { useAutosave } from "@/lib/use-autosave";
 import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
-import { createDocument, deleteDocument, updateDocument } from "../api";
+import { createDocument, deleteDocument, restoreDocument, updateDocument } from "../api";
 import type { IssueDocument } from "../types";
 
 const m = messages.issues.documents;
@@ -43,8 +43,25 @@ export function DocumentEditor({ document }: { document: IssueDocument }) {
     },
   });
 
+  const restore = useMutation({ mutationFn: restoreDocument, onSuccess: () => router.refresh() });
+
   return (
     <article className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 pt-6 pb-16">
+      {document.deletedAt ? (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted px-3 py-2 text-[0.8125rem] leading-5">
+          <span>{m.deletedNotice}</span>
+          {document.canRestore ? (
+            <Button type="button" variant="outline" size="sm" className="max-md:h-11" disabled={restore.isPending} onClick={() => restore.mutate(document.id)}>
+              {m.restore}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {restore.isError ? (
+        <p role="alert" className="text-[0.8125rem] leading-5 text-destructive">
+          {apiErrorMessage(restore.error)}
+        </p>
+      ) : null}
       <div className="flex items-center justify-end gap-2">
         <SaveStatus status={status} />
         {document.canEdit ? (

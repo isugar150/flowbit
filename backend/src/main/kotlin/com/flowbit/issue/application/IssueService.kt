@@ -122,6 +122,8 @@ data class DocumentDetail(
     val children: List<DocumentSummary>,
     /** Whether a document may be made inside it: the caller may edit, and it is not at the deepest level. */
     val canAddChild: Boolean,
+    /** Whether the caller may bring this deleted document back. */
+    val canRestore: Boolean = false,
 )
 
 /** What a document belonged to: an issue (by number) or a project (by id). */
@@ -608,7 +610,7 @@ class IssueService(
         rawTitle: String?,
     ): DocumentSummary {
         val parent = extras.findDocument(parentId) ?: throw notFound()
-        if (!ownerOf(user, parent).canEdit) throw noEditRight()
+        if (!ownerOf(user, parent).canEdit || parent.deletedAt != null) throw noEditRight()
         if (parent.issueId != null) throw ConflictException("DOCUMENT_TOO_DEEP", "이슈의 문서 안에는 문서를 만들 수 없습니다")
         if (extras.documentAncestors(parent.id).size + 1 >= MAX_DOCUMENT_DEPTH) {
             throw ConflictException("DOCUMENT_TOO_DEEP", "문서는 ${MAX_DOCUMENT_DEPTH}단계까지만 만들 수 있습니다")
@@ -619,7 +621,17 @@ class IssueService(
     suspend fun projectDocuments(
         user: AuthenticatedUser,
         projectId: String,
-    ): List<DocumentSummary> = extras.projectDocuments(projectService.access(user, projectId).project.id)
+        deleted: Boolean = false,
+    ): List<DocumentSummary> {
+        val id = projectService.access(user, projectId).project.id
+        return if (deleted) extras.deletedProjectDocuments(id) else extras.projectDocuments(id)
+    }
+
+    /** The deleted documents of an issue; the ones in use come with the issue itself. */
+    suspend fun deletedDocuments(
+        user: AuthenticatedUser,
+        number: Int,
+    ): List<DocumentSummary> = extras.deletedDocuments(access(user, number).issue.id)
 
     suspend fun document(
         user: AuthenticatedUser,
@@ -633,10 +645,13 @@ class IssueService(
             content = richText.load(RichText.ContentTable.DOCUMENTS, document.id),
             issue = owner.issue?.let { checkNotNull(queries.find(it.number)) },
             project = owner.project?.let { IssueProject(it.id, it.name) },
-            canEdit = owner.canEdit,
+            // A deleted document is read-only until it is restored.
+            canEdit = owner.canEdit && document.deletedAt == null,
             ancestors = ancestors,
             children = extras.childDocuments(document.id),
-            canAddChild = owner.canEdit && document.issueId == null && ancestors.size + 1 < MAX_DOCUMENT_DEPTH,
+            canAddChild =
+                owner.canEdit && document.deletedAt == null && document.issueId == null && ancestors.size + 1 < MAX_DOCUMENT_DEPTH,
+            canRestore = owner.canEdit && document.deletedAt != null,
         )
     }
 
@@ -648,7 +663,7 @@ class IssueService(
         patch: IssuePatch,
     ): DocumentDetail {
         val document = extras.findDocument(documentId) ?: throw notFound()
-        if (!ownerOf(user, document).canEdit) throw noEditRight()
+        if (!ownerOf(user, document).canEdit || document.deletedAt != null) throw noEditRight()
         val title = if (patch.has("title")) documentTitle(patch.string("title").orEmpty()) else null
         if (patch.has("content")) {
             val parsed = patch.raw("content")?.let { richText.parse(it) }
@@ -658,18 +673,38 @@ class IssueService(
         return document(user, documentId)
     }
 
-    /** Returns what the document belonged to, so that whoever shows it can be told. */
+    /**
+     * Archives the document (the row stays and can be restored). Returns what it belongs to, so
+     * that whoever shows it can be told.
+     */
     @Transactional
     suspend fun removeDocument(
         user: AuthenticatedUser,
         documentId: UUID,
     ): DocumentOwner {
-        val document = extras.findDocument(documentId) ?: throw notFound()
+        val document = extras.findDocument(documentId)?.takeIf { it.deletedAt == null } ?: throw notFound()
         val owner = ownerOf(user, document)
         if (!owner.canEdit) throw noEditRight()
-        extras.deleteDocument(document.id)
+        extras.deleteDocument(document.id, user.id, clock.instant())
         owner.issue?.let { issue ->
             val event = IssueEvent(IssueActivityType.DOCUMENT_REMOVED, mapOf("from" to document.title))
+            activities.record(issue.id, user.id, listOf(event), clock.instant())
+        }
+        return DocumentOwner(owner.issue?.number, owner.project?.id)
+    }
+
+    /** Brings a deleted document back to where it was. */
+    @Transactional
+    suspend fun restoreDocument(
+        user: AuthenticatedUser,
+        documentId: UUID,
+    ): DocumentOwner {
+        val document = extras.findDocument(documentId)?.takeIf { it.deletedAt != null } ?: throw notFound()
+        val owner = ownerOf(user, document)
+        if (!owner.canEdit) throw noEditRight()
+        extras.restoreDocument(document.id)
+        owner.issue?.let { issue ->
+            val event = IssueEvent(IssueActivityType.DOCUMENT_RESTORED, mapOf("to" to document.title))
             activities.record(issue.id, user.id, listOf(event), clock.instant())
         }
         return DocumentOwner(owner.issue?.number, owner.project?.id)

@@ -41,6 +41,8 @@ export type IssueDocumentSummary = {
   id: string;
   title: string;
   updatedAt: string;
+  /** When it was deleted (archived); null for a document in use. */
+  deletedAt: string | null;
 };
 
 /** GET /api/v1/documents/{id} */
@@ -57,6 +59,8 @@ export type IssueDocument = IssueDocumentSummary & {
   children: IssueDocumentSummary[];
   /** Whether a document may be made inside it: project documents only, five levels deep at most. */
   canAddChild: boolean;
+  /** Whether the person may bring this deleted document back. A deleted document is read-only. */
+  canRestore: boolean;
 };
 
 /** An issue as returned by /api/v1/issues. */
@@ -161,6 +165,7 @@ export type IssueActivityType =
   | "ATTACHMENT_REMOVED"
   | "DOCUMENT_ADDED"
   | "DOCUMENT_REMOVED"
+  | "DOCUMENT_RESTORED"
   | "DELETED"
   | "RESTORED";
 

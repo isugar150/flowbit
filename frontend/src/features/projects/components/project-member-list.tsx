@@ -4,25 +4,23 @@ import { useState } from "react";
 import { XIcon } from "lucide-react";
 import { Person, personName } from "@/components/person";
 import { Button } from "@/components/ui/button";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
-import { putProjectMember, removeProjectMember } from "../api";
-import type { ProjectMember, ProjectRole } from "../types";
+import { removeProjectMember } from "../api";
+import type { ProjectMember } from "../types";
 
 const m = messages.projects;
-const ROLES: ProjectRole[] = ["MANAGER", "EDITOR", "VIEWER"];
 
 /**
- * The people on the members card of a project overview. Those who manage the project change a
- * person's role and take someone out right here: the role is a list that saves when picked, and
- * the "x" asks once more in place before it removes.
+ * The people on the members card of a project overview, each with their role. Those who manage
+ * the project take someone out right here: the "x" asks once more in place before it removes.
+ * Roles are changed in the project settings, not here (the user's call, 2026-10-13).
  */
 export function ProjectMemberList({
   projectId,
-  members: saved,
+  members,
   canManage,
 }: {
   projectId: string;
@@ -31,16 +29,7 @@ export function ProjectMemberList({
 }) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const remove = useRefreshingMutation(removeProjectMember, () => setConfirmingId(null));
-  // A picked role shows right away; a list driven by the saved role alone would snap back to the
-  // old one until the page is read again.
-  const change = useOptimisticMutation(
-    saved,
-    (members, next: { id: string; userId: string; role: ProjectRole }) =>
-      members.map((member) => (member.userId === next.userId ? { ...member, role: next.role } : member)),
-    putProjectMember,
-  );
-  const members = change.value;
-  const failure = remove.error ?? change.error;
+  const failure = remove.error;
 
   return (
     <div className="flex flex-col gap-2 px-1 py-1">
@@ -78,27 +67,7 @@ export function ProjectMemberList({
                 </span>
               ) : (
                 <span className="flex shrink-0 items-center gap-1">
-                  {canManage ? (
-                    <NativeSelect
-                      size="sm"
-                      className="w-20 max-md:h-11"
-                      aria-label={messages.members.roleOf(name)}
-                      value={member.role}
-                      disabled={remove.isPending}
-                      onChange={(event) => {
-                        remove.reset();
-                        change.mutate({ id: projectId, userId: member.userId, role: event.target.value as ProjectRole });
-                      }}
-                    >
-                      {ROLES.map((role) => (
-                        <NativeSelectOption key={role} value={role}>
-                          {messages.roles[role]}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  ) : (
-                    <span className="text-[0.8125rem] leading-5 text-muted-foreground">{messages.roles[member.role]}</span>
-                  )}
+                  <span className="text-[0.8125rem] leading-5 text-muted-foreground">{messages.roles[member.role]}</span>
                   {canManage ? (
                     <Button
                       type="button"
@@ -109,7 +78,6 @@ export function ProjectMemberList({
                       title={m.removeOf(name)}
                       onClick={() => {
                         remove.reset();
-                        change.reset();
                         setConfirmingId(member.userId);
                       }}
                     >

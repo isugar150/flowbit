@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
@@ -12,11 +12,13 @@ import { PersonMark } from "@/components/person";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateChip } from "@/features/issues/components/date-chips";
-import { IssueTitleLink, PriorityMark, StatusMark } from "@/features/issues/components/issue-row";
+import { updateIssue } from "@/features/issues/api";
+import { ChipSelect } from "@/features/issues/components/chip-select";
+import { PriorityMark, StatusMark } from "@/features/issues/components/issue-row";
 import { SubIssueIndent } from "@/features/issues/components/sub-issue-rows";
-import { STATUS_ORDER } from "@/features/issues/meta";
+import { STATUSES, STATUS_ORDER, StatusIcon, statusLabel } from "@/features/issues/meta";
 import { arrangeBySubIssues } from "@/features/issues/sub-issue-tree";
-import type { Issue } from "@/features/issues/types";
+import type { Issue, IssueStatus } from "@/features/issues/types";
 import { apiFetch } from "@/lib/api/client";
 import { useAutosave } from "@/lib/use-autosave";
 import { useRemoteValue } from "@/lib/use-remote-value";
@@ -24,6 +26,12 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateMilestone } from "../api";
 import { milestoneProgress, type Milestone } from "../types";
+
+const statusOptions = STATUSES.map((status) => ({
+  value: status,
+  label: statusLabel(status),
+  icon: <StatusIcon status={status} />,
+}));
 
 const m = messages.milestones;
 const NAME_MAX_LENGTH = 80;
@@ -57,8 +65,10 @@ export function MilestoneDetailDialog({
   const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
   const nameInput = useRemoteValue<HTMLInputElement>(milestone.name, isFocused);
   // Read each time the milestone is opened: issues move in and out of it elsewhere.
+  const issuesKey = ["milestone-issues", projectId, milestone.id];
+  const queryClient = useQueryClient();
   const issues = useQuery({
-    queryKey: ["milestone-issues", projectId, milestone.id],
+    queryKey: issuesKey,
     queryFn: async () => {
       const all = await apiFetch<Issue[]>(`/api/v1/projects/${encodeURIComponent(projectId)}/issues`);
       return all
@@ -79,6 +89,17 @@ export function MilestoneDetailDialog({
   }, [milestone, pathname, refetchIssues]);
   // Sub-issues sit under their parents, one step in for every level, as in the issue lists.
   const rows = useMemo(() => arrangeBySubIssues(issues.data ?? []), [issues.data]);
+
+  // The status shows at once (the list is this dialog's own reading, so its cache is changed
+  // first); the overview behind is then read again for the progress, which renews the list too.
+  const changeStatus = (number: number, status: IssueStatus) => {
+    queryClient.setQueryData<Issue[]>(issuesKey, (current) =>
+      current?.map((issue) => (issue.number === number ? { ...issue, status } : issue)),
+    );
+    void updateIssue({ number, changes: { status } })
+      .catch(() => refetchIssues())
+      .then(() => router.refresh());
+  };
 
   const commitName = (input: HTMLInputElement) => {
     const name = input.value.trim();
@@ -226,9 +247,27 @@ export function MilestoneDetailDialog({
                   ) : (
                     <li key={row.issue.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted max-md:h-11">
                       <SubIssueIndent depth={row.depth} />
-                      <StatusMark status={row.issue.status} />
-                      <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.issue.key}</span>
-                      <IssueTitleLink issue={row.issue} />
+                      {canEdit ? (
+                        <ChipSelect
+                          iconOnly
+                          label={messages.issues.statusOf(row.issue.key)}
+                          value={row.issue.status}
+                          options={statusOptions}
+                          onChange={(status) => changeStatus(row.issue.number, status)}
+                        />
+                      ) : (
+                        <span className="flex size-7 items-center justify-center">
+                          <StatusMark status={row.issue.status} />
+                        </span>
+                      )}
+                      {/* The key and the title are one link as tall as the line, so the whole middle of it opens the issue. */}
+                      <Link
+                        href={`/issue/${row.issue.key}`}
+                        className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.issue.key}</span>
+                        <span className="min-w-0 truncate font-medium">{row.issue.title}</span>
+                      </Link>
                       {row.issue.dueDate ? (
                         <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
                           <DueDate value={row.issue.dueDate} />
