@@ -210,7 +210,7 @@ test("others see where a person clicked or types, not where their pointer passes
   await acting.keyboard.press("Escape");
 
   // Clicking where there is nothing to work on clears it.
-  await dialog.getByText("만든 사람").click();
+  await dialog.getByText("요청자").click();
   await expect.poll(marked).toEqual([]);
   await editor.close();
   await acting.close();

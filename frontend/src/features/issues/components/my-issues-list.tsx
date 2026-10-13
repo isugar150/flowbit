@@ -9,11 +9,11 @@ const m = messages.myIssues;
 
 /**
  * "내 티켓": the signed-in person's issues from every project they can enter, in the same list as
- * everywhere else (search, filters, the three views). `scope` picks the ones assigned to them or
- * the ones they created; `deleted` shows the deleted ones instead.
+ * everywhere else (search, filters, the three views). `scope` picks the ones they asked for (created) or
+ * the ones assigned to them. A new issue starts with nobody assigned on either tab; `deleted` shows the deleted ones instead.
  */
 export async function MyIssuesList({ scope, deleted = false }: { scope: "assigned" | "created"; deleted?: boolean }) {
-  const [user, issues, users, labels, projects] = await Promise.all([
+  const [, issues, users, labels, projects] = await Promise.all([
     requireUser(),
     serverGet<Issue[]>(`/api/v1/me/issues?scope=${scope}${deleted ? "&deleted=true" : ""}`),
     serverGet<UserSummary[]>("/api/v1/users"),
@@ -30,8 +30,6 @@ export async function MyIssuesList({ scope, deleted = false }: { scope: "assigne
       projects={projects}
       canEdit
       deleted={deleted}
-      // An issue made under "담당" is one's own, so it appears in the list it was made from.
-      defaultAssigneeId={scope === "assigned" ? user.id : null}
       empty={
         scope === "assigned"
           ? { title: m.emptyAssignedTitle, description: m.emptyAssigned }

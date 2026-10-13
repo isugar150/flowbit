@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { CalendarIcon, ShieldIcon, UsersIcon } from "lucide-react";
+import { CalendarIcon, UsersIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
-import type { IssueDocumentSummary } from "@/features/issues/types";
+import { ProjectIssueSummary } from "@/features/issues/components/project-issue-summary";
+import type { Issue, IssueDocumentSummary } from "@/features/issues/types";
 import type { UserSummary } from "@/features/members/types";
 import { MilestonesSection } from "@/features/milestones/components/milestones-section";
 import type { Milestone } from "@/features/milestones/types";
@@ -31,7 +32,7 @@ function formatDate(iso: string, timeZone: string): string {
 export default async function ProjectOverviewPage({ params }: PageProps<"/project/[id]">) {
   const { id } = await params;
   const path = `/api/v1/projects/${encodeURIComponent(id)}`;
-  const [user, project, members, projects, milestones, updates, documents] = await Promise.all([
+  const [user, project, members, projects, milestones, updates, documents, issues] = await Promise.all([
     requireUser(),
     loadProject(id),
     serverGet<ProjectMember[]>(`${path}/members`),
@@ -39,6 +40,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
     serverGet<Milestone[]>(`${path}/milestones`),
     serverGet<ProjectUpdate[]>(`${path}/updates`),
     serverGet<IssueDocumentSummary[]>(`${path}/documents`),
+    serverGet<Issue[]>(`${path}/issues`),
   ]);
   if (!members || !milestones || !updates) notFound();
   // People who manage the project can add members right from the card; they need the list of everyone.
@@ -46,7 +48,6 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
   const users = canManage ? ((await serverGet<UserSummary[]>("/api/v1/users")) ?? []) : [];
   const candidates = users.filter((person) => !members.some((member) => member.userId === person.id));
   const labelSuggestions = [...new Set(projects.flatMap((other) => other.labels))].sort((a, b) => a.localeCompare(b, "ko"));
-  const role = messages.roles[project.myRole];
   const created = formatDate(project.createdAt, user.timezone);
 
   return (
@@ -59,22 +60,18 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
         <ProjectOverviewEditor project={project} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"}>
         <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem] leading-5">
           <div className="flex items-center gap-1.5">
-            <ShieldIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            <dt className="sr-only">{m.propRole}</dt>
-            <dd className="font-medium">{role}</dd>
-          </div>
-          <div className="flex items-center gap-1.5">
             <UsersIcon className="size-4 text-muted-foreground" aria-hidden="true" />
             <dt className="sr-only">{m.propMembers}</dt>
             <dd className="font-medium">{m.memberCount(project.memberCount)}</dd>
           </div>
           <div className="flex items-center gap-1.5">
             <CalendarIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            <dt className="sr-only">{m.propCreated}</dt>
+            <dt className="text-muted-foreground">{m.propCreated}</dt>
             <dd className="font-medium tabular-nums">{created}</dd>
           </div>
         </dl>
         </ProjectOverviewEditor>
+        <ProjectIssueSummary projectId={project.id} issues={issues ?? []} canEdit={project.myRole !== "VIEWER"} />
         <MilestonesSection projectId={project.id} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
         <ProjectUpdates
           projectId={project.id}
@@ -103,7 +100,6 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
                 <span className="font-normal text-muted-foreground">{m.noUpdates}</span>
               )}
             </PropertyRow>
-            <PropertyRow label={m.propRole}>{role}</PropertyRow>
             <PropertyRow label={m.propMembers}>{m.memberCount(project.memberCount)}</PropertyRow>
             <PropertyRow label={m.propCreated}>
               <span className="tabular-nums">{created}</span>
@@ -114,7 +110,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
           title={m.membersCardTitle}
           action={canManage ? <AddProjectMemberButton projectId={project.id} candidates={candidates} /> : undefined}
         >
-          <ProjectMemberList projectId={project.id} members={members} canManage={canManage} />
+          <ProjectMemberList projectId={project.id} members={members} canManage={canManage} currentUserId={user.id} />
         </PropertyCard>
       </aside>
     </div>

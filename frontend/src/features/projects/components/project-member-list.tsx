@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { XIcon } from "lucide-react";
 import { Person, personName } from "@/components/person";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
@@ -22,10 +23,13 @@ export function ProjectMemberList({
   projectId,
   members,
   canManage,
+  currentUserId,
 }: {
   projectId: string;
   members: ProjectMember[];
   canManage: boolean;
+  /** The reader, marked "나" in the list: their own line is where they see their role. */
+  currentUserId: string;
 }) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const remove = useRefreshingMutation(removeProjectMember, () => setConfirmingId(null));
@@ -40,7 +44,10 @@ export function ProjectMemberList({
           const confirming = confirmingId === member.userId;
           return (
             <li key={member.userId} className="flex min-h-8 items-center justify-between gap-2">
-              <Person person={member} />
+              <span className="flex min-w-0 items-center gap-1.5">
+                <Person person={member} />
+                {member.userId === currentUserId ? <Badge variant="secondary">{messages.members.you}</Badge> : null}
+              </span>
               {confirming ? (
                 <span className="flex shrink-0 items-center gap-1">
                   <Button

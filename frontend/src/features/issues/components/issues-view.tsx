@@ -25,6 +25,7 @@ import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
+import { isTyping } from "@/lib/is-typing";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
 import { STATUS_ORDER, StatusIcon, statusLabel } from "../meta";
@@ -49,11 +50,6 @@ const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module)
 const loadNewIssueDialog = () => import("./new-issue-dialog");
 const NewIssueDialog = dynamic(() => loadNewIssueDialog().then((module) => module.NewIssueDialog), { ssr: false });
 const preloadNewIssueDialog = () => void loadNewIssueDialog();
-
-function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-}
 
 /** "Every …" in a filter; NONE is "nobody" / "no milestone" / "no label". */
 const ALL = "__all__";
@@ -460,7 +456,7 @@ export function IssuesView({
  * another and under the header. The narrower the screen, the fewer there are.
  */
 const COLUMNS = {
-  project: "hidden w-32 shrink-0 overflow-hidden xl:block",
+  project: "hidden w-28 shrink-0 overflow-hidden md:block xl:w-32",
   labels: "hidden w-44 shrink-0 overflow-hidden xl:flex",
   milestone: "hidden w-32 shrink-0 overflow-hidden lg:flex",
   due: "hidden w-16 shrink-0 sm:block",
@@ -535,7 +531,7 @@ const IssueListRow = memo(function IssueListRow({
       {/* Every line has the same columns whether or not it has the value, so they line up down the list. */}
       {showProject ? (
         <span className={COLUMNS.project}>
-          <IssueProjectName issue={issue} />
+          <IssueProjectName issue={issue} showNone />
         </span>
       ) : null}
       <span className={COLUMNS.labels}>

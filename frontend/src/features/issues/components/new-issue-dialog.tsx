@@ -46,6 +46,7 @@ export function NewIssueDialog({
   onOpenChange,
   projects,
   defaultProjectId,
+  initialProjectId = null,
   members: defaultMembers,
   milestones: defaultMilestones,
   labels,
@@ -59,6 +60,8 @@ export function NewIssueDialog({
   projects: ProjectSummary[];
   /** The project the dialog was opened in; null on the list of every issue. */
   defaultProjectId: string | null;
+  /** A project to start with that `members` and `milestones` are not for; they are fetched. */
+  initialProjectId?: string | null;
   /** Who can be assigned and the milestones, for `defaultProjectId` (everyone and none when it is null). */
   members: ProjectMember[];
   milestones: Milestone[];
@@ -104,7 +107,7 @@ export function NewIssueDialog({
     if (open) {
       setProperties((current) => ({
         ...current,
-        projectId: defaultProjectId,
+        projectId: initialProjectId ?? defaultProjectId,
         milestoneId: defaultMilestoneId,
         assigneeId: current.assigneeId ?? defaultAssigneeId,
         startDate: defaultDates?.startDate ?? null,
@@ -123,7 +126,7 @@ export function NewIssueDialog({
       setLastCreated(issue.key);
       titleRef.current?.focus();
     } else {
-      setProperties({ ...DEFAULT_PROPERTIES, projectId: defaultProjectId, assigneeId: defaultAssigneeId });
+      setProperties({ ...DEFAULT_PROPERTIES, projectId: initialProjectId ?? defaultProjectId, assigneeId: defaultAssigneeId });
       resetBody();
       onOpenChange(false);
     }

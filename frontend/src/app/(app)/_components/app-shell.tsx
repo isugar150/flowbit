@@ -8,6 +8,7 @@ import { RealtimeProvider } from "@/features/realtime/realtime-provider";
 import type { Workspace } from "@/features/settings/types";
 import { TourProvider } from "@/features/tour/components/onboarding-tour";
 import { mark } from "@/lib/initials";
+import { NewIssueButton, NewIssueProvider } from "@/features/issues/components/new-issue-launcher";
 import { MobileNav } from "./mobile-nav";
 import { SidebarNav } from "./sidebar-nav";
 import { UserMenu } from "./user-menu";
@@ -31,6 +32,7 @@ export function AppShell({
   return (
     <RealtimeProvider userId={user.id}>
       <TooltipProvider>
+        <NewIssueProvider projects={projects}>
         <div className="flex h-dvh bg-sidebar text-foreground">
           <aside className="hidden w-60 shrink-0 flex-col md:flex">
             <div className="flex h-12 items-center px-2">
@@ -49,7 +51,10 @@ export function AppShell({
                   <MobileNav projects={projects} />
                   <WorkspaceLink workspace={workspace} />
                 </div>
-                <UserMenu user={user} placement="header" />
+                <div className="flex items-center">
+                  <NewIssueButton variant="icon" />
+                  <UserMenu user={user} placement="header" />
+                </div>
               </div>
               <main className="group/main flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
                 {/* Around the pages so the settings can start the tour again; what it draws covers the whole window. */}
@@ -58,6 +63,7 @@ export function AppShell({
             </div>
           </div>
         </div>
+        </NewIssueProvider>
       </TooltipProvider>
     </RealtimeProvider>
   );
@@ -66,7 +72,7 @@ export function AppShell({
 function WorkspaceLink({ workspace }: { workspace: Workspace }) {
   return (
     <Link
-      href="/"
+      href="/my-issues"
       className="flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-[0.8125rem] leading-5 font-semibold outline-none hover:bg-sidebar-accent focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <Avatar size="sm" className="size-5 rounded-md after:rounded-md">

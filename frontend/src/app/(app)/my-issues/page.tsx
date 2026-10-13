@@ -1,6 +1,6 @@
 import { MyIssuesList } from "@/features/issues/components/my-issues-list";
 
-export default async function MyAssignedIssuesPage({ searchParams }: PageProps<"/my-issues">) {
+export default async function MyRequestedIssuesPage({ searchParams }: PageProps<"/my-issues">) {
   const { deleted } = await searchParams;
-  return <MyIssuesList scope="assigned" deleted={Boolean(deleted)} />;
+  return <MyIssuesList scope="created" deleted={Boolean(deleted)} />;
 }

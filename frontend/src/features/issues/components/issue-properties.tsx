@@ -177,7 +177,9 @@ export function IssuePropertyFields({
               </span>
             )}
           </Row>
-        ) : null}
+        ) : (
+          <p className="text-xs leading-4 text-muted-foreground">{m.noProjectHint}</p>
+        )}
       </Section>
     </div>
   );

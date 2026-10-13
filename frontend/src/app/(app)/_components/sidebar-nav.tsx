@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDownIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
+import { NewIssueButton } from "@/features/issues/components/new-issue-launcher";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import type { ProjectSummary } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary
 
   return (
     <nav aria-label={m.title} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2 py-1">
+      <NewIssueButton variant="sidebar" />
       <ul data-tour="nav" className="flex flex-col gap-px">
         {NAV_DESTINATIONS.map(({ href, label, icon: Icon, exact }) => (
           <li key={href}>

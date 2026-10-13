@@ -42,8 +42,18 @@ export function IssueTitleLink({ issue }: { issue: Pick<Issue, "key" | "title"> 
   );
 }
 
-/** The project an issue is linked to, on screens wide enough for it. */
-export function IssueProjectName({ issue }: { issue: Issue }) {
+/**
+ * The project an issue is linked to, on screens wide enough for it. In a column of its own
+ * (`showNone`) the column decides when it shows, and an issue outside every project says so.
+ */
+export function IssueProjectName({ issue, showNone = false }: { issue: Issue; showNone?: boolean }) {
+  if (showNone) {
+    return issue.project ? (
+      <span className={`block truncate ${metaText}`}>{issue.project.name}</span>
+    ) : (
+      <span className={`block truncate ${metaText} opacity-60`}>{messages.issues.noProject}</span>
+    );
+  }
   if (!issue.project) return null;
   return <span className={`hidden max-w-40 shrink-0 truncate lg:block ${metaText}`}>{issue.project.name}</span>;
 }

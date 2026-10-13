@@ -302,7 +302,7 @@ test("issue dialog: the body is there in the first frame the issue is", async ()
   await page.close();
 });
 
-test("project overview: status, following and a member's role show at once", async () => {
+test("project overview: status and following show at once", async () => {
   const page = await newPage();
   await page.goto(`/project/${project.id}`);
   const status = page.getByRole("button", { name: /^상태:/ });
@@ -312,32 +312,27 @@ test("project overview: status, following and a member's role show at once", asy
   await recordFrames(
     page,
     "overview",
-    (name) => {
+    () => {
       const chip = document.querySelector<HTMLButtonElement>('button[aria-label^="상태:"]');
       const follow = [...document.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent?.startsWith("구독"));
-      const role = document.querySelector<HTMLSelectElement>(`select[aria-label="${name}의 역할"]`);
       const state = (element: { disabled: boolean } | null | undefined) => (element?.disabled ? "disabled" : "enabled");
       return [
         `${chip?.getAttribute("aria-label")} ${state(chip)}`,
         `${follow?.textContent} ${state(follow)}`,
-        `${role?.value} ${state(role)}`,
       ].join(" / ");
     },
-    member.name,
   );
 
   await pick(page, status, "진행 중");
   await settled(page);
   await page.getByRole("button", { name: "구독", exact: true }).click();
   await settled(page);
-  await page.getByRole("combobox", { name: `${member.name}의 역할` }).selectOption("VIEWER");
-  await settled(page);
 
+  // Roles are changed in the project settings, not on the overview.
   expect(await frames(page, "overview")).toEqual([
-    "상태: 백로그 enabled / 구독 enabled / EDITOR enabled",
-    "상태: 진행 중 enabled / 구독 enabled / EDITOR enabled",
-    "상태: 진행 중 enabled / 구독 취소 enabled / EDITOR enabled",
-    "상태: 진행 중 enabled / 구독 취소 enabled / VIEWER enabled",
+    "상태: 백로그 enabled / 구독 enabled",
+    "상태: 진행 중 enabled / 구독 enabled",
+    "상태: 진행 중 enabled / 구독 취소 enabled",
   ]);
   noReloads();
   await page.close();

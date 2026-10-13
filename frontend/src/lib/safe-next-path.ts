@@ -1,4 +1,5 @@
-const FALLBACK = "/";
+/** The first screen after signing in: one's own tickets (docs/01-product.md section 3). */
+const FALLBACK = "/my-issues";
 
 /**
  * Where to send someone after sign-in. Only paths inside this site are allowed, so a crafted

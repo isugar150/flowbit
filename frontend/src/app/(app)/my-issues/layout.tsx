@@ -17,8 +17,8 @@ export default function MyIssuesLayout({ children }: LayoutProps<"/my-issues">) 
       <PillTabs
         label={m.tabsLabel}
         tabs={[
-          { href: "/my-issues", label: m.assigned },
-          { href: "/my-issues/created", label: m.created },
+          { href: "/my-issues", label: m.created },
+          { href: "/my-issues/assigned", label: m.assigned },
         ]}
       />
       {children}

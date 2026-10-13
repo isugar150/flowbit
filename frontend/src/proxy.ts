@@ -48,7 +48,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL("/unavailable", request.url));
   }
 
-  if (pathname === "/setup") return redirectTo(hasSession ? "/" : "/login");
+  if (pathname === "/setup") return redirectTo(hasSession ? "/my-issues" : "/login");
   if (pathname === "/login") {
     return hasSession ? redirectTo(safeNextPath(searchParams.get("next"))) : NextResponse.next();
   }

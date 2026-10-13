@@ -212,11 +212,11 @@ export const ko = {
     title: "내 티켓",
     tabsLabel: "내 티켓 보기",
     assigned: "담당",
-    created: "만든 티켓",
+    created: "요청한 티켓",
     emptyAssignedTitle: "맡은 티켓이 없습니다",
     emptyAssigned: "담당자로 지정된 티켓이 여기에 모입니다.",
-    emptyCreatedTitle: "만든 티켓이 없습니다",
-    emptyCreated: "내가 만든 티켓이 여기에 모입니다.",
+    emptyCreatedTitle: "요청한 티켓이 없습니다",
+    emptyCreated: "내가 요청한 티켓이 여기에 모입니다. 어떻게 처리되고 있는지 여기에서 봅니다.",
   },
   milestones: {
     title: "목표",
@@ -279,6 +279,15 @@ export const ko = {
     allMilestones: "모든 목표",
     project: "프로젝트",
     noProject: "프로젝트 없음",
+    summary: {
+      title: "티켓",
+      viewAll: "모두 보기",
+      progress: (done: number, total: number) => `${total}건 중 ${done}건 완료`,
+      count: (status: string, count: number) => `${status} ${count}건`,
+      empty: "이 프로젝트에 연결한 티켓이 없습니다. 티켓을 만들 때 이 프로젝트를 고르면 여기에 모입니다.",
+      emptyReadOnly: "이 프로젝트에 연결한 티켓이 없습니다.",
+    },
+    noProjectHint: "프로젝트는 고르지 않아도 됩니다. 고르지 않은 티켓은 구성원 누구나 보고 수정할 수 있습니다.",
     allProjects: "모든 프로젝트",
     projectFilter: "프로젝트로 거르기",
     noMilestonesInProject: "목표 없음",
@@ -412,7 +421,7 @@ export const ko = {
     clearFilter: "필터 초기화",
     noIssuesInFilter: "조건에 맞는 티켓이 없습니다.",
     noDueDate: "기한 없음",
-    createdBy: "만든 사람",
+    createdBy: "요청자",
     createdAt: "만든 날",
     statusOf: (key: string) => `${key} 상태 바꾸기`,
     emptyTitle: "아직 티켓이 없습니다",
@@ -473,7 +482,6 @@ export const ko = {
     sidebarEmpty: "아직 들어간 프로젝트가 없습니다.",
     tabOverview: "개요",
     properties: "속성",
-    propRole: "내 역할",
     propMembers: "구성원",
     propCreated: "만든 날",
     descriptionTitle: "설명",
@@ -927,15 +935,15 @@ export const ko = {
       },
       my: {
         title: "내 티켓",
-        body: "메뉴에서 ‘내 티켓’를 누르면 이 화면이 열립니다. 내가 담당한 티켓만 상태별로 모아 보여 줍니다. 실제 화면에서는 위쪽 탭으로 내가 만든 티켓도 볼 수 있습니다. 지금 보이는 것은 예시 티켓입니다.",
+        body: "메뉴에서 ‘내 티켓’을 누르면 이 화면이 열립니다. 내가 요청한 티켓이 상태별로 모여서, 어떻게 처리되고 있는지 볼 수 있습니다. 실제 화면에서는 위쪽 탭으로 내가 담당한 티켓도 볼 수 있습니다. 지금 보이는 것은 예시 티켓입니다.",
       },
       all: {
         title: "전체 티켓",
-        body: "‘전체 티켓’를 누르면 열리는 화면입니다. 내가 볼 수 있는 모든 프로젝트의 티켓이 한곳에 모입니다. 누가 무엇을 하고 있는지 볼 때 씁니다.",
+        body: "‘전체 티켓’을 누르면 열리는 화면입니다. 내가 볼 수 있는 티켓이 모두 모입니다. 티켓은 프로젝트와 따로 있어서, 프로젝트에 연결한 티켓도 연결하지 않은 티켓도 여기에 함께 나옵니다. 누가 무엇을 하고 있는지 볼 때 씁니다.",
       },
       toolbar: {
         title: "찾기와 보기",
-        body: "제목이나 번호로 찾고, 프로젝트·상태·우선순위·담당자·라벨·목표로 걸러 봅니다. 오른쪽에서 목록, 목표 차트, 캘린더로 보기를 바꾸고, ‘새 티켓’로 티켓을 만듭니다.",
+        body: "제목이나 번호로 찾고, 프로젝트·상태·우선순위·담당자·라벨·목표로 걸러 봅니다. 오른쪽에서 목록, 목표 차트, 캘린더로 보기를 바꾸고, ‘새 티켓’으로 티켓을 만듭니다.",
       },
       row: {
         title: "티켓 한 줄",
@@ -947,7 +955,7 @@ export const ko = {
       },
       issueProperties: {
         title: "속성",
-        body: "오른쪽은 티켓의 속성입니다. 위에서부터 상태, 우선순위, 담당자, 기간(시작일 → 기한)이고, 그 아래에 라벨과 티켓이 속한 프로젝트·목표가 있습니다. 눌러서 고르면 바로 바뀝니다.",
+        body: "오른쪽은 티켓의 속성입니다. 위에서부터 상태, 우선순위, 담당자, 기간(시작일 → 기한)이고, 그 아래에 라벨과 티켓을 연결한 프로젝트·목표가 있습니다. 프로젝트는 꼭 고르지 않아도 되고 나중에 바꿀 수 있습니다. 프로젝트에 연결하면 그 프로젝트의 구성원만 보고, 연결하지 않으면 구성원 누구나 봅니다. 눌러서 고르면 바로 바뀝니다.",
       },
       projects: {
         title: "내 프로젝트",
@@ -955,7 +963,7 @@ export const ko = {
       },
       overview: {
         title: "프로젝트 개요",
-        body: "프로젝트를 누르면 처음 나오는 화면입니다. 맨 위에 프로젝트 이름과 한 줄 요약이, 그 아래에 설명이 있습니다. 설명도 눌러서 바로 씁니다. 티켓은 프로젝트의 ‘티켓’ 탭에 모입니다.",
+        body: "프로젝트를 누르면 처음 나오는 화면입니다. 맨 위에 프로젝트 이름과 한 줄 요약이, 그 아래에 설명이 있습니다. 설명도 눌러서 바로 씁니다. 이 프로젝트에 연결한 티켓은 ‘티켓’ 탭에 모입니다.",
       },
       milestones: {
         title: "목표",
