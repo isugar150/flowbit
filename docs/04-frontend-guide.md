@@ -45,7 +45,8 @@ frontend/
 - `cacheComponents` 가 켜져 있다. 쿠키나 검색 파라미터처럼 요청마다 달라지는 값을 읽는 서버 컴포넌트는 `<Suspense>` 안에 있어야 한다. `(app)/layout.tsx` 가 그 경계이고, 대체 화면은 실제 배치와 같은 스켈레톤이다.
 - 클라이언트 컴포넌트에서 검색 파라미터가 필요하면 `useSearchParams()` 대신 이벤트 시점에 `window.location.search` 를 읽는 편이 단순하다(Suspense 경계가 필요 없다).
 - 폼은 react-hook-form + zod 로 만든다. 검증 스키마는 `features/<기능>/schema.ts` 에 둔다.
-- 화면 이동은 `router.replace()`/`router.push()` 를 쓴다. 로그인·로그아웃처럼 세션이 바뀐 직후에는 `router.refresh()` 도 불러 캐시를 비운다.
+- 화면 이동은 `router.replace()`/`router.push()` 를 쓴다. 로그인 직후에는 `router.refresh()` 도 불러 캐시를 비운다.
+- **로그아웃은 예외로 문서를 새로 연다** (`window.location.assign("/login")`, `user-menu.tsx`). Next 16 은 다녀간 화면을 상태째 살려 두므로, 앱 안에서 `/login` 으로 옮긴 뒤 다시 로그인하면 예전 화면이 그대로 돌아온다. 그래서 로그아웃 버튼이 "로그아웃함" 상태로 남아 계속 비활성이었고(2026-10-13 에 재현), 이전 사람의 캐시(TanStack Query, 실시간 연결)도 메모리에 남았다. **"한 번 눌렀으니 다시 못 누르게" 같은 상태를 `(app)` 레이아웃에 깔리는 컴포넌트의 `useState` 로 두지 않는다.**
 
 ## 속도 (Linear식 핵심 원칙)
 

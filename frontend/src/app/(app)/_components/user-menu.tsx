@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { personName } from "@/components/person";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -19,21 +17,36 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { logout } from "@/features/auth/api";
 import type { Me } from "@/features/auth/types";
+import { ApiError } from "@/lib/api/errors";
 import { initial } from "@/lib/initials";
 import { messages } from "@/messages";
 
 const m = messages.userMenu;
 
+function isSessionGone(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
+/**
+ * Loads the sign-in page as a new document instead of navigating inside the app. Next.js keeps
+ * visited screens alive with their state, so after an in-app move to /login and a new sign-in the
+ * old screens came back as they were: this menu still "signed out" (its button disabled), and
+ * the data cached for the previous person still in memory. A fresh document has none of that.
+ */
+function leave() {
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a new document is the point
+  window.location.assign("/login");
+}
+
 export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" | "header" }) {
-  const router = useRouter();
-  const [signedOut, setSignedOut] = useState(false);
   const mutation = useMutation({
     mutationFn: logout,
-    onSuccess: () => {
-      setSignedOut(true);
-      router.replace("/login");
-      // Drop everything the router cached for the signed-in user.
-      router.refresh();
+    // Without this an offline browser parks the request, and the button stays disabled for good.
+    networkMode: "always",
+    onSuccess: leave,
+    // The session had already ended (expired, or signed out in another tab): same place to go.
+    onError: (error) => {
+      if (isSessionGone(error)) leave();
     },
   });
   const inSidebar = placement === "sidebar";
@@ -42,7 +55,7 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
 
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      {mutation.isError ? (
+      {mutation.isError && !isSessionGone(mutation.error) ? (
         <p role="alert" className="px-2 text-[0.8125rem] leading-5 text-destructive">
           {m.logoutFailed}
         </p>
@@ -97,7 +110,7 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem disabled={mutation.isPending || signedOut} onClick={() => mutation.mutate()}>
+            <DropdownMenuItem disabled={mutation.isPending} onClick={() => mutation.mutate()}>
               <LogOutIcon />
               {m.logout}
             </DropdownMenuItem>
