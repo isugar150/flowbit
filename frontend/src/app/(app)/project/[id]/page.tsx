@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { CalendarIcon, ShieldIcon, UsersIcon } from "lucide-react";
-import { Person } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
 import type { IssueDocumentSummary } from "@/features/issues/types";
@@ -8,6 +7,7 @@ import type { UserSummary } from "@/features/members/types";
 import { MilestonesSection } from "@/features/milestones/components/milestones-section";
 import type { Milestone } from "@/features/milestones/types";
 import { AddProjectMemberButton } from "@/features/projects/components/add-project-member-button";
+import { ProjectMemberList } from "@/features/projects/components/project-member-list";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { ProjectProperties } from "@/features/projects/components/project-properties";
 import { ProjectSubscribeButton } from "@/features/projects/components/project-subscribe-button";
@@ -114,16 +114,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
           title={m.membersCardTitle}
           action={canManage ? <AddProjectMemberButton projectId={project.id} candidates={candidates} /> : undefined}
         >
-          <ul className="flex flex-col gap-2 px-1 py-1">
-            {members.map((member) => (
-              <li key={member.userId} className="flex items-center justify-between gap-2">
-                <Person person={member} />
-                <span className="shrink-0 text-[0.8125rem] leading-5 text-muted-foreground">
-                  {messages.roles[member.role]}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <ProjectMemberList projectId={project.id} members={members} canManage={canManage} />
         </PropertyCard>
       </aside>
     </div>

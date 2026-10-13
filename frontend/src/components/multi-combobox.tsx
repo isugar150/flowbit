@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 export type ComboboxOption = {
   id: string;
   label: string;
+  /** Shown after the label in muted text and searched too: what tells two people of the same name apart. */
+  hint?: string;
   icon?: React.ReactNode;
 };
 
@@ -31,6 +33,7 @@ export function MultiCombobox({
   emptyText,
   createText,
   error,
+  footer,
   maxLength = 30,
 }: {
   options: ComboboxOption[];
@@ -49,6 +52,8 @@ export function MultiCombobox({
   emptyText: string;
   createText?: (name: string) => string;
   error?: string | null;
+  /** A control under the list that goes with what is ticked, such as the role new people get. */
+  footer?: React.ReactNode;
   maxLength?: number;
 }) {
   const id = useId();
@@ -59,7 +64,7 @@ export function MultiCombobox({
 
   const name = query.trim();
   const needle = name.toLowerCase();
-  const shown = options.filter((option) => option.label.toLowerCase().includes(needle));
+  const shown = options.filter((option) => option.label.toLowerCase().includes(needle) || option.hint?.toLowerCase().includes(needle));
   const top = shown.filter((option) => pinned.has(option.id));
   const rest = shown.filter((option) => !pinned.has(option.id));
   const rows = [...top, ...rest];
@@ -108,7 +113,8 @@ export function MultiCombobox({
           {checked ? <CheckIcon className="size-3" strokeWidth={3} /> : null}
         </span>
         {option.icon}
-        <span className="truncate">{option.label}</span>
+        <span className={option.hint ? "shrink-0" : "truncate"}>{option.label}</span>
+        {option.hint ? <span className="truncate text-muted-foreground">{option.hint}</span> : null}
       </div>
     );
   };
@@ -182,6 +188,7 @@ export function MultiCombobox({
           {error}
         </p>
       ) : null}
+      {footer ? <div className="border-t px-3 py-2">{footer}</div> : null}
     </div>
   );
 }

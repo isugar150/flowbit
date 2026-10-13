@@ -33,7 +33,8 @@ export default async function AdminLayout({
           { href: "/admin/backup", label: m.backupTab },
         ]}
       />
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-10">
+      {/* A page that lays two panes side by side (the members) marks itself with data-wide. */}
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-10 has-data-wide:max-w-5xl">
         {children}
       </div>
     </>

@@ -14,7 +14,7 @@ frontend/
 │  │  ├─ (public)/           로그인 없이 보는 화면: setup, login, unavailable
 │  │  ├─ (app)/              로그인 후 화면. layout 이 사용자를 확인하고 AppShell(사이드바)을 그린다
 │  │  │  ├─ settings/        내 설정 (개인이 정하는 것: 프로필, 화면 테마)
-│  │  │  ├─ admin/           관리자 설정 (워크스페이스, 구성원, 로그인 연동, 알림, 백업 및 복원). 내 설정과 섞지 않는다
+│  │  │  ├─ admin/           관리자 설정 (워크스페이스, 구성원, 로그인 연동, 알림, 백업 및 복원). 내 설정과 섞지 않는다. 폭은 max-w-2xl 이고, 두 단으로 짜는 화면은 뿌리에 data-wide 를 달아 넓힌다
 │  │  │  ├─ project/[id]/   프로젝트
 │  │  │  ├─ loading.tsx      페이지를 옮길 때 바로 보이는 스켈레톤
 │  │  │  └─ error.tsx        데이터를 못 불러왔을 때
@@ -79,6 +79,7 @@ frontend/
 | 속성 카드 | `components/property-card.tsx` | 오른쪽 열의 카드와 그 안의 "이름: 값" 줄 |
 | 속성 칩 | `features/issues/components/chip-select.tsx`, `date-chips.tsx` | 값을 보여 주고 눌러서 바꾸는 둥근 칩 |
 | 날짜 칩 | `features/issues/components/date-chips.tsx` | `DateChip`(날짜 하나: 기한), `DateRangeChip`(기간: 첫 클릭이 시작일, 두 번째 클릭이 종료일). 달력은 `components/ui/calendar.tsx`(react-day-picker, 한국어), 팝오버는 `components/ui/popover.tsx` (D-043) |
+| 찾아서 고르는 목록 | `components/multi-combobox.tsx` | 팝오버 안에서 입력으로 좁히고 고르는 목록: 이슈 라벨, 프로젝트 라벨, 프로젝트 구성원 추가. 항목에 `hint`(같이 검색되는 흐린 글자), 목록 아래에 `footer`(고른 것에 함께 적용할 값)를 줄 수 있다. 고르는 일에 대화상자를 새로 만들지 않는다 |
 | 문서 편집기 | `components/editor/rich-text-editor.tsx` | 프로젝트 설명, 이슈 본문 |
 | 자동 저장 | `lib/use-autosave.ts`, `components/editor/save-status.tsx` | 저장 버튼 없이 저장하는 모든 곳 |
 | 사람 | `components/person.tsx` | `personName()`(표시 이름. `displayName ?? loginId` 를 직접 쓰지 않는다), `PersonAvatar`(작은 아바타), `PersonMark`(아바타 + 이름 툴팁), `Person`(아바타·이름·아이디) |
@@ -98,6 +99,7 @@ frontend/
 - 사진 없는 아바타의 글자는 `lib/initials.ts`: 사람은 `initials()`(한글 이름은 뒤 두 글자), 24px 보다 작은 아바타는 `initial()`(한 글자), 사람이 아닌 것(워크스페이스)은 `mark()`(앞 글자).
 - 같은 폴더 안에서 페이지끼리 오가면(이슈 상세 ↔ 이슈 목록) 그 폴더에도 `loading.tsx` 가 있어야 한다(`project/[id]/issues/loading.tsx`). 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다.
 - 편집기 위에 띄우는 것(`/` 메뉴, 표 도구 모음)은 `position: fixed` 로 두되 좌표에서 `fixedOrigin()`(`components/editor/fixed-origin.ts`)을 뺀다. 대화상자는 `transform` 으로 가운데에 놓이기 때문에 그 안의 `fixed` 는 창이 아니라 대화상자 모서리가 기준이다. 빼지 않으면 새 이슈 창에서 메뉴가 엉뚱한 곳에 뜬다.
+- `@` 메뉴는 `/` 메뉴(고정 폭 `w-56`)와 달리 내용만큼 넓어진다: 이름은 줄이지 않고, 이메일까지 보이도록 편집기의 오른쪽 끝까지 커진다(사용자 지정 2026-10-13: 이름이 "김…"으로 잘려 누구인지 알 수 없었다). 그래도 넘치면 이메일 쪽이 줄어든다.
 - `@` 태그(D-101): `RichTextEditor` 에 `mentionables`(`mentionablesOf(members)`)를 주면 `@` 메뉴가 생긴다. `/` 메뉴와 같은 코드(`readSlash`, `menuItems`)를 쓴다. 블록은 `components/editor/mention.tsx`(React 노드 뷰: 칩 + 올리면 뜨는 사람 카드. 사람 정보는 `MentionPeopleContext` 로 받는다. 모양은 `globals.css` 가 아니라 컴포넌트의 Tailwind 클래스다), 서버 검증은 `RichText.kt` 의 `mention`. 주지 않으면 `@` 는 보통 글자다.
 - 댓글(`features/issues/components/issue-comments.tsx`)도 `RichTextEditor` 다. 읽을 때는 `editable={false}`, 보낸 뒤 비우기와 고치기 취소는 `key` 를 바꿔서 한다.
 - 편집기는 `RichTextEditor` 하나뿐이다(개요 설명, 이슈 본문, 새 이슈 창, 댓글). 블록이나 도구를 더하면 세 곳 모두에 생긴다.

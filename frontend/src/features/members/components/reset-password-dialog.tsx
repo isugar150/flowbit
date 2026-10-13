@@ -73,7 +73,7 @@ export function ResetPasswordDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger
-        render={<Button variant="ghost" size="sm" className="max-md:h-11" />}
+        render={<Button variant="outline" size="sm" className="max-md:h-11" />}
       >
         {m.resetPassword}
       </DialogTrigger>

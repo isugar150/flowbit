@@ -123,6 +123,8 @@ type SlashState = {
   /** The edge the menu hangs from: its top, or its bottom when `above`. */
   top: number;
   left: number;
+  /** Width left between the menu's left edge and the right edge of the editor. */
+  room: number;
   /** No room under the cursor: the menu grows upwards from the line instead. */
   above: boolean;
   maxHeight: number;
@@ -131,6 +133,9 @@ type SlashState = {
 const MAX_MENTION_ITEMS = 8;
 
 const MENU_HEIGHT = 320;
+
+/** The width of the block menu (w-56), and the least the people menu is ever squeezed to. */
+const MENU_MIN_WIDTH = 224;
 
 const imageFiles = (list: FileList | null | undefined): File[] =>
   Array.from(list ?? []).filter((file) => file.type.startsWith("image/"));
@@ -198,6 +203,8 @@ function readSlash(editor: Editor, probe: HTMLElement | null, withMentions: bool
     query: match[1],
     top: top - origin.y,
     left: Math.max(8, coords.left) - origin.x,
+    // How far the menu may grow to the right: to the edge of the editor, and never past the window.
+    room: Math.min(window.innerWidth - 8, editor.view.dom.getBoundingClientRect().right) - Math.max(8, coords.left),
     above,
     maxHeight: above ? Math.max(120, Math.min(MENU_HEIGHT, top - 8)) : MENU_HEIGHT,
   };
@@ -595,9 +602,14 @@ export function RichTextEditor({
             top: slash.top,
             left: slash.left,
             maxHeight: slash.maxHeight,
+            maxWidth: Math.max(MENU_MIN_WIDTH, slash.room),
             transform: slash.above ? "translateY(-100%)" : undefined,
           }}
-          className="fixed z-50 flex w-56 flex-col overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          className={cn(
+            "fixed z-50 flex flex-col overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10",
+            // People are told apart by name and address, so their menu grows to show both in full.
+            slash.kind === "mention" ? "w-max min-w-56" : "w-56",
+          )}
         >
           {items.map((item, index) => (
             <button
@@ -620,7 +632,7 @@ export function RichTextEditor({
               )}
             >
               {item.icon}
-              <span className="truncate">{item.label}</span>
+              <span className={item.hint ? "shrink-0" : "truncate"}>{item.label}</span>
               {item.hint ? <span className="truncate text-muted-foreground">{item.hint}</span> : null}
             </button>
           ))}

@@ -2,13 +2,11 @@
 
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
-import { personName } from "@/components/person";
+import { MultiCombobox } from "@/components/multi-combobox";
+import { PersonAvatar, personName } from "@/components/person";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Spinner } from "@/components/ui/spinner";
-import { FormAlert } from "@/features/auth/components/form-alert";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { UserSummary } from "@/features/members/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
@@ -20,8 +18,9 @@ const m = messages.projects;
 const ROLES: ProjectRole[] = ["MANAGER", "EDITOR", "VIEWER"];
 
 /**
- * The "+" on the members card of a project overview, for people who manage the project: pick
- * someone who is not in the project yet and the role to give them.
+ * The "+" on the members card of a project overview, for people who manage the project. It opens
+ * the same kind of list as "라벨 추가": type to find someone who is not in the project yet and
+ * pick them, and they are in. The list stays open for the next person.
  */
 export function AddProjectMemberButton({
   projectId,
@@ -31,86 +30,62 @@ export function AddProjectMemberButton({
   /** Active people who are not members of the project yet. */
   candidates: UserSummary[];
 }) {
-  const [open, setOpen] = useState(false);
-  const [userId, setUserId] = useState("");
   const [role, setRole] = useState<ProjectRole>("EDITOR");
-  const mutation = useRefreshingMutation(putProjectMember, () => {
-    setUserId("");
-    setOpen(false);
-  });
+  const mutation = useRefreshingMutation(putProjectMember);
 
   return (
-    <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="text-muted-foreground max-md:size-11"
-        aria-label={m.addMemberTitle}
-        title={m.addMemberTitle}
-        onClick={() => {
-          mutation.reset();
-          setOpen(true);
-        }}
+    <Popover onOpenChange={() => mutation.reset()}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground max-md:size-11"
+            aria-label={m.addMemberTitle}
+            title={m.addMemberTitle}
+          />
+        }
       >
         <PlusIcon />
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{m.addMemberTitle}</DialogTitle>
-            <DialogDescription>{candidates.length > 0 ? m.addMemberDescription : m.noCandidates}</DialogDescription>
-          </DialogHeader>
-          {candidates.length > 0 ? (
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (userId && !mutation.isPending) mutation.mutate({ id: projectId, userId, role });
-              }}
-            >
-              {mutation.isError ? <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert> : null}
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="overview-member-user">{m.addMemberLabel}</FieldLabel>
-                  <NativeSelect
-                    id="overview-member-user"
-                    className="max-md:h-11"
-                    value={userId}
-                    onChange={(event) => setUserId(event.target.value)}
-                  >
-                    <NativeSelectOption value="">{m.addMemberPlaceholder}</NativeSelectOption>
-                    {candidates.map((person) => (
-                      <NativeSelectOption key={person.id} value={person.id}>
-                        {personName(person)}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="overview-member-role">{m.addMemberRoleLabel}</FieldLabel>
-                  <NativeSelect
-                    id="overview-member-role"
-                    className="max-md:h-11"
-                    value={role}
-                    onChange={(event) => setRole(event.target.value as ProjectRole)}
-                  >
-                    {ROLES.map((item) => (
-                      <NativeSelectOption key={item} value={item}>
-                        {messages.roles[item]}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </Field>
-              </FieldGroup>
-              <Button type="submit" className="max-md:h-11" disabled={!userId || mutation.isPending}>
-                {mutation.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}
-                {m.addMember}
-              </Button>
-            </form>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-    </>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-0">
+        <MultiCombobox
+          options={candidates.map((person) => ({
+            id: person.id,
+            label: personName(person),
+            hint: person.displayName ? person.loginId : undefined,
+            icon: <PersonAvatar person={person} />,
+          }))}
+          // Nobody in the list is in the project: someone who is added leaves the list.
+          value={[]}
+          onChange={([userId]) => {
+            if (userId && !mutation.isPending) mutation.mutate({ id: projectId, userId, role });
+          }}
+          placeholder={m.memberSearchPlaceholder}
+          listLabel={m.memberCandidates}
+          emptyText={m.noCandidates}
+          error={mutation.isError ? apiErrorMessage(mutation.error) : null}
+          maxLength={254}
+          footer={
+            <label className="flex items-center justify-between gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
+              {m.addMemberRoleOf}
+              <NativeSelect
+                size="sm"
+                className="w-20 max-md:h-11"
+                value={role}
+                onChange={(event) => setRole(event.target.value as ProjectRole)}
+              >
+                {ROLES.map((item) => (
+                  <NativeSelectOption key={item} value={item}>
+                    {messages.roles[item]}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </label>
+          }
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
