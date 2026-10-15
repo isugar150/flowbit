@@ -35,7 +35,8 @@ data class NewIssue(
     val content: Any?,
     val status: IssueStatus?,
     val priority: IssuePriority?,
-    val assigneeId: UUID?,
+    /** The people the issue is given to, in order; empty for no one. */
+    val assigneeIds: List<UUID>,
     val dueDate: LocalDate?,
     val milestoneId: UUID? = null,
     val labelIds: List<UUID> = emptyList(),
@@ -261,7 +262,7 @@ class IssueService(
         val description = document?.plainText ?: input.description?.trim().orEmpty()
         val errors = textErrors(title, description)
         if (errors.isNotEmpty()) throw ValidationException(errors)
-        input.assigneeId?.let { requireAssignable(project?.id, it) }
+        val assigneeIds = requireAssignees(project?.id, input.assigneeIds, emptyList())
         input.milestoneId?.let { requireMilestone(project?.id, it) }
         val labelIds = requireLabels(input.labelIds)
 
@@ -276,7 +277,6 @@ class IssueService(
                 description = description,
                 status = input.status ?: IssueStatus.BACKLOG,
                 priority = input.priority ?: IssuePriority.NONE,
-                assigneeId = input.assigneeId,
                 startDate = spanStart(input.startDate, input.dueDate),
                 dueDate = input.dueDate,
                 milestoneId = milestoneId,
@@ -288,11 +288,12 @@ class IssueService(
         entityTemplate.insert(issue).awaitSingle()
         if (document != null) richText.store(RichText.ContentTable.ISSUES, issue.id, document)
         if (labelIds.isNotEmpty()) queries.replaceLabels(issue.id, labelIds)
+        if (assigneeIds.isNotEmpty()) queries.replaceAssignees(issue.id, assigneeIds, now)
         val events = listOf(IssueEvent(IssueActivityType.CREATED))
         activities.record(issue.id, user.id, events, now)
-        // The author and the assignee follow the issue from the start.
+        // The author and the assignees follow the issue from the start.
         activities.subscribe(issue.id, user.id)
-        input.assigneeId?.let { activities.subscribe(issue.id, it) }
+        assigneeIds.forEach { activities.subscribe(issue.id, it) }
         val mentioned = mentionEvents(tag(issue, document?.mentions.orEmpty(), user))
         return IssueChange(checkNotNull(detail(issue.number)), events + mentioned, recipients(issue.id, user))
     }
@@ -328,11 +329,8 @@ class IssueService(
                 if (!patch.has("milestoneId")) issue.milestoneId = null
             }
         }
-        if (patch.has("assigneeId")) {
-            val assigneeId = patch.uuid("assigneeId")
-            if (assigneeId != null && assigneeId != issue.assigneeId) requireAssignable(issue.projectId, assigneeId)
-            issue.assigneeId = assigneeId
-        }
+        val assigneeIds =
+            if (patch.has("assigneeIds")) requireAssignees(issue.projectId, patch.uuids("assigneeIds"), before.assignees.map { it.id }) else null
         if (patch.has("milestoneId")) {
             val milestoneId = patch.uuid("milestoneId")
             if (milestoneId != null) requireMilestone(issue.projectId, milestoneId)
@@ -348,6 +346,7 @@ class IssueService(
         issue.updatedAt = clock.instant()
         repository.save(issue)
         if (labelIds != null) queries.replaceLabels(issue.id, labelIds)
+        if (assigneeIds != null) queries.replaceAssignees(issue.id, assigneeIds, issue.updatedAt)
         // Only people tagged by this save hear about it, not everyone the body already named.
         val newMentions =
             document?.mentions?.takeIf { it.isNotEmpty() }?.let { it - richText.mentionsIn(richText.load(RichText.ContentTable.ISSUES, issue.id)) }
@@ -357,7 +356,7 @@ class IssueService(
         activities.record(issue.id, user.id, recorded, issue.updatedAt)
         val events = recorded + mentionEvents(tag(issue, newMentions.orEmpty(), user))
         // Whoever is given the issue follows it from then on.
-        if (after.assignee != null && after.assignee.id != before.assignee?.id) activities.subscribe(issue.id, after.assignee.id)
+        after.assignees.filter { person -> before.assignees.none { it.id == person.id } }.forEach { activities.subscribe(issue.id, it.id) }
         moveSubIssuesAlong(user, issue, oldProjectId, oldMilestoneId, 0)
         return IssueChange(after, events, recipients(issue.id, user), listOfNotNull(before.project?.id, after.project?.id).distinct())
     }
@@ -808,15 +807,27 @@ class IssueService(
         return repository.findByParentId(issue.id).maxOfOrNull { 1 + levelsBelow(it, limit - 1) } ?: 0
     }
 
-    /** A linked issue can be given to members of its project; an issue on its own to any active person. */
-    private suspend fun requireAssignable(
+    /**
+     * The ids without repeats, once every one of them may be given the issue: a linked issue to
+     * members of its project, an issue on its own to any active person. People who already have
+     * it (`current`) are not checked again, so someone who has since left the project can stay on.
+     */
+    private suspend fun requireAssignees(
         projectId: UUID?,
-        userId: UUID,
-    ) {
-        val assignable = if (projectId != null) queries.isProjectMember(projectId, userId) else queries.isActiveUser(userId)
-        if (!assignable) {
-            throw ValidationException("assigneeId", "NOT_A_MEMBER", "담당자는 이 프로젝트의 구성원이어야 합니다")
+        userIds: List<UUID>,
+        current: List<UUID>,
+    ): List<UUID> {
+        val distinct = userIds.distinct()
+        if (distinct.size > MAX_ASSIGNEES) {
+            throw ValidationException("assigneeIds", "TOO_MANY", "담당자는 ${MAX_ASSIGNEES}명까지 지정할 수 있습니다")
         }
+        for (userId in distinct - current.toSet()) {
+            val assignable = if (projectId != null) queries.isProjectMember(projectId, userId) else queries.isActiveUser(userId)
+            if (!assignable) {
+                throw ValidationException("assigneeIds", "NOT_A_MEMBER", "담당자는 이 프로젝트의 구성원이어야 합니다")
+            }
+        }
+        return distinct
     }
 
     /** Only milestones of the project the issue is linked to. */
@@ -905,6 +916,7 @@ class IssueService(
         /** The emoji an issue can be reacted to with. */
         val REACTIONS = listOf("👍", "❤️", "🎉", "😄", "👀", "🚀", "🙏", "✅")
         private const val MAX_LABELS = 10
+        private const val MAX_ASSIGNEES = 10
 
         /** Stops walks up and down the tree should the data ever hold a loop. */
         private const val MAX_DEPTH = 50

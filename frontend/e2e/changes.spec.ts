@@ -23,7 +23,7 @@ async function newIssue(title: string, more: Record<string, unknown> = {}): Prom
     content: null,
     status: "BACKLOG",
     priority: "NONE",
-    assigneeId: null,
+    assigneeIds: [],
     startDate: null,
     dueDate: null,
     milestoneId: null,
@@ -100,7 +100,10 @@ test("issue dialog: every property keeps its new value through the save", async 
 
   await pick(page, dialog.getByRole("button", { name: /^우선순위:/ }), "긴급");
   await settled(page);
-  await pick(page, dialog.getByRole("button", { name: /^담당자:/ }), member.name);
+  // Assignees are ticked in a list that stays open for more (D-125); Escape closes it.
+  await dialog.getByRole("button", { name: /^담당자:/ }).click();
+  await page.getByRole("option").filter({ hasText: member.name }).click();
+  await page.keyboard.press("Escape");
   await settled(page);
 
   expect(await frames(page, "values")).toEqual([

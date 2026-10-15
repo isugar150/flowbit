@@ -8,7 +8,7 @@ import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
-import { PersonMark } from "@/components/person";
+import { PeopleMarks } from "@/components/person";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateChip } from "@/features/issues/components/date-chips";
@@ -273,8 +273,8 @@ export function MilestoneDetailDialog({
                         {row.issue.dueDate ? <DueDate value={row.issue.dueDate} /> : null}
                       </span>
                       <PriorityMark priority={row.issue.priority} />
-                      <span className="flex w-5 shrink-0 justify-center">
-                        {row.issue.assignee ? <PersonMark person={row.issue.assignee} /> : null}
+                      <span className="flex w-8 shrink-0 justify-center">
+                        {row.issue.assignees.length > 0 ? <PeopleMarks people={row.issue.assignees} max={2} /> : null}
                       </span>
                     </li>
                   ),

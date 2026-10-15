@@ -17,7 +17,7 @@ let context: BrowserContext;
 let project: Project;
 let editorId: string;
 
-const blank = { content: null, status: "BACKLOG", priority: "NONE", assigneeId: null, startDate: null, dueDate: null, milestoneId: null, labelIds: [] };
+const blank = { content: null, status: "BACKLOG", priority: "NONE", assigneeIds: [], startDate: null, dueDate: null, milestoneId: null, labelIds: [] };
 
 async function newIssue(title: string, more: Record<string, unknown> = {}, projectId = project.id): Promise<Issue> {
   return api<Issue>(context, "POST", "/api/v1/issues", { ...blank, title, projectId, ...more });

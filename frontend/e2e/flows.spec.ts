@@ -23,7 +23,7 @@ async function newIssue(title: string, more: Record<string, unknown> = {}): Prom
     content: null,
     status: "BACKLOG",
     priority: "NONE",
-    assigneeId: null,
+    assigneeIds: [],
     startDate: null,
     dueDate: null,
     milestoneId: null,

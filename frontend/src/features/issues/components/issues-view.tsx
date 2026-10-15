@@ -189,7 +189,9 @@ export function IssuesView({
         matches(status, issue.status) &&
         // "No priority" is a priority of its own (NONE), not a missing value.
         (priority === ALL || issue.priority === priority) &&
-        matches(assignee, issue.assignee?.id) &&
+        // One person is picked: the issue passes when they are one of its assignees.
+        (assignee === ALL ||
+          (assignee === NONE ? issue.assignees.length === 0 : issue.assignees.some((person) => person.id === assignee))) &&
         (labelFilter.length === 0 ||
           (issue.labels.length === 0
             ? labelFilter.includes(NONE)
@@ -526,7 +528,7 @@ function IssueListHeader({ showProject, underTabs }: { showProject: boolean; und
       <span className={COLUMNS.labels}>{m.labels}</span>
       <span className={COLUMNS.milestone}>{m.milestone}</span>
       <span className={COLUMNS.due}>{m.dueDate}</span>
-      <span className="w-4.5 shrink-0 overflow-hidden whitespace-nowrap lg:w-28">
+      <span className="w-8 shrink-0 overflow-hidden whitespace-nowrap lg:w-28">
         <span className="max-lg:hidden">{m.assignee}</span>
       </span>
     </div>

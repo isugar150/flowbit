@@ -28,7 +28,7 @@ type Properties = Omit<NewIssueInput, "title" | "content">;
 const DEFAULT_PROPERTIES: Properties = {
   status: "BACKLOG",
   priority: "NONE",
-  assigneeId: null,
+  assigneeIds: [],
   startDate: null,
   dueDate: null,
   milestoneId: null,
@@ -109,7 +109,7 @@ export function NewIssueDialog({
         ...current,
         projectId: initialProjectId ?? defaultProjectId,
         milestoneId: defaultMilestoneId,
-        assigneeId: current.assigneeId ?? defaultAssigneeId,
+        assigneeIds: current.assigneeIds.length > 0 || !defaultAssigneeId ? current.assigneeIds : [defaultAssigneeId],
         startDate: defaultDates?.startDate ?? null,
         dueDate: defaultDates?.dueDate ?? null,
       }));
@@ -121,12 +121,16 @@ export function NewIssueDialog({
   const mutation = useRefreshingMutation(createIssue, (issue) => {
     setTitle("");
     if (createMore) {
-      // Keep what the next issue is likely to share (status, labels, assignee); start a fresh body.
+      // Keep what the next issue is likely to share (status, labels, assignees); start a fresh body.
       resetBody();
       setLastCreated(issue.key);
       titleRef.current?.focus();
     } else {
-      setProperties({ ...DEFAULT_PROPERTIES, projectId: initialProjectId ?? defaultProjectId, assigneeId: defaultAssigneeId });
+      setProperties({
+        ...DEFAULT_PROPERTIES,
+        projectId: initialProjectId ?? defaultProjectId,
+        assigneeIds: defaultAssigneeId ? [defaultAssigneeId] : [],
+      });
       resetBody();
       onOpenChange(false);
     }
@@ -154,9 +158,9 @@ export function NewIssueDialog({
   });
   const members = other ? (fetched.data?.members ?? []) : defaultMembers;
   const milestones = other ? (fetched.data?.milestones ?? []) : defaultMilestones;
-  // An assignee or a milestone belongs to a project; changing the project starts those over.
+  // Assignees and a milestone belong to a project; changing the project starts those over.
   const setProject = (key: string | null) =>
-    setProperties((current) => ({ ...current, projectId: key, assigneeId: null, milestoneId: null }));
+    setProperties((current) => ({ ...current, projectId: key, assigneeIds: [], milestoneId: null }));
 
   const submit = () => {
     if (mutation.isPending) return;
@@ -252,7 +256,7 @@ export function NewIssueDialog({
             <IssuePropertyFields
               values={properties}
               onChange={(changes) => {
-                // An assignee or a milestone belongs to a project; changing the project starts those over.
+                // Assignees and a milestone belong to a project; changing the project starts those over.
                 if ("projectId" in changes) setProject(changes.projectId ?? null);
                 else setProperties((current) => ({ ...current, ...changes }));
               }}

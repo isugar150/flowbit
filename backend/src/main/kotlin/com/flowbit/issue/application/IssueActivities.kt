@@ -74,7 +74,7 @@ class IssueActivityStore(
         before: IssueView,
         after: IssueView,
     ): List<IssueEvent> {
-        fun name(person: IssuePerson?) = person?.let { it.displayName ?: it.loginId }
+        fun name(person: IssuePerson) = person.displayName ?: person.loginId
         val events = mutableListOf<IssueEvent>()
         if (before.title != after.title) {
             events += IssueEvent(IssueActivityType.TITLE_CHANGED, mapOf("from" to before.title, "to" to after.title))
@@ -86,8 +86,11 @@ class IssueActivityStore(
         if (before.priority != after.priority) {
             events += IssueEvent(IssueActivityType.PRIORITY_CHANGED, mapOf("from" to before.priority.name, "to" to after.priority.name))
         }
-        if (before.assignee?.id != after.assignee?.id) {
-            events += IssueEvent(IssueActivityType.ASSIGNEE_CHANGED, mapOf("from" to name(before.assignee), "to" to name(after.assignee)))
+        // Like labels: who was added and who was taken off (entries before D-125 hold `from`/`to`).
+        val assigned = after.assignees.filter { person -> before.assignees.none { it.id == person.id } }.map(::name)
+        val unassigned = before.assignees.filter { person -> after.assignees.none { it.id == person.id } }.map(::name)
+        if (assigned.isNotEmpty() || unassigned.isNotEmpty()) {
+            events += IssueEvent(IssueActivityType.ASSIGNEE_CHANGED, mapOf("added" to assigned, "removed" to unassigned))
         }
         if (before.dueDate != after.dueDate || before.startDate != after.startDate) {
             // One date, or "first day ~ last day" for a span.

@@ -22,6 +22,7 @@
 - **`V2__milestone_content.sql` 이 생겼다** (2026-10-13, D-113: `milestones.content`). 아래 줄의 "하나다"는 그 전 이야기이고, 규칙(새 변경은 새 파일)은 그대로다.
 - **마이그레이션은 `V1__schema.sql` 하나다** (D-104, 2026-10-13). 운영 배포를 앞두고 `V1`~`V6` 을 한 번 합쳤다. **이 파일은 이제 고치지 않는다. 스키마 변경은 `V2__….sql` 부터 새 파일로 추가한다.** 이 문서의 예전 작업 기록에 나오는 `V2`~`V9` 는 합치기 전 파일 번호다.
 - 개발 DB(`flowbit`)는 합치기 전 마이그레이션이 적용돼 있어 **지우고 다시 만들어야 백엔드가 뜬다**(Flyway 체크섬 불일치). 사용자가 직접 지우기로 했다. 에이전트는 지우지 않는다.
+- **티켓의 담당자를 여러 명 둘 수 있다** (D-125, 2026-10-15). 표 `issue_assignees`, 마이그레이션 `V6__issue_assignees.sql`(기존 `issues.assignee_id` 를 옮기고 컬럼을 지운다). API 는 `assignees`(응답)·`assigneeIds`(요청). **개발 DB 에는 백엔드를 다시 띄울 때 `V6` 이 적용된다.**
 - **처음 로그인하면 온보딩 투어가 뜬다** (D-120, 2026-10-13, [features/onboarding-tour.md](features/onboarding-tour.md)). 예시 티켓으로 연습하고, 건너뛸 수 있고, 내 설정에서 다시 본다. 마이그레이션 `V4__user_tour.sql`. E2E 는 이제 32개다(위의 "30개"는 그 전 숫자).
 
 ## 다음 작업
@@ -165,6 +166,16 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-15 — 티켓 담당자 여러 명 (D-125)
+
+- 사용자 지시: 티켓의 담당자를 여러 명 선택할 수 있게.
+- 한 일
+  - 백엔드: `V6__issue_assignees.sql`(연결 표, 기존 값 옮김, `assignee_id` 삭제), `IssueQueries`(담당자를 JSON 배열로 읽음, `replaceAssignees`, 내 티켓 "담당" 조건), `IssueService`(`assigneeIds` 검증: 10명까지, 새로 넣은 사람만 구성원인지 확인, 새 담당자 모두 구독), `IssueActivities`(`ASSIGNEE_CHANGED` 를 `{added, removed}` 로), `NotificationText`(옛 `{from,to}` 도 읽음), `IssueController`.
+  - 프론트엔드: `assignee-chip.tsx`(체크로 여럿 고르는 목록, 10명 넘으면 안내), `components/person.tsx` 의 `PeopleAvatars`·`PeopleMarks`(겹친 아바타), `options.tsx` 의 `assigneeSummary`("첫 사람 외 N명"), 목록 줄·하위 티켓·목표 상세의 담당자 표시, 목록 필터(고른 사람이 담당자 중 하나면 보임), 활동 문구, 새 티켓 창, 투어 예시 데이터, E2E 의 요청 본문과 담당자 고르기.
+  - 문서: 05(`issue_assignees`), M3 명세, M7a(웹훅 `detail`), 09 D-125.
+- 확인: `./gradlew check` 통과(테스트 187개, 새 테스트 2개: 여러 명·순서·구독·내 티켓·활동, 10명 한도와 구성원 검사). 프론트 `typecheck`·`lint`·`next build`. **E2E 는 한 번 돌려 32개 중 30개 통과**(임시 PostgreSQL 컨테이너 + 8081 백엔드 + 3100). 깨진 둘: `flows.spec.ts` "the view role sees everything…"(같은 티켓 줄이 숨겨진 이전 화면과 둘로 잡힘: strict mode), `tour.spec.ts` "skipping is remembered…"(로그인 429 요청 제한). 둘 다 담당자 변경과 무관해 보이지만 다시 돌려 확인하지는 않았다. 담당자를 고르는 `changes.spec.ts` 테스트는 통과했다. **그 뒤 옆 패널에 저장된 담당자를 넘기는 작은 변경(아래 줄)을 더했고 그것은 E2E·화면으로 보지 않았다. 사용자가 화면 테스트는 하지 않아도 된다고 해서 화면 확인은 하지 않았다.**
+- 프로젝트에서 빠진 사람이 담당자로 남아 있어도 옆 패널의 목록에 함께 나와서 뺄 수 있다(`IssuePropertyFields` 의 `assignees`). 서버는 이미 있던 담당자를 다시 검사하지 않는다.
 
 ### 2026-10-13 — 티켓 속성의 목표: "목표 설정" 대신 회색 "비어 있음"
 

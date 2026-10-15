@@ -105,7 +105,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
         val lee = client().also { it.login("leesj", PASSWORD) }
         lee.patch("/api/v1/me/notifications", """{"email":"lee@example.com","notifyEmail":false}""")
         // kim follows the issue as its author, lee as its assignee.
-        kim.post("/api/v1/issues", """{"title":"결제 \"오류\" 수정","assigneeId":"$leeId"}""")
+        kim.post("/api/v1/issues", """{"title":"결제 \"오류\" 수정","assigneeIds":["$leeId"]}""")
 
         admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
 
@@ -157,7 +157,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
         assertFalse(created.body.contains("hook-secret"))
 
         // kim follows the issue as its assignee.
-        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeId":"$kimId"}""")
+        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeIds":["$kimId"]}""")
 
         val request = awaitReceived("/standard")
         val payload = JsonMapper.builder().build().readTree(request.body)
@@ -188,7 +188,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
             webhookJson(path = "/chat", bodyTemplate = """{\"text\":\"{{text}}\",\"key\":\"{{ issue.key }}\",\"raw\":{{payload}},\"none\":\"{{nope}}\"}"""),
         )
 
-        admin.post("/api/v1/issues", """{"title":"따옴표 \" 와 역슬래시 \\","assigneeId":"$kimId"}""")
+        admin.post("/api/v1/issues", """{"title":"따옴표 \" 와 역슬래시 \\","assigneeIds":["$kimId"]}""")
 
         val body = JsonMapper.builder().build().readTree(awaitReceived("/chat").body)
         assertTrue(body.get("text").asString().startsWith("[FB-1] 따옴표 \" 와 역슬래시 \\ — "))
@@ -201,7 +201,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
     fun `고른 변경 종류에만 보내고 꺼 둔 것은 보내지 않는다`() {
         admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/status-only", eventTypes = """["STATUS_CHANGED"]"""))
         admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/off", enabled = false))
-        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeId":"$kimId"}""")
+        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeIds":["$kimId"]}""")
 
         admin.patch("/api/v1/issues/1", """{"status":"DONE"}""")
 
@@ -225,7 +225,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
                 ),
             )
         assertEquals(201, created.status)
-        kim.post("/api/v1/issues", """{"title":"결제 & 환불 #1","assigneeId":"$leeId"}""")
+        kim.post("/api/v1/issues", """{"title":"결제 & 환불 #1","assigneeIds":["$leeId"]}""")
 
         admin.patch("/api/v1/issues/1", """{"status":"DONE"}""")
 
@@ -280,7 +280,7 @@ class NotificationsIntegrationTest : IntegrationTest() {
         failuresLeft = 1
         admin.post("/api/v1/admin/notifications/webhooks", webhookJson(path = "/flaky"))
 
-        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeId":"$kimId"}""")
+        admin.post("/api/v1/issues", """{"title":"배포 준비","assigneeIds":["$kimId"]}""")
 
         awaitTrue { count("select count(*) from webhooks where last_status = 200") == 1 }
         assertEquals(2, received.count { it.path == "/flaky" })

@@ -26,7 +26,6 @@ class Issue(
     var description: String,
     var status: IssueStatus,
     var priority: IssuePriority,
-    var assigneeId: UUID?,
     /** The first day of the span the issue covers; only together with [dueDate], and never after it. */
     var startDate: LocalDate?,
     var dueDate: LocalDate?,

@@ -57,7 +57,8 @@ data class IssueView(
     val description: String,
     val status: IssueStatus,
     val priority: IssuePriority,
-    val assignee: IssuePerson?,
+    /** In the order they were given the issue; empty when no one has it. */
+    val assignees: List<IssuePerson>,
     /** Set when the issue covers a span of days ending on [dueDate]. */
     val startDate: LocalDate?,
     val dueDate: LocalDate?,
@@ -76,12 +77,12 @@ data class IssueView(
     val content: String? = null,
 )
 
-/** Which of a person's issues to list on "내 티켓". The column name never comes from input. */
+/** Which of a person's issues to list on "내 티켓". The condition never comes from input. */
 enum class MyIssueScope(
-    val column: String,
+    val condition: String,
 ) {
-    ASSIGNED("assignee_id"),
-    CREATED("created_by"),
+    ASSIGNED("exists(select 1 from issue_assignees ia where ia.issue_id = i.id and ia.user_id = :viewerId)"),
+    CREATED("i.created_by = :viewerId"),
 }
 
 /** Whose eyes a list is for: administrators see every project, others the ones they are a member of. */
@@ -101,7 +102,7 @@ private const val VISIBLE =
     """(i.project_id is null or (p.archived_at is null and (:seesAll or exists(
            select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = :viewerId))))"""
 
-/** Read side of issues: one query that joins the project, the assignee and the author. */
+/** Read side of issues: one query that joins the project, the assignees and the author. */
 @Component
 class IssueQueries(
     private val databaseClient: DatabaseClient,
@@ -127,7 +128,7 @@ class IssueQueries(
         scope: MyIssueScope,
         deleted: Boolean,
     ): List<IssueView> =
-        select("where $VISIBLE and ${deletedIs(deleted)} and i.${scope.column} = :viewerId order by i.updated_at desc limit $LIST_LIMIT") {
+        select("where $VISIBLE and ${deletedIs(deleted)} and ${scope.condition} order by i.updated_at desc limit $LIST_LIMIT") {
             it.visibleTo(viewer)
         }
 
@@ -179,6 +180,35 @@ class IssueQueries(
             .one()
             .awaitSingle()
 
+    /**
+     * Makes these people, in this order, the issue's assignees. People who already had it keep
+     * their place; the ones added are put after them.
+     */
+    suspend fun replaceAssignees(
+        issueId: UUID,
+        userIds: List<UUID>,
+        now: Instant,
+    ) {
+        databaseClient
+            .sql("delete from issue_assignees where issue_id = :issueId and not (user_id = any(:userIds))")
+            .bind("issueId", issueId)
+            .bind("userIds", userIds.toTypedArray())
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+        // A microsecond apart, so those added in one save keep the order they were sent in.
+        userIds.forEachIndexed { index, userId ->
+            databaseClient
+                .sql("insert into issue_assignees (issue_id, user_id, created_at) values (:issueId, :userId, :at) on conflict do nothing")
+                .bind("issueId", issueId)
+                .bind("userId", userId)
+                .bind("at", now.plusNanos(index * 1000L))
+                .fetch()
+                .rowsUpdated()
+                .awaitSingle()
+        }
+    }
+
     /** Makes the issue carry exactly these labels. */
     suspend fun replaceLabels(
         issueId: UUID,
@@ -226,8 +256,11 @@ class IssueQueries(
                        parent.number as parent_number, parent.title as parent_title,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null) as sub_total,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null and s.status = 'DONE') as sub_done,
-                       a.id as assignee_id, a.login_id as assignee_login_id,
-                       a.display_name as assignee_display_name, a.avatar_key as assignee_avatar_key,
+                       (select coalesce(json_agg(json_build_object('id', a.id, 'loginId', a.login_id,
+                                                                   'displayName', a.display_name, 'avatarKey', a.avatar_key)
+                                                 order by ia.created_at, a.login_id), '[]')::text
+                        from issue_assignees ia join users a on a.id = ia.user_id
+                        where ia.issue_id = i.id) as assignees,
                        c.id as creator_id, c.login_id as creator_login_id,
                        c.display_name as creator_display_name, c.avatar_key as creator_avatar_key,
                        ms.id as milestone_id, ms.name as milestone_name, ms.target_date as milestone_target_date,
@@ -239,7 +272,6 @@ class IssueQueries(
                 left join projects p on p.id = i.project_id
                 left join issues parent on parent.id = i.parent_id
                 join users c on c.id = i.created_by
-                left join users a on a.id = i.assignee_id
                 left join milestones ms on ms.id = i.milestone_id
                 $tail
                 """.trimIndent(),
@@ -272,7 +304,7 @@ class IssueQueries(
                 description = checkNotNull(row.get("description", String::class.java)),
                 status = IssueStatus.valueOf(checkNotNull(row.get("status", String::class.java))),
                 priority = IssuePriority.valueOf(checkNotNull(row.get("priority", String::class.java))),
-                assignee = person("assignee"),
+                assignees = jsonMapper.readValue(checkNotNull(row.get("assignees", String::class.java)), Array<IssuePerson>::class.java).toList(),
                 startDate = row.get("start_date", LocalDate::class.java),
                 dueDate = row.get("due_date", LocalDate::class.java),
                 milestone =

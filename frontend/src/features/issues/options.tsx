@@ -1,5 +1,5 @@
 import { CircleSlashIcon, DiamondIcon, UserIcon } from "lucide-react";
-import { PersonAvatar, personName } from "@/components/person";
+import { PersonAvatar, personName, type PersonLike } from "@/components/person";
 import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { messages } from "@/messages";
@@ -31,7 +31,17 @@ export const priorityOptions: ChipOption<IssuePriority>[] = PRIORITIES.map((prio
   icon: <PriorityIcon priority={priority} />,
 }));
 
-/** Everyone in the project, plus "nobody". */
+/** As many assignees as the server takes (IssueService.MAX_ASSIGNEES). */
+export const MAX_ASSIGNEES = 10;
+
+/** The assignees in a few words: the one name, or the first name and how many more. */
+export function assigneeSummary(people: PersonLike[]): string {
+  if (people.length === 0) return m.noAssignee;
+  const first = personName(people[0]);
+  return people.length === 1 ? first : m.assigneeSummary(first, people.length - 1);
+}
+
+/** Everyone in the project, plus "nobody". For the list filter, which picks one person. */
 export function assigneeOptions(members: ProjectMember[]): ChipOption<string>[] {
   return [
     { value: NONE, label: m.noAssignee, icon: <UserIcon className="size-4 text-muted-foreground" aria-hidden /> },

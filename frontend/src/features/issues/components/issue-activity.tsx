@@ -18,6 +18,9 @@ const m = messages.issues.activity;
 const text = (value: unknown): string => (typeof value === "string" && value ? value : m.none);
 const names = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
 
+const addedRemoved = (added: unknown, removed: unknown): string =>
+  [...names(added).map((name) => `+${name}`), ...names(removed).map((name) => `−${name}`)].join(", ");
+
 /** What happened, in words, with the old and new value where there is one. */
 function describe(item: IssueActivityItem): { action: string; change?: string } {
   const { from, to, added, removed } = item.detail;
@@ -34,16 +37,16 @@ function describe(item: IssueActivityItem): { action: string; change?: string } 
     case "PRIORITY_CHANGED":
       return { action: m.priority, change: arrow(priorityLabel(from as IssuePriority), priorityLabel(to as IssuePriority)) };
     case "ASSIGNEE_CHANGED":
-      return { action: m.assignee, change: arrow(text(from), text(to)) };
+      // Who was added and who was taken off (D-125); entries from before then hold one name each way.
+      return "added" in item.detail || "removed" in item.detail
+        ? { action: m.assignee, change: addedRemoved(added, removed) }
+        : { action: m.assignee, change: arrow(text(from), text(to)) };
     case "DUE_DATE_CHANGED":
       return { action: m.dueDate, change: arrow(text(from), text(to)) };
     case "MILESTONE_CHANGED":
       return { action: m.milestone, change: arrow(text(from), text(to)) };
     case "LABELS_CHANGED":
-      return {
-        action: m.labels,
-        change: [...names(added).map((name) => `+${name}`), ...names(removed).map((name) => `−${name}`)].join(", "),
-      };
+      return { action: m.labels, change: addedRemoved(added, removed) };
     case "PROJECT_CHANGED":
       return { action: m.project, change: arrow(text(from), text(to)) };
     case "PARENT_CHANGED":

@@ -176,7 +176,6 @@
 | `description` | `text` | 본문에서 뽑은 글자. 미리 보기와 검색용. 서버가 채운다 |
 | `status` | `text` | `BACKLOG` \| `READY` \| `IN_PROGRESS` \| `DONE` \| `CANCELED` |
 | `priority` | `text` | `NONE` \| `URGENT` \| `HIGH` \| `MEDIUM` \| `LOW` |
-| `assignee_id` | `uuid` null FK → `users` (지워지면 null) | 프로젝트의 활성 구성원만 |
 | `due_date` | `date` null | |
 | `created_by` | `uuid` FK → `users` | |
 | `version` | `int` | 바뀔 때마다 1 증가. 충돌 감지와 실시간 순서 판단에 쓸 예정 |
@@ -221,12 +220,22 @@ notifications (수신함)
 | `labels` | `id` uuid PK, `name` text(1~30자, 대소문자 무시하고 유일), `color` text(`#rrggbb`), `created_at` | 처음부터 `버그`, `기능`, `중요` 세 개가 들어 있다. 목록은 만든 순서 |
 | `issue_labels` | `issue_id`, `label_id` (둘이 PK, 둘 다 `ON DELETE CASCADE`) | 티켓과 라벨의 연결 |
 
+### `issue_assignees` (`V6`, D-125)
+
+티켓의 담당자. 한 티켓에 여러 명(최대 10명). `V6` 이 `issues.assignee_id` 의 값을 여기로 옮기고 그 컬럼을 지웠다.
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `issue_id` | `uuid` FK → `issues` (CASCADE) | `(issue_id, user_id)` 가 PK |
+| `user_id` | `uuid` FK → `users` (CASCADE) | 연결된 프로젝트의 활성 구성원(독립 티켓은 모든 활성 사용자). 인덱스 `issue_assignees_user_id_idx`(내 티켓) |
+| `created_at` | `timestamptz` | 지정한 때. 화면은 이 순서로 보여 준다 |
+
 
 ### `issue_activities`, `issue_subscriptions` (D-061)
 
 | 테이블 | 컬럼 | 설명 |
 |---|---|---|
-| `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`, `type` text, `detail` jsonb, `created_at` | 티켓의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨은 `{added,removed}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
+| `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`, `type` text, `detail` jsonb, `created_at` | 티켓의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨·담당자는 `{added,removed}`. 담당자의 D-125 전 기록은 `{from,to}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
 | `issue_subscriptions` | `issue_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 티켓을 구독하는 사람. 알림의 받는 사람 |
 | `project_subscriptions` (D-102) | `project_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 프로젝트를 구독하는 사람. 그 프로젝트에 연결된 모든 티켓의 알림을 받는다. 프로젝트에서 빠져도 행은 남지만, 받는 사람을 고를 때 지금 구성원(또는 워크스페이스 관리자)인지 확인한다 |
 

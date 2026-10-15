@@ -90,7 +90,7 @@ export function createDemo(): Demo {
     content: null,
     status: "BACKLOG",
     priority: "NONE",
-    assignee: null,
+    assignees: [],
     startDate: null,
     dueDate: null,
     project: { id: project.id, name: project.name },
@@ -113,10 +113,10 @@ export function createDemo(): Demo {
     milestones: [milestone],
     labels,
     issues: [
-      issue(1, { status: "IN_PROGRESS", priority: "HIGH", assignee: person(0), startDate: day(-1, now), dueDate: day(3, now), milestone: inMilestone, labels: [labels[1]] }),
-      issue(2, { status: "READY", priority: "URGENT", assignee: person(1), dueDate: day(1, now), milestone: inMilestone, labels: [labels[0]] }),
-      issue(3, { status: "BACKLOG", priority: "MEDIUM", assignee: person(0), dueDate: day(9, now) }),
-      issue(4, { status: "DONE", priority: "LOW", assignee: person(1), milestone: inMilestone }),
+      issue(1, { status: "IN_PROGRESS", priority: "HIGH", assignees: [person(0)], startDate: day(-1, now), dueDate: day(3, now), milestone: inMilestone, labels: [labels[1]] }),
+      issue(2, { status: "READY", priority: "URGENT", assignees: [person(1)], dueDate: day(1, now), milestone: inMilestone, labels: [labels[0]] }),
+      issue(3, { status: "BACKLOG", priority: "MEDIUM", assignees: [person(0)], dueDate: day(9, now) }),
+      issue(4, { status: "DONE", priority: "LOW", assignees: [person(1)], milestone: inMilestone }),
     ],
     updates: [{ id: "example-update-1", health: "ON_TRACK", body: m.update, author: person(0), createdAt: at }],
     nextNumber: 5,
@@ -134,9 +134,12 @@ function resolve(demo: Demo, changes: IssueChanges | NewIssueInput): Partial<Iss
   if (changes.priority !== undefined) fields.priority = changes.priority;
   if (changes.startDate !== undefined) fields.startDate = changes.startDate;
   if (changes.dueDate !== undefined) fields.dueDate = changes.dueDate;
-  if (changes.assigneeId !== undefined) {
-    const member = demo.members.find((item) => item.userId === changes.assigneeId);
-    fields.assignee = member ? { id: member.userId, loginId: member.loginId, displayName: member.displayName, avatarUrl: null } : null;
+  if (changes.assigneeIds !== undefined) {
+    fields.assignees = (changes.assigneeIds ?? []).flatMap((id) =>
+      demo.members
+        .filter((item) => item.userId === id)
+        .map((member) => ({ id: member.userId, loginId: member.loginId, displayName: member.displayName, avatarUrl: null })),
+    );
   }
   if (changes.milestoneId !== undefined) {
     const milestone = demo.milestones.find((item) => item.id === changes.milestoneId);
@@ -174,7 +177,7 @@ export function answer(demo: Demo, method: string, path: string, body: unknown):
       key: `${DEMO_KEY}-${demo.nextNumber}`,
       number: demo.nextNumber,
       description: "",
-      assignee: null,
+      assignees: [],
       milestone: null,
       labels: [],
       startDate: null,

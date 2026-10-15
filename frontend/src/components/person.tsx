@@ -32,6 +32,28 @@ export function PersonMark({ person }: { person: PersonLike }) {
   );
 }
 
+/** The first few of several people as small overlapping avatars. Decorative: say who they are beside it. */
+export function PeopleAvatars({ people, max = 3 }: { people: PersonLike[]; max?: number }) {
+  return (
+    <span aria-hidden="true" className="flex shrink-0 -space-x-1 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background">
+      {people.slice(0, max).map((person) => (
+        <PersonAvatar key={person.loginId} person={person} />
+      ))}
+    </span>
+  );
+}
+
+/** Several people as overlapping avatars, with every name as a tooltip and for screen readers. */
+export function PeopleMarks({ people, max = 3 }: { people: PersonLike[]; max?: number }) {
+  const names = people.map(personName).join(", ");
+  return (
+    <span title={names} className="flex shrink-0">
+      <PeopleAvatars people={people} max={max} />
+      <span className="sr-only">{names}</span>
+    </span>
+  );
+}
+
 /** Avatar, name and login id of one person, as shown in member lists. */
 export function Person({ person, children }: { person: PersonLike; children?: React.ReactNode }) {
   const name = personName(person);

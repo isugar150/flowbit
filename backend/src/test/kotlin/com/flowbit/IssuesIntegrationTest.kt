@@ -19,6 +19,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     private lateinit var editor: ApiClient
     private lateinit var editorId: String
     private lateinit var viewer: ApiClient
+    private lateinit var viewerId: String
     private lateinit var outsider: ApiClient
     private lateinit var outsiderId: String
 
@@ -26,7 +27,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     fun createProjectWithPeople() {
         admin = client().also { it.setup("admin", PASSWORD) }
         editorId = createMember("editor")
-        val viewerId = createMember("viewer")
+        viewerId = createMember("viewer")
         outsiderId = createMember("outsider")
         remember("PAY", admin.post("/api/v1/projects", """{"name":"결제 개편"}""").json()["id"])
         admin.put("/api/v1/projects/${p("PAY")}/members/$editorId", """{"role":"EDITOR"}""")
@@ -46,7 +47,7 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals("결제 버튼이 두 번 눌린다", first.json()["title"])
         assertEquals("BACKLOG", first.json()["status"])
         assertEquals("NONE", first.json()["priority"])
-        assertNull(first.json()["assignee"])
+        assertEquals(emptyList<Any?>(), first.json()["assignees"])
         @Suppress("UNCHECKED_CAST")
         assertEquals("editor", (first.json()["createdBy"] as Map<String, Any?>)["loginId"])
         assertEquals("FB-2", second.json()["key"])
@@ -59,7 +60,7 @@ class IssuesIntegrationTest : IntegrationTest() {
                 "/api/v1/projects/${p("PAY")}/issues",
                 """
                 {"title":"환불 흐름","description":"## 배경\n환불이 느리다","status":"READY",
-                 "priority":"HIGH","assigneeId":"$editorId","dueDate":"2026-11-30"}
+                 "priority":"HIGH","assigneeIds":["$editorId"],"dueDate":"2026-11-30"}
                 """.trimIndent(),
             )
 
@@ -69,8 +70,49 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals("HIGH", issue["priority"])
         assertEquals("2026-11-30", issue["dueDate"])
         assertEquals("## 배경\n환불이 느리다", issue["description"])
+        assertEquals(listOf("editor"), loginIdsOf(issue["assignees"]))
+    }
+
+    @Test
+    fun `담당자를 여러 명 둘 수 있고 바꾸면 더하고 뺀 사람이 활동에 남는다`() {
+        val created =
+            editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"함께 맡기","assigneeIds":["$viewerId","$editorId","$viewerId"]}""")
+
+        assertEquals(201, created.status)
+        // In the order they were sent, without repeats.
+        assertEquals(listOf("viewer", "editor"), loginIdsOf(created.json()["assignees"]))
+        assertEquals(listOf("FB-1"), viewer.get("/api/v1/me/issues").jsonList().map { it["key"] })
+        assertEquals(listOf("FB-1"), editor.get("/api/v1/me/issues").jsonList().map { it["key"] })
+        assertEquals(setOf("editor", "viewer"), subscribersOf(admin.get("/api/v1/issues/1/activity").json()))
+
+        // Whoever stays keeps their place; whoever is added comes after.
+        val helperId = createMember("helper")
+        admin.put("/api/v1/projects/${p("PAY")}/members/$helperId", """{"role":"EDITOR"}""")
+        val changed = editor.patch("/api/v1/issues/1", """{"assigneeIds":["$helperId","$editorId"]}""").json()
+        assertEquals(listOf("editor", "helper"), loginIdsOf(changed["assignees"]))
+        assertEquals(emptyList(), viewer.get("/api/v1/me/issues").jsonList())
+        val entry = activityOf(admin.get("/api/v1/issues/1/activity").json()).last()
+        assertEquals("ASSIGNEE_CHANGED", entry["type"])
+        assertEquals(mapOf("added" to listOf("helper"), "removed" to listOf("viewer")), entry["detail"])
+
+        val cleared = editor.patch("/api/v1/issues/1", """{"assigneeIds":[]}""").json()
+        assertEquals(emptyList<Any?>(), cleared["assignees"])
+    }
+
+    @Test
+    fun `담당자는 열 명까지이고 한 명이라도 구성원이 아니면 바뀌지 않는다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"담당자 한도","assigneeIds":["$editorId"]}""")
+        val many = (1..11).map { createMember("member$it") }
+        many.forEach { admin.put("/api/v1/projects/${p("PAY")}/members/$it", """{"role":"EDITOR"}""") }
+
+        val tooMany = editor.patch("/api/v1/issues/1", """{"assigneeIds":[${many.joinToString(",") { "\"$it\"" }}]}""")
+        val withOutsider = editor.patch("/api/v1/issues/1", """{"assigneeIds":["$viewerId","$outsiderId"]}""")
+
+        assertEquals(422, tooMany.status)
         @Suppress("UNCHECKED_CAST")
-        assertEquals("editor", (issue["assignee"] as Map<String, Any?>)["loginId"])
+        assertEquals("TOO_MANY", (tooMany.json()["errors"] as List<Map<String, String>>).single()["code"])
+        assertEquals(422, withOutsider.status)
+        assertEquals(listOf("editor"), loginIdsOf(editor.get("/api/v1/issues/1").json()["assignees"]))
     }
 
     @Test
@@ -82,7 +124,7 @@ class IssuesIntegrationTest : IntegrationTest() {
 
     @Test
     fun `프로젝트 구성원이 아닌 사람은 담당자가 될 수 없다`() {
-        val response = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"담당자 테스트","assigneeId":"$outsiderId"}""")
+        val response = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"담당자 테스트","assigneeIds":["$outsiderId"]}""")
 
         assertEquals(422, response.status)
         @Suppress("UNCHECKED_CAST")
@@ -114,7 +156,7 @@ class IssuesIntegrationTest : IntegrationTest() {
     fun `보낸 항목만 바뀌고 null 을 보내면 담당자와 기한이 지워진다`() {
         editor.post(
             "/api/v1/projects/${p("PAY")}/issues",
-            """{"title":"원래 제목","priority":"LOW","assigneeId":"$editorId","dueDate":"2026-11-30"}""",
+            """{"title":"원래 제목","priority":"LOW","assigneeIds":["$editorId"],"dueDate":"2026-11-30"}""",
         )
 
         val moved = editor.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""").json()
@@ -124,8 +166,8 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals("2026-11-30", moved["dueDate"])
         assertEquals(2, moved["version"])
 
-        val cleared = editor.patch("/api/v1/issues/1", """{"assigneeId":null,"dueDate":null,"title":"새 제목"}""").json()
-        assertNull(cleared["assignee"])
+        val cleared = editor.patch("/api/v1/issues/1", """{"assigneeIds":[],"dueDate":null,"title":"새 제목"}""").json()
+        assertEquals(emptyList<Any?>(), cleared["assignees"])
         assertNull(cleared["dueDate"])
         assertEquals("새 제목", cleared["title"])
         assertEquals("IN_PROGRESS", cleared["status"])
@@ -182,9 +224,9 @@ class IssuesIntegrationTest : IntegrationTest() {
     @Test
     fun `내 티켓은 내가 담당하거나 만든 티켓을 들어갈 수 있는 프로젝트에서만 모아 준다`() {
         remember("SEC", admin.post("/api/v1/projects", """{"name":"비공개"}""").json()["id"])
-        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"내가 만들고 내가 맡음","assigneeId":"$editorId"}""")
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"내가 만들고 내가 맡음","assigneeIds":["$editorId"]}""")
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"내가 만들기만 함"}""")
-        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"관리자가 나에게 맡김","assigneeId":"$editorId"}""")
+        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"관리자가 나에게 맡김","assigneeIds":["$editorId"]}""")
         admin.post("/api/v1/projects/${p("SEC")}/issues", """{"title":"다른 프로젝트"}""")
 
         val assigned =
@@ -217,7 +259,7 @@ class IssuesIntegrationTest : IntegrationTest() {
 
     @Test
     fun `프로젝트에서 빠지면 그 프로젝트의 티켓은 내 티켓에 나오지 않는다`() {
-        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"맡은 일","assigneeId":"$editorId"}""")
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"맡은 일","assigneeIds":["$editorId"]}""")
 
         admin.delete("/api/v1/projects/${p("PAY")}/members/$editorId")
 
@@ -271,7 +313,7 @@ class IssuesIntegrationTest : IntegrationTest() {
         val bug = admin.get("/api/v1/labels").jsonList().first()["id"]
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
 
-        editor.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS","assigneeId":"$editorId"}""")
+        editor.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS","assigneeIds":["$editorId"]}""")
         admin.patch("/api/v1/issues/1", """{"labelIds":["$bug"],"dueDate":"2026-11-01"}""")
         admin.patch("/api/v1/issues/1", """{"priority":"NONE"}""")
 
@@ -281,7 +323,7 @@ class IssuesIntegrationTest : IntegrationTest() {
             items.map { it["type"] },
         )
         assertEquals(mapOf("from" to "BACKLOG", "to" to "IN_PROGRESS"), items[1]["detail"])
-        assertEquals(mapOf("from" to null, "to" to "editor"), items[2]["detail"])
+        assertEquals(mapOf("added" to listOf("editor"), "removed" to emptyList<String>()), items[2]["detail"])
         assertEquals(mapOf("added" to listOf("버그"), "removed" to emptyList<String>()), items[4]["detail"])
         assertEquals("admin", (items[4]["actor"] as Map<*, *>)["loginId"])
     }
@@ -300,7 +342,7 @@ class IssuesIntegrationTest : IntegrationTest() {
 
     @Test
     fun `만든 사람과 담당자는 자동으로 구독하고 누구나 구독하거나 그만둘 수 있다`() {
-        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패","assigneeId":"$editorId"}""")
+        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패","assigneeIds":["$editorId"]}""")
 
         val feed = viewer.get("/api/v1/issues/1/activity").json()
         assertEquals(setOf("admin", "editor"), subscribersOf(feed))
@@ -316,7 +358,7 @@ class IssuesIntegrationTest : IntegrationTest() {
 
     @Test
     fun `프로젝트 없이 만든 티켓은 누구나 보고 고치고 프로젝트에 연결하면 그 프로젝트 사람만 본다`() {
-        val created = outsider.post("/api/v1/issues", """{"title":"혼자 있는 티켓","assigneeId":"$outsiderId"}""")
+        val created = outsider.post("/api/v1/issues", """{"title":"혼자 있는 티켓","assigneeIds":["$outsiderId"]}""")
 
         assertEquals(201, created.status)
         assertEquals("FB-1", created.json()["key"])
@@ -511,7 +553,7 @@ class IssuesIntegrationTest : IntegrationTest() {
 
     @Test
     fun `티켓을 삭제하면 목록에서 빠지고 삭제된 목록과 활동으로 볼 수 있으며 복원할 수 있다`() {
-        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"지울 티켓","assigneeId":"$editorId"}""")
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"지울 티켓","assigneeIds":["$editorId"]}""")
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"남는 티켓"}""")
 
         assertEquals(403, viewer.delete("/api/v1/issues/1").status)
@@ -684,6 +726,9 @@ class IssuesIntegrationTest : IntegrationTest() {
 
     @Suppress("UNCHECKED_CAST")
     private fun activityOf(feed: Map<String, Any?>): List<Map<String, Any?>> = feed["items"] as List<Map<String, Any?>>
+
+    @Suppress("UNCHECKED_CAST")
+    private fun loginIdsOf(people: Any?): List<Any?> = (people as List<Map<String, Any?>>).map { it["loginId"] }
 
     @Suppress("UNCHECKED_CAST")
     private fun subscribersOf(feed: Map<String, Any?>): Set<Any?> = (feed["subscribers"] as List<Map<String, Any?>>).map { it["loginId"] }.toSet()

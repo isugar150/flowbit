@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CircleUserRoundIcon, PlusIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
-import { PersonMark } from "@/components/person";
+import { PeopleMarks } from "@/components/person";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
@@ -33,7 +33,7 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
       content: null,
       status: "BACKLOG",
       priority: "NONE",
-      assigneeId: null,
+      assigneeIds: [],
       startDate: null,
       dueDate: null,
       milestoneId: null,
@@ -95,8 +95,8 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
                 </span>
               ) : null}
               <PriorityMark priority={child.priority} />
-              {child.assignee ? (
-                <PersonMark person={child.assignee} />
+              {child.assignees.length > 0 ? (
+                <PeopleMarks people={child.assignees} />
               ) : (
                 <span title={messages.issues.noAssignee} className="flex shrink-0">
                   <CircleUserRoundIcon className="size-4.5 text-muted-foreground/60" aria-hidden="true" />

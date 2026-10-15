@@ -119,8 +119,8 @@ data class IssueResponse(
     val content: String?,
     val status: IssueStatus,
     val priority: IssuePriority,
-    @get:JsonInclude(JsonInclude.Include.ALWAYS)
-    val assignee: IssuePersonResponse?,
+    /** In the order they were given the issue; empty when no one has it. */
+    val assignees: List<IssuePersonResponse>,
     /** The first day when the issue covers a span of days that ends on `dueDate`; null for a single date. */
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val startDate: LocalDate?,
@@ -165,7 +165,7 @@ data class IssueResponse(
                 content = issue.content,
                 status = issue.status,
                 priority = issue.priority,
-                assignee = issue.assignee?.let(IssuePersonResponse::from),
+                assignees = issue.assignees.map(IssuePersonResponse::from),
                 startDate = issue.startDate,
                 dueDate = issue.dueDate,
                 project = issue.project,
@@ -301,7 +301,8 @@ data class CreateIssueRequest(
     val content: Map<String, Any?>? = null,
     val status: IssueStatus? = null,
     val priority: IssuePriority? = null,
-    val assigneeId: UUID? = null,
+    /** The people to give the issue to, in order. */
+    val assigneeIds: List<UUID>? = null,
     val dueDate: LocalDate? = null,
     val milestoneId: UUID? = null,
     val labelIds: List<UUID>? = null,
@@ -319,7 +320,7 @@ data class CreateIssueRequest(
             content,
             status,
             priority,
-            assigneeId,
+            assigneeIds.orEmpty(),
             dueDate,
             milestoneId,
             labelIds.orEmpty(),
@@ -434,8 +435,9 @@ class IssueController(
     ): IssueResponse = IssueResponse.from(issueService.get(user, number))
 
     /**
-     * Only the fields present in the body change; `null` clears `assigneeId`, `dueDate`,
-     * `milestoneId`, `projectId` and `parentId`, and `labelIds` replaces the whole set of labels.
+     * Only the fields present in the body change; `null` clears `dueDate`, `milestoneId`,
+     * `projectId` and `parentId`, and `labelIds` and `assigneeIds` replace the whole set of labels
+     * and of assignees.
      */
     @PatchMapping("/{number}")
     suspend fun update(

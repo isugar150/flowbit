@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { CircleUserRoundIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
-import { PersonAvatar, PersonMark, personName } from "@/components/person";
+import { PeopleAvatars, PeopleMarks, personName } from "@/components/person";
 import { messages } from "@/messages";
 import { PriorityIcon, StatusIcon, priorityLabel, statusLabel } from "../meta";
+import { assigneeSummary } from "../options";
 import type { Issue, IssuePriority, IssueStatus } from "../types";
 import { LabelPill } from "./label-chip";
 import { SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
@@ -81,27 +82,33 @@ export function IssueDue({ issue }: { issue: Issue }) {
 }
 
 /**
- * Who has the issue, as a column of its own at the end of a line: the avatar, with the name beside
- * it on screens wide enough. An issue no one has says so with an empty mark, so the column lines up.
+ * Who has the issue, as a column of its own at the end of a line: the avatars (two at most,
+ * overlapping), with the name, or the first name and how many more, beside them on screens wide
+ * enough. An issue no one has says so with an empty mark, so the column lines up.
  */
 export function IssueAssignee({ issue }: { issue: Issue }) {
-  const name = issue.assignee ? personName(issue.assignee) : messages.issues.noAssignee;
+  const people = issue.assignees;
+  const names = people.length > 0 ? people.map(personName).join(", ") : messages.issues.noAssignee;
   return (
-    <span title={name} className="flex shrink-0 items-center gap-1.5 lg:w-28">
-      {issue.assignee ? (
-        <PersonAvatar person={issue.assignee} />
+    <span title={names} className="flex w-8 shrink-0 items-center gap-1.5 lg:w-28">
+      {people.length > 0 ? (
+        <PeopleAvatars people={people} max={2} />
       ) : (
         <CircleUserRoundIcon className="size-4.5 text-muted-foreground/60" aria-hidden="true" />
       )}
-      {issue.assignee ? <span className={`hidden min-w-0 truncate lg:block ${metaText}`}>{name}</span> : null}
-      <span className={issue.assignee ? "sr-only lg:hidden" : "sr-only"}>{name}</span>
+      {people.length > 0 ? (
+        <span aria-hidden="true" className={`hidden min-w-0 truncate lg:block ${metaText}`}>
+          {assigneeSummary(people)}
+        </span>
+      ) : null}
+      <span className="sr-only">{names}</span>
     </span>
   );
 }
 
 /**
  * One issue as a read-only line of a list: priority, key, title (which opens it), then its
- * project, labels, due date and assignee. `withStatus` adds the status icon, for lists that are
+ * project, labels, due date and assignees. `withStatus` adds the status icon, for lists that are
  * not already grouped by status.
  */
 export function IssueRow({ issue, depth = 0, withStatus }: { issue: Issue; depth?: number; withStatus?: boolean }) {
@@ -116,7 +123,7 @@ export function IssueRow({ issue, depth = 0, withStatus }: { issue: Issue; depth
       <IssueProjectName issue={issue} />
       <IssueLabels issue={issue} />
       <IssueDue issue={issue} />
-      {issue.assignee ? <PersonMark person={issue.assignee} /> : null}
+      {issue.assignees.length > 0 ? <PeopleMarks people={issue.assignees} /> : null}
     </li>
   );
 }

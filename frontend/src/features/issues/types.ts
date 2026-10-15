@@ -76,7 +76,8 @@ export type Issue = {
   content: RichDoc | null;
   status: IssueStatus;
   priority: IssuePriority;
-  assignee: IssuePerson | null;
+  /** In the order they were given the issue; empty when no one has it (D-125). */
+  assignees: IssuePerson[];
   /** YYYY-MM-DD. The first day when the issue covers a span that ends on `dueDate`; null for a single date. */
   startDate: string | null;
   /** YYYY-MM-DD */
@@ -117,7 +118,8 @@ export type NewIssueInput = {
   content: RichDoc | null;
   status: IssueStatus;
   priority: IssuePriority;
-  assigneeId: string | null;
+  /** Up to ten people, in order. */
+  assigneeIds: string[];
   /** Only together with `dueDate`, and never after it. */
   startDate: string | null;
   dueDate: string | null;
@@ -129,13 +131,13 @@ export type NewIssueInput = {
   parentId?: string;
 };
 
-/** Only the fields present are changed; null clears the assignee, due date or milestone. `labelIds` replaces all labels. */
+/** Only the fields present are changed; null clears the due date or milestone. `labelIds` and `assigneeIds` replace all labels and assignees. */
 export type IssueChanges = Partial<{
   title: string;
   content: RichDoc | null;
   status: IssueStatus;
   priority: IssuePriority;
-  assigneeId: string | null;
+  assigneeIds: string[];
   /** Only together with `dueDate`, and never after it. */
   startDate: string | null;
   dueDate: string | null;

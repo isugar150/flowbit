@@ -9,8 +9,9 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
-import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
-import type { Issue, IssueChanges, IssuePriority, IssueStatus, Label } from "../types";
+import { NONE, milestoneOptions, priorityOptions, statusOptions } from "../options";
+import type { Issue, IssueChanges, IssuePerson, IssuePriority, IssueStatus, Label } from "../types";
+import { AssigneeChip } from "./assignee-chip";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import { DateRangeChip } from "./date-chips";
 import { LabelChip } from "./label-chip";
@@ -50,7 +51,7 @@ function Row({ id, children }: { id: string; children: React.ReactNode }) {
 export type IssuePropertyValues = {
   status: IssueStatus;
   priority: IssuePriority;
-  assigneeId: string | null;
+  assigneeIds: string[];
   startDate: string | null;
   dueDate: string | null;
   labelIds: string[];
@@ -59,7 +60,7 @@ export type IssuePropertyValues = {
 };
 
 /**
- * The properties of an issue in three groups: its properties (status, priority, assignee, dates),
+ * The properties of an issue in three groups: its properties (status, priority, assignees, dates),
  * its labels, and the project it is linked to with the milestone inside that project. Every value
  * is a quiet row that opens a menu. The same panel is used where an issue is made and where it is
  * changed; it only reports what was picked and leaves saving to whoever shows it.
@@ -71,6 +72,7 @@ export function IssuePropertyFields({
   labels,
   projects,
   milestones,
+  assignees,
   disabled,
 }: {
   values: IssuePropertyValues;
@@ -82,6 +84,8 @@ export function IssuePropertyFields({
   projects: ProjectSummary[];
   /** The milestones of the chosen project; empty when there is none. */
   milestones: Milestone[];
+  /** The saved assignees of an existing issue. */
+  assignees?: IssuePerson[];
   disabled?: boolean;
 }) {
   // No milestone chosen is shown as an empty field: grey words and no icon (the user's call).
@@ -113,13 +117,12 @@ export function IssuePropertyFields({
           />
         </Row>
         <Row id={m.assignee}>
-          <ChipSelect
-            plain
-            label={m.assignee}
-            value={values.assigneeId ?? NONE}
-            options={assigneeOptions(members)}
+          <AssigneeChip
+            members={members}
+            current={assignees}
+            value={values.assigneeIds}
             disabled={disabled}
-            onChange={(value) => onChange({ assigneeId: value === NONE ? null : value })}
+            onChange={(assigneeIds) => onChange({ assigneeIds })}
           />
         </Row>
         <Row id={m.dueDate}>
@@ -205,7 +208,7 @@ export function IssueProperties({
   const saved: IssuePropertyValues = {
     status: issue.status,
     priority: issue.priority,
-    assigneeId: issue.assignee?.id ?? null,
+    assigneeIds: issue.assignees.map((person) => person.id),
     startDate: issue.startDate,
     dueDate: issue.dueDate,
     labelIds: issue.labels.map((label) => label.id),
@@ -237,6 +240,7 @@ export function IssueProperties({
         labels={labels}
         projects={projects}
         milestones={projectSaved ? milestones : []}
+        assignees={issue.assignees}
         disabled={!canEdit}
       />
     </div>
