@@ -1,6 +1,6 @@
 # Git 연동 (Gitea · GitLab · GitHub)
 
-상태 (2026-10-15): **명세만 있다. 구현하지 않았다.** 사용자가 Git 서버 연동의 구현 계획을 요청했다. 결정은 D-141. D-039 에서 "SaaS 전용"이라 빼 두었던 GitHub 연결을 설치형에 맞는 모양(사내 Git 서버의 웹훅)으로 들인다.
+상태 (2026-10-15): **1~3단계(연결 관리, 받기와 연결, 상태 자동 변경)를 Gitea(Forgejo)로 구현했다** (D-145). 4단계(GitLab·GitHub)와 5단계(브랜치 이름 복사), API 알림의 Git 종류, 화면 E2E 는 아직 없다. 처음 계획은 D-141. D-039 에서 "SaaS 전용"이라 빼 두었던 GitHub 연결을 설치형에 맞는 모양(사내 Git 서버의 웹훅)으로 들인다.
 
 브랜치 이름, PR 제목, 커밋 메시지에 티켓 키(`FB-12`)를 쓰면 Flowbit 이 그 티켓에 PR·브랜치·커밋을 연결하고, 작업 흐름에 따라 티켓 상태를 바꾼다. 개발자는 Flowbit 에서 따로 할 일이 없다.
 
@@ -74,6 +74,8 @@
 - 줄마다 PR: 상태 아이콘(열림·초안·머지됨·닫힘), `저장소이름 #34`, PR 제목, 닫는 연결이 아니면 "참고". 누르면 Git 서버의 PR 을 새 탭으로 연다.
 - PR 이 없는 브랜치: 브랜치 아이콘과 이름.
 - 커밋은 패널에 두지 않고 활동에만 남긴다.
+
+**Git 이 연결되지 않았을 때** (사용자 지정, D-145): Git 은 선택 사항이다. 일반 사용자에게 보이는 Git UI(옆 패널 "Git" 묶음, 활동 줄, 5단계의 "브랜치 이름 복사")는 쓸 연결이 없으면 나오지 않는다. 지금의 묶음과 활동 줄은 그 티켓에 연결이 있을 때만 나오므로 저절로 그렇다. 브랜치 이름 복사는 사용 중인 연결이 있는지 알려 주는 값(예: 워크스페이스 응답의 `gitEnabled`)과 함께 만든다. 관리자 설정의 "Git 연동" 탭은 연결을 만드는 곳이라 늘 보인다.
 
 **활동 기록**에 새 줄
 
@@ -170,7 +172,16 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 
 ## 구현 순서
 
-각 단계가 끝나면 테스트와 함께 커밋한다.
+각 단계가 끝나면 테스트와 함께 커밋한다. 1~3단계는 됐다(2026-10-15, Gitea).
+
+구현하며 정한 것 (D-145):
+
+- 지금은 Gitea 만 고를 수 있다. 다른 종류는 422 `UNSUPPORTED`(필드 `provider`). 4단계에서 `GitConnectionService.SUPPORTED_PROVIDERS` 와 프런트의 `GIT_PROVIDERS` 에 더한다.
+- Gitea 는 `X-Gitea-Signature`(Forgejo 는 `X-Forgejo-Signature` 도) 와 `X-Gitea-Event`(`X-Forgejo-Event`) 를 본다. PR 의 모든 변경(열림, 닫힘, 수정, 동기화, 담당 지정…)이 `pull_request` 로 오고 동작은 본문의 `action` 이다. 초안은 `draft` 값이나 제목 앞의 `WIP:`·`[WIP]` 로 안다.
+- 키가 든 브랜치에 올린 커밋은 메시지에 키가 없어도 그 티켓에 연결한다. 기본 브랜치에 올린 커밋의 닫는 말만 완료로 바꾼다.
+- 상태를 진행 중으로 바꾸는 것은 닫는 연결이 **처음** 생길 때(브랜치를 처음 올림, PR 이 처음 연결됨)와 PR 이 다시 열릴 때뿐이다. 그래서 손으로 되돌린 상태를 같은 브랜치의 다음 push 가 다시 바꾸지 않는다.
+- 응답과 `last_result`: `{ linkedIssues: ["FB-12"], statusChanged: ["FB-12"], skipped: 0 }`(티켓 키). 모르는 이벤트는 같은 모양의 빈 값이다. 서명이 틀린 호출, 읽을 수 없는 본문(400 `INVALID_PAYLOAD`)도 "마지막 수신"에 오류로 남긴다. 본문이 크면 413 `PAYLOAD_TOO_LARGE`.
+- 활동의 Git 줄 `detail`: 브랜치 `{repository, branch, url}`, PR `{repository, number, title, url, closes}`, 커밋 `{repository, branch, count, commits: [{sha(10자), message(첫 줄), url}] (5개까지)}`. 모두 `via` 를 단다.
 
 1. **연결 관리**: `V11`, 관리자 API, `/admin/git` 화면, 비밀 값 발급, 백업 항목.
 2. **받기와 연결 (Gitea 먼저)**: 웹훅 경로, 서명 확인, 키 인식, `issue_git_links`·`issue_git_commits` 저장, 마지막 수신 결과. 옆 패널 "Git" 묶음과 활동 줄.
@@ -194,7 +205,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 
 ## 확인이 필요한 것
 
-- **어떤 Git 서버를 먼저 붙일지.** 구현 순서는 Gitea 먼저로 적었다(사내 설치형에서 흔하고 GitHub 와 모양이 비슷하다). 실제로 쓰는 서버가 다르면 순서를 바꾼다.
+- ~~어떤 Git 서버를 먼저 붙일지~~ → Gitea (사용자 확정, D-145).
 - "리뷰 중" 상태가 필요한지. 지금 상태는 고정 5개라, 두려면 상태 구조부터 바꿔야 한다.
 - 커밋을 활동에 남길지, PR·브랜치만 남길지(커밋이 많은 팀은 활동이 길어진다).
 - 이메일·아이디가 둘 다 안 맞는 사람이 많으면 "내 설정 > Git 계정"(개인 연결)을 더할지.

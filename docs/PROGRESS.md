@@ -30,6 +30,7 @@
 - **프로젝트의 "한 줄 요약"을 화면에서 없앴다** (D-134). 컬럼·API 필드는 남아 있다. 이것도 검사하지 않았다.
 - **프로젝트의 "티켓" 탭을 없앴다** (D-135). 개요·목표 상세의 링크는 `/issues?project=…` 로 가고, `/project/{id}/issues` 는 그리로 넘겨 준다. 검사·화면 확인을 하지 않았다. **E2E(`changes`·`features`·`flows.spec.ts`)가 예전 주소와 탭을 쓰므로 고쳐야 할 수 있다.**
 
+- **Git 연동 1~3단계가 구현됐다: Gitea(Forgejo) 웹훅으로 티켓에 브랜치·PR·커밋을 잇고 상태를 바꾼다** (D-141, D-145, 2026-10-15, [features/git-integration.md](features/git-integration.md)). 관리자 설정 > "Git 연동" 탭(`/admin/git`), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`(로그인 없음, 서명으로 인증), 마이그레이션 `V11__git_integration.sql`(`issue_activities.actor_id` 가 null 을 허용하게 된다). 백엔드 통합 테스트 14개(`GitIntegrationTest`)와 `./gradlew check` 통과. 화면은 에이전트가 빈 DB 의 검사용 서버로 확인했다(아래 작업 기록). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11` 을 적용해야 한다.** GitLab·GitHub(4단계)와 브랜치 이름 복사(5단계)는 아직 없다.
 - **편집기에 Figma·Google(문서·스프레드시트·프레젠테이션)·Office·Outline 임베드가 생겼다** (D-139, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
 
 ## 다음 작업
@@ -38,7 +39,7 @@
 
 (이전 메모) M3 2단계(프리셋과 문서형 티켓 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
 
-**Git 연동은 명세만 있다** ([features/git-integration.md](features/git-integration.md), D-141, 2026-10-15). 구현하라는 지시가 오면 명세의 "구현 순서" 1단계(연결 관리)부터 하고, 먼저 "확인이 필요한 것"(특히 어떤 Git 서버를 먼저 붙일지)을 사용자에게 묻는다.
+**Git 연동은 1~3단계(연결 관리, 받기와 연결, 상태 자동 변경)까지 됐다** ([features/git-integration.md](features/git-integration.md), D-141, D-145, 2026-10-15). 먼저 붙인 서버는 Gitea 다(사용자 확정). 남은 것: 4단계 GitLab·GitHub 제공자(`GitProvider` 를 구현한 빈을 더하고 `GitConnectionService.SUPPORTED_PROVIDERS` 와 프런트의 `GIT_PROVIDERS` 에 넣는다. Gitea 와 GitHub 는 `ForgePayloads` 를 함께 쓴다. GitHub 의 `ping` 은 200 으로 무시), 5단계 브랜치 이름 복사(**Git 연결이 하나도 없으면 메뉴를 보이지 않아야 한다**: 지금은 일반 사용자가 연결이 있는지 알 API 가 없으니 함께 만든다), API 알림의 "보낼 변경"에 Git 종류 더하기, 화면 E2E(명세의 인수 기준 마지막 줄). 실제 Gitea 서버로는 아직 아무도 시험하지 않았다(페이로드 견본은 Gitea 형식을 따라 만든 것이다).
 
 그 밖의 일은 사용자가 지시하기 전에 임의로 시작하지 않는다. 지시를 받으면:
 
@@ -175,10 +176,23 @@
 - 프로젝트 아카이브(D-115): 아카이브된 프로젝트를 읽기 전용으로 열어 볼 수 있게 할지(지금은 복원해야 볼 수 있다), 완전히 삭제하는 기능이 필요한지, 아카이브할 때 구성원에게 알릴지.
 - 사용성 점검(2026-10-13)에서 나온, 사용자가 정해야 하는 것: (①③④⑤⑥⑦ 은 D-123 으로 했다. 남은 것은 ②) ② 상태 이름 "백로그·준비됨"을 접수·처리에 맞는 말로 바꿀지 ③ "만든 사람"을 "요청자"로, 내 티켓의 첫 탭을 무엇으로 할지 ④ 사이드바에 항상 보이는 "새 티켓" 버튼(지금은 전체 프로젝트·프로젝트 개요 화면에 버튼이 없다. 거기서 `C` 키가 되는지는 보지 않았다) ⑤ 로그인 뒤 첫 화면이 전체 프로젝트인 것 ⑥ 전체 티켓 목록에서 프로젝트 칸이 좁은 폭(1024px 미만)에서 사라지고, 연결하지 않은 티켓은 빈칸인 것 ⑦ 프로젝트 개요에 그 프로젝트의 티켓 요약이 없는 것(목표의 `티켓 n/m` 뿐).
 - 데이터 보관(D-132): 아카이브된 프로젝트도 기간이 지나면 영구 삭제할지(그러면 그 안의 티켓도 함께 지울지 정해야 한다), 이 설정을 백업 파일에 넣을지, 편집기에 넣은 이미지 파일(어느 문서에서도 쓰지 않게 된 것)을 정리할지, 화면에 마지막 정리 시각과 개수를 보여 줄지.
-- Git 연동(D-141, 명세만): 어떤 Git 서버를 먼저 붙일지(명세는 Gitea 먼저), "리뷰 중" 상태가 필요한지, 커밋을 활동에 남길지, 개인 Git 계정 연결이 필요한지. 명세의 "확인이 필요한 것".
+- Git 연동(D-141, 1~3단계 구현): "리뷰 중" 상태가 필요한지, 커밋을 활동에 남길지(지금은 남긴다), 개인 Git 계정 연결이 필요한지, GitHub.com 을 쓸 때 외부에 열 주소. 명세의 "확인이 필요한 것".
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-15 — Git 연동 1~3단계 구현 (Gitea, D-141, D-145)
+
+- 사용자 지시: 명세의 구현 순서 1~3단계를, 먼저 Gitea 로, 단계마다 테스트를 통과시킨 뒤 커밋. Git 은 선택 사항이니 연결이 없으면 Git 관련 버튼은 모두 숨긴다.
+- 커밋 셋: `fe97135`(1단계 연결 관리), `1e9c948`(2단계 받기와 연결), `31cbaed`(3단계 상태 자동 변경과 알림). 단계마다 `FLOWBIT_BUILD_DIR=build-check ./gradlew check` 통과.
+- 백엔드 `com.flowbit.git`(계층 없는 작은 모듈): `GitConnection`·`GitConnectionService`·`GitConnectionController`(관리자 API), `GitEvents`(공통 이벤트와 `GitProvider`), `GiteaProvider`(+ Gitea·GitHub 가 함께 쓸 `ForgePayloads`, `GitSignatures`), `IssueKeyMatcher`, `GitLinkService`(연결·커밋·활동·상태 규칙), `GitWebhookController`(+ `GitWebhookService`).
+- 바꾼 사람을 `Actor`(사람 또는 Git, `issue/application/IssueActivities.kt`)로 넓혔다. `IssueAnnouncer.changed(actor, …)`, `IssueNotification.actorId` 는 null 허용, 실시간 알림의 주체는 `RealtimeHub.NOBODY`. 사람이 바꾸는 기존 경로는 그대로다.
+- `IssueService` 의 Git 경로: `gitTargets`(허용 프로젝트의 삭제 안 된 티켓), `recordFromGit`(활동에 `via` 를 단다), `changeStatusFromGit`(정해진 상태에서만 바꾼다).
+- 티켓 응답(`GET /issues/{번호}`)에 `git` 이 생겼다(목록에는 없다). 옆 패널 "Git" 묶음은 연결이 있는 티켓에만 보인다. 일반 사용자에게는 그 밖의 Git UI 가 없다. 관리자 설정의 "Git 연동" 탭은 연결을 만드는 곳이라 늘 보인다.
+- 백업 및 복원에 `GIT` 항목. 같은 id 로 복원해 Git 서버의 웹훅 주소가 그대로 맞는다.
+- 테스트가 쓰는 Gitea 페이로드 견본은 `backend/src/test/resources/git/` 에 있다. **실제 서버에서 받은 것이 아니라 Gitea 의 형식을 따라 만든 것**이라, 실제 서버로 한 번 받아 보고 다르면 견본을 바꾼다.
+- 화면 확인: 빈 DB(일회용 PostgreSQL 컨테이너, 포트 55432)의 검사용 백엔드(8081)와 프로덕션 빌드(3100)로, 견본을 서명해 보낸 뒤 확인했다. 관리자 탭(연결 목록·마지막 수신·웹훅 주소·`FLOWBIT_PUBLIC_URL` 경고·추가 직후의 비밀 값·주소 검증 오류), FB-1 옆 패널의 머지된 PR 줄과 활동(“kimjm(Git) 님이 …”, 커밋 펼치기, 진행 중 → 완료), 참고 연결만 있는 FB-2 의 "참고"와 바뀌지 않은 상태, 연결 없는 FB-3 에 "Git" 묶음이 없음. 그 뒤 `FLOWBIT_PUBLIC_URL` 경고가 칸의 반만 차지하던 것을 고쳤다(다시 화면으로 보지는 않았다).
+- 이 작업 중에 처음 한 번 `./gradlew test` 를 기본 `build` 폴더로 돌렸다. 그때 사용자의 IDE 백엔드(8080)가 떠 있었으니, 이상하면 IDE 에서 다시 빌드·실행한다. 그 뒤로는 `build-check` 에 빌드했다. `build-check/resources` 에 예전 마이그레이션 파일이 남아 Flyway 가 "version 2 가 둘"로 멈춰서 그 폴더를 지웠다.
 
 ### 2026-10-15 — 내 티켓 탭의 담당자 필터 제거 (D-144)
 

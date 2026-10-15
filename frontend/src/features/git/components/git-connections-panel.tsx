@@ -147,7 +147,11 @@ function WebhookDetails({
     <div className="flex flex-col gap-7">
       <FieldSection title={m.sections.webhook}>
         <CopyField id={`git-${connection.id}-url`} label={m.webhookUrl} value={connection.webhookUrl} />
-        {incomplete ? <FormAlert>{m.publicUrlMissing}</FormAlert> : null}
+        {incomplete ? (
+          <div className="sm:col-span-2">
+            <FormAlert>{m.publicUrlMissing}</FormAlert>
+          </div>
+        ) : null}
         {secret ? (
           <CopyField id={`git-${connection.id}-secret`} label={m.secret} value={secret} hint={m.secretOnce} />
         ) : (
