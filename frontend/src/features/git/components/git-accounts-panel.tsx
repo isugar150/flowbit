@@ -46,6 +46,9 @@ function AccountRow({ account }: { account: GitAccount }) {
         <label htmlFor={id} className="flex min-w-40 flex-1 flex-col">
           <span className="truncate font-medium">{account.displayName ?? account.loginId}</span>
           {account.displayName ? <span className="truncate text-[0.8125rem] leading-5 text-muted-foreground">{account.loginId}</span> : null}
+          {account.githubLogin ? (
+            <span className="truncate text-[0.8125rem] leading-5 font-normal text-muted-foreground">{m.githubLinked(account.githubLogin)}</span>
+          ) : null}
         </label>
         <div className="flex items-center gap-2">
           <Input

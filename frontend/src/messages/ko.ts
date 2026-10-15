@@ -786,10 +786,24 @@ export const ko = {
     accounts: {
       title: "사람 맞추기",
       description:
-        "Git에서 한 일을 누가 했는지는 이메일, 여기 적은 Git 아이디, Flowbit 아이디 순서로 찾습니다. GitHub는 PR에 이메일이 없으니 GitHub 아이디가 Flowbit 아이디와 다른 사람은 여기에 적어 주세요.",
+        "Git에서 한 일을 누가 했는지는 이메일, 본인이 내 설정에서 연결한 GitHub 계정, 여기 적은 Git 아이디, Flowbit 아이디 순서로 찾습니다. GitHub를 쓰는 사람은 각자 내 설정에서 GitHub 계정을 연결하면 되고, 여기는 GitLab·Gitea를 쓰는 사람과 GitHub 계정을 연결하지 않은 사람을 위한 곳입니다.",
+      githubLinked: (login: string) => `GitHub: ${login} (본인이 연결)`,
       placeholder: "Git 아이디",
       save: "저장",
       saved: "저장함",
+    },
+    myAccount: {
+      title: "GitHub 계정",
+      description: "내 GitHub 계정을 연결하면 GitHub에서 내가 올린 브랜치·PR·머지가 Flowbit에서 내가 한 일로 남습니다. Flowbit은 내 GitHub 아이디만 저장합니다.",
+      notLinked: "연결한 GitHub 계정이 없습니다",
+      linked: (login: string) => `${login} 계정으로 연결했습니다`,
+      connect: "GitHub 계정 연결",
+      connecting: "GitHub로 가는 중",
+      unlink: "연결 해제",
+      finishing: "GitHub 계정을 연결하는 중입니다…",
+      failed: "GitHub 계정을 연결하지 못했습니다.",
+      denied: "GitHub에서 연결을 허락하지 않았습니다.",
+      back: "내 설정으로 돌아가기",
     },
     branchCopy: {
       menuLabel: (key: string) => `${key} 메뉴`,
@@ -819,6 +833,8 @@ export const ko = {
       installButton: "조직에 설치",
       installed: (all: boolean) => (all ? "설치했습니다: 모든 저장소" : "설치했습니다: 고른 저장소"),
       installedHint: "저장소를 더하거나 빼려면 GitHub의 설치 설정에서 바꿉니다.",
+      callbackHint: (url: string) =>
+        `구성원이 내 설정에서 GitHub 계정을 연결하려면 앱 설정의 Callback URL에 ${url} 이 들어 있어야 합니다. 이 화면에서 만든 앱에는 이미 들어 있습니다.`,
       changeRepositories: "저장소 바꾸기",
       checkInstallation: "설치 확인",
       webhookHint: "GitHub 앱에 아래 웹훅 주소와 비밀 값이 이미 들어 있습니다. 따로 옮길 것은 없습니다.",

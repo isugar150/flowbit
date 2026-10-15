@@ -224,6 +224,8 @@
 
 `V14`(D-148): `project_git_repositories`(`project_id`·`connection_id` CASCADE, `repository` 소문자, PK 셋 모두): 프로젝트의 저장소. `issue_git_repositories`(`issue_id` PK·CASCADE, `connection_id` CASCADE, `repository` 소문자): 티켓에서 고른 저장소.
 
+`V16`(D-150): `git_github_accounts`(`user_id` PK·CASCADE, `connection_id` CASCADE, `github_login` 소문자, `github_user_id`, `linked_at`, 유일 `(connection_id, github_user_id)`): 각자 내 설정에서 연결한 GitHub 계정.
+
 `V11` 은 `issue_activities.actor_id` 의 NOT NULL 도 뺀다. Git 이 한 일은 `detail.via = {"source":"git","name":"<Git 사용자 이름>"}` 를 달고, Flowbit 계정이 맞으면 `actor_id` 도 채운다.
 
 ### 검색 함수 `hangul_initials(text)` (`V10`, D-133)

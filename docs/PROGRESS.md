@@ -30,7 +30,7 @@
 - **프로젝트의 "한 줄 요약"을 화면에서 없앴다** (D-134). 컬럼·API 필드는 남아 있다. 이것도 검사하지 않았다.
 - **프로젝트의 "티켓" 탭을 없앴다** (D-135). 개요·목표 상세의 링크는 `/issues?project=…` 로 가고, `/project/{id}/issues` 는 그리로 넘겨 준다. 검사·화면 확인을 하지 않았다. **E2E(`changes`·`features`·`flows.spec.ts`)가 예전 주소와 탭을 쓰므로 고쳐야 할 수 있다.**
 
-- **Git 연동이 명세 끝까지 구현됐다** (D-141, D-145~D-147, 2026-10-15~16, [features/git-integration.md](features/git-integration.md)). Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(관리자 화면에서 매니페스트로 만들고 조직에 설치, 웹훅 또는 2분마다 API 가져오기). 관리자 설정 > "Git 연동" 탭(`/admin/git`, "사람 맞추기" 포함), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`, 티켓 키 옆 "브랜치 이름 복사"(Git 이 쓰일 때만), API 알림의 Git 종류. 마이그레이션 `V11`~`V15`. 백엔드 `GitIntegrationTest` 17개·`GitHubIntegrationTest` 3개, 프런트 단위 테스트(`npm test`)와 E2E `git.spec.ts` 통과. **실제 Gitea·GitLab·GitHub 서버로는 아직 아무도 시험하지 않았다**(견본 페이로드와 가짜 GitHub 로 테스트했다). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11`~`V15` 를 적용해야 한다.** 프로젝트마다 저장소를 정하고 티켓에서 고를 수 있다(D-148).
+- **Git 연동이 명세 끝까지 구현됐다** (D-141, D-145~D-147, 2026-10-15~16, [features/git-integration.md](features/git-integration.md)). Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(관리자 화면에서 매니페스트로 만들고 조직에 설치, 웹훅 또는 2분마다 API 가져오기). 관리자 설정 > "Git 연동" 탭(`/admin/git`, "사람 맞추기" 포함), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`, 티켓 키 옆 "브랜치 이름 복사"(Git 이 쓰일 때만), API 알림의 Git 종류. 마이그레이션 `V11`~`V16`. 백엔드 `GitIntegrationTest` 17개·`GitHubIntegrationTest` 3개, 프런트 단위 테스트(`npm test`)와 E2E `git.spec.ts` 통과. **실제 Gitea·GitLab·GitHub 서버로는 아직 아무도 시험하지 않았다**(견본 페이로드와 가짜 GitHub 로 테스트했다). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11`~`V16` 을 적용해야 한다.** 프로젝트마다 저장소를 정하고 티켓에서 고를 수 있다(D-148).
 - **편집기에 Figma·Google(문서·스프레드시트·프레젠테이션)·Office·Outline 임베드가 생겼다** (D-139, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
 
 ## 다음 작업
@@ -180,6 +180,14 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-16 — 내 설정의 GitHub 계정 연결 (D-150)
+
+- 사용자 지시: 내 설정에 GitHub 계정 연결(OAuth)을 더하고, 관리자의 사람 맞추기는 GitLab·Gitea 와 연결 안 한 사람용으로 남긴다.
+- 백엔드: `V16`(`git_github_accounts`), `git/GitHubAccounts.kt`(`/api/v1/me/git/github…`), `GitHubClient.authorizedUser`(code → 사용자 토큰 → `GET /user`, 토큰은 버림), 매니페스트에 `callback_urls`. 사람 찾기: 이메일 → 연결한 GitHub 계정 → 관리자 Git 아이디 → Flowbit 아이디. `GitHubIntegrationTest` 에 테스트 하나(가짜 GitHub 의 `/login/oauth/access_token`·`/user`).
+- 프런트: 내 설정 "GitHub 계정"(`my-github-account.tsx`, 연결할 GitHub App 이 있을 때만), GitHub 이 돌려보내는 `/settings/github/callback`, 관리자 사람 맞추기 줄의 "GitHub: … (본인이 연결)", GitHub 앱 단계의 Callback URL 안내.
+- 화면 확인: 검사용 서버에서 GitHub 앱을 DB 로 만들어 둔 상태로 내 설정의 연결 전·후 문구, 연결 버튼이 여는 주소, 관리자 목록의 표시를 글자로 확인했다(브라우저 창이 가려져 스크린샷은 못 찍었다). 실제 GitHub 로그인은 해 보지 않았다.
+- **이미 만든 GitHub 앱이 있으면** GitHub 의 앱 설정 > Callback URL 에 `<Flowbit 주소>/settings/github/callback` 을 더해야 개인 연결이 된다.
 
 ### 2026-10-16 — Git 연결의 "허용 프로젝트" 삭제, 종류 순서 (D-149)
 

@@ -33,6 +33,12 @@ data class GitHubResponse(
     val rateLimitRemaining: Int?,
 )
 
+/** A GitHub account, as GitHub names it. */
+data class GitHubUser(
+    val id: Long,
+    val login: String,
+)
+
 /** What GitHub hands over once an app has been made from a manifest. */
 data class GitHubAppCredentials(
     val id: Long,
@@ -83,6 +89,33 @@ class GitHubClient(
             webhookSecret = text(body, "webhook_secret"),
             pem = text(body, "pem") ?: throw GitHubException("GitHub 앱의 비공개 키가 없습니다"),
         )
+    }
+
+    /**
+     * The GitHub user who just authorized the app in their browser (D-150): [code] is exchanged
+     * for a user access token, which only reads who they are and is then dropped.
+     */
+    suspend fun authorizedUser(
+        connection: GitConnection,
+        code: String,
+        redirectUri: String,
+    ): GitHubUser {
+        val clientId = connection.githubClientId ?: throw GitHubException("GitHub 앱의 클라이언트 ID 가 없습니다")
+        val clientSecret = connection.githubClientSecret ?: throw GitHubException("GitHub 앱의 클라이언트 시크릿이 없습니다")
+        val body = jsonMapper.writeValueAsString(mapOf("client_id" to clientId, "client_secret" to clientSecret, "code" to code, "redirect_uri" to redirectUri))
+        // This endpoint answers in JSON only when asked to; otherwise as a form.
+        val exchange = send(HttpMethod.POST, "${connection.baseUrl.trimEnd('/')}/login/oauth/access_token", null, null, body, "application/json")
+        val token = exchange.body?.let { text(it, "access_token") }
+        if (exchange.status != 200 || token == null) {
+            val reason = exchange.body?.let { text(it, "error_description") ?: text(it, "error") }
+            throw GitHubException("GitHub 인증을 마치지 못했습니다" + (reason?.let { ": $it" } ?: " (HTTP ${exchange.status})"))
+        }
+        val user = send(HttpMethod.GET, "${apiUrl(connection.baseUrl)}/user", "Bearer $token", null, null)
+        val node = user.body
+        val login = node?.let { text(it, "login") }
+        val id = node?.path("id")?.asLong(0) ?: 0
+        if (user.status != 200 || login == null || id <= 0) throw GitHubException("GitHub 사용자 정보를 읽지 못했습니다 (HTTP ${user.status})")
+        return GitHubUser(id, login)
     }
 
     /** The app's installation on the connection's organization; null when it is not installed there. */
@@ -157,12 +190,13 @@ class GitHubClient(
         authorization: String?,
         etag: String?,
         body: String?,
+        accept: String = "application/vnd.github+json",
     ): GitHubResponse =
         try {
             http
                 .method(method)
                 .uri(URI(url))
-                .accept(MediaType.parseMediaType("application/vnd.github+json"))
+                .accept(MediaType.parseMediaType(accept))
                 .headers { headers ->
                     headers.set("X-GitHub-Api-Version", API_VERSION)
                     headers.set("User-Agent", "Flowbit")

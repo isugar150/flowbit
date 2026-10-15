@@ -94,6 +94,7 @@ export function GitHubAppDetails({ connection }: { connection: GitConnection }) 
             {made ? (
               <>
                 <p className="text-muted-foreground">{installed ? m.installedHint : m.installHint}</p>
+                {installed && app?.callbackUrl ? <p className="text-muted-foreground">{m.callbackHint(app.callbackUrl)}</p> : null}
                 <div className="flex flex-wrap gap-2">
                   {app?.installUrl ? (
                     <Button

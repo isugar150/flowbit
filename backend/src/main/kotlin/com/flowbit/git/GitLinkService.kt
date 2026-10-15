@@ -41,6 +41,7 @@ class GitLinkService(
     private val issueService: IssueService,
     private val userService: UserService,
     private val accounts: GitAccountService,
+    private val githubAccounts: GitHubAccountService,
     private val projectRepositoryService: GitProjectRepositoryService,
     private val keyMatcher: IssueKeyMatcher,
     private val databaseClient: DatabaseClient,
@@ -409,9 +410,14 @@ class GitLinkService(
         suspend fun actorOf(person: GitPerson): Actor =
             actors.getOrPut(person) {
                 val via = mapOf("source" to "git", "name" to person.label)
-                // The e-mail address, then the Git user name an administrator gave someone, then the login id (D-147).
+                // The e-mail address, then the GitHub account someone connected themselves (D-150), then the Git
+                // user name an administrator gave someone (D-147), then the login id.
                 val user =
                     person.email?.let { userService.findActiveByEmailOrLoginId(it, null) }
+                        ?: person.username
+                            ?.takeIf { connection.provider == GitProviderType.GITHUB }
+                            ?.let { githubAccounts.userIdOf(connection, it) }
+                            ?.let { userService.findActive(it) }
                         ?: person.username?.let { accounts.userIdOf(it) }?.let { userService.findActive(it) }
                         ?: person.username?.let { userService.findActiveByEmailOrLoginId(null, it) }
                 if (user != null) Actor(user.id, user.displayName ?: user.loginId, via) else Actor(null, "${person.label}(Git)", via)

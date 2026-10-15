@@ -6,6 +6,7 @@ import type {
   GitHubManifestForm,
   GitReceiptResult,
   GitRepositoryRef,
+  MyGitHubAccount,
   ProjectGitSettings,
 } from "./types";
 
@@ -69,4 +70,18 @@ export function saveProjectGitRepositories({ projectId, repositories }: { projec
 /** Picks which of its project's repositories an issue's work is in; null takes the pick away. */
 export function setIssueGitRepository({ number, repository }: { number: number; repository: GitRepositoryRef | null }): Promise<void> {
   return apiFetch<void>(`/api/v1/issues/${number}/git-repository`, { method: "PUT", body: repository ?? {} });
+}
+
+/** Where to send the browser so that GitHub asks the member (D-150). */
+export function authorizeMyGitHub(origin: string): Promise<{ url: string }> {
+  return apiFetch<{ url: string }>(`/api/v1/me/git/github/authorize?origin=${encodeURIComponent(origin)}`, { method: "POST" });
+}
+
+/** GitHub sent the browser back with a code. */
+export function finishMyGitHub(code: string, state: string): Promise<MyGitHubAccount> {
+  return apiFetch<MyGitHubAccount>("/api/v1/me/git/github/callback", { method: "POST", body: { code, state } });
+}
+
+export function unlinkMyGitHub(): Promise<void> {
+  return apiFetch<void>("/api/v1/me/git/github", { method: "DELETE" });
 }

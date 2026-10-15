@@ -24,6 +24,8 @@ data class GitAccountView(
     val loginId: String,
     val displayName: String?,
     val username: String?,
+    /** The GitHub account they connected themselves (D-150), which counts first for GitHub. */
+    val githubLogin: String? = null,
 )
 
 data class GitAccountRequest(
@@ -40,11 +42,13 @@ data class GitAccountRequest(
 class GitAccountService(
     private val databaseClient: DatabaseClient,
     private val userService: UserService,
+    private val githubAccounts: GitHubAccountService,
     private val clock: Clock,
 ) {
     suspend fun list(): List<GitAccountView> {
         val names = all()
-        return userService.activeUsers().map { GitAccountView(it.id, it.loginId, it.displayName, names[it.id]) }
+        val github = githubAccounts.logins()
+        return userService.activeUsers().map { GitAccountView(it.id, it.loginId, it.displayName, names[it.id], github[it.id]) }
     }
 
     suspend fun set(

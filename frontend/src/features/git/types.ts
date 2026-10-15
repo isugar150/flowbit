@@ -19,6 +19,8 @@ export type GitHubApp = {
   appUrl: string | null;
   installUrl: string | null;
   settingsUrl: string | null;
+  /** Where members come back after connecting their GitHub account; must be one of the app's Callback URLs. */
+  callbackUrl: string;
   /** Null until the app is installed on the organization. */
   installationId: number | null;
   /** "all" or "selected". */
@@ -81,6 +83,16 @@ export type GitAccount = {
   loginId: string;
   displayName: string | null;
   username: string | null;
+  /** The GitHub account they connected themselves (D-150); it counts first for GitHub. */
+  githubLogin: string | null;
+};
+
+/** GET /api/v1/me/git/github (D-150) */
+export type MyGitHubAccount = {
+  /** Whether there is a GitHub App to connect through; without one the setting is not shown. */
+  available: boolean;
+  login: string | null;
+  linkedAt: string | null;
 };
 
 /** What the browser posts to GitHub to make the app. */

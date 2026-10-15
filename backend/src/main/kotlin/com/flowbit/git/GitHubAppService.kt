@@ -73,6 +73,8 @@ class GitHubAppService(
                 "hook_attributes" to mapOf("url" to base + GitConnectionController.webhookPath(connection.id), "active" to webhook),
                 "redirect_url" to "$base/admin/git/github/created",
                 "setup_url" to "$base/admin/git/github/installed",
+                // Where members come back after connecting their own GitHub account (D-150).
+                "callback_urls" to listOf("$base$GITHUB_ACCOUNT_CALLBACK"),
                 "setup_on_update" to true,
                 "public" to false,
                 "default_permissions" to mapOf("contents" to "read", "pull_requests" to "read", "metadata" to "read"),
@@ -156,8 +158,10 @@ class GitHubAppService(
         return uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank()
     }
 
-    private companion object {
-        const val STATE_BYTES = 24
-        const val APP_NAME_MAX_LENGTH = 34
+    companion object {
+        /** The settings page GitHub sends a member back to after they connect their account. */
+        const val GITHUB_ACCOUNT_CALLBACK = "/settings/github/callback"
+        private const val STATE_BYTES = 24
+        private const val APP_NAME_MAX_LENGTH = 34
     }
 }

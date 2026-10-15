@@ -204,7 +204,13 @@ Flowbit 이 `api.github.com` 으로 나가는 연결만 있으면 된다. 실시
 
 ### 사람 맞추기
 
-GitHub 의 PR 이벤트·목록에는 이메일이 없고 GitHub 아이디만 있다. github.com 아이디는 회사의 Flowbit 아이디와 다른 경우가 많아 **관리자가 Git 연동 탭의 "사람 맞추기"에서 구성원마다 Git 아이디를 적는다**(D-147, 표 `git_user_accounts`, 모든 종류에 쓰인다). 사람 찾기 순서는 이메일 → 적어 둔 Git 아이디 → Flowbit 아이디. 각자 OAuth 로 잇는 "내 설정 > GitHub 계정 연결"은 만들지 않았다(필요해지면 같은 앱의 사용자 인증으로 더한다).
+**내 설정 > GitHub 계정** (D-150): 각자 GitHub 계정을 연결한다. 같은 GitHub App 의 사용자 인증(OAuth 웹 흐름)을 쓴다: "GitHub 계정 연결" → `<GitHub>/login/oauth/authorize?client_id=…&redirect_uri=<Flowbit>/settings/github/callback&state=…` → GitHub 이 돌려보낸 code 를 `POST <GitHub>/login/oauth/access_token`(`Accept: application/json`)으로 바꿔 `GET /user` 로 login·id 만 읽고, 사용자 토큰은 저장하지 않고 버린다. 표 `git_github_accounts`(`V16`). 같은 GitHub 계정을 두 사람이 연결할 수 없다(409 `GITHUB_ACCOUNT_TAKEN`). state 는 서버 메모리에 10분(단일 인스턴스). redirect URI 는 앱의 Callback URL 이어야 해서, 매니페스트에 `callback_urls` 로 넣는다. 그 전에 만든 앱은 GitHub 의 앱 설정에서 더해야 한다(관리자 화면이 주소를 보여 준다). 연결할 GitHub App 이 없으면 이 설정은 보이지 않는다. API: `GET /api/v1/me/git/github`(`{ available, login, linkedAt }`), `POST /api/v1/me/git/github/authorize?origin=`(`{ url }`, 앱이 없으면 409 `GITHUB_APP_MISSING`), `POST /api/v1/me/git/github/callback`(`{ code, state }`), `DELETE /api/v1/me/git/github`.
+
+**사람 찾기 순서**: 이메일 → (GitHub 이벤트일 때) 본인이 연결한 GitHub 계정(같은 GitHub 서버) → 관리자가 적은 Git 아이디 → Flowbit 아이디 → 모두 없으면 Git 이름만.
+
+**관리자의 "사람 맞추기"는 남긴다**: GitLab·Gitea 를 쓰는 사람과 GitHub 계정을 연결하지 않은 사람을 위한 것이다. 목록에 본인이 연결한 GitHub 계정도 보인다.
+
+(아래는 D-147 때의 설명이다.) GitHub 의 PR 이벤트·목록에는 이메일이 없고 GitHub 아이디만 있다. github.com 아이디는 회사의 Flowbit 아이디와 다른 경우가 많아 **관리자가 Git 연동 탭의 "사람 맞추기"에서 구성원마다 Git 아이디를 적는다**(D-147, 표 `git_user_accounts`, 모든 종류에 쓰인다). 사람 찾기 순서는 이메일 → 적어 둔 Git 아이디 → Flowbit 아이디. 각자 OAuth 로 잇는 "내 설정 > GitHub 계정 연결"은 만들지 않았다(필요해지면 같은 앱의 사용자 인증으로 더한다).
 
 ### 확인이 필요한 것 (GitHub App)
 

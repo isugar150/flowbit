@@ -47,6 +47,11 @@ data class GitHubAppResponse(
     val installUrl: String?,
     /** The app's settings on GitHub: its webhook, permissions and keys. */
     val settingsUrl: String?,
+    /**
+     * Where members come back after connecting their GitHub account (D-150). It must be one of the
+     * app's Callback URLs; apps made from a manifest have it, older ones get it added on GitHub.
+     */
+    val callbackUrl: String,
     /** Null until it is installed on the organization. */
     val installationId: Long?,
     /** `all` or `selected`. */
@@ -230,6 +235,7 @@ class GitConnectionController(
             appUrl = slug?.let { "$web/apps/$it" },
             installUrl = slug?.let { "$web/apps/$it/installations/new" },
             settingsUrl = slug?.let { "$web/organizations/${connection.githubOrganization}/settings/apps/$it" },
+            callbackUrl = publicUrl.of(GitHubAppService.GITHUB_ACCOUNT_CALLBACK),
             installationId = connection.githubInstallationId,
             repositorySelection = connection.githubRepositorySelection,
         )

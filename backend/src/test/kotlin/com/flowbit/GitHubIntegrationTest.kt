@@ -66,6 +66,7 @@ class GitHubIntegrationTest : IntegrationTest() {
                 "appUrl" to null,
                 "installUrl" to null,
                 "settingsUrl" to null,
+                "callbackUrl" to "/settings/github/callback",
                 "installationId" to null,
                 "repositorySelection" to null,
             ),
@@ -81,6 +82,7 @@ class GitHubIntegrationTest : IntegrationTest() {
         assertEquals(true, manifest.get("hook_attributes").get("active").asBoolean())
         assertEquals("http://localhost:3000/admin/git/github/created", manifest.get("redirect_url").asString())
         assertEquals("http://localhost:3000/admin/git/github/installed", manifest.get("setup_url").asString())
+        assertEquals("http://localhost:3000/settings/github/callback", manifest.get("callback_urls").get(0).asString())
         assertEquals("read", manifest.get("default_permissions").get("pull_requests").asString())
         assertEquals(listOf("push", "pull_request"), (0 until manifest.get("default_events").size()).map { manifest.get("default_events").get(it).asString() })
 
@@ -203,6 +205,65 @@ class GitHubIntegrationTest : IntegrationTest() {
         assertTrue((admin.get("/api/v1/admin/git/connections").jsonList().single()["syncError"] as String).contains("500"))
     }
 
+    @Test
+    fun `내 설정에서 GitHub 계정을 연결하면 그 계정의 GitHub 이벤트가 내 것이 된다`() {
+        val jiminId = admin.post("/api/v1/admin/members", """{"loginId":"jimin","password":"$PASSWORD","displayName":"김지민"}""").json()["id"]
+        admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD"}""")
+        val jimin = client().also { it.login("jimin", PASSWORD) }
+        val lee = client().also { it.login("leesj", PASSWORD) }
+
+        // No GitHub App yet: nothing to connect through.
+        assertEquals(mapOf("available" to false, "login" to null, "linkedAt" to null), jimin.get("/api/v1/me/git/github").json())
+        assertEquals(409, jimin.post("/api/v1/me/git/github/authorize?origin=http://localhost:3000").status)
+
+        val connection = installedConnection()
+        assertEquals(true, jimin.get("/api/v1/me/git/github").json()["available"])
+        val url = jimin.post("/api/v1/me/git/github/authorize?origin=http://localhost:3000").json()["url"] as String
+        assertTrue(
+            url.startsWith(
+                "${GitHub.base}/login/oauth/authorize?client_id=Iv1.test&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fsettings%2Fgithub%2Fcallback&state=",
+            ),
+        )
+        val state = url.substringAfter("state=").substringBefore("&")
+
+        // Someone else cannot finish it, and a state is used once.
+        assertEquals(422, lee.post("/api/v1/me/git/github/callback", """{"code":"user-code","state":"$state"}""").status)
+        assertEquals(422, jimin.post("/api/v1/me/git/github/callback", """{"code":"user-code","state":"$state"}""").status)
+
+        val bad = jimin.post("/api/v1/me/git/github/authorize?origin=http://localhost:3000").json()["url"] as String
+        assertEquals(
+            502,
+            jimin.post("/api/v1/me/git/github/callback", """{"code":"stale-code","state":"${bad.substringAfter("state=").substringBefore("&")}"}""").status,
+        )
+
+        val good = jimin.post("/api/v1/me/git/github/authorize?origin=http://localhost:3000").json()["url"] as String
+        val linked = jimin.post("/api/v1/me/git/github/callback", """{"code":"user-code","state":"${good.substringAfter("state=").substringBefore("&")}"}""")
+        assertEquals(200, linked.status)
+        assertEquals("kimjm", linked.json()["login"])
+        assertEquals("http://localhost:3000/settings/github/callback", GitHub.lastRedirectUri)
+
+        // The same GitHub account cannot be someone else's too.
+        val other = lee.post("/api/v1/me/git/github/authorize?origin=http://localhost:3000").json()["url"] as String
+        assertEquals(
+            409,
+            lee.post("/api/v1/me/git/github/callback", """{"code":"user-code","state":"${other.substringAfter("state=").substringBefore("&")}"}""").status,
+        )
+
+        // The administrator sees it next to the Git user names they set.
+        val accounts = admin.get("/api/v1/admin/git/accounts").jsonList().associate { it["loginId"] to it["githubLogin"] }
+        assertEquals("kimjm", accounts["jimin"])
+
+        // A push by GitHub user kimjm (a no-reply address, and not jimin's login id) is jimin's.
+        admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
+        deliver(connection, "push", sample("github-push.json"))
+        @Suppress("UNCHECKED_CAST")
+        val items = admin.get("/api/v1/issues/1/activity").json()["items"] as List<Map<String, Any?>>
+        assertEquals(jiminId, (items.last()["actor"] as Map<*, *>)["id"])
+
+        assertEquals(204, jimin.delete("/api/v1/me/git/github").status)
+        assertNull(jimin.get("/api/v1/me/git/github").json()["login"])
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private val mapper: JsonMapper = JsonMapper.builder().build()
@@ -296,6 +357,8 @@ class GitHubIntegrationTest : IntegrationTest() {
         @Volatile var jwtChecks = 0
 
         @Volatile var badJwts = 0
+
+        @Volatile var lastRedirectUri: String? = null
         val fullAnswers =
             java.util.concurrent.atomic
                 .AtomicInteger()
@@ -309,6 +372,7 @@ class GitHubIntegrationTest : IntegrationTest() {
             failRepositories = false
             jwtChecks = 0
             badJwts = 0
+            lastRedirectUri = null
             fullAnswers.set(0)
             pulls.clear()
             branches.clear()
@@ -318,6 +382,7 @@ class GitHubIntegrationTest : IntegrationTest() {
         private val server: HttpServer =
             HttpServer.create(InetSocketAddress("localhost", 0), 0).apply {
                 createContext("/api/v3/") { exchange -> handle(exchange) }
+                createContext("/login/oauth/access_token") { exchange -> userToken(exchange) }
                 start()
             }
 
@@ -354,6 +419,7 @@ class GitHubIntegrationTest : IntegrationTest() {
                     checkJwt(authorization)
                     answer(exchange, 201, """{"token":"ghs_test-token","expires_at":"${Instant.now().plusSeconds(3600)}"}""")
                 }
+                path == "/user" && authorization == "Bearer ghu_user-token" -> answer(exchange, 200, """{"login":"KimJM","id":5001}""")
                 authorization != "Bearer ghs_test-token" -> answer(exchange, 401, """{"message":"Bad credentials"}""")
                 path == "/installation/repositories" -> {
                     if (failRepositories) return answer(exchange, 500, "{}")
@@ -377,6 +443,32 @@ class GitHubIntegrationTest : IntegrationTest() {
                 }
                 else -> answer(exchange, 404, """{"message":"Not Found"}""")
             }
+        }
+
+        /** The user authorization's code exchange: only `user-code`, and only in JSON when asked so. */
+        private fun userToken(exchange: HttpExchange) {
+            val body = mapper.readTree(exchange.requestBody.readAllBytes())
+            lastRedirectUri = body.get("redirect_uri")?.asString()
+            val json =
+                exchange.requestHeaders
+                    .getFirst("Accept")
+                    .orEmpty()
+                    .contains("application/json")
+            val ok =
+                json &&
+                    body.get("client_id")?.asString() == "Iv1.test" &&
+                    body.get("client_secret")?.asString() == "client-secret" &&
+                    body.get("code")?.asString() == "user-code"
+            // GitHub answers 200 with an error in the body for a bad code.
+            answer(
+                exchange,
+                200,
+                if (ok) {
+                    """{"access_token":"ghu_user-token","token_type":"bearer","scope":""}"""
+                } else {
+                    """{"error":"bad_verification_code","error_description":"The code passed is incorrect or expired."}"""
+                },
+            )
         }
 
         /** Lists answer 304 when the caller already has them, as GitHub does for a matching ETag. */

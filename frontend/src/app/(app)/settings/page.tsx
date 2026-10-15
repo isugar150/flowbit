@@ -4,6 +4,8 @@ import { Separator } from "@/components/ui/separator";
 import { ProfileSettings } from "@/features/settings/components/profile-settings";
 import { ThemeSetting } from "@/features/settings/components/theme-setting";
 import { ReplayTourButton } from "@/features/tour/components/replay-tour-button";
+import { MyGitHubAccountSetting } from "@/features/git/components/my-github-account";
+import type { MyGitHubAccount } from "@/features/git/types";
 import { MyNotificationSettings } from "@/features/notifications/components/my-notification-settings";
 import type { MyNotificationSettings as MyNotifications } from "@/features/notifications/types";
 import { requireUser, serverGet } from "@/lib/current-user";
@@ -15,9 +17,10 @@ const n = messages.notifications.mine;
 export const metadata: Metadata = { title: m.title };
 
 export default async function PersonalSettingsPage() {
-  const [user, notifications] = await Promise.all([
+  const [user, notifications, github] = await Promise.all([
     requireUser(),
     serverGet<MyNotifications>("/api/v1/me/notifications"),
+    serverGet<MyGitHubAccount>("/api/v1/me/git/github"),
   ]);
 
   return (
@@ -33,6 +36,15 @@ export default async function PersonalSettingsPage() {
         <>
           <SettingsSection title={n.title} description={n.description}>
             <MyNotificationSettings settings={notifications} />
+          </SettingsSection>
+          <Separator />
+        </>
+      ) : null}
+      {/* Only when there is a GitHub App to connect through (D-145); someone already connected still sees it. */}
+      {github && (github.available || github.login) ? (
+        <>
+          <SettingsSection title={messages.git.myAccount.title} description={messages.git.myAccount.description}>
+            <MyGitHubAccountSetting account={github} />
           </SettingsSection>
           <Separator />
         </>
