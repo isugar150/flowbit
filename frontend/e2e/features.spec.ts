@@ -93,6 +93,36 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
   await page.close();
 });
 
+test("a milestone's issues show two levels of sub-issues; the deeper ones are counted on one line (D-142)", async () => {
+  const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "깊은 목표", targetDate: null });
+  // Five levels: the top one and four under it, each the only sub-issue of the one before.
+  const top = await newIssue("깊이 0", { milestoneId: milestone.id });
+  let parent = top;
+  for (const depth of [1, 2, 3, 4]) parent = await newIssue(`깊이 ${depth}`, { parentId: parent.id });
+  const page = await newPage();
+  await page.goto(`/project/${project.id}`);
+  await page.locator(`li[data-presence-id="milestone:${milestone.id}"]`).click();
+  const issues = page.getByRole("dialog").getByRole("complementary");
+  await expect(issues).toContainText("티켓5");
+  await expect(issues.getByRole("listitem")).toHaveText([/깊이 0/, /깊이 1/, /깊이 2/, "외 2개"]);
+  // The count is only words, not a link.
+  await expect(issues.getByRole("listitem").last().getByRole("link")).toHaveCount(0);
+  await page.close();
+});
+
+test("beside a ticket its milestone lists ten tickets; the rest are counted on one line (D-143)", async () => {
+  const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "많은 목표", targetDate: null });
+  const first = await newIssue("많은 티켓 1", { milestoneId: milestone.id });
+  for (let n = 2; n <= 12; n++) await newIssue(`많은 티켓 ${n}`, { milestoneId: milestone.id });
+  const page = await newPage();
+  await page.goto(`/issue/${first.key}`);
+  const panel = page.getByRole("complementary", { name: "많은 목표 목표" });
+  const items = panel.getByRole("listitem");
+  await expect(items).toHaveCount(11);
+  await expect(items.last()).toHaveText("외 2개");
+  await page.close();
+});
+
 test("the editor role opens a milestone; the view of it is the same without the menu for those who only read", async ({ browser, baseURL }) => {
   const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "읽기 확인", targetDate: "2026-12-24" });
   await api(context, "PUT", `/api/v1/projects/${project.id}/members/${editorId}`, { role: "VIEWER" });

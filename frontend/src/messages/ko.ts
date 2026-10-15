@@ -265,6 +265,7 @@ export const ko = {
     edit: "편집",
     nameField: "목표 이름",
     issuesTitle: "티켓",
+    hiddenSubIssues: (count: number) => `외 ${count}개`,
     issuesLoading: "티켓을 불러오는 중",
     issuesFailed: "티켓을 불러오지 못했습니다. 창을 닫았다가 다시 열어 주세요.",
     noIssues: "이 목표에 등록된 티켓이 없습니다. 티켓의 '목표' 속성에서 이 목표를 고르면 여기에 모입니다.",

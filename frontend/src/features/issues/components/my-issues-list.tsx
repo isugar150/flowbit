@@ -31,6 +31,8 @@ export async function MyIssuesList({ scope, deleted = false }: { scope: "assigne
       projects={projects}
       canEdit
       deleted={deleted}
+      // Every issue on this tab is assigned to the person; picking an assignee would only hide them.
+      assigneeFilter={scope !== "assigned"}
       empty={
         scope === "assigned"
           ? { title: m.emptyAssignedTitle, description: m.emptyAssigned }

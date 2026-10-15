@@ -18,7 +18,7 @@ import { ChipSelect } from "@/features/issues/components/chip-select";
 import { PriorityMark, StatusMark } from "@/features/issues/components/issue-row";
 import { SubIssueIndent } from "@/features/issues/components/sub-issue-rows";
 import { STATUSES, STATUS_ORDER, StatusIcon, statusLabel } from "@/features/issues/meta";
-import { arrangeBySubIssues } from "@/features/issues/sub-issue-tree";
+import { arrangeBySubIssues, type IssueRow } from "@/features/issues/sub-issue-tree";
 import type { Issue, IssueStatus } from "@/features/issues/types";
 import { apiFetch } from "@/lib/api/client";
 import { useAutosave } from "@/lib/use-autosave";
@@ -36,6 +36,58 @@ const statusOptions = STATUSES.map((status) => ({
 
 const m = messages.milestones;
 const NAME_MAX_LENGTH = 80;
+/** The first level of sub-issues the issue list leaves out: it shows the top issue and two levels under it. */
+const HIDDEN_DEPTH = 3;
+
+type ListRow = IssueRow | { kind: "hidden"; under: string; count: number; depth: number };
+
+/**
+ * Drops the rows from `HIDDEN_DEPTH` down. In their place, under the last issue still shown above
+ * them, one line says how many of the milestone's issues were left out ("외 3개").
+ */
+function withoutDeepRows(rows: IssueRow[]): ListRow[] {
+  const shown: ListRow[] = [];
+  let hidden = 0;
+  let under = "";
+  const flush = () => {
+    if (hidden > 0) shown.push({ kind: "hidden", under, count: hidden, depth: HIDDEN_DEPTH });
+    hidden = 0;
+  };
+  for (const row of rows) {
+    if (row.depth >= HIDDEN_DEPTH) {
+      // A dimmed parent is not one of the milestone's issues, so it is not counted.
+      if (row.kind === "issue") hidden += 1;
+      continue;
+    }
+    flush();
+    if (row.depth === HIDDEN_DEPTH - 1) under = row.kind === "issue" ? row.issue.key : row.parent.key;
+    shown.push(row);
+  }
+  flush();
+  return shown;
+}
+
+/**
+ * Keeps the first `limit` issue lines (and the lines that belong with them); the issues after
+ * them are counted on one last line ("외 12개").
+ */
+function upTo(rows: ListRow[], limit: number): ListRow[] {
+  const shown: ListRow[] = [];
+  let count = 0;
+  let rest = 0;
+  for (const row of rows) {
+    // A count of deeper issues still belongs to the issue shown just above it.
+    const cut = rest > 0 || (count === limit && row.kind !== "hidden");
+    if (cut) {
+      rest += row.kind === "issue" ? 1 : row.kind === "hidden" ? row.count : 0;
+      continue;
+    }
+    if (row.kind === "issue") count += 1;
+    shown.push(row);
+  }
+  if (rest > 0) shown.push({ kind: "hidden", under: "rest", count: rest, depth: 0 });
+  return shown;
+}
 
 /** The name field is saved on blur, so while it has focus the person's typing wins. */
 const isFocused = (input: HTMLInputElement) => document.activeElement === input;
@@ -104,6 +156,7 @@ export function MilestoneDetailBody({
   onChange,
   notes,
   stacked = false,
+  issueLimit,
 }: {
   projectId: string;
   milestone: Milestone;
@@ -111,6 +164,8 @@ export function MilestoneDetailBody({
   onChange: (changes: { name?: string; targetDate?: string | null }) => void;
   notes: ReturnType<typeof useMilestoneNotes>;
   stacked?: boolean;
+  /** At most this many tickets are listed; the rest are counted on one line. */
+  issueLimit?: number;
 }) {
   const router = useRouter();
   const percent = milestoneProgress(milestone);
@@ -139,8 +194,12 @@ export function MilestoneDetailBody({
     // Not while a reading is already on its way (the first one, when the dialog opens).
     void refetchIssues({ cancelRefetch: false });
   }, [milestone, pathname, refetchIssues]);
-  // Sub-issues sit under their parents, one step in for every level, as in the issue lists.
-  const rows = useMemo(() => arrangeBySubIssues(issues.data ?? []), [issues.data]);
+  // Sub-issues sit under their parents, one step in for every level, as in the issue lists. The
+  // column is narrow, so the deeper ones are left out and counted on one line (D-142).
+  const rows = useMemo(() => {
+    const all = withoutDeepRows(arrangeBySubIssues(issues.data ?? []));
+    return issueLimit === undefined ? all : upTo(all, issueLimit);
+  }, [issues.data, issueLimit]);
 
   // The status shows at once (the list is this dialog's own reading, so its cache is changed
   // first); the overview behind is then read again for the progress, which renews the list too.
@@ -273,7 +332,13 @@ export function MilestoneDetailBody({
             ) : (
               <ul className="-mx-2 flex flex-col">
                 {rows.map((row) =>
-                  row.kind === "context" ? (
+                  row.kind === "hidden" ? (
+                    // Only says how many are left out; it does nothing when pressed.
+                    <li key={`hidden-${row.under}`} className="flex h-8 items-center gap-2 px-2 max-md:h-10">
+                      <SubIssueIndent depth={row.depth} />
+                      <span className="text-xs leading-4 text-muted-foreground tabular-nums">{m.hiddenSubIssues(row.count)}</span>
+                    </li>
+                  ) : row.kind === "context" ? (
                     // The parent is in another milestone (or none); it only gives its sub-issues their place.
                     <li key={`parent-${row.parent.number}`} className="flex h-9 items-center gap-2 rounded-md bg-muted/60 px-2 max-md:h-11">
                       <SubIssueIndent depth={row.depth} />

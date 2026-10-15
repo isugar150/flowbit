@@ -124,7 +124,10 @@ export function IssuesView({
   milestoneProjectId = null,
   defaultAssigneeId = null,
   rememberFilters = true,
+  assigneeFilter = true,
 }: {
+  /** False where every issue is already the person's own ("내 티켓"): there is no assignee to pick, and one remembered from another list is ignored. */
+  assigneeFilter?: boolean;
   /** Whether the list takes part in the filters, order and grouping the three lists remember together. */
   rememberFilters?: boolean;
   /** True when `issues` are the deleted ones: the list is then read-only, there to look things up. */
@@ -189,7 +192,7 @@ export function IssuesView({
     project: readFilter("project", (value) => projects.some((project) => project.id === value)),
     status: readFilter("status", (value) => STATUS_ORDER.some((status) => status === value)),
     priority: readFilter("priority", (value) => priorityOptions.some((option) => option.value === value)),
-    assignee: readFilter("assignee", (value) => members.some((member) => member.userId === value)),
+    assignee: assigneeFilter ? readFilter("assignee", (value) => members.some((member) => member.userId === value)) : ALL,
     milestone: readFilter("milestone", (value) => milestones.some((milestone) => milestone.id === value)),
   };
   // Labels are the one filter with several values at once: "?label=<id>,<id>,none".
@@ -261,11 +264,15 @@ export function IssuesView({
       label: m.priorityFilter,
       options: [all(m.allPriorities, <SignalIcon {...ALL_ICON} />), ...priorityOptions],
     },
-    {
-      key: "assignee",
-      label: m.assigneeFilter,
-      options: [all(m.allAssignees, <UsersIcon {...ALL_ICON} />), ...assigneeOptions(members)],
-    },
+    ...(assigneeFilter
+      ? [
+          {
+            key: "assignee" as const,
+            label: m.assigneeFilter,
+            options: [all(m.allAssignees, <UsersIcon {...ALL_ICON} />), ...assigneeOptions(members)],
+          },
+        ]
+      : []),
     ...(milestones.length > 0
       ? [
           {

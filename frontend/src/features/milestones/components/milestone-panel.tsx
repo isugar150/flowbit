@@ -11,6 +11,8 @@ import type { Milestone } from "../types";
 import { MilestoneDetailBody, useMilestoneNotes } from "./milestone-detail-dialog";
 
 const m = messages.milestones;
+/** Beside a ticket the milestone lists this many tickets; "목록에서 보기" has them all (D-143). */
+const PANEL_ISSUE_LIMIT = 10;
 
 export type MilestonePanelTarget = { projectId: string; milestoneId: string; canEdit: boolean };
 
@@ -77,6 +79,7 @@ export function MilestonePanel({ target }: { target: MilestonePanelTarget }) {
         {milestone ? (
           <MilestoneDetailBody
             stacked
+            issueLimit={PANEL_ISSUE_LIMIT}
             projectId={target.projectId}
             milestone={milestone}
             canEdit={target.canEdit}
