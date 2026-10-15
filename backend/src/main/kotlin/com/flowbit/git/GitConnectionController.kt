@@ -26,14 +26,12 @@ data class GitConnectionRequest(
     val enabled: Boolean = true,
     val provider: GitProviderType? = null,
     val baseUrl: String = "",
-    val allProjects: Boolean = true,
-    val projectIds: List<UUID> = emptyList(),
     val autoInProgress: Boolean = true,
     val autoDone: Boolean = true,
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
     val githubOrganization: String? = null,
 ) {
-    fun toInput() = GitConnectionInput(name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone, receiveMode, githubOrganization)
+    fun toInput() = GitConnectionInput(name, enabled, provider, baseUrl, autoInProgress, autoDone, receiveMode, githubOrganization)
 }
 
 /** The GitHub App of a connection, and where to go on GitHub for it (D-146). */
@@ -75,8 +73,6 @@ data class GitConnectionResponse(
     val enabled: Boolean,
     val provider: GitProviderType,
     val baseUrl: String,
-    val allProjects: Boolean,
-    val projectIds: List<UUID>,
     val autoInProgress: Boolean,
     val autoDone: Boolean,
     /** Always true: a connection is made with a secret. The secret itself is only in [secret]. */
@@ -134,8 +130,8 @@ class GitConnectionController(
         @RequestBody body: GitConnectionRequest,
         exchange: ServerWebExchange,
     ): GitConnectionResponse {
-        val view = service.create(body.toInput(), user.id, ClientInfo.from(exchange))
-        return response(view).copy(secret = view.connection.secret)
+        val connection = service.create(body.toInput(), user.id, ClientInfo.from(exchange))
+        return response(connection).copy(secret = connection.secret)
     }
 
     @PutMapping("/{id}")
@@ -200,16 +196,13 @@ class GitConnectionController(
     /** One connection as the list shows it. */
     suspend fun find(id: UUID): GitConnectionResponse = response(checkNotNull(service.find(id)))
 
-    private fun response(view: GitConnectionView): GitConnectionResponse {
-        val connection = view.connection
-        return GitConnectionResponse(
+    private fun response(connection: GitConnection): GitConnectionResponse =
+        GitConnectionResponse(
             id = connection.id,
             name = connection.name,
             enabled = connection.enabled,
             provider = connection.provider,
             baseUrl = connection.baseUrl,
-            allProjects = connection.allProjects,
-            projectIds = view.projectIds,
             autoInProgress = connection.autoInProgress,
             autoDone = connection.autoDone,
             secretSet = connection.secret.isNotEmpty(),
@@ -226,7 +219,6 @@ class GitConnectionController(
             syncError = connection.syncError,
             rateLimitRemaining = connection.rateLimitRemaining,
         )
-    }
 
     private fun githubOf(connection: GitConnection): GitHubAppResponse {
         val web = connection.baseUrl.trimEnd('/')

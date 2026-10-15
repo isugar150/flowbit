@@ -78,8 +78,7 @@ class GitHubSyncService(
     /** One round for one connection. A failure is kept on the connection for the administrator and thrown. */
     suspend fun sync(id: UUID): GitApplyResult =
         running.withLock {
-            val view = connections.find(id) ?: throw GitHubException("Git 연결을 찾을 수 없습니다")
-            val connection = view.connection
+            val connection = connections.find(id) ?: throw GitHubException("Git 연결을 찾을 수 없습니다")
             if (!connection.githubReady()) throw GitHubException("GitHub 앱이 조직에 설치되지 않았습니다")
             try {
                 val (events, cursors) = read(connection)
@@ -89,7 +88,7 @@ class GitHubSyncService(
                             if (events.isEmpty()) {
                                 GitApplyResult(GitReceiptResult(), emptySet(), emptySet())
                             } else {
-                                links.apply(connection, if (connection.allProjects) null else view.projectIds.toSet(), events)
+                                links.apply(connection, events)
                             }
                         cursors.forEach { (repositoryName, cursor) -> saveCursor(connection.id, repositoryName, cursor) }
                         applied

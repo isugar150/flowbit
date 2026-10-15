@@ -48,10 +48,9 @@ class GitLinkService(
 ) {
     suspend fun apply(
         connection: GitConnection,
-        projectIds: Set<UUID>?,
         events: List<GitEvent>,
     ): GitApplyResult {
-        val run = Run(connection, projectIds, keyMatcher.keys())
+        val run = Run(connection, keyMatcher.keys())
         for (event in events) {
             when (event) {
                 is GitPush -> push(run, event)
@@ -365,7 +364,6 @@ class GitLinkService(
     /** What one call has found so far, and the people it has already looked up. */
     private inner class Run(
         val connection: GitConnection,
-        val projectIds: Set<UUID>?,
         val keys: IssueKeys,
     ) {
         /** By number: the same issue may come up in several events. */
@@ -380,9 +378,9 @@ class GitLinkService(
 
         /**
          * The issues the numbers name that an event from [repository] may touch, at most
-         * [MAX_ISSUES] for one event; the rest are counted as skipped. An issue of a project that
-         * chose its repositories is touched only from those, whatever the connection's allowed
-         * projects; any other issue only when the connection allows its project.
+         * [MAX_ISSUES] for one event; the rest are counted as skipped. An issue that picked its
+         * repository is touched only from it, an issue of a project that chose its repositories
+         * only from those (D-148); any other issue from every repository (D-149).
          */
         suspend fun targets(
             numbers: List<Int>,
@@ -390,7 +388,7 @@ class GitLinkService(
         ): List<Issue> {
             val chosen = projectRepositories ?: projectRepositoryService.all().also { projectRepositories = it }
             val from = GitRepositoryRef(connection.id, repository.lowercase())
-            val candidates = issueService.gitTargets(numbers.distinct(), null)
+            val candidates = issueService.gitTargets(numbers.distinct())
             val picked = projectRepositoryService.issueRepositories(candidates.map { it.id })
             val found =
                 candidates.filter { issue ->
@@ -400,7 +398,7 @@ class GitLinkService(
                     when {
                         pick != null -> from == pick
                         repositories != null -> from in repositories
-                        else -> projectIds == null || issue.projectId in projectIds
+                        else -> true
                     }
                 }
             skipped += (found.size - MAX_ISSUES).coerceAtLeast(0)

@@ -1,8 +1,11 @@
 /** docs/features/git-integration.md. Gitea covers Forgejo too. */
 export type GitProvider = "GITEA" | "GITLAB" | "GITHUB";
 
-/** Gitea and GitLab are connected by a webhook address and secret; GitHub as a GitHub App (D-146). */
-export const GIT_PROVIDERS: GitProvider[] = ["GITEA", "GITLAB", "GITHUB"];
+/**
+ * In the order the connection form offers them (the user's call): GitHub, connected as a GitHub
+ * App (D-146), then GitLab and Gitea, connected by a webhook address and secret.
+ */
+export const GIT_PROVIDERS: GitProvider[] = ["GITHUB", "GITLAB", "GITEA"];
 
 /** WEBHOOK: the server calls Flowbit. POLL: Flowbit reads the GitHub API every few minutes (GitHub only). */
 export type GitReceiveMode = "WEBHOOK" | "POLL";
@@ -38,8 +41,6 @@ export type GitConnection = {
   enabled: boolean;
   provider: GitProvider;
   baseUrl: string;
-  allProjects: boolean;
-  projectIds: string[];
   autoInProgress: boolean;
   autoDone: boolean;
   secretSet: boolean;
@@ -67,8 +68,6 @@ export type GitConnectionInput = {
   enabled: boolean;
   provider: GitProvider;
   baseUrl: string;
-  allProjects: boolean;
-  projectIds: string[];
   autoInProgress: boolean;
   autoDone: boolean;
   receiveMode: GitReceiveMode;

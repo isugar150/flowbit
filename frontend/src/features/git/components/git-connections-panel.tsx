@@ -5,11 +5,9 @@ import { CheckIcon, CopyIcon, PlusIcon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FieldDescription } from "@/components/ui/field";
 import { CheckSetting, FieldSection, SegmentedSetting, SelectSetting, TextSetting } from "@/components/setting-fields";
 import { SettingsActions } from "@/components/settings-card";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import type { ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage, fieldErrorsOf } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
@@ -22,10 +20,8 @@ const m = messages.git;
 const EMPTY: GitConnectionInput = {
   name: "",
   enabled: true,
-  provider: "GITEA",
+  provider: GIT_PROVIDERS[0],
   baseUrl: "",
-  allProjects: true,
-  projectIds: [],
   autoInProgress: true,
   autoDone: true,
   receiveMode: "WEBHOOK",
@@ -33,15 +29,13 @@ const EMPTY: GitConnectionInput = {
 };
 
 function inputOf(connection: GitConnection): GitConnectionInput {
-  const { name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone, receiveMode } = connection;
+  const { name, enabled, provider, baseUrl, autoInProgress, autoDone, receiveMode } = connection;
   return {
     name,
     enabled,
     provider,
     // github.com is the default; only a GitHub Enterprise Server address is worth showing.
     baseUrl: provider === "GITHUB" && baseUrl === GITHUB_COM ? "" : baseUrl,
-    allProjects,
-    projectIds,
     autoInProgress,
     autoDone,
     receiveMode,
@@ -56,7 +50,7 @@ const GITHUB_COM = "https://github.com";
  * Each connection is a row that opens to its webhook address, secret, setup guide and settings.
  * A secret is only ever shown right after it was made, kept here until the page is left.
  */
-export function GitConnectionsPanel({ connections, projects }: { connections: GitConnection[]; projects: ProjectSummary[] }) {
+export function GitConnectionsPanel({ connections }: { connections: GitConnection[] }) {
   const [open, setOpen] = useState<string | null>(null);
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const reveal = (id: string, secret: string) => {
@@ -101,7 +95,7 @@ export function GitConnectionsPanel({ connections, projects }: { connections: Gi
                   ) : (
                     <WebhookDetails connection={connection} secret={secrets[connection.id]} onSecret={(secret) => reveal(connection.id, secret)} />
                   )}
-                  <ConnectionForm connection={connection} projects={projects} onDone={() => setOpen(null)} />
+                  <ConnectionForm connection={connection} onDone={() => setOpen(null)} />
                 </div>
               ) : null}
             </li>
@@ -112,7 +106,6 @@ export function GitConnectionsPanel({ connections, projects }: { connections: Gi
         <div className="flex flex-col gap-5 rounded-lg border px-4 py-4">
           <h4 className="font-medium">{m.newTitle}</h4>
           <ConnectionForm
-            projects={projects}
             onDone={() => setOpen(null)}
             onCreated={(created) => (created.provider === "GITHUB" || !created.secret ? setOpen(created.id) : reveal(created.id, created.secret))}
           />
@@ -251,12 +244,10 @@ function CopyField({ id, label, value, hint }: { id: string; label: string; valu
 
 function ConnectionForm({
   connection,
-  projects,
   onDone,
   onCreated,
 }: {
   connection?: GitConnection;
-  projects: ProjectSummary[];
   onDone: () => void;
   onCreated?: (created: GitConnection) => void;
 }) {
@@ -336,40 +327,6 @@ function ConnectionForm({
         <CheckSetting id={`${prefix}-enabled`} wide label={m.enabled} checked={form.enabled} onChange={(v) => set("enabled", v)} />
       </FieldSection>
 
-      <FieldSection title={m.sections.projects} description={m.projectsHint}>
-        <SegmentedSetting
-          label={m.sections.projects}
-          value={form.allProjects ? "all" : "chosen"}
-          options={[
-            { value: "all", label: m.allProjects },
-            { value: "chosen", label: m.chosenProjects },
-          ]}
-          onChange={(v) => set("allProjects", v === "all")}
-        />
-        {form.allProjects ? null : (
-          <fieldset className="flex flex-col gap-2 sm:col-span-2">
-            <legend className="sr-only">{m.chosenProjects}</legend>
-            {projects.length === 0 ? (
-              <p className="text-[0.8125rem] text-muted-foreground">{m.noProjects}</p>
-            ) : (
-              <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
-                {projects.map((project) => (
-                  <CheckSetting
-                    key={project.id}
-                    id={`${prefix}-project-${project.id}`}
-                    label={project.name}
-                    checked={form.projectIds.includes(project.id)}
-                    onChange={(on) =>
-                      set("projectIds", on ? [...form.projectIds, project.id] : form.projectIds.filter((id) => id !== project.id))
-                    }
-                  />
-                ))}
-              </div>
-            )}
-            {errors.projectIds ? <FieldDescription className="text-destructive">{errors.projectIds}</FieldDescription> : null}
-          </fieldset>
-        )}
-      </FieldSection>
 
       <FieldSection title={m.sections.status}>
         <CheckSetting

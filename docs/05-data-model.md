@@ -213,8 +213,8 @@
 
 | 테이블 | 컬럼 | 설명 |
 |---|---|---|
-| `git_connections` | `id`, `name`(1~80자), `provider`(`GITEA`\|`GITLAB`\|`GITHUB`), `base_url`, `secret`, `enabled`, `all_projects`, `auto_in_progress`, `auto_done`, `last_received_at`, `last_event`, `last_result`, `last_error`, `created_at`, `updated_at` | `secret` 은 평문(D-090), 32바이트 무작위 값의 16진수 64자. `last_result` 는 JSON 을 담은 `text`(`{linkedIssues, statusChanged, skipped}`, 엔티티에 그대로 매핑하려고 `jsonb` 를 쓰지 않았다) |
-| `git_connection_projects` | `connection_id`, `project_id`(둘이 PK, 둘 다 CASCADE) | `all_projects` 가 거짓일 때 허용 프로젝트 |
+| `git_connections` | `id`, `name`(1~80자), `provider`(`GITEA`\|`GITLAB`\|`GITHUB`), `base_url`, `secret`, `enabled`, `auto_in_progress`, `auto_done`, `last_received_at`, `last_event`, `last_result`, `last_error`, `created_at`, `updated_at` | `secret` 은 평문(D-090), 32바이트 무작위 값의 16진수 64자. `last_result` 는 JSON 을 담은 `text`(`{linkedIssues, statusChanged, skipped}`, 엔티티에 그대로 매핑하려고 `jsonb` 를 쓰지 않았다) |
+| ~~`git_connection_projects`~~ | | `V15` 에서 지웠다(D-149). `git_connections.all_projects` 도 함께 |
 | `issue_git_links` | `id`, `issue_id`(CASCADE), `connection_id`(CASCADE), `kind`(`BRANCH`\|`PULL_REQUEST`), `repository`, `branch`, `pr_number`, `title`, `url`, `pr_state`(`OPEN`\|`DRAFT`\|`MERGED`\|`CLOSED`), `closes`, `created_at`, `updated_at` | 유일 인덱스 `(issue_id, connection_id, repository, kind, coalesce(pr_number, 0), coalesce(branch, ''))`. PR 줄의 `branch` 는 PR 을 올린 브랜치 |
 | `issue_git_commits` | `issue_id`(CASCADE), `connection_id`(CASCADE), `repository`, `sha`, `message`(첫 줄), `url`, `author_name`, `committed_at` | PK `(issue_id, sha)`: 다시 온 배달과 다른 브랜치로 옮긴 커밋을 두 번 기록하지 않는다 |
 

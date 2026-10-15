@@ -27,6 +27,8 @@ test("연결을 추가하면 주소와 비밀 값이 보이고, PR 이 걸린 �
   const page = await context.newPage();
   await page.goto("/admin/git");
   await page.getByRole("button", { name: "연결 추가" }).click();
+  // GitHub comes first in the list (D-149); this test plays a Gitea server.
+  await page.getByLabel("종류").selectOption("GITEA");
   await page.getByLabel("이름").fill(`Gitea ${run}`);
   await page.getByLabel("서버 주소").fill("https://git.example.com");
   await page.getByRole("button", { name: "저장", exact: true }).click();

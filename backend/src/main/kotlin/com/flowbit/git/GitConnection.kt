@@ -26,8 +26,6 @@ class GitConnection(
     /** Signs every call from the Git server. Shown only when it is made. */
     var secret: String,
     var enabled: Boolean,
-    /** False: only the issues of the chosen projects are linked and changed. */
-    var allProjects: Boolean,
     /** Pushing a branch or opening a pull request moves the issue to "in progress". */
     var autoInProgress: Boolean,
     /** Merging a pull request that closes the issue moves it to "done". */

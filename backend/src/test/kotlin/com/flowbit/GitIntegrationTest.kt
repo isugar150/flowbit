@@ -100,27 +100,21 @@ class GitIntegrationTest : IntegrationTest() {
         assertEquals(422, invalid.status)
         assertEquals(mapOf("name" to "REQUIRED", "baseUrl" to "INVALID_URL"), fieldErrors(invalid.json()))
 
-        val noProjects = admin.post("/api/v1/admin/git/connections", connectionJson(allProjects = false))
-        assertEquals(mapOf("projectIds" to "REQUIRED"), fieldErrors(noProjects.json()))
-        val unknownProject =
-            admin.post("/api/v1/admin/git/connections", connectionJson(allProjects = false, projectIds = listOf("0192f0c4-0000-7000-8000-000000000000")))
-        assertEquals(mapOf("projectIds" to "UNKNOWN_PROJECT"), fieldErrors(unknownProject.json()))
         assertEquals(
             mapOf("provider" to "REQUIRED"),
             fieldErrors(admin.post("/api/v1/admin/git/connections", """{"name":"Git","baseUrl":"https://git.example.com"}""").json()),
         )
 
-        remember("WEB", admin.post("/api/v1/projects", """{"name":"웹"}""").json()["id"])
-        val limited = admin.post("/api/v1/admin/git/connections", connectionJson(allProjects = false, projectIds = listOf(p("WEB"))))
-        assertEquals(201, limited.status)
-        assertEquals(listOf(p("WEB")), limited.json()["projectIds"])
+        // A connection no longer names projects (D-149): projects choose their repositories.
+        val created = admin.post("/api/v1/admin/git/connections", connectionJson())
+        assertEquals(201, created.status)
+        assertFalse("projectIds" in created.json() || "allProjects" in created.json())
         assertEquals(0, count("select count(*) from git_connections where name = ' '"))
     }
 
     @Test
     fun `Git 연결을 백업하고 같은 id 로 복원한다`() {
-        remember("WEB", admin.post("/api/v1/projects", """{"name":"웹"}""").json()["id"])
-        val first = admin.post("/api/v1/admin/git/connections", connectionJson(allProjects = false, projectIds = listOf(p("WEB")))).json()
+        val first = admin.post("/api/v1/admin/git/connections", connectionJson()).json()
         val second = admin.post("/api/v1/admin/git/connections", connectionJson(name = "두 번째")).json()
 
         val file = admin.post("/api/v1/admin/backup/export", """{"sections":["GIT"]}""")
@@ -137,7 +131,6 @@ class GitIntegrationTest : IntegrationTest() {
         val connections = admin.get("/api/v1/admin/git/connections").jsonList()
         // A restored connection that had been removed comes back as new, so it is listed last.
         assertEquals(mapOf(first["id"] to "Gitea", second["id"] to "두 번째"), connections.associate { it["id"] to it["name"] })
-        assertEquals(listOf(p("WEB")), connections.single { it["id"] == first["id"] }["projectIds"])
         assertEquals(first["secret"], text("select secret from git_connections where id = '${first["id"]}'"))
         assertEquals(0, count("select count(*) from git_connections where id = '${third["id"]}'"))
     }
@@ -206,7 +199,9 @@ class GitIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/issues", """{"title":"다른 프로젝트","projectId":"${p("OPS")}"}""") // FB-8
         admin.post("/api/v1/issues", """{"title":"지운 티켓","projectId":"${p("WEB")}"}""") // FB-9
         admin.delete("/api/v1/issues/9")
-        val connection = connect(allProjects = false, projectIds = listOf(p("WEB")))
+        val connection = connect()
+        // OPS takes events only from acme/ops, so the sample's acme/web does not reach FB-8.
+        admin.put("/api/v1/projects/${p("OPS")}/git/repositories", """{"repositories":[{"connectionId":"${connection["id"]}","repository":"acme/ops"}]}""")
 
         // The branch: lower case, inside a path, followed by a dash.
         assertEquals(listOf("FB-1"), deliver(connection, "push", push("feature/fb-1-login")).json()["linkedIssues"])
@@ -520,7 +515,7 @@ class GitIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로젝트마다 Git 저장소를 정하면 허용 프로젝트와 상관없이 그 저장소에서만 연결한다`() {
+    fun `프로젝트마다 Git 저장소를 정하면 그 저장소에서만 연결하고 정하지 않은 프로젝트는 모든 저장소에서 연결한다`() {
         remember("WEB", admin.post("/api/v1/projects", """{"name":"웹"}""").json()["id"])
         remember("OPS", admin.post("/api/v1/projects", """{"name":"운영"}""").json()["id"])
         admin.post("/api/v1/issues", """{"title":"웹 티켓","projectId":"${p("WEB")}"}""") // FB-1
@@ -530,13 +525,13 @@ class GitIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/admin/members", """{"loginId":"outsider","password":"$PASSWORD"}""")
         val editorClient = client().also { it.login("editor", PASSWORD) }
         val outsider = client().also { it.login("outsider", PASSWORD) }
-        // The connection allows only WEB.
-        val connection = connect(allProjects = false, projectIds = listOf(p("WEB")), autoInProgress = false)
+        val connection = connect(autoInProgress = false)
         val id = connection["id"] as String
 
-        assertEquals(listOf("FB-1"), deliver(connection, "push", push("main", "FB-1 FB-2", repository = "acme/web")).json()["linkedIssues"])
+        // No project chose repositories yet: any repository reaches any issue.
+        assertEquals(listOf("FB-1", "FB-2"), deliver(connection, "push", push("main", "FB-1 FB-2", repository = "acme/web")).json()["linkedIssues"])
 
-        // OPS's managers say its work is in acme/ops: events from there reach OPS, though the connection does not allow it.
+        // OPS's managers say its work is in acme/ops.
         assertEquals(
             403,
             editorClient.put("/api/v1/projects/${p("OPS")}/git/repositories", """{"repositories":[{"connectionId":"$id","repository":"acme/ops"}]}""").status,
@@ -559,7 +554,7 @@ class GitIntegrationTest : IntegrationTest() {
         assertEquals(listOf(mapOf("connectionId" to id, "repository" to "acme/web")), settings["suggestions"])
 
         assertEquals(listOf("FB-2"), deliver(connection, "push", push("main", "FB-2 정리", repository = "acme/ops")).json()["linkedIssues"])
-        // From any other repository OPS is left alone, even one the connection would otherwise allow for it.
+        // From any other repository OPS is left alone.
         assertEquals(listOf("FB-1"), deliver(connection, "push", push("main", "FB-1 FB-2 둘 다", repository = "acme/web")).json()["linkedIssues"])
 
         // WEB chooses acme/web: another repository no longer reaches it; names match without case.
@@ -567,9 +562,9 @@ class GitIntegrationTest : IntegrationTest() {
         assertEquals(emptyList<String>(), deliver(connection, "push", push("main", "FB-1 다른 곳", repository = "acme/other")).json()["linkedIssues"])
         assertEquals(listOf("FB-1"), deliver(connection, "push", push("main", "FB-1 대문자", repository = "ACME/Web")).json()["linkedIssues"])
 
-        // Removing the repositories goes back to the connection's allowed projects.
+        // Removing the repositories opens OPS to every repository again.
         admin.put("/api/v1/projects/${p("OPS")}/git/repositories", """{"repositories":[]}""")
-        assertEquals(emptyList<String>(), deliver(connection, "push", push("main", "FB-2 다시", repository = "acme/ops")).json()["linkedIssues"])
+        assertEquals(listOf("FB-2"), deliver(connection, "push", push("main", "FB-2 다시", repository = "acme/elsewhere")).json()["linkedIssues"])
     }
 
     @Test
@@ -652,15 +647,13 @@ class GitIntegrationTest : IntegrationTest() {
 
     /** Adds a Gitea connection; the result holds its id and secret. */
     private fun connect(
-        allProjects: Boolean = true,
-        projectIds: List<String> = emptyList(),
         autoInProgress: Boolean = true,
         autoDone: Boolean = true,
     ): Map<String, Any?> =
         admin
             .post(
                 "/api/v1/admin/git/connections",
-                connectionJson(allProjects = allProjects, projectIds = projectIds, autoInProgress = autoInProgress, autoDone = autoDone),
+                connectionJson(autoInProgress = autoInProgress, autoDone = autoDone),
             ).json()
 
     /** Calls the webhook as Gitea does, signed with [secret] (unsigned when null). */
@@ -823,13 +816,11 @@ class GitIntegrationTest : IntegrationTest() {
         name: String = "Gitea",
         enabled: Boolean = true,
         provider: String = "GITEA",
-        allProjects: Boolean = true,
-        projectIds: List<String> = emptyList(),
         autoInProgress: Boolean = true,
         autoDone: Boolean = true,
     ): String =
-        """{"name":"$name","enabled":$enabled,"provider":"$provider","baseUrl":"https://git.example.com/","allProjects":$allProjects,""" +
-            """"projectIds":[${projectIds.joinToString { "\"$it\"" }}],"autoInProgress":$autoInProgress,"autoDone":$autoDone}"""
+        """{"name":"$name","enabled":$enabled,"provider":"$provider","baseUrl":"https://git.example.com/",""" +
+            """"autoInProgress":$autoInProgress,"autoDone":$autoDone}"""
 
     @Suppress("UNCHECKED_CAST")
     private fun fieldErrors(problem: Map<String, Any?>): Map<String, String> =

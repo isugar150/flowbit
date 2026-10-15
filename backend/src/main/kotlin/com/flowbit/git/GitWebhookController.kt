@@ -44,8 +44,7 @@ class GitWebhookService(
         headers: HttpHeaders,
         body: ByteArray,
     ): GitApplyResult {
-        val view = connections.find(id)?.takeIf { it.connection.enabled } ?: throw notFound()
-        val connection = view.connection
+        val connection = connections.find(id)?.takeIf { it.enabled } ?: throw notFound()
         val provider = providers.firstOrNull { it.type == connection.provider } ?: throw notFound()
         val event = provider.eventName(headers)
         if (!provider.verify(headers, body, connection.secret)) {
@@ -72,7 +71,7 @@ class GitWebhookService(
         val result =
             try {
                 transactionalOperator.executeAndAwait {
-                    links.apply(connection, if (connection.allProjects) null else view.projectIds.toSet(), events)
+                    links.apply(connection, events)
                 }
             } catch (e: CancellationException) {
                 throw e

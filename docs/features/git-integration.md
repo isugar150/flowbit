@@ -10,7 +10,7 @@
 
 | 기능 | 이 명세 |
 |---|---|
-| 관리자 설정 "Git 연동" 탭: 연결 추가, 웹훅 주소·비밀 값 발급, 허용 프로젝트, 자동 상태 변경 켜기/끄기, 마지막 수신 결과 | 포함 |
+| 관리자 설정 "Git 연동" 탭: 연결 추가, 웹훅 주소·비밀 값 발급, 자동 상태 변경 켜기/끄기, 마지막 수신 결과 | 포함 |
 | 들어오는 웹훅 받기: Gitea(Forgejo 포함), GitLab, GitHub 의 push · PR(MR) 이벤트, 서명 확인 | 포함 |
 | 티켓 키 인식 → 티켓에 PR·브랜치·커밋 연결, 옆 패널의 "Git" 묶음, 활동 기록 | 포함 |
 | 상태 자동 변경: 작업 시작 → 진행 중, PR 머지 → 완료 | 포함 |
@@ -27,14 +27,16 @@
 **어느 이벤트가 티켓에 닿는가** (위에서부터 먼저 맞는 것):
 
 1. 티켓에 고른 저장소가 있고 그것이 아직 프로젝트의 저장소면: 그 저장소에서 온 이벤트만.
-2. 프로젝트가 저장소를 정했으면: 그 저장소들에서 온 이벤트만. **연결의 허용 프로젝트와 상관없다**(허용하지 않은 프로젝트라도 닿는다).
-3. 그 밖(정하지 않은 프로젝트, 독립 티켓): 지금처럼 연결의 허용 프로젝트를 따른다.
+2. 프로젝트가 저장소를 정했으면: 그 저장소들에서 온 이벤트만.
+3. 그 밖(저장소를 정하지 않은 프로젝트, 독립 티켓): 연결된 모든 저장소에서 온 이벤트.
+
+**연결의 "허용 프로젝트"는 없앴다** (사용자 지정, D-149): 관리자 설정의 Git 연결에서는 프로젝트를 고르지 않고, 어느 프로젝트에 어느 저장소가 닿는지는 프로젝트 설정에서만 정한다. 표 `git_connection_projects` 와 `git_connections.all_projects` 는 `V15` 에서 지웠다.
 
 API: `GET /api/v1/projects/{id}/git`(들어갈 수 있는 사람) → `{ enabled, connections, repositories, suggestions }`, `PUT /api/v1/projects/{id}/git/repositories`(관리 역할) `{ repositories: [{ connectionId, repository }] }`, `PUT /api/v1/issues/{번호}/git-repository`(편집 역할) `{ connectionId, repository }` 또는 `{}`로 지우기(204, 프로젝트의 저장소가 아니면 422 `NOT_IN_PROJECT`). 티켓 응답에 `gitRepository`, `gitRepositoryOptions` 가 더해졌다. 표는 `project_git_repositories`, `issue_git_repositories`(`V14`).
 
 ## 쓰는 흐름
 
-1. 관리자가 **관리자 설정 > Git 연동**에서 "연결 추가": 이름, 종류(Gitea·GitLab·GitHub), 서버 주소, 허용 프로젝트를 정하고 저장한다.
+1. 관리자가 **관리자 설정 > Git 연동**에서 "연결 추가": 이름, 종류(Gitea·GitLab·GitHub), 서버 주소를 정하고 저장한다.
 2. 화면에 **웹훅 주소**와 **비밀 값**이 나온다. 관리자는 이 둘을 Git 서버의 웹훅 설정에 넣고 이벤트로 push 와 PR(MR)을 고른다(아래 "Git 서버에 등록하기").
 3. 개발자가 `kimjm/fb-12-login-error` 브랜치를 올리면 FB-12 에 브랜치가 연결되고 상태가 **진행 중**이 된다.
 4. PR 을 열면 PR 이 연결된다. 머지하면 티켓이 **완료**가 된다. 변경은 활동 기록에 "kimjm 님이 Git 에서 …" 로 남고, 보고 있는 사람 화면에 바로 반영되고, 구독자에게 알림이 간다.
@@ -112,7 +114,7 @@ API: `GET /api/v1/projects/{id}/git`(들어갈 수 있는 사람) → `{ enabled
 | 이름, 사용 | |
 | 종류 | Gitea(Forgejo 포함), GitLab, GitHub |
 | 서버 주소 | `https://git.example.com`. GitHub 는 `https://github.com` 이 기본. 표시와 등록 안내에만 쓴다 |
-| 허용 프로젝트 | "모든 프로젝트" 또는 고른 프로젝트. 고르지 않은 프로젝트의 티켓은 이 연결로 바뀌지 않는다 |
+| ~~허용 프로젝트~~ | 없앴다(D-149). 프로젝트 설정의 "Git 저장소"에서 정한다 |
 | 자동 상태 변경 | "작업을 시작하면 진행 중으로", "머지하면 완료로" 각각 |
 | 웹훅 주소 | `{FLOWBIT_PUBLIC_URL}/api/v1/integrations/git/{연결 id}/webhook`. 복사 버튼. `FLOWBIT_PUBLIC_URL` 이 없으면 경고를 보인다(Git 서버가 부를 주소를 알 수 없다) |
 | 비밀 값 | Flowbit 이 무작위로 만든다(32바이트). **만들 때와 "다시 만들기"를 누를 때만** 보인다. 그 뒤로는 "설정됨" |
@@ -221,7 +223,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
    ├ 본문을 바이트 그대로 읽고 종류별로 서명 확인 (틀리면 401, 상수 시간 비교)
    ├ GitProvider.parse → 공통 이벤트(GitPush, GitPullRequest). 모르는 이벤트는 200 으로 무시
    └ GitLinkService.apply (트랜잭션)
-        ├ IssueKeyMatcher 로 키 찾기 → 허용 프로젝트의 티켓만
+        ├ IssueKeyMatcher 로 키 찾기 → 티켓·프로젝트가 정한 저장소에서 온 것만(D-148)
         ├ 연결·커밋 저장 (이미 있으면 갱신만: 같은 배달이 다시 와도 두 번 쌓이지 않는다)
         ├ 상태 규칙 적용 → IssueService 의 Git 전용 경로로 상태 변경
         └ 활동 기록 → 커밋 뒤 IssueAnnouncer (실시간 반영, 상태 변경은 알림)
@@ -263,7 +265,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 | GET | `/api/v1/admin/git/accounts` | 관리자 | 활성 구성원과 그 Git 아이디(D-147) |
 | PUT | `/api/v1/admin/git/accounts/{userId}` | 관리자 | `{ username }`. 빈 값이면 지운다. 다른 사람이 쓰면 409 `GIT_USERNAME_TAKEN` |
 
-연결 요청에 `receiveMode`(`WEBHOOK`\|`POLL`, POLL 은 GitHub 만), `githubOrganization`(GitHub 만, 필수)이 더해졌고, 응답에 `receiveMode`, `github: { organization, appId, appSlug, appUrl, installUrl, settingsUrl, installationId, repositorySelection }`, `lastSyncedAt`, `syncError`, `rateLimitRemaining` 이 더해졌다.
+연결 요청·응답에서 `allProjects`, `projectIds` 는 빠졌다(D-149). 연결 요청에 `receiveMode`(`WEBHOOK`\|`POLL`, POLL 은 GitHub 만), `githubOrganization`(GitHub 만, 필수)이 더해졌고, 응답에 `receiveMode`, `github: { organization, appId, appSlug, appUrl, installUrl, settingsUrl, installationId, repositorySelection }`, `lastSyncedAt`, `syncError`, `rateLimitRemaining` 이 더해졌다.
 
 오류: 422 `INVALID_URL`(서버 주소), 422 `REQUIRED`, 404 `GIT_CONNECTION_NOT_FOUND`.
 
@@ -273,7 +275,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
   - `GitWebhookController`, `GitConnectionController`, `GitConnectionService`
   - `GitProvider`(인터페이스: `verify(headers, body, secret)`, `parse(headers, body): List<GitEvent>`), `GiteaProvider`, `GitLabProvider`, `GitHubProvider`. Gitea 와 GitHub 는 본문 모양이 거의 같아 파싱을 함께 쓴다.
   - `IssueKeyMatcher`(워크스페이스 키로 정규식을 만들고 키가 바뀌면 다시 만든다), `GitLinkService`
-- `IssueService` 에 사람 대신 **연결이 바꾸는 경로**를 더한다: 권한 검사 대신 허용 프로젝트를 보고, 활동의 `actor_id`·`via` 를 받는다. 지금 `update()` 와 `IssueAnnouncer` 는 `AuthenticatedUser` 를 받으므로, 바꾼 사람을 `Actor`(사람 또는 Git) 로 넓히는 작은 리팩터링이 먼저 필요하다. 알림 문구(`NotificationText`)는 `actorName` 만 받으므로 그대로 쓴다.
+- `IssueService` 에 사람 대신 **연결이 바꾸는 경로**를 더한다: 권한 검사 없이(어느 저장소가 닿는지는 Git 모듈이 정한다), 활동의 `actor_id`·`via` 를 받는다. 지금 `update()` 와 `IssueAnnouncer` 는 `AuthenticatedUser` 를 받으므로, 바꾼 사람을 `Actor`(사람 또는 Git) 로 넓히는 작은 리팩터링이 먼저 필요하다. 알림 문구(`NotificationText`)는 `actorName` 만 받으므로 그대로 쓴다.
 - 프런트엔드: `app/(app)/admin/git/page.tsx` 와 관리자 탭, `features/issues/` 의 옆 패널 "Git" 묶음, 활동 줄 문구, 키 메뉴의 브랜치 이름 복사.
 
 ## 구현 순서

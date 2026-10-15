@@ -27,21 +27,12 @@ data class GitConnectionInput(
     val provider: GitProviderType?,
     /** Blank for GitHub means https://github.com. */
     val baseUrl: String,
-    val allProjects: Boolean = true,
-    /** The projects whose issues the connection may link and change; used when [allProjects] is false. */
-    val projectIds: List<UUID> = emptyList(),
     val autoInProgress: Boolean = true,
     val autoDone: Boolean = true,
     /** POLL only for GitHub, when Flowbit cannot be reached from the internet (D-146). */
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
     /** The GitHub organization the app is made for and installed on; GitHub only. */
     val githubOrganization: String? = null,
-)
-
-/** A connection with the projects it is limited to (empty when it covers every project). */
-data class GitConnectionView(
-    val connection: GitConnection,
-    val projectIds: List<UUID>,
 )
 
 /** A connection as a backup carries it: with its id (the webhook address holds it) and its secret. */
@@ -52,8 +43,6 @@ data class GitConnectionBackup(
     val provider: GitProviderType,
     val baseUrl: String,
     val secret: String,
-    val allProjects: Boolean = true,
-    val projectIds: List<UUID> = emptyList(),
     val autoInProgress: Boolean = true,
     val autoDone: Boolean = true,
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
@@ -83,14 +72,10 @@ class GitConnectionService(
 ) {
     private val random = SecureRandom()
 
-    suspend fun list(): List<GitConnectionView> {
-        val connections = repository.findAllOrdered().toList()
-        val projects = allProjectIds()
-        return connections.map { GitConnectionView(it, projects[it.id].orEmpty()) }
-    }
+    suspend fun list(): List<GitConnection> = repository.findAllOrdered().toList()
 
     /** The connection, or null when there is none with this id. */
-    suspend fun find(id: UUID): GitConnectionView? = repository.findById(id)?.let { GitConnectionView(it, projectIds(it.id)) }
+    suspend fun find(id: UUID): GitConnection? = repository.findById(id)
 
     /**
      * Whether Git is in use: a connection is switched on and can receive something (a GitHub one
@@ -103,7 +88,7 @@ class GitConnectionService(
         input: GitConnectionInput,
         actorId: UUID,
         client: ClientInfo,
-    ): GitConnectionView {
+    ): GitConnection {
         val checked = checked(input)
         val now = clock.instant()
         val connection =
@@ -114,7 +99,6 @@ class GitConnectionService(
                 baseUrl = checked.baseUrl,
                 secret = newSecret(),
                 enabled = checked.enabled,
-                allProjects = checked.allProjects,
                 autoInProgress = checked.autoInProgress,
                 autoDone = checked.autoDone,
                 createdAt = now,
@@ -124,10 +108,9 @@ class GitConnectionService(
             )
         transactionalOperator.executeAndAwait {
             entityTemplate.insert(connection).awaitSingle()
-            replaceProjects(connection.id, checked.projectIds)
             auditService.record(AuditEventType.GIT_CONNECTION_CREATED, actorId, client, auditDetail(connection))
         }
-        return GitConnectionView(connection, checked.projectIds)
+        return connection
     }
 
     suspend fun update(
@@ -135,7 +118,7 @@ class GitConnectionService(
         input: GitConnectionInput,
         actorId: UUID,
         client: ClientInfo,
-    ): GitConnectionView {
+    ): GitConnection {
         val connection = repository.findById(id) ?: throw notFound()
         val checked = checked(input)
         // A GitHub App belongs to the organization it was made for; another one needs a new connection.
@@ -149,7 +132,6 @@ class GitConnectionService(
             enabled = checked.enabled
             provider = checkNotNull(checked.provider)
             baseUrl = checked.baseUrl
-            allProjects = checked.allProjects
             autoInProgress = checked.autoInProgress
             autoDone = checked.autoDone
             receiveMode = checked.receiveMode
@@ -158,10 +140,9 @@ class GitConnectionService(
         }
         transactionalOperator.executeAndAwait {
             repository.save(connection)
-            replaceProjects(connection.id, checked.projectIds)
             auditService.record(AuditEventType.GIT_CONNECTION_CHANGED, actorId, client, auditDetail(connection))
         }
-        return GitConnectionView(connection, checked.projectIds)
+        return connection
     }
 
     /** Removes the connection with every branch, pull request and commit it linked. The history stays. */
@@ -217,7 +198,7 @@ class GitConnectionService(
     // --- backup ---------------------------------------------------------------------------------
 
     suspend fun backups(): List<GitConnectionBackup> =
-        list().map { (connection, projectIds) ->
+        list().map { connection ->
             GitConnectionBackup(
                 id = connection.id,
                 name = connection.name,
@@ -225,8 +206,6 @@ class GitConnectionService(
                 provider = connection.provider,
                 baseUrl = connection.baseUrl,
                 secret = connection.secret,
-                allProjects = connection.allProjects,
-                projectIds = projectIds,
                 autoInProgress = connection.autoInProgress,
                 autoDone = connection.autoDone,
                 receiveMode = connection.receiveMode,
@@ -244,7 +223,7 @@ class GitConnectionService(
     /**
      * Makes the connections what the backup says: the ones in it are added or updated under their
      * own ids (so the Git servers' webhook addresses keep working), the others are removed.
-     * Projects that do not exist here are left out. Call inside the restore's transaction.
+     * Call inside the restore's transaction.
      */
     suspend fun restore(backups: List<GitConnectionBackup>) {
         val keep = backups.map { it.id }.toSet()
@@ -253,9 +232,8 @@ class GitConnectionService(
             .toList()
             .filter { it.id !in keep }
             .forEach { repository.deleteById(it.id) }
-        val existingProjects = projectsThatExist(backups.flatMap { it.projectIds }.toSet())
         for (backup in backups) {
-            val checked = checked(backup.toInput(), requireProjects = false)
+            val checked = checked(backup.toInput())
             if (backup.secret.isBlank() || backup.secret.length > SECRET_MAX_LENGTH) {
                 throw ValidationException("secret", "INVALID", "비밀 값이 올바르지 않습니다")
             }
@@ -269,7 +247,6 @@ class GitConnectionService(
                     baseUrl = checked.baseUrl,
                     secret = backup.secret,
                     enabled = checked.enabled,
-                    allProjects = checked.allProjects,
                     autoInProgress = checked.autoInProgress,
                     autoDone = checked.autoDone,
                     lastReceivedAt = stored?.lastReceivedAt,
@@ -292,20 +269,15 @@ class GitConnectionService(
                     rateLimitRemaining = stored?.rateLimitRemaining,
                 )
             if (stored == null) entityTemplate.insert(connection).awaitSingle() else repository.save(connection)
-            replaceProjects(connection.id, if (checked.allProjects) emptyList() else checked.projectIds.filter { it in existingProjects })
         }
     }
 
-    private fun GitConnectionBackup.toInput() =
-        GitConnectionInput(name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone, receiveMode, githubOrganization)
+    private fun GitConnectionBackup.toInput() = GitConnectionInput(name, enabled, provider, baseUrl, autoInProgress, autoDone, receiveMode, githubOrganization)
 
     // --- rules ----------------------------------------------------------------------------------
 
     /** [input] trimmed and checked; refuses it with every problem at once. */
-    private suspend fun checked(
-        input: GitConnectionInput,
-        requireProjects: Boolean = true,
-    ): GitConnectionInput {
+    private fun checked(input: GitConnectionInput): GitConnectionInput {
         val errors = mutableListOf<FieldError>()
         val name = input.name.trim()
         when {
@@ -336,19 +308,10 @@ class GitConnectionService(
         } else if (input.receiveMode == GitReceiveMode.POLL) {
             errors += FieldError("receiveMode", "UNSUPPORTED", "API 로 가져오기는 GitHub 에서만 됩니다")
         }
-        val projectIds = if (input.allProjects) emptyList() else input.projectIds.distinct()
-        if (!input.allProjects && requireProjects) {
-            if (projectIds.isEmpty()) {
-                errors += FieldError("projectIds", "REQUIRED", "프로젝트를 하나 이상 고르세요")
-            } else if (projectsThatExist(projectIds.toSet()).size != projectIds.size) {
-                errors += FieldError("projectIds", "UNKNOWN_PROJECT", "없는 프로젝트입니다")
-            }
-        }
         if (errors.isNotEmpty()) throw ValidationException(errors)
         return input.copy(
             name = name,
             baseUrl = baseUrl,
-            projectIds = projectIds,
             githubOrganization = organization.takeIf { provider == GitProviderType.GITHUB },
         )
     }
@@ -360,57 +323,6 @@ class GitConnectionService(
 
     /** 32 random bytes, as 64 hex digits: safe to paste anywhere. */
     private fun newSecret(): String = HexFormat.of().formatHex(ByteArray(SECRET_BYTES).also(random::nextBytes))
-
-    private suspend fun replaceProjects(
-        connectionId: UUID,
-        projectIds: List<UUID>,
-    ) {
-        databaseClient
-            .sql("delete from git_connection_projects where connection_id = :id")
-            .bind("id", connectionId)
-            .fetch()
-            .rowsUpdated()
-            .awaitSingle()
-        for (projectId in projectIds) {
-            databaseClient
-                .sql("insert into git_connection_projects (connection_id, project_id) values (:connectionId, :projectId)")
-                .bind("connectionId", connectionId)
-                .bind("projectId", projectId)
-                .fetch()
-                .rowsUpdated()
-                .awaitSingle()
-        }
-    }
-
-    suspend fun projectIds(connectionId: UUID): List<UUID> =
-        databaseClient
-            .sql("select project_id from git_connection_projects where connection_id = :id order by project_id")
-            .bind("id", connectionId)
-            .map { row -> checkNotNull(row.get("project_id", UUID::class.java)) }
-            .all()
-            .collectList()
-            .awaitSingle()
-
-    private suspend fun allProjectIds(): Map<UUID, List<UUID>> =
-        databaseClient
-            .sql("select connection_id, project_id from git_connection_projects order by project_id")
-            .map { row -> checkNotNull(row.get("connection_id", UUID::class.java)) to checkNotNull(row.get("project_id", UUID::class.java)) }
-            .all()
-            .collectList()
-            .awaitSingle()
-            .groupBy({ it.first }, { it.second })
-
-    private suspend fun projectsThatExist(ids: Set<UUID>): Set<UUID> {
-        if (ids.isEmpty()) return emptySet()
-        return databaseClient
-            .sql("select id from projects where id in (:ids)")
-            .bind("ids", ids)
-            .map { row -> checkNotNull(row.get("id", UUID::class.java)) }
-            .all()
-            .collectList()
-            .awaitSingle()
-            .toSet()
-    }
 
     private fun auditDetail(connection: GitConnection) =
         mapOf(

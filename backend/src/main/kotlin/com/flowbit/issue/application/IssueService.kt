@@ -753,17 +753,11 @@ class IssueService(
     // --- what a Git server does (docs/features/git-integration.md, D-141) --------------------
 
     /**
-     * The issues in use with these numbers that a Git connection may touch: those of
-     * [projectIds], or all of them when it is null. There is no person to check access for; the
-     * administrator chose the projects, and pushing to the repository is the right to change them.
+     * The issues in use with these numbers, for a Git server. There is no person to check access
+     * for; which repositories may reach an issue is decided by the Git module (D-148, D-149).
      */
-    suspend fun gitTargets(
-        numbers: Collection<Int>,
-        projectIds: Set<UUID>?,
-    ): List<Issue> =
-        numbers.distinct().mapNotNull { repository.findByNumber(it) }.filter { issue ->
-            issue.deletedAt == null && (projectIds == null || issue.projectId in projectIds)
-        }
+    suspend fun gitTargets(numbers: Collection<Int>): List<Issue> =
+        numbers.distinct().mapNotNull { repository.findByNumber(it) }.filter { it.deletedAt == null }
 
     /**
      * Moves an issue to [status] for a Git server, and only from one of [from]: the rules never
