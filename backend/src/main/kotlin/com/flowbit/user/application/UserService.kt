@@ -53,6 +53,19 @@ class UserService(
 
     suspend fun activeUsers(): List<User> = repository.findActiveOrdered().toList()
 
+    /**
+     * The active account a Git user is, for changes a Git server reports (D-141): the one with
+     * this e-mail address, otherwise the one whose login id is the Git user name. Null for neither.
+     */
+    suspend fun findActiveByEmailOrLoginId(
+        email: String?,
+        loginId: String?,
+    ): User? =
+        listOfNotNull(email, loginId)
+            .map { it.trim().lowercase() }
+            .filter { it.isNotEmpty() }
+            .firstNotNullOfOrNull { value -> repository.findByLoginIdOrEmail(value)?.takeIf { it.isActive } }
+
     /** Profile of an active user. A deleted or disabled account is treated as signed out. */
     suspend fun profile(userId: UUID): UserProfile = profileOf(requireActive(userId))
 

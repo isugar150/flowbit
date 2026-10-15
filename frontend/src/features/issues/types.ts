@@ -1,4 +1,5 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
+import type { IssueGitLink } from "@/features/git/types";
 
 export type IssueStatus = "BACKLOG" | "READY" | "IN_PROGRESS" | "DONE" | "CANCELED";
 export type IssuePriority = "NONE" | "URGENT" | "HIGH" | "MEDIUM" | "LOW";
@@ -115,6 +116,8 @@ export type IssueDetail = Issue & {
   reactions: Reaction[];
   attachments: Attachment[];
   documents: IssueDocumentSummary[];
+  /** Pull requests and branches a Git server linked the issue to; empty without Git (D-141). */
+  git?: IssueGitLink[];
 };
 
 export type NewIssueInput = {
@@ -182,14 +185,27 @@ export type IssueActivityType =
   | "DOCUMENT_REMOVED"
   | "DOCUMENT_RESTORED"
   | "DELETED"
-  | "RESTORED";
+  | "RESTORED"
+  | "GIT_BRANCH_LINKED"
+  | "GIT_PR_LINKED"
+  | "GIT_PR_MERGED"
+  | "GIT_PR_CLOSED"
+  | "GIT_COMMITS_PUSHED";
+
+/** Set on an entry a Git server made: who it was on the Git server. */
+export type ActivityVia = { source: "git"; name: string };
 
 export type IssueActivityItem = {
   id: string;
   type: IssueActivityType;
-  /** `{from, to}` for most types (names as they were then), `{added, removed}` for labels. */
-  detail: { from?: unknown; to?: unknown; added?: unknown; removed?: unknown };
-  actor: IssuePerson;
+  /**
+   * `{from, to}` for most types (names as they were then), `{added, removed}` for labels. Git
+   * entries hold what they link (`repository`, `branch`, `number`, `title`, `url`, `count`,
+   * `commits`) and `via`.
+   */
+  detail: { from?: unknown; to?: unknown; added?: unknown; removed?: unknown; via?: ActivityVia; [key: string]: unknown };
+  /** Null when a Git server made the change for someone without an account here; `detail.via` names them. */
+  actor: IssuePerson | null;
   createdAt: string;
 };
 

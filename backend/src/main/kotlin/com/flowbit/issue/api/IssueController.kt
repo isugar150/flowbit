@@ -13,6 +13,7 @@ import com.flowbit.issue.application.IssueActivityFeed
 import com.flowbit.issue.application.IssueActivityType
 import com.flowbit.issue.application.IssueChange
 import com.flowbit.issue.application.IssueDetail
+import com.flowbit.issue.application.IssueGitLinkView
 import com.flowbit.issue.application.IssueLabel
 import com.flowbit.issue.application.IssueMilestone
 import com.flowbit.issue.application.IssueParent
@@ -103,7 +104,7 @@ data class DocumentSummaryResponse(
 }
 
 /**
- * An issue. The last five fields are present only when one issue is requested (GET /issues/{number});
+ * An issue. The last fields (from `canEdit`) are present only when one issue is requested (GET /issues/{number});
  * lists leave them out.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -158,6 +159,8 @@ data class IssueResponse(
     val reactions: List<ReactionSummary>? = null,
     val attachments: List<AttachmentResponse>? = null,
     val documents: List<DocumentSummaryResponse>? = null,
+    /** Branches and pull requests a Git server linked the issue to; empty when none. */
+    val git: List<IssueGitLinkView>? = null,
 ) {
     companion object {
         fun from(issue: IssueView) =
@@ -197,6 +200,7 @@ data class IssueResponse(
                 reactions = detail.reactions,
                 attachments = detail.attachments.map(AttachmentResponse::from),
                 documents = detail.documents.map(DocumentSummaryResponse::from),
+                git = detail.git,
             )
     }
 }
@@ -207,7 +211,8 @@ data class IssueActivityItemResponse(
     /** Old and new values, depending on the type: `{from, to}` or `{added, removed}`. */
     @get:JsonRawValue
     val detail: String,
-    val actor: IssuePersonResponse,
+    /** Null when a Git server made the change for someone without an account; `detail.via.name` names them. */
+    val actor: IssuePersonResponse?,
     val createdAt: Instant,
 )
 
@@ -250,7 +255,7 @@ data class IssueActivityResponse(
             IssueActivityResponse(
                 items =
                     feed.items.map {
-                        IssueActivityItemResponse(it.id, it.type, it.detail, IssuePersonResponse.from(it.actor), it.createdAt)
+                        IssueActivityItemResponse(it.id, it.type, it.detail, it.actor?.let(IssuePersonResponse::from), it.createdAt)
                     },
                 comments = feed.comments.map(CommentResponse::from),
                 subscribers = feed.subscribers.map(IssuePersonResponse::from),

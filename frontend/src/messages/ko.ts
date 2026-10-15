@@ -405,6 +405,15 @@ export const ko = {
       milestone: "님이 목표를 바꿨습니다:",
       labels: "님이 라벨을 바꿨습니다:",
       changed: "님이 티켓을 수정했습니다",
+      gitName: (name: string) => `${name}(Git)`,
+      statusFromGit: "님이 Git에서 상태를 바꿨습니다:",
+      gitBranchLinked: "님이 브랜치를 연결했습니다:",
+      gitPrLinked: "님이 PR을 연결했습니다:",
+      gitPrMerged: "님이 PR을 머지했습니다:",
+      gitPrClosed: "님이 PR을 닫았습니다:",
+      gitCommitsPushed: (count: number) => `님이 커밋 ${count}개를 올렸습니다`,
+      gitReference: "(참고)",
+      gitCommitsShow: "커밋 보기",
     },
     comments: {
       label: "댓글",
@@ -766,6 +775,14 @@ export const ko = {
     saving: "저장하는 중",
     delete: "삭제",
     deleteConfirm: "한 번 더 누르면 연결과 이 연결로 티켓에 연결한 브랜치·PR·커밋이 삭제됩니다",
+    panel: {
+      heading: "Git",
+      states: { OPEN: "열림", DRAFT: "초안", MERGED: "머지됨", CLOSED: "닫힘" },
+      pullRequestLabel: (repository: string, number: number, title: string, state: string) =>
+        `${repository} #${number} ${title} (${state}, Git 서버에서 열기)`,
+      branchLabel: (branch: string) => `브랜치 ${branch} (Git 서버에서 열기)`,
+      reference: "참고",
+    },
   },
   retention: {
     title: "데이터 보관",

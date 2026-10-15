@@ -7,6 +7,7 @@ import { DialogTitle } from "@/components/ui/dialog";
 import type { UserSummary } from "@/features/members/types";
 import type { Milestone } from "@/features/milestones/types";
 import { mentionablesOf, usersAsMembers, type ProjectMember } from "@/features/projects/types";
+import { IssueGitLinks } from "@/features/git/components/issue-git-links";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { getProjects, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
@@ -88,6 +89,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
           milestones={milestones ?? []}
           canEdit={canEdit}
         />
+        <IssueGitLinks links={issue.git ?? []} />
         <section className="flex flex-col gap-1">
           <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.createdBy}</h3>
           <div className="flex min-h-8 items-center justify-between gap-2">

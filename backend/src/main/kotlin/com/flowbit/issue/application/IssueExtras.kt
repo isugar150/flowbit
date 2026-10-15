@@ -40,10 +40,24 @@ data class DocumentSummary(
     val deletedAt: Instant? = null,
 )
 
+/** A branch or pull request a Git server linked the issue to (docs/features/git-integration.md). */
+data class IssueGitLinkView(
+    val kind: String,
+    val repository: String,
+    val branch: String?,
+    val prNumber: Int?,
+    val title: String?,
+    val url: String,
+    val prState: String?,
+    val closes: Boolean,
+)
+
 /** How deep documents nest in a project: a document on the overview is level 1. An issue's stay at level 1. */
 const val MAX_DOCUMENT_DEPTH = 5
 
-/** What hangs on an issue besides its own fields: reactions, attached files, documents (V12). */
+private const val PULL_REQUEST = "PULL_REQUEST"
+
+/** What hangs on an issue besides its own fields: reactions, attached files, documents (V12), Git links (V11). */
 @Component
 class IssueExtrasStore(
     private val databaseClient: DatabaseClient,
@@ -236,6 +250,42 @@ class IssueExtrasStore(
             .fetch()
             .rowsUpdated()
             .awaitSingle()
+    }
+
+    /**
+     * The branches and pull requests linked to the issue: pull requests first, newest first, then
+     * branches. A branch that has a pull request is shown by that pull request alone.
+     */
+    suspend fun gitLinks(issueId: UUID): List<IssueGitLinkView> {
+        val links =
+            databaseClient
+                .sql(
+                    """
+                    select connection_id, kind, repository, branch, pr_number, title, url, pr_state, closes
+                    from issue_git_links where issue_id = :id
+                    order by kind desc, created_at desc, id
+                    """.trimIndent(),
+                ).bind("id", issueId)
+                .map { row ->
+                    checkNotNull(row.get("connection_id", UUID::class.java)) to
+                        IssueGitLinkView(
+                            kind = checkNotNull(row.get("kind", String::class.java)),
+                            repository = checkNotNull(row.get("repository", String::class.java)),
+                            branch = row.get("branch", String::class.java),
+                            prNumber = row.get("pr_number", Int::class.javaObjectType),
+                            title = row.get("title", String::class.java),
+                            url = checkNotNull(row.get("url", String::class.java)),
+                            prState = row.get("pr_state", String::class.java),
+                            closes = checkNotNull(row.get("closes", Boolean::class.javaObjectType)),
+                        )
+                }.all()
+                .collectList()
+                .awaitSingle()
+        val branchesWithPullRequest =
+            links.filter { it.second.kind == PULL_REQUEST }.map { (connectionId, link) -> Triple(connectionId, link.repository, link.branch) }.toSet()
+        return links
+            .filterNot { (connectionId, link) -> link.kind != PULL_REQUEST && Triple(connectionId, link.repository, link.branch) in branchesWithPullRequest }
+            .map { it.second }
     }
 
     private suspend fun deleteById(

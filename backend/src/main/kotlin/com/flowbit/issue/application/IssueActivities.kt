@@ -30,6 +30,19 @@ enum class IssueActivityType {
     DELETED,
     RESTORED,
 
+    /** A Git server linked a branch whose name holds the issue's key (docs/features/git-integration.md). */
+    GIT_BRANCH_LINKED,
+
+    /** A pull request naming the issue was opened (or first seen). */
+    GIT_PR_LINKED,
+    GIT_PR_MERGED,
+
+    /** A pull request was closed without being merged. */
+    GIT_PR_CLOSED,
+
+    /** Commits naming the issue, or pushed to its branch, reached the Git server. */
+    GIT_COMMITS_PUSHED,
+
     /** Announced like the others but not kept in the history: the comment itself is what the page shows. */
     COMMENT_ADDED,
 
@@ -47,11 +60,26 @@ data class IssueEvent(
 data class IssueActivityView(
     val id: UUID,
     val type: IssueActivityType,
-    /** Raw JSON. */
+    /** Raw JSON. An entry a Git server made holds `via: {source: "git", name}`. */
     val detail: String,
-    val actor: IssuePerson,
+    /** Null when a Git server made the change for someone who has no account here. */
+    val actor: IssuePerson?,
     val createdAt: Instant,
 )
+
+/**
+ * Who made a change: a person signed in, or a Git server acting for someone (D-141). [userId] is
+ * null when the Git user matched no account; [via] then names them, and is kept in every entry.
+ */
+data class Actor(
+    val userId: UUID?,
+    /** As notifications show it: the display name, or "kimjm(Git)". */
+    val name: String,
+    val via: Map<String, Any?>? = null,
+) {
+    /** Adds [via] to an entry's details, so the history can say the change came from Git. */
+    fun mark(event: IssueEvent): IssueEvent = via?.let { event.copy(detail = event.detail + ("via" to it)) } ?: event
+}
 
 /** What an issue change leaves behind for the caller: the issue, what changed, and whom to tell. */
 data class IssueChange(
@@ -120,12 +148,12 @@ class IssueActivityStore(
      */
     suspend fun record(
         issueId: UUID,
-        actorId: UUID,
+        actorId: UUID?,
         events: List<IssueEvent>,
         now: Instant,
     ) {
         for (event in events) {
-            if (event.type in MERGED_TYPES && mergeIntoLatest(issueId, actorId, event, now)) continue
+            if (actorId != null && event.type in MERGED_TYPES && mergeIntoLatest(issueId, actorId, event, now)) continue
             databaseClient
                 .sql(
                     """
@@ -137,7 +165,7 @@ class IssueActivityStore(
                     com.flowbit.common.UuidV7
                         .generate(now),
                 ).bind("issueId", issueId)
-                .bind("actorId", actorId)
+                .let { if (actorId == null) it.bindNull("actorId", UUID::class.java) else it.bind("actorId", actorId) }
                 .bind("type", event.type.name)
                 .bind("detail", jsonMapper.writeValueAsString(event.detail))
                 .bind("now", now)
@@ -182,7 +210,7 @@ class IssueActivityStore(
                 """
                 select a.id, a.type, a.detail::text as detail, a.created_at,
                        u.id as actor_id, u.login_id, u.display_name, u.avatar_key
-                from issue_activities a join users u on u.id = a.actor_id
+                from issue_activities a left join users u on u.id = a.actor_id
                 where a.issue_id = :issueId
                 order by a.seq
                 """.trimIndent(),
@@ -192,7 +220,7 @@ class IssueActivityStore(
                     id = checkNotNull(row.get("id", UUID::class.java)),
                     type = IssueActivityType.valueOf(checkNotNull(row.get("type", String::class.java))),
                     detail = checkNotNull(row.get("detail", String::class.java)),
-                    actor = person(row),
+                    actor = row.get("actor_id", UUID::class.java)?.let { person(row) },
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
                 )
             }.all()

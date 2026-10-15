@@ -15,8 +15,12 @@ import org.springframework.security.web.server.ServerAuthenticationEntryPoint
 import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler
 import org.springframework.security.web.server.csrf.CookieServerCsrfTokenRepository
 import org.springframework.security.web.server.csrf.CsrfException
+import org.springframework.security.web.server.csrf.CsrfWebFilter
 import org.springframework.security.web.server.csrf.ServerCsrfTokenRequestAttributeHandler
 import org.springframework.security.web.server.savedrequest.NoOpServerRequestCache
+import org.springframework.security.web.server.util.matcher.AndServerWebExchangeMatcher
+import org.springframework.security.web.server.util.matcher.NegatedServerWebExchangeMatcher
+import org.springframework.security.web.server.util.matcher.PathPatternParserServerWebExchangeMatcher
 
 @Configuration(proxyBeanMethods = false)
 @EnableWebFluxSecurity
@@ -51,7 +55,13 @@ class SecurityConfig {
             // echoes the XSRF-TOKEN cookie value as-is in X-XSRF-TOKEN.
             .csrf {
                 it
-                    .csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse())
+                    // Git servers call their webhook address without a browser; the signature is checked instead.
+                    .requireCsrfProtectionMatcher(
+                        AndServerWebExchangeMatcher(
+                            CsrfWebFilter.DEFAULT_CSRF_MATCHER,
+                            NegatedServerWebExchangeMatcher(PathPatternParserServerWebExchangeMatcher(GIT_WEBHOOK)),
+                        ),
+                    ).csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse())
                     .csrfTokenRequestHandler(ServerCsrfTokenRequestAttributeHandler())
                     .accessDeniedHandler(accessDeniedHandler)
             }.securityContextRepository(securityContextRepository)
@@ -91,6 +101,9 @@ class SecurityConfig {
                 "/api/v1/auth/sso/start",
                 "/api/v1/auth/sso/callback",
             )
-        val PUBLIC_POST = arrayOf("/api/v1/setup", "/api/v1/auth/login")
+
+        /** Called by Git servers, signed with the connection's secret (docs/features/git-integration.md). */
+        const val GIT_WEBHOOK = "/api/v1/integrations/git/*/webhook"
+        val PUBLIC_POST = arrayOf("/api/v1/setup", "/api/v1/auth/login", GIT_WEBHOOK)
     }
 }

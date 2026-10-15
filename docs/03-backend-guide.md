@@ -42,6 +42,7 @@ com.flowbit
 ├─ issue/             티켓 (IssueService, 조회용 IssueQueries)
 ├─ notification/      알림 통로(메일, 웹 푸시, API 알림)와 그 설정. 계층을 나누지 않은 작은 모듈
 ├─ setup/             초기 설정
+├─ git/               Git 서버 연결, 들어오는 웹훅(제공자별 서명·파싱), 티켓 키 인식, 티켓에 브랜치·PR·커밋 연결 (D-141). 계층을 나누지 않은 작은 모듈
 └─ media/             이미지 변환(ImageProcessor), 파일 저장(ImageStorage), 파일 제공, 업로드 읽기
 ```
 

@@ -104,6 +104,8 @@ data class IssueDetail(
     val reactions: List<ReactionSummary>,
     val attachments: List<AttachmentView>,
     val documents: List<DocumentSummary>,
+    /** Branches and pull requests a Git server linked it to (D-141). */
+    val git: List<IssueGitLinkView> = emptyList(),
 )
 
 /** A comment that was written or changed, with whom to tell about it. */
@@ -233,6 +235,7 @@ class IssueService(
             reactions = extras.reactions(id, user.id),
             attachments = extras.attachments(id),
             documents = extras.documents(id),
+            git = extras.gitLinks(id),
         )
     }
 
@@ -737,6 +740,30 @@ class IssueService(
     }
 
     suspend fun actorName(user: AuthenticatedUser): String = activities.displayName(user.id)
+
+    // --- what a Git server does (docs/features/git-integration.md, D-141) --------------------
+
+    /**
+     * The issues in use with these numbers that a Git connection may touch: those of
+     * [projectIds], or all of them when it is null. There is no person to check access for; the
+     * administrator chose the projects, and pushing to the repository is the right to change them.
+     */
+    suspend fun gitTargets(
+        numbers: Collection<Int>,
+        projectIds: Set<UUID>?,
+    ): List<Issue> =
+        numbers.distinct().mapNotNull { repository.findByNumber(it) }.filter { issue ->
+            issue.deletedAt == null && (projectIds == null || issue.projectId in projectIds)
+        }
+
+    /** Adds history entries for something a Git server reported, marked as coming from Git. */
+    suspend fun recordFromGit(
+        issueId: UUID,
+        actor: Actor,
+        events: List<IssueEvent>,
+    ) {
+        if (events.isNotEmpty()) activities.record(issueId, actor.userId, events.map(actor::mark), clock.instant())
+    }
 
     private suspend fun detail(number: Int): IssueView? = queries.find(number)?.let { it.copy(content = richText.load(RichText.ContentTable.ISSUES, it.id)) }
 
