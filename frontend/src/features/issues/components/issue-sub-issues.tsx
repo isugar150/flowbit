@@ -1,18 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDownIcon, CircleUserRoundIcon, PlusIcon } from "lucide-react";
-import { DueDate } from "@/components/dates";
-import { PeopleMarks } from "@/components/person";
+import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FormAlert } from "@/features/auth/components/form-alert";
+import type { ProjectMember } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
-import { createIssue } from "../api";
-import type { IssueDetail } from "../types";
-import { IssueTitleLink, PriorityMark, StatusMark } from "./issue-row";
-import { LabelPill } from "./label-chip";
-import { SubIssueProgress } from "./sub-issue-rows";
+import { createIssue, updateIssue } from "../api";
+import type { Issue, IssueChanges, IssueDetail } from "../types";
+import { IssueListHeader, IssueListRow, type IssueLineEditing } from "./issue-list-row";
 
 const m = messages.issues.subIssues;
 
@@ -20,11 +18,23 @@ const m = messages.issues.subIssues;
 const SHOWN = 5;
 
 /**
- * The issues that hang under this one, with how many are done and a progress bar. The first five
- * show; "더 보기" opens the rest. A new one needs only a title; it is linked to the same project as
- * its parent and is otherwise an ordinary issue.
+ * The issues that hang under this one, with how many are done and a progress bar. They are lines
+ * of the issue list, with its column names (the user's call, 2026-10-15), sized to the panel. The
+ * first five show; "더 보기" opens the rest. Status, priority, due date and assignees are changed
+ * right on a line, which shows the change at once. A sub-issue linked to another project than this
+ * one is read-only here: its people and rights are that project's. A new one needs only a title;
+ * it is linked to the same project as its parent and is otherwise an ordinary issue.
  */
-export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
+export function IssueSubIssues({
+  issue,
+  canEdit,
+  members,
+}: {
+  issue: IssueDetail;
+  canEdit: boolean;
+  /** Who can be given an issue in this issue's project. */
+  members: ProjectMember[];
+}) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -33,12 +43,24 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
     // A new sub-issue comes last; the list opens so that it can be seen.
     setExpanded(true);
   });
-  const total = issue.subIssues.length;
-  const done = issue.subIssues.filter((child) => child.status === "DONE").length;
+  const changes = useOptimisticMutation(
+    issue.subIssues,
+    (current, { number, changes: change }: { number: number; changes: IssueChanges }) =>
+      current.map((child) => (child.number === number ? applyChange(child, change, members) : child)),
+    updateIssue,
+  );
+  const subIssues = changes.value;
+  const total = subIssues.length;
+  const done = subIssues.filter((child) => child.status === "DONE").length;
   // The same count as "1/2" beside it: done out of every sub-issue.
   const percent = total === 0 ? 0 : Math.round((done / total) * 100);
-  const shown = expanded ? issue.subIssues : issue.subIssues.slice(0, SHOWN);
+  const shown = expanded ? subIssues : subIssues.slice(0, SHOWN);
   const more = total - SHOWN;
+  const sameProject = (child: Issue) => (child.project?.id ?? null) === (issue.project?.id ?? null);
+  const editing: IssueLineEditing = {
+    members: (child) => (sameProject(child) ? members : null),
+    onChange: (number, change) => changes.mutate({ number, changes: change }),
+  };
 
   const submit = () => {
     if (!title.trim() || mutation.isPending) return;
@@ -102,37 +124,27 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
           </Button>
         ) : null}
       </div>
+      {changes.isError ? <FormAlert>{apiErrorMessage(changes.error)}</FormAlert> : null}
       {total > 0 ? (
-        <ul className="flex flex-col">
-          {shown.map((child) => (
-            <li key={child.id} className="flex h-9 items-center gap-2 rounded-md px-1 hover:bg-muted max-md:h-11">
-              <StatusMark status={child.status} />
-              <span className="shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{child.key}</span>
-              <IssueTitleLink issue={child} />
-              <SubIssueProgress issue={child} />
-              {/* The right side always says something: labels and a due date when there are any, then priority and who has it. */}
-              <span className="hidden shrink-0 items-center gap-1 sm:flex">
-                {child.labels.slice(0, 2).map((label) => (
-                  <LabelPill key={label.id} label={label} />
-                ))}
-              </span>
-              {child.dueDate ? (
-                <span className="hidden shrink-0 text-xs leading-4 text-muted-foreground tabular-nums sm:block">
-                  <DueDate value={child.dueDate} />
-                </span>
-              ) : null}
-              <PriorityMark priority={child.priority} />
-              {child.assignees.length > 0 ? (
-                <PeopleMarks people={child.assignees} />
-              ) : (
-                <span title={messages.issues.noAssignee} className="flex shrink-0">
-                  <CircleUserRoundIcon className="size-4.5 text-muted-foreground/60" aria-hidden="true" />
-                  <span className="sr-only">{messages.issues.noAssignee}</span>
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="@container">
+          <IssueListHeader showProject={false} layout="panel" editable={canEdit} className="border-b px-1" />
+          <ul className="flex flex-col">
+            {shown.map((child) => (
+              <IssueListRow
+                key={child.id}
+                issue={child}
+                depth={0}
+                layout="panel"
+                showProject={false}
+                editable={canEdit && sameProject(child)}
+                editing={editing}
+                onStatusChange={(number, status) => changes.mutate({ number, changes: { status } })}
+                className="px-1"
+                presence="sub-issue"
+              />
+            ))}
+          </ul>
+        </div>
       ) : null}
       {more > 0 ? (
         <Button
@@ -184,4 +196,20 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
       ) : null}
     </section>
   );
+}
+
+/** A sub-issue with a change applied, as the server will send it back. */
+function applyChange(child: Issue, change: IssueChanges, members: ProjectMember[]): Issue {
+  const { assigneeIds, ...fields } = change;
+  const next = { ...child, ...fields } as Issue;
+  if (assigneeIds !== undefined) {
+    next.assignees = assigneeIds.flatMap((id) => {
+      const known = child.assignees.find((person) => person.id === id);
+      if (known) return [known];
+      return members
+        .filter((member) => member.userId === id)
+        .map((member) => ({ id: member.userId, loginId: member.loginId, displayName: member.displayName, avatarUrl: member.avatarUrl }));
+    });
+  }
+  return next;
 }

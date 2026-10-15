@@ -1,20 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { UserIcon } from "lucide-react";
+import { CircleUserRoundIcon, UserIcon } from "lucide-react";
 import { MultiCombobox } from "@/components/multi-combobox";
 import { PeopleAvatars, PersonAvatar, personName, type PersonLike } from "@/components/person";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { ProjectMember } from "@/features/projects/types";
 import { messages } from "@/messages";
 import { MAX_ASSIGNEES, assigneeSummary } from "../options";
-import { plainChipClass } from "./chip-select";
+import { cellChipClass, plainChipClass } from "./chip-select";
 
 const m = messages.issues;
 
 /**
- * The assignees of an issue as a quiet row of the side panel (D-125). It opens a list of the
- * people who may be given the issue, where any number of them (up to ten) are ticked.
+ * The assignees of an issue as a quiet row of the side panel (D-125), or with `cell` as the
+ * assignee column of a list line, drawn as the list draws it (IssueAssignee). It opens a list of
+ * the people who may be given the issue, where any number of them (up to ten) are ticked.
  */
 export function AssigneeChip({
   members,
@@ -22,6 +23,9 @@ export function AssigneeChip({
   value,
   onChange,
   disabled,
+  cell,
+  label = m.assignee,
+  nameClass,
 }: {
   /** Who the issue can be given to. */
   members: ProjectMember[];
@@ -31,6 +35,11 @@ export function AssigneeChip({
   value: string[];
   onChange: (assigneeIds: string[]) => void;
   disabled?: boolean;
+  cell?: boolean;
+  /** What the button changes, for screen readers. */
+  label?: string;
+  /** In a cell, when the name beside the avatars shows. */
+  nameClass?: string;
 }) {
   const [tooMany, setTooMany] = useState(false);
   const people = [
@@ -44,9 +53,26 @@ export function AssigneeChip({
   return (
     <Popover onOpenChange={(open) => (open ? null : setTooMany(false))}>
       <PopoverTrigger
-        render={<button type="button" disabled={disabled} aria-label={`${m.assignee}: ${summary}`} className={plainChipClass} />}
+        render={
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label={`${label}: ${summary}`}
+            title={cell ? selected.map(personName).join(", ") || summary : undefined}
+            className={cell ? cellChipClass : plainChipClass}
+          />
+        }
       >
-        {selected.length === 0 ? (
+        {cell ? (
+          <>
+            {selected.length === 0 ? (
+              <CircleUserRoundIcon className="size-4.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            ) : (
+              <PeopleAvatars people={selected} max={2} />
+            )}
+            {selected.length > 0 ? <span className={`block min-w-0 truncate ${nameClass ?? ""}`}>{summary}</span> : null}
+          </>
+        ) : selected.length === 0 ? (
           <UserIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : selected.length === 1 ? (
           <PersonAvatar person={selected[0]} />

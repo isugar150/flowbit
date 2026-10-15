@@ -73,7 +73,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
         <IssueBody issue={issue} canEdit={canEdit} mentionables={mentionables} />
         <IssueAttachments number={issue.number} attachments={issue.attachments} canEdit={canEdit} />
         <IssueReactions number={issue.number} reactions={issue.reactions} readOnly={Boolean(issue.deletedAt)} />
-        <IssueSubIssues issue={issue} canEdit={canEdit} />
+        <IssueSubIssues issue={issue} canEdit={canEdit} members={members ?? []} />
         {activity ? <IssueActivity number={issue.number} feed={activity} canComment={canEdit} mentionables={mentionables} /> : null}
       </article>
       <aside className="flex w-full shrink-0 flex-col gap-6 px-2 lg:w-64 lg:pt-2">

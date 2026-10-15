@@ -8,7 +8,7 @@ import type { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { chipClass, plainChipClass } from "./chip-select";
+import { cellChipClass, chipClass, plainChipClass } from "./chip-select";
 import { DueDate } from "@/components/dates";
 
 const m = messages.dates;
@@ -114,6 +114,7 @@ export function DateRangeChip({
   disabled,
   singleIsEnd,
   plain,
+  cell,
 }: {
   /** YYYY-MM-DD or null */
   start: string | null;
@@ -130,6 +131,8 @@ export function DateRangeChip({
   singleIsEnd?: boolean;
   /** Draw it as a plain row instead of a pill. */
   plain?: boolean;
+  /** Draw it as a column of a list line: the last day only, as the list shows it, or a faint calendar when there is none. */
+  cell?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // The range being picked; null until the first click, so the saved range stays highlighted.
@@ -159,8 +162,13 @@ export function DateRangeChip({
     setOpen(false);
   };
 
-  const text =
-    singleIsEnd && end && !start ? (
+  const text = cell ? (
+    end ? (
+      <span className="tabular-nums">
+        <DueDate value={end} />
+      </span>
+    ) : null
+  ) : singleIsEnd && end && !start ? (
       <span className="tabular-nums">
         <DueDate value={end} />
       </span>
@@ -182,11 +190,13 @@ export function DateRangeChip({
             type="button"
             disabled={disabled}
             aria-label={`${label}: ${start || end ? `${start ?? ""} ~ ${end ?? ""}` : placeholder}`}
-            className={cn(plain ? plainChipClass : chipClass, "max-w-none")}
+            className={cell ? cellChipClass : cn(plain ? plainChipClass : chipClass, "max-w-none")}
           />
         }
       >
-        <CalendarIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        {cell && end ? null : (
+          <CalendarIcon className={cn("size-4 shrink-0 text-muted-foreground", cell && "opacity-60")} aria-hidden="true" />
+        )}
         {text}
       </PopoverTrigger>
       <PopoverContent className="w-auto">

@@ -174,6 +174,13 @@
 - 정한 것(에이전트): 진행률은 옆의 `완료/전체` 와 같은 기준(취소된 하위 티켓도 전체에 든다). 목표의 진행률은 취소를 빼고 센다. 바꾸려면 둘을 맞춰야 한다(목록 줄의 `subIssueCount` 는 서버가 센다).
 - 확인: `typecheck`·`lint`·`next build`. **화면은 확인하지 않았다.**
 
+- 이어서 사용자 지시: 하위 티켓도 전체 티켓처럼 열 이름 줄과 열을 그대로 쓰고, 속성을 눌러 바꿀 수 있게.
+  - `issue-list-row.tsx` 를 새로 만들어 `issues-view.tsx` 의 `IssueListHeader`·`IssueListRow`·열 폭을 옮겼다. 열 폭은 `layout` 두 가지: `page`(창 폭 기준, 전체·프로젝트·내 티켓 목록. 전과 같다)와 `panel`(감싼 `@container` 폭 기준, 하위 티켓).
+  - 줄에 `editing`(사람 목록, 바꾸기)을 주면 우선순위(`ChipSelect`), 기한(`DateRangeChip cell`: 마지막 날만, 없으면 흐린 달력), 담당자(`AssigneeChip cell`)도 누르면 바뀐다. 지금은 하위 티켓에만 준다. **전체 티켓 목록은 전처럼 상태만 바뀐다.**
+  - `issue-sub-issues.tsx` 는 `useOptimisticMutation` 으로 바로 보여 주고 저장한다. 다른 프로젝트에 연결된 하위 티켓은 읽기 전용(그 프로젝트의 사람·권한이라서). 하위 티켓 줄의 `data-presence-id` 는 `sub-issue:<번호>`(대화상자 뒤 목록의 `issue-row:<번호>` 와 겹치지 않게).
+  - `chip-select.tsx` 의 `cellChipClass`, `IssueAssignee` 의 `className`·`nameClass`, 문구 `priorityOf`·`dueDateOf`·`assigneeOf`.
+  - 확인: `typecheck`·`lint`·`next build`. **화면과 E2E 는 확인하지 않았다.** 볼 것: 대화상자 폭(lg 에서 본문 약 700px)에서 어느 열까지 보이는지, 열 이름 줄과 줄의 열이 맞는지, 기한·담당자 칸의 마우스 올림 모양.
+
 ### 2026-10-15 — 티켓 창: 보는 사람 아바타, 빈 "삭제된 문서", 닫기 버튼과 스크롤 막대
 
 - 사용자 지적(화면 캡처): ① 프로젝트에는 오른쪽 위에 누가 보는지·언제 봤는지가 뜨는데 티켓 상세에는 없다 ② 삭제된 문서가 없는데 "삭제된 문서" 항목이 보인다 ③ X 버튼이 스크롤 막대 위에 겹치고, 스크롤 막대가 있는 쪽은 모서리가 둥글지 않다.

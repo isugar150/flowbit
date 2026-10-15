@@ -25,6 +25,10 @@ export const chipClass =
 export const plainChipClass =
   "-mx-2 flex h-8 max-w-full items-center gap-2 rounded-md px-2 text-[0.8125rem] leading-5 font-medium outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none aria-expanded:bg-muted max-md:h-10";
 
+/** For a value in a column of a list line: no frame, the line's muted text, a background when pointed at. */
+export const cellChipClass =
+  "-mx-1 flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:bg-background hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none aria-expanded:bg-background max-md:h-9";
+
 /**
  * A rounded chip that shows one property of an issue and opens a menu to change it.
  * `iconOnly` shows just the icon, for dense list rows; the label is still read by screen readers.

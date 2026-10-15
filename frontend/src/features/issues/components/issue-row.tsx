@@ -86,18 +86,28 @@ export function IssueDue({ issue }: { issue: Issue }) {
  * overlapping), with the name, or the first name and how many more, beside them on screens wide
  * enough. An issue no one has says so with an empty mark, so the column lines up.
  */
-export function IssueAssignee({ issue }: { issue: Issue }) {
+export function IssueAssignee({
+  issue,
+  className = "w-8 shrink-0 lg:w-28",
+  nameClass = "max-lg:hidden",
+}: {
+  issue: Issue;
+  /** The column's width. */
+  className?: string;
+  /** When the name beside the avatars shows. */
+  nameClass?: string;
+}) {
   const people = issue.assignees;
   const names = people.length > 0 ? people.map(personName).join(", ") : messages.issues.noAssignee;
   return (
-    <span title={names} className="flex w-8 shrink-0 items-center gap-1.5 lg:w-28">
+    <span title={names} className={`flex items-center gap-1.5 ${className}`}>
       {people.length > 0 ? (
         <PeopleAvatars people={people} max={2} />
       ) : (
         <CircleUserRoundIcon className="size-4.5 text-muted-foreground/60" aria-hidden="true" />
       )}
       {people.length > 0 ? (
-        <span aria-hidden="true" className={`hidden min-w-0 truncate lg:block ${metaText}`}>
+        <span aria-hidden="true" className={`block min-w-0 truncate ${nameClass} ${metaText}`}>
           {assigneeSummary(people)}
         </span>
       ) : null}

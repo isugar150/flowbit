@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -38,10 +38,10 @@ import { DEFAULT_ISSUE_SORT, ISSUE_SORTS, sortIssues, type IssueSort } from "../
 import { ChipSelect, type ChipOption } from "./chip-select";
 import type { IssueDates } from "./issue-calendar";
 import { projectOptions } from "./issue-properties";
-import { IssueAssignee, IssueDue, IssueLabels, IssueProjectName, IssueTitleLink, PriorityMark } from "./issue-row";
+import { IssueListHeader, IssueListRow } from "./issue-list-row";
 import { IssueViewSwitch, useIssueView, useListAddress, useReplaceListQuery } from "./issue-views";
 import { LabelFilterChip } from "./label-chip";
-import { SubIssueContextRow, SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
+import { SubIssueContextRow } from "./sub-issue-rows";
 
 const m = messages.issues;
 
@@ -440,7 +440,7 @@ export function IssuesView({
             />
           ) : (
             <>
-              <IssueListHeader showProject={projectId === null} underTabs={underTabs} />
+              <IssueListHeader showProject={projectId === null} sticky={underTabs ? "top-20 max-md:top-22" : "top-11"} />
               {groups.map((group) => (
             <section key={group.status} aria-label={statusLabel(group.status)}>
               <h2 className="flex h-9 items-center gap-2 border-y bg-muted px-5 text-[0.8125rem] leading-5 font-medium">
@@ -491,112 +491,3 @@ export function IssuesView({
     </>
   );
 }
-
-/**
- * One line of the list. Kept from rendering again unless its own issue changed, so typing in the
- * search box or opening a menu does not redo every line of a long list.
- */
-/**
- * The columns at the end of a line, each with a width of its own so that they sit under one
- * another and under the header. The narrower the screen, the fewer there are.
- */
-const COLUMNS = {
-  project: "hidden w-28 shrink-0 overflow-hidden md:block xl:w-32",
-  labels: "hidden w-44 shrink-0 overflow-hidden xl:flex",
-  milestone: "hidden w-32 shrink-0 overflow-hidden lg:flex",
-  due: "hidden w-16 shrink-0 sm:block",
-};
-
-/**
- * The names of the columns, laid out exactly as a line is. It stays under the page header (and
- * under the tabs, on pages that have them) while the list scrolls beneath it.
- */
-function IssueListHeader({ showProject, underTabs }: { showProject: boolean; underTabs: boolean }) {
-  return (
-    <div
-      aria-hidden="true"
-      className={cn(
-        "sticky z-20 flex h-8 items-center gap-2 bg-background pr-5 pl-3 text-xs leading-4 text-muted-foreground",
-        underTabs ? "top-20 max-md:top-22" : "top-11",
-      )}
-    >
-      <span className="w-7 shrink-0" />
-      <span className="w-4 shrink-0" />
-      <span className="w-16 shrink-0">{m.columns.key}</span>
-      <span className="min-w-0 flex-1">{m.columns.title}</span>
-      {showProject ? <span className={COLUMNS.project}>{m.project}</span> : null}
-      <span className={COLUMNS.labels}>{m.labels}</span>
-      <span className={COLUMNS.milestone}>{m.milestone}</span>
-      <span className={COLUMNS.due}>{m.dueDate}</span>
-      <span className="w-8 shrink-0 overflow-hidden whitespace-nowrap lg:w-28">
-        <span className="max-lg:hidden">{m.assignee}</span>
-      </span>
-    </div>
-  );
-}
-
-const IssueListRow = memo(function IssueListRow({
-  issue,
-  depth,
-  editable,
-  showProject,
-  onStatusChange,
-}: {
-  issue: Issue;
-  depth: number;
-  /** Whether the status can be changed right in the list. */
-  editable: boolean;
-  /** On lists that span projects, each line says which project it is in. */
-  showProject: boolean;
-  onStatusChange: (number: number, status: IssueStatus) => void;
-}) {
-  return (
-    <li
-      data-presence-id={`issue-row:${issue.number}`}
-      data-tour="issue-row"
-      className="flex h-10 items-center gap-2 border-b pr-5 pl-3 hover:bg-muted max-md:h-12"
-    >
-      <SubIssueIndent depth={depth} />
-      {editable ? (
-        <ChipSelect
-          iconOnly
-          label={m.statusOf(issue.key)}
-          value={issue.status}
-          options={statusOptions}
-          onChange={(status) => onStatusChange(issue.number, status)}
-        />
-      ) : (
-        <span className="flex size-7 items-center justify-center">
-          <StatusIcon status={issue.status} />
-        </span>
-      )}
-      <PriorityMark priority={issue.priority} />
-      <span className="w-16 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
-        {issue.key}
-      </span>
-      <IssueTitleLink issue={issue} />
-      <SubIssueProgress issue={issue} />
-      {/* Every line has the same columns whether or not it has the value, so they line up down the list. */}
-      {showProject ? (
-        <span className={COLUMNS.project}>
-          <IssueProjectName issue={issue} showNone />
-        </span>
-      ) : null}
-      <span className={COLUMNS.labels}>
-        <IssueLabels issue={issue} max={2} />
-      </span>
-      <span className={cn(COLUMNS.milestone, "items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground")}>
-        {issue.milestone ? (
-          <>
-            <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate">{issue.milestone.name}</span>
-          </>
-        ) : null}
-      </span>
-      <span className={COLUMNS.due}>
-        <IssueDue issue={issue} />
-      </span>
-      <IssueAssignee issue={issue} />
-    </li>
-  );
-});
