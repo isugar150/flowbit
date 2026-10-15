@@ -33,12 +33,15 @@ class NotificationText(
 ) {
     fun of(notification: IssueNotification): NotificationMessage {
         val types = notification.events.map { it.type }
+        // Changes a Git server made say so (D-141); they carry `via` in their details.
+        val fromGit = notification.events.isNotEmpty() && notification.events.all { "via" in it.detail }
         val did =
             when {
                 "CREATED" in types -> "티켓을 만들었습니다"
                 "DELETED" in types -> "티켓을 삭제했습니다"
                 "RESTORED" in types -> "티켓을 복원했습니다"
                 "COMMENT_ADDED" in types -> "댓글을 남겼습니다"
+                fromGit -> "Git에서 티켓을 수정했습니다"
                 else -> "티켓을 수정했습니다"
             }
         val path = "/issue/${notification.issueKey}"

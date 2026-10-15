@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonRawValue
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ValidationException
+import com.flowbit.issue.application.Actor
 import com.flowbit.issue.application.AttachmentView
 import com.flowbit.issue.application.CommentView
 import com.flowbit.issue.application.DocumentDetail
@@ -361,18 +362,36 @@ class IssueAnnouncer(
     suspend fun changed(
         user: AuthenticatedUser,
         change: IssueChange,
+    ) = changed(user.id, change) { issueService.actorName(user) }
+
+    /** A change someone made through a Git server (D-141): told like one made by hand. */
+    suspend fun changed(
+        actor: Actor,
+        change: IssueChange,
+    ) = changed(actor.userId, change) { actor.name }
+
+    private suspend fun changed(
+        actorId: UUID?,
+        change: IssueChange,
+        actorName: suspend () -> String,
     ) {
-        realtime.publish(RealtimeHub.ISSUES, user.id)
-        change.projectIds.forEach { realtime.publish("project:$it", user.id) }
-        commented(user, change)
+        realtime.publish(RealtimeHub.ISSUES, actorId ?: RealtimeHub.NOBODY)
+        change.projectIds.forEach { realtime.publish("project:$it", actorId ?: RealtimeHub.NOBODY) }
+        commented(actorId, change, actorName)
     }
 
     /** A comment was written or changed: the issue's page reads again, and whoever `change` names is told. */
     suspend fun commented(
         user: AuthenticatedUser,
         change: IssueChange,
+    ) = commented(user.id, change) { issueService.actorName(user) }
+
+    private suspend fun commented(
+        actorId: UUID?,
+        change: IssueChange,
+        actorName: suspend () -> String,
     ) {
-        touched(user, change.issue.number)
+        touched(actorId ?: RealtimeHub.NOBODY, change.issue.number)
         // Every channel only reaches the people who follow the issue or its project.
         if (change.events.isEmpty() || change.recipientIds.isEmpty()) return
         notifications.dispatch(
@@ -381,8 +400,8 @@ class IssueAnnouncer(
                 issueNumber = change.issue.number,
                 issueTitle = change.issue.title,
                 projectId = change.issue.project?.id,
-                actorId = user.id,
-                actorName = issueService.actorName(user),
+                actorId = actorId,
+                actorName = actorName(),
                 events = change.events.map { IssueNotification.Event(it.type.name, it.detail) },
                 recipientIds = change.recipientIds,
             ),
@@ -410,8 +429,14 @@ class IssueAnnouncer(
     fun touched(
         user: AuthenticatedUser,
         number: Int,
+    ) = touched(user.id, number)
+
+    /** As above, for a change no signed-in person made: the links a Git server added, say. */
+    fun touched(
+        actorId: UUID,
+        number: Int,
     ) {
-        realtime.publish("issue:$number", user.id)
+        realtime.publish("issue:$number", actorId)
     }
 }
 

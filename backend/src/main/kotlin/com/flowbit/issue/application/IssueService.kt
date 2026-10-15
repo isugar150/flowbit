@@ -756,6 +756,31 @@ class IssueService(
             issue.deletedAt == null && (projectIds == null || issue.projectId in projectIds)
         }
 
+    /**
+     * Moves an issue to [status] for a Git server, and only from one of [from]: the rules never
+     * move an issue back, so a status set by hand is not undone by Git (D-141). Null when the
+     * issue is deleted or not in one of [from]. Recorded as [actor], with whom to tell, like a
+     * change by hand.
+     */
+    suspend fun changeStatusFromGit(
+        issueId: UUID,
+        status: IssueStatus,
+        from: Set<IssueStatus>,
+        actor: Actor,
+    ): IssueChange? {
+        val issue = repository.findById(issueId) ?: return null
+        if (issue.deletedAt != null || issue.status !in from) return null
+        val before = queries.find(issue.number) ?: return null
+        issue.status = status
+        issue.version += 1
+        issue.updatedAt = clock.instant()
+        repository.save(issue)
+        val after = checkNotNull(detail(issue.number))
+        val events = activities.diff(before, after).map(actor::mark)
+        activities.record(issue.id, actor.userId, events, issue.updatedAt)
+        return IssueChange(after, events, activities.recipientIds(issue.id).filter { it != actor.userId })
+    }
+
     /** Adds history entries for something a Git server reported, marked as coming from Git. */
     suspend fun recordFromGit(
         issueId: UUID,

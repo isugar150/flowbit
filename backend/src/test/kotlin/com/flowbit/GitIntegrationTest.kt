@@ -1,19 +1,24 @@
 package com.flowbit
 
+import com.flowbit.notification.NotificationDispatcher
 import com.flowbit.support.ApiClient
 import com.flowbit.support.ApiResponse
 import com.flowbit.support.IntegrationTest
+import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.node.ArrayNode
 import tools.jackson.databind.node.ObjectNode
+import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.security.MessageDigest
 import java.util.HexFormat
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlin.test.assertEquals
@@ -26,6 +31,9 @@ private const val PASSWORD = "correct-horse-battery"
 
 /** docs/features/git-integration.md "인수 기준". */
 class GitIntegrationTest : IntegrationTest() {
+    @Autowired
+    private lateinit var dispatcher: NotificationDispatcher
+
     private lateinit var admin: ApiClient
 
     @BeforeEach
@@ -170,9 +178,10 @@ class GitIntegrationTest : IntegrationTest() {
         val linked = deliver(connection, "push", push("fb-1-login"))
         assertEquals(200, linked.status)
         assertEquals(listOf("FB-1"), linked.json()["linkedIssues"])
-        val received = admin.get("/api/v1/admin/git/connections").jsonList().single()
-        assertEquals(mapOf("linkedIssues" to listOf("FB-1"), "statusChanged" to emptyList<String>(), "skipped" to 0), received["lastResult"])
-        assertNull(received["lastError"])
+        val receivedConnection = admin.get("/api/v1/admin/git/connections").jsonList().single()
+        // The branch also started the work (stage 3).
+        assertEquals(mapOf("linkedIssues" to listOf("FB-1"), "statusChanged" to listOf("FB-1"), "skipped" to 0), receivedConnection["lastResult"])
+        assertNull(receivedConnection["lastError"])
 
         // A new secret: the old one no longer signs.
         val oldSecret = connection["secret"] as String
@@ -240,7 +249,7 @@ class GitIntegrationTest : IntegrationTest() {
 
         assertEquals(2, count("select count(*) from issue_git_links"))
         assertEquals(2, count("select count(*) from issue_git_commits"))
-        assertEquals(listOf("CREATED", "GIT_BRANCH_LINKED", "GIT_COMMITS_PUSHED", "GIT_PR_LINKED"), activityTypes(1))
+        assertEquals(listOf("CREATED", "GIT_BRANCH_LINKED", "GIT_COMMITS_PUSHED", "STATUS_CHANGED", "GIT_PR_LINKED"), activityTypes(1))
 
         // Another push with one more commit records only the new one.
         deliver(connection, "push", push("kimjm/fb-1-login-error", "로그인 수정", "문구 수정", "테스트 추가"))
@@ -255,7 +264,7 @@ class GitIntegrationTest : IntegrationTest() {
     fun `옆 패널에 PR 과 브랜치를 보이고 PR 이 생긴 브랜치는 PR 줄에 합친다`() {
         admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
         admin.post("/api/v1/issues", """{"title":"참고만 하는 티켓"}""")
-        val connection = connect()
+        val connection = connect(autoInProgress = false, autoDone = false)
         deliver(connection, "push", push("kimjm/fb-1-login-error"))
         deliver(connection, "push", push("kimjm/fb-1-other-try"))
         assertEquals(listOf("kimjm/fb-1-other-try", "kimjm/fb-1-login-error"), gitOf(1).map { it["branch"] })
@@ -293,7 +302,7 @@ class GitIntegrationTest : IntegrationTest() {
         execute("update users set email = 'kimjm@example.com' where login_id = 'jimin'")
         val leesj = admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD"}""").json()["id"]
         admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
-        val connection = connect()
+        val connection = connect(autoInProgress = false, autoDone = false)
 
         // The pusher's e-mail address is jimin's.
         deliver(connection, "push", push("fb-1-login"))
@@ -317,6 +326,136 @@ class GitIntegrationTest : IntegrationTest() {
         @Suppress("UNCHECKED_CAST")
         val names = entries.map { (detailOf(it)["via"] as Map<String, Any?>)["name"] }
         assertEquals(listOf("kimjm", "kimjm", "kimjm", "leesj", "parkhs"), names)
+    }
+
+    // --- 상태 자동 변경 --------------------------------------------------------------------------
+
+    @Test
+    fun `브랜치를 올리거나 PR 을 열면 백로그·준비됨 티켓이 진행 중이 되고 완료·취소 티켓은 바뀌지 않는다`() {
+        createIssues("BACKLOG", "READY", "DONE", "CANCELED", "BACKLOG")
+        val connection = connect()
+
+        val pushed = deliver(connection, "push", push("kimjm/fb-1-login")).json()
+        assertEquals(listOf("FB-1"), pushed["statusChanged"])
+        val opened = deliver(connection, "pull_request", pullRequest(number = 40, title = "FB-2 결제 수정", branch = "hotfix", body = "Refs FB-5")).json()
+        assertEquals(listOf("FB-2", "FB-5"), opened["linkedIssues"])
+        assertEquals(listOf("FB-2"), opened["statusChanged"])
+        deliver(connection, "push", push("fb-3-again"))
+        deliver(connection, "pull_request", pullRequest(number = 41, title = "FB-4 다시", branch = "retry"))
+
+        // A reference does not start anything; done and canceled stay as they are.
+        assertEquals(listOf("IN_PROGRESS", "IN_PROGRESS", "DONE", "CANCELED", "BACKLOG"), statuses(5))
+        val change = activity(1).last()
+        assertEquals("STATUS_CHANGED", change["type"])
+        assertEquals(mapOf("source" to "git", "name" to "kimjm"), detailOf(change)["via"])
+        assertEquals("BACKLOG" to "IN_PROGRESS", detailOf(change)["from"] to detailOf(change)["to"])
+        // Pushing the same branch again after it was moved back by hand does not move it again.
+        admin.patch("/api/v1/issues/1", """{"status":"READY"}""")
+        deliver(connection, "push", push("kimjm/fb-1-login", "다음 커밋"))
+        assertEquals("READY", statuses(1).single())
+    }
+
+    @Test
+    fun `닫는 PR 이 머지되면 완료가 되고 참고 PR 과 머지 없이 닫힌 PR 은 상태를 바꾸지 않는다`() {
+        createIssues("BACKLOG", "BACKLOG", "BACKLOG", "BACKLOG")
+        val connection = connect()
+
+        deliver(connection, "pull_request", pullRequest(number = 34, title = "FB-1 로그인 수정", branch = "a"))
+        val done = deliver(connection, "pull_request", merged(number = 34, title = "FB-1 로그인 수정", branch = "a")).json()
+        assertEquals(listOf("FB-1"), done["statusChanged"])
+
+        // Only a reference: merging it changes nothing.
+        deliver(connection, "pull_request", pullRequest(number = 35, title = "정리", body = "Refs FB-2", branch = "b"))
+        deliver(connection, "pull_request", merged(number = 35, title = "정리", body = "Refs FB-2", branch = "b"))
+
+        // Closed without merging: the issue stays where the pull request put it.
+        deliver(connection, "pull_request", pullRequest(number = 36, title = "FB-3 시도", branch = "c"))
+        deliver(connection, "pull_request", pullRequest(number = 36, title = "FB-3 시도", branch = "c", action = "closed", state = "closed"))
+
+        // Two closing pull requests: the issue is done once the last open one is merged.
+        deliver(connection, "pull_request", pullRequest(number = 37, title = "FB-4 앞부분", branch = "d"))
+        deliver(connection, "pull_request", pullRequest(number = 38, title = "FB-4 뒷부분", branch = "e"))
+        deliver(connection, "pull_request", merged(number = 37, title = "FB-4 앞부분", branch = "d"))
+        assertEquals("IN_PROGRESS", statuses(4).last())
+        deliver(connection, "pull_request", merged(number = 38, title = "FB-4 뒷부분", branch = "e"))
+
+        assertEquals(listOf("DONE", "BACKLOG", "IN_PROGRESS", "DONE"), statuses(4))
+        // leesj merged it; nobody here is leesj, so the history keeps the Git name.
+        val finished = activity(1).last()
+        assertEquals("STATUS_CHANGED", finished["type"])
+        assertNull(finished["actor"])
+        assertEquals("leesj", (detailOf(finished)["via"] as Map<*, *>)["name"])
+        // The same merge delivered again changes nothing more.
+        deliver(connection, "pull_request", merged(number = 34, title = "FB-1 로그인 수정", branch = "a"))
+        assertEquals(1, activityTypes(1).count { it == "GIT_PR_MERGED" })
+        assertEquals(2, activityTypes(1).count { it == "STATUS_CHANGED" })
+    }
+
+    @Test
+    fun `기본 브랜치에 바로 올린 커밋이 닫는 말을 쓰면 완료가 된다`() {
+        createIssues("IN_PROGRESS", "BACKLOG", "CANCELED")
+        val connection = connect()
+
+        val result = deliver(connection, "push", push("main", "Fixes FB-1 로그인 오류", "fix: FB-3 은 취소됨", "FB-2 언급만")).json()
+        assertEquals(listOf("FB-1"), result["statusChanged"])
+        // Not the default branch: "Fixes" waits for the merge.
+        deliver(connection, "push", push("feature/x", "Fixes FB-2"))
+        assertEquals(listOf("DONE", "BACKLOG", "CANCELED"), statuses(3))
+    }
+
+    @Test
+    fun `자동 상태 변경을 끈 연결은 연결만 한다`() {
+        createIssues("BACKLOG")
+        val connection = connect(autoInProgress = false, autoDone = false)
+        deliver(connection, "push", push("fb-1-login"))
+        deliver(connection, "pull_request", pullRequest())
+        val merged = deliver(connection, "pull_request", merged()).json()
+
+        assertEquals(listOf("FB-1"), merged["linkedIssues"])
+        assertEquals(emptyList<String>(), merged["statusChanged"])
+        assertEquals("BACKLOG", statuses(1).single())
+        assertEquals(2, count("select count(*) from issue_git_links"))
+    }
+
+    @Test
+    fun `상태 변경은 구독자에게 알림으로 가고 연결과 커밋은 가지 않는다`() {
+        admin.post(
+            "/api/v1/admin/notifications/webhooks",
+            """{"name":"받기","url":"$outside/notify","method":"POST","contentType":"application/json","headers":{},"bodyTemplate":"","eventTypes":[]}""",
+        )
+        val kim = admin.post("/api/v1/admin/members", """{"loginId":"jimin","password":"$PASSWORD","displayName":"김지민"}""").json()["id"]
+        admin.post("/api/v1/issues", """{"title":"로그인 오류","assigneeIds":["$kim"]}""")
+        val connection = connect()
+        // What the admin did (making the issue) goes out first, to the assignee.
+        dispatcher.flush(1, adminId())
+        awaitTrue { received.size == 1 }
+        received.clear()
+
+        // A link and commits only: nothing to tell.
+        deliver(connection, "pull_request", pullRequest(number = 50, title = "정리", body = "Refs FB-1", branch = "chore"))
+        deliver(connection, "push", push("main", "FB-1 언급"))
+        dispatcher.flush(1, null)
+        Thread.sleep(300)
+        assertEquals(emptyList(), received.toList())
+
+        // Work started by someone without an account here: everyone who follows the issue hears it.
+        deliver(connection, "push", push("fb-1-login", pusher = Triple("parkhs", "parkhs@example.com", "박현수")))
+        dispatcher.flush(1, null)
+        awaitTrue { received.size == 2 }
+        val payload = mapper.readTree(received.first())
+        assertEquals("parkhs(Git)", payload.get("actor").get("name").asString())
+        val changes = payload.get("changes")
+        assertEquals(1, changes.size())
+        assertEquals("STATUS_CHANGED", changes.get(0).get("type").asString())
+        assertEquals(
+            "IN_PROGRESS",
+            changes
+                .get(0)
+                .get("detail")
+                .get("to")
+                .asString(),
+        )
+        assertTrue(payload.get("text").asString().contains("parkhs(Git) 님이 Git에서 티켓을 수정했습니다"))
     }
 
     // --- helpers --------------------------------------------------------------------------------
@@ -422,14 +561,41 @@ class GitIntegrationTest : IntegrationTest() {
         return mapper.writeValueAsString(node)
     }
 
-    /** The merged pull request sample: #34 from kimjm/fb-1-login-error, merged by leesj. */
+    /** The merged pull request sample, by default #34 from kimjm/fb-1-login-error; merged by leesj. */
     private fun merged(
+        number: Int = 34,
         title: String = "FB-1 로그인 오류 수정",
         body: String = "세션이 만료되면 로그인 화면으로 보냅니다.",
+        branch: String = "kimjm/fb-1-login-error",
     ): String {
         val node = sample("gitea-pull-request-merged.json")
-        (node.get("pull_request") as ObjectNode).put("title", title).put("body", body)
+        node.put("number", number)
+        val pr = node.get("pull_request") as ObjectNode
+        pr
+            .put("number", number)
+            .put("title", title)
+            .put("body", body)
+            .put("html_url", "https://git.example.com/acme/web/pulls/$number")
+        (pr.get("head") as ObjectNode).put("ref", branch).put("label", branch)
         return mapper.writeValueAsString(node)
+    }
+
+    /** Issues FB-1, FB-2, … in these states. */
+    private fun createIssues(vararg statuses: String) {
+        statuses.forEachIndexed { index, status -> admin.post("/api/v1/issues", """{"title":"티켓 ${index + 1}","status":"$status"}""") }
+    }
+
+    /** The states of FB-1 to FB-[last]. */
+    private fun statuses(last: Int): List<Any?> = (1..last).map { admin.get("/api/v1/issues/$it").json()["status"] }
+
+    private fun adminId(): java.util.UUID = java.util.UUID.fromString(admin.me().json()["id"] as String)
+
+    private fun awaitTrue(condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 10_000
+        while (!condition()) {
+            check(System.currentTimeMillis() < deadline) { "Timed out waiting; received $received" }
+            Thread.sleep(50)
+        }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -462,4 +628,21 @@ class GitIntegrationTest : IntegrationTest() {
     @Suppress("UNCHECKED_CAST")
     private fun fieldErrors(problem: Map<String, Any?>): Map<String, String> =
         (problem["errors"] as List<Map<String, Any?>>).associate { it["field"] as String to it["code"] as String }
+
+    companion object {
+        /** Bodies of the API notifications Flowbit sent. */
+        private val received = CopyOnWriteArrayList<String>()
+
+        private val server: HttpServer =
+            HttpServer.create(InetSocketAddress("localhost", 0), 0).apply {
+                createContext("/") { exchange ->
+                    received += String(exchange.requestBody.readAllBytes())
+                    exchange.sendResponseHeaders(200, -1)
+                    exchange.close()
+                }
+                start()
+            }
+
+        private val outside = "http://localhost:${server.address.port}"
+    }
 }

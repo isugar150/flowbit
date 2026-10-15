@@ -4,6 +4,8 @@ import com.flowbit.common.error.ApiException
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.UnauthenticatedException
 import com.flowbit.common.ratelimit.RateLimiter
+import com.flowbit.issue.api.IssueAnnouncer
+import com.flowbit.realtime.RealtimeHub
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.slf4j.LoggerFactory
@@ -90,6 +92,7 @@ class PayloadTooLargeException : ApiException(HttpStatus.valueOf(413), "PAYLOAD_
 class GitWebhookController(
     private val service: GitWebhookService,
     private val rateLimiter: RateLimiter,
+    private val announcer: IssueAnnouncer,
 ) {
     /** 200 with what was linked; an event Flowbit does not use is 200 too, with nothing in it. */
     @PostMapping("/api/v1/integrations/git/{id}/webhook")
@@ -100,6 +103,9 @@ class GitWebhookController(
         val connectionId = runCatching { UUID.fromString(id) }.getOrNull() ?: throw NotFoundException("GIT_CONNECTION_NOT_FOUND", "Git 연결을 찾을 수 없습니다")
         rateLimiter.check("git-webhook", connectionId.toString(), REQUESTS_PER_MINUTE, Duration.ofMinutes(1))
         val result = service.receive(connectionId, exchange.request.headers, read(exchange))
+        // Committed by now: status changes are told like changes by hand; pages with new links read again.
+        result.changes.forEach { (actor, change) -> announcer.changed(actor, change) }
+        (result.touched - result.changes.map { it.second.issue.number }.toSet()).forEach { announcer.touched(RealtimeHub.NOBODY, it) }
         return result.receipt
     }
 

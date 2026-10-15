@@ -103,6 +103,9 @@ class RealtimeHub {
     }
 
     companion object {
+        /** Stands for whoever made a change no signed-in person made, such as a Git server's (D-141). */
+        val NOBODY: UUID = UUID(0, 0)
+
         /** Topic for "some issue changed", heard by the lists that span projects (전체 티켓, 내 티켓). */
         const val ISSUES = "issues"
 

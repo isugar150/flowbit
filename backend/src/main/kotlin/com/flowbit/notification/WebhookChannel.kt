@@ -86,7 +86,7 @@ class WebhookSender(
                             "url" to message.url,
                             "projectId" to notification.projectId?.toString(),
                         ),
-                    "actor" to mapOf("id" to notification.actorId.toString(), "name" to notification.actorName),
+                    "actor" to mapOf("id" to notification.actorId?.toString(), "name" to notification.actorName),
                     "changes" to notification.events.map { mapOf("type" to it.type, "detail" to it.detail) },
                 ),
             values =

@@ -3,9 +3,11 @@ package com.flowbit.git
 import com.flowbit.common.UuidV7
 import com.flowbit.issue.application.Actor
 import com.flowbit.issue.application.IssueActivityType
+import com.flowbit.issue.application.IssueChange
 import com.flowbit.issue.application.IssueEvent
 import com.flowbit.issue.application.IssueService
 import com.flowbit.issue.domain.Issue
+import com.flowbit.issue.domain.IssueStatus
 import com.flowbit.user.application.UserService
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -22,13 +24,17 @@ data class GitApplyResult(
     val touched: Set<Int>,
     /** The projects those issues are linked to, whose lists should read again. */
     val projectIds: Set<UUID>,
+    /** Status changes, with who made them, to announce once they are committed. */
+    val changes: List<Pair<Actor, IssueChange>> = emptyList(),
 )
 
 /**
  * Links issues to what a Git server reported (docs/features/git-integration.md "티켓 키 인식"):
  * the branches whose names hold a key, the pull requests that name one, and the commits. Each is
  * stored once, so a delivery that comes again changes nothing; the history gets an entry only for
- * what is new. Call inside a transaction.
+ * what is new. Then moves the issues along ("상태 자동 변경"): a branch pushed or a pull request
+ * opened starts the work, a closing pull request merged finishes it. Never backwards. Call inside
+ * a transaction.
  */
 @Service
 class GitLinkService(
@@ -51,17 +57,20 @@ class GitLinkService(
             }
         }
         return GitApplyResult(
-            GitReceiptResult(run.linked.keys.map(run.keys::keyOf), emptyList(), run.skipped),
+            GitReceiptResult(run.linked.keys.map(run.keys::keyOf), run.statusChanged.map(run.keys::keyOf), run.skipped),
             run.linked.keys.toSet(),
             run.linked.values
                 .mapNotNull { it.projectId }
                 .toSet(),
+            run.changes.toList(),
         )
     }
 
     /**
      * A branch holding a key is linked to that issue; so is every commit pushed with it, and every
-     * commit whose message names an issue.
+     * commit whose message names an issue. The first push of the branch starts the work. A commit
+     * straight to the default branch that says "Fixes FB-12" finishes the issue, for teams that
+     * work without pull requests.
      */
     private suspend fun push(
         run: Run,
@@ -79,7 +88,8 @@ class GitLinkService(
         for (issue in issues) {
             val events = mutableListOf<IssueEvent>()
             val onBranch = issue.number in branchNumbers
-            if (onBranch && linkBranch(run.connection.id, issue.id, push.repository, branch, push.branchUrl.orEmpty())) {
+            val branchLinked = onBranch && linkBranch(run.connection.id, issue.id, push.repository, branch, push.branchUrl.orEmpty())
+            if (branchLinked) {
                 events += IssueEvent(IssueActivityType.GIT_BRANCH_LINKED, mapOf("repository" to push.repository, "branch" to branch, "url" to push.branchUrl))
             }
             val added =
@@ -103,6 +113,8 @@ class GitLinkService(
                     )
             }
             issueService.recordFromGit(issue.id, actor, events)
+            if (branchLinked) moveTo(run, issue, IssueStatus.IN_PROGRESS, actor)
+            if (push.toDefaultBranch && commits.any { issue.number in keys.closingNumbers(it.message) }) moveTo(run, issue, IssueStatus.DONE, actor)
             run.linked[issue.number] = issue
         }
     }
@@ -110,6 +122,8 @@ class GitLinkService(
     /**
      * A key in the branch or the title, or after "Fixes" in the body, makes a closing link; a key
      * anywhere else in the body only refers to the issue. A link that closes stays closing.
+     * Opening a closing pull request starts the work; merging it finishes the issue, unless another
+     * closing pull request of the issue is still open.
      */
     private suspend fun pullRequest(
         run: Run,
@@ -141,9 +155,59 @@ class GitLinkService(
                     else -> null
                 }
             if (ended != null) issueService.recordFromGit(issue.id, run.actorOf(pr.actor), listOf(IssueEvent(ended, reference)))
+            if (link.closes) {
+                val open = pr.state == GitPrState.OPEN || pr.state == GitPrState.DRAFT
+                if (open && (link.created || pr.action == "reopened")) {
+                    moveTo(run, issue, IssueStatus.IN_PROGRESS, run.actorOf(if (link.created) pr.author else pr.actor))
+                }
+                if (ended == IssueActivityType.GIT_PR_MERGED && !otherOpenClosingPullRequest(issue.id, link.id)) {
+                    moveTo(run, issue, IssueStatus.DONE, run.actorOf(pr.actor))
+                }
+            }
             run.linked[issue.number] = issue
         }
     }
+
+    /**
+     * Moves the issue on when the connection does that: to "in progress" only from the backlog or
+     * ready, to "done" from anything not finished or canceled.
+     */
+    private suspend fun moveTo(
+        run: Run,
+        issue: Issue,
+        status: IssueStatus,
+        actor: Actor,
+    ) {
+        val (enabled, from) =
+            when (status) {
+                IssueStatus.IN_PROGRESS -> run.connection.autoInProgress to NOT_STARTED
+                IssueStatus.DONE -> run.connection.autoDone to NOT_FINISHED
+                else -> return
+            }
+        if (!enabled) return
+        val change = issueService.changeStatusFromGit(issue.id, status, from, actor) ?: return
+        run.changes += actor to change
+        run.statusChanged += issue.number
+    }
+
+    /** Whether the issue has an open (or draft) closing pull request besides [linkId], on any connection. */
+    private suspend fun otherOpenClosingPullRequest(
+        issueId: UUID,
+        linkId: UUID?,
+    ): Boolean =
+        databaseClient
+            .sql(
+                """
+                select exists(
+                    select 1 from issue_git_links
+                    where issue_id = :issueId and kind = 'PULL_REQUEST' and closes and pr_state in ('OPEN', 'DRAFT') and id <> :linkId
+                )
+                """.trimIndent(),
+            ).bind("issueId", issueId)
+            .bind("linkId", linkId ?: UUID(0, 0))
+            .map { row -> checkNotNull(row.get(0, Boolean::class.javaObjectType)) }
+            .one()
+            .awaitSingle()
 
     // --- storing --------------------------------------------------------------------------------
 
@@ -176,6 +240,8 @@ class GitLinkService(
     }
 
     private data class PullRequestLink(
+        /** Null only when the row went away between the insert and the read. */
+        val id: UUID?,
         val created: Boolean,
         /** The state stored before this event; null for a new link. */
         val previousState: GitPrState?,
@@ -193,6 +259,7 @@ class GitLinkService(
         closes: Boolean,
     ): PullRequestLink {
         val now = clock.instant()
+        val newId = UuidV7.generate(now)
         val inserted =
             databaseClient
                 .sql(
@@ -201,7 +268,7 @@ class GitLinkService(
                     values (:id, :issueId, :connectionId, 'PULL_REQUEST', :repository, :branch, :number, :title, :url, :state, :closes, :now, :now)
                     on conflict do nothing
                     """.trimIndent(),
-                ).bind("id", UuidV7.generate(now))
+                ).bind("id", newId)
                 .bind("issueId", issueId)
                 .bind("connectionId", connectionId)
                 .bind("repository", pr.repository)
@@ -215,7 +282,7 @@ class GitLinkService(
                 .fetch()
                 .rowsUpdated()
                 .awaitSingle()
-        if (inserted > 0) return PullRequestLink(created = true, previousState = null, closes = closes)
+        if (inserted > 0) return PullRequestLink(newId, created = true, previousState = null, closes = closes)
 
         val stored =
             databaseClient
@@ -237,7 +304,7 @@ class GitLinkService(
                         checkNotNull(row.get("closes", Boolean::class.javaObjectType)),
                     )
                 }.one()
-                .awaitSingleOrNull() ?: return PullRequestLink(created = false, previousState = pr.state, closes = closes)
+                .awaitSingleOrNull() ?: return PullRequestLink(null, created = false, previousState = pr.state, closes = closes)
         val (id, previousState, wasClosing) = stored
         databaseClient
             .sql("update issue_git_links set title = :title, url = :url, pr_state = :state, closes = :closes, updated_at = :now where id = :id")
@@ -250,7 +317,7 @@ class GitLinkService(
             .fetch()
             .rowsUpdated()
             .awaitSingle()
-        return PullRequestLink(created = false, previousState = previousState, closes = wasClosing || closes)
+        return PullRequestLink(id, created = false, previousState = previousState, closes = wasClosing || closes)
     }
 
     /** True when the commit was not recorded on the issue before. */
@@ -289,6 +356,8 @@ class GitLinkService(
     ) {
         /** By number: the same issue may come up in several events. */
         val linked = linkedMapOf<Int, Issue>()
+        val statusChanged = linkedSetOf<Int>()
+        val changes = mutableListOf<Pair<Actor, IssueChange>>()
         var skipped = 0
         private val actors = mutableMapOf<GitPerson, Actor>()
 
@@ -325,6 +394,9 @@ class GitLinkService(
     ) = if (value == null) bindNull(name, String::class.java) else bind(name, value)
 
     private companion object {
+        val NOT_STARTED = setOf(IssueStatus.BACKLOG, IssueStatus.READY)
+        val NOT_FINISHED = setOf(IssueStatus.BACKLOG, IssueStatus.READY, IssueStatus.IN_PROGRESS)
+
         /** Issues one event may link (docs/features/git-integration.md). */
         const val MAX_ISSUES = 20
 

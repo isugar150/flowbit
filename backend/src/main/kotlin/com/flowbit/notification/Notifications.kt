@@ -27,7 +27,8 @@ data class IssueNotification(
     val issueTitle: String,
     /** The project the issue is linked to, if any. */
     val projectId: UUID?,
-    val actorId: UUID,
+    /** Null when a Git server made the change for someone without an account here (D-141). */
+    val actorId: UUID?,
     val actorName: String,
     /** IssueActivityType names, such as STATUS_CHANGED, with the same details the activity list shows. */
     val events: List<Event>,
@@ -95,7 +96,7 @@ class NotificationDispatcher(
 ) {
     private data class Key(
         val issueNumber: Int,
-        val actorId: UUID,
+        val actorId: UUID?,
     )
 
     private class Pending(
@@ -155,7 +156,7 @@ class NotificationDispatcher(
     /** Sends at once what `actorId` has done to the issue and is still held. Nothing happens when nothing is held. */
     fun flush(
         issueNumber: Int,
-        actorId: UUID,
+        actorId: UUID?,
     ) {
         val held = synchronized(pending) { pending.remove(Key(issueNumber, actorId)) } ?: return
         held.timer.cancel()
