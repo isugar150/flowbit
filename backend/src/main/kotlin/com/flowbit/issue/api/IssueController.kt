@@ -15,6 +15,7 @@ import com.flowbit.issue.application.IssueActivityType
 import com.flowbit.issue.application.IssueChange
 import com.flowbit.issue.application.IssueDetail
 import com.flowbit.issue.application.IssueGitLinkView
+import com.flowbit.issue.application.IssueGitRepositoryView
 import com.flowbit.issue.application.IssueLabel
 import com.flowbit.issue.application.IssueMilestone
 import com.flowbit.issue.application.IssueParent
@@ -162,6 +163,11 @@ data class IssueResponse(
     val documents: List<DocumentSummaryResponse>? = null,
     /** Branches and pull requests a Git server linked the issue to; empty when none. */
     val git: List<IssueGitLinkView>? = null,
+    /** The repository picked on the issue, or null (D-148). */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    val gitRepository: IssueGitRepositoryView? = null,
+    /** The project's repositories it can be picked from; empty for an issue on its own. */
+    val gitRepositoryOptions: List<IssueGitRepositoryView>? = null,
 ) {
     companion object {
         fun from(issue: IssueView) =
@@ -202,6 +208,8 @@ data class IssueResponse(
                 attachments = detail.attachments.map(AttachmentResponse::from),
                 documents = detail.documents.map(DocumentSummaryResponse::from),
                 git = detail.git,
+                gitRepository = detail.gitRepository,
+                gitRepositoryOptions = detail.gitRepositoryOptions,
             )
     }
 }
@@ -343,6 +351,12 @@ data class CreateIssueRequest(
         )
 }
 
+/** Both null takes the pick away. */
+data class GitRepositoryRequest(
+    val connectionId: UUID? = null,
+    val repository: String? = null,
+)
+
 data class ReactionRequest(
     val emoji: String,
 )
@@ -471,6 +485,17 @@ class IssueController(
         // A new sub-issue shows on its parent's page.
         change.issue.parent?.let { announcer.touched(user, it.number) }
         return IssueResponse.from(change.issue)
+    }
+
+    /** Picks which of its project's repositories the issue's work is in (D-148). */
+    @PutMapping("/{number}/git-repository")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun setGitRepository(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+        @RequestBody body: GitRepositoryRequest,
+    ) {
+        announcer.touched(user, issueService.setGitRepository(user, number, body.connectionId, body.repository))
     }
 
     @GetMapping("/{number}")

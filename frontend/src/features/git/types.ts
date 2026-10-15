@@ -89,6 +89,22 @@ export type GitHubManifestForm = { action: string; manifest: string };
 
 export type GitPrState = "OPEN" | "DRAFT" | "MERGED" | "CLOSED";
 
+/** A repository on one of the Git connections. */
+export type GitRepositoryRef = { connectionId: string; repository: string };
+
+/** A repository an issue's work can be in, with its page on the Git server (D-148). */
+export type IssueGitRepository = GitRepositoryRef & { url: string };
+
+/** GET /api/v1/projects/{id}/git */
+export type ProjectGitSettings = {
+  /** Whether Git is in use at all; without it the settings are not shown. */
+  enabled: boolean;
+  connections: { id: string; name: string; provider: GitProvider }[];
+  repositories: GitRepositoryRef[];
+  /** Repositories Flowbit has already heard from, to pick from. */
+  suggestions: GitRepositoryRef[];
+};
+
 /** A branch or pull request an issue is linked to (GET /api/v1/issues/{number}, `git`). */
 export type IssueGitLink = {
   kind: "BRANCH" | "PULL_REQUEST";

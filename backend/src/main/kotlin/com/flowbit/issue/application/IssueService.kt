@@ -106,6 +106,10 @@ data class IssueDetail(
     val documents: List<DocumentSummary>,
     /** Branches and pull requests a Git server linked it to (D-141). */
     val git: List<IssueGitLinkView> = emptyList(),
+    /** The repository picked on the issue (D-148); kept only while it is one of [gitRepositoryOptions]. */
+    val gitRepository: IssueGitRepositoryView? = null,
+    /** The repositories of its project that can be picked; empty for an issue on its own. */
+    val gitRepositoryOptions: List<IssueGitRepositoryView> = emptyList(),
 )
 
 /** A comment that was written or changed, with whom to tell about it. */
@@ -236,6 +240,11 @@ class IssueService(
             attachments = extras.attachments(id),
             documents = extras.documents(id),
             git = extras.gitLinks(id),
+            gitRepository = gitRepositoryOf(access.issue),
+            gitRepositoryOptions =
+                access.issue.projectId
+                    ?.let { extras.projectGitRepositories(it) }
+                    .orEmpty(),
         )
     }
 
@@ -794,6 +803,37 @@ class IssueService(
         val issue = repository.findById(issueId) ?: return null
         val view = detail(issue.number) ?: return null
         return IssueChange(view, events.map(actor::mark), activities.recipientIds(issue.id).filter { it != actor.userId })
+    }
+
+    /** The repository picked on the issue, while it is still one of its project's (D-148). */
+    private suspend fun gitRepositoryOf(issue: Issue): IssueGitRepositoryView? {
+        val picked = extras.issueGitRepository(issue.id) ?: return null
+        val options = issue.projectId?.let { extras.projectGitRepositories(it) }.orEmpty()
+        return picked.takeIf { choice -> options.any { it.connectionId == choice.connectionId && it.repository == choice.repository } }
+    }
+
+    /**
+     * Picks which of its project's repositories the issue's work is in (D-148), or takes the pick
+     * away with nulls. Needs the right to edit the issue. Returns the issue's number.
+     */
+    suspend fun setGitRepository(
+        user: AuthenticatedUser,
+        number: Int,
+        connectionId: UUID?,
+        rawRepository: String?,
+    ): Int {
+        val issue = editable(access(user, number)).issue
+        val repository = rawRepository?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        if (connectionId != null && repository != null) {
+            val options = issue.projectId?.let { extras.projectGitRepositories(it) }.orEmpty()
+            if (options.none { it.connectionId == connectionId && it.repository == repository }) {
+                throw ValidationException("repository", "NOT_IN_PROJECT", "이 티켓의 프로젝트에 정해진 저장소가 아닙니다")
+            }
+            extras.setIssueGitRepository(issue.id, connectionId, repository, clock.instant())
+        } else {
+            extras.setIssueGitRepository(issue.id, null, null, clock.instant())
+        }
+        return number
     }
 
     /** Adds history entries for something a Git server reported, marked as coming from Git. */

@@ -41,6 +41,7 @@ class GitLinkService(
     private val issueService: IssueService,
     private val userService: UserService,
     private val accounts: GitAccountService,
+    private val projectRepositoryService: GitProjectRepositoryService,
     private val keyMatcher: IssueKeyMatcher,
     private val databaseClient: DatabaseClient,
     private val clock: Clock,
@@ -83,7 +84,7 @@ class GitLinkService(
         val branchNumbers = keys.numbers(branch)
         val commits = push.commits.take(MAX_COMMITS)
         val named = commits.associate { it.sha to keys.numbers(it.message) }
-        val issues = run.targets(branchNumbers + named.values.flatten())
+        val issues = run.targets(branchNumbers + named.values.flatten(), push.repository)
         if (issues.isEmpty()) return
         val actor = run.actorOf(push.pusher)
         for (issue in issues) {
@@ -132,7 +133,7 @@ class GitLinkService(
     ) {
         val keys = run.keys
         val closing = (keys.numbers(pr.headBranch) + keys.numbers(pr.title) + keys.closingNumbers(pr.body)).toSet()
-        val issues = run.targets(keys.numbers(pr.headBranch) + keys.numbers(pr.title) + keys.numbers(pr.body))
+        val issues = run.targets(keys.numbers(pr.headBranch) + keys.numbers(pr.title) + keys.numbers(pr.body), pr.repository)
         if (issues.isEmpty()) return
         val reference = mapOf("repository" to pr.repository, "number" to pr.number, "title" to pr.title, "url" to pr.url)
         for (issue in issues) {
@@ -374,12 +375,34 @@ class GitLinkService(
         var skipped = 0
         private val actors = mutableMapOf<GitPerson, Actor>()
 
+        /** Projects that chose their repositories (D-148), read once per call. */
+        private var projectRepositories: Map<UUID, Set<GitRepositoryRef>>? = null
+
         /**
-         * The issues the numbers name that this connection may touch, at most [MAX_ISSUES] for one
-         * event; the rest are counted as skipped.
+         * The issues the numbers name that an event from [repository] may touch, at most
+         * [MAX_ISSUES] for one event; the rest are counted as skipped. An issue of a project that
+         * chose its repositories is touched only from those, whatever the connection's allowed
+         * projects; any other issue only when the connection allows its project.
          */
-        suspend fun targets(numbers: List<Int>): List<Issue> {
-            val found = issueService.gitTargets(numbers.distinct(), projectIds)
+        suspend fun targets(
+            numbers: List<Int>,
+            repository: String,
+        ): List<Issue> {
+            val chosen = projectRepositories ?: projectRepositoryService.all().also { projectRepositories = it }
+            val from = GitRepositoryRef(connection.id, repository.lowercase())
+            val candidates = issueService.gitTargets(numbers.distinct(), null)
+            val picked = projectRepositoryService.issueRepositories(candidates.map { it.id })
+            val found =
+                candidates.filter { issue ->
+                    val repositories = issue.projectId?.let { chosen[it] }
+                    // A pick counts while it is still one of the project's repositories.
+                    val pick = picked[issue.id]?.takeIf { repositories != null && it in repositories }
+                    when {
+                        pick != null -> from == pick
+                        repositories != null -> from in repositories
+                        else -> projectIds == null || issue.projectId in projectIds
+                    }
+                }
             skipped += (found.size - MAX_ISSUES).coerceAtLeast(0)
             return found.take(MAX_ISSUES)
         }

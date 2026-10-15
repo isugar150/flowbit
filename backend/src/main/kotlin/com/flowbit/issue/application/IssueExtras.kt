@@ -52,6 +52,15 @@ data class IssueGitLinkView(
     val closes: Boolean,
 )
 
+/** A Git repository an issue's work can be in (D-148). */
+data class IssueGitRepositoryView(
+    val connectionId: UUID,
+    /** org/web */
+    val repository: String,
+    /** The repository's page on the Git server. */
+    val url: String,
+)
+
 /** How deep documents nest in a project: a document on the overview is level 1. An issue's stay at level 1. */
 const val MAX_DOCUMENT_DEPTH = 5
 
@@ -286,6 +295,82 @@ class IssueExtrasStore(
         return links
             .filterNot { (connectionId, link) -> link.kind != PULL_REQUEST && Triple(connectionId, link.repository, link.branch) in branchesWithPullRequest }
             .map { it.second }
+    }
+
+    /** The repositories the project's managers chose, on connections that are switched on. */
+    suspend fun projectGitRepositories(projectId: UUID): List<IssueGitRepositoryView> =
+        gitRepositories(
+            """
+            select r.connection_id, r.repository, c.base_url from project_git_repositories r
+            join git_connections c on c.id = r.connection_id and c.enabled
+            where r.project_id = :id order by r.created_at, r.repository
+            """.trimIndent(),
+            projectId,
+        )
+
+    /** The repository picked on the issue, if any. */
+    suspend fun issueGitRepository(issueId: UUID): IssueGitRepositoryView? =
+        gitRepositories(
+            """
+            select r.connection_id, r.repository, c.base_url from issue_git_repositories r
+            join git_connections c on c.id = r.connection_id
+            where r.issue_id = :id
+            """.trimIndent(),
+            issueId,
+        ).firstOrNull()
+
+    /** Picks the issue's repository, or takes the pick away with null. */
+    suspend fun setIssueGitRepository(
+        issueId: UUID,
+        connectionId: UUID?,
+        repository: String?,
+        now: Instant,
+    ) {
+        if (connectionId == null || repository == null) {
+            deleteWhere("issue_git_repositories", "issue_id", issueId)
+            return
+        }
+        databaseClient
+            .sql(
+                """
+                insert into issue_git_repositories (issue_id, connection_id, repository, updated_at) values (:id, :connection, :repository, :now)
+                on conflict (issue_id) do update set connection_id = excluded.connection_id, repository = excluded.repository, updated_at = excluded.updated_at
+                """.trimIndent(),
+            ).bind("id", issueId)
+            .bind("connection", connectionId)
+            .bind("repository", repository)
+            .bind("now", now)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
+    private suspend fun gitRepositories(
+        sql: String,
+        id: UUID,
+    ): List<IssueGitRepositoryView> =
+        databaseClient
+            .sql(sql)
+            .bind("id", id)
+            .map { row ->
+                val repository = checkNotNull(row.get("repository", String::class.java))
+                val base = checkNotNull(row.get("base_url", String::class.java)).trimEnd('/')
+                IssueGitRepositoryView(checkNotNull(row.get("connection_id", UUID::class.java)), repository, "$base/$repository")
+            }.all()
+            .collectList()
+            .awaitSingle()
+
+    private suspend fun deleteWhere(
+        table: String,
+        column: String,
+        id: UUID,
+    ) {
+        databaseClient
+            .sql("delete from $table where $column = :id")
+            .bind("id", id)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
     }
 
     private suspend fun deleteById(

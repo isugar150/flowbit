@@ -847,8 +847,22 @@ export const ko = {
         back: "Git 연동으로 돌아가기",
       },
     },
+    repositories: {
+      title: "Git 저장소",
+      description:
+        "이 프로젝트의 작업이 있는 저장소입니다. 정해 두면 이 프로젝트의 티켓은 이 저장소들에서 온 브랜치·PR·커밋만 연결되고, Git 연결의 허용 프로젝트와 상관없이 연결됩니다. 여러 개면 티켓마다 저장소를 고를 수 있습니다.",
+      empty: "정한 저장소가 없습니다. 지금은 Git 연결의 허용 프로젝트를 따릅니다.",
+      connection: "Git 연결",
+      repository: "저장소",
+      placeholder: "조직/저장소 (예: acme/web)",
+      add: "추가",
+      remove: (repository: string) => `${repository} 빼기`,
+    },
     panel: {
       heading: "Git",
+      repository: "저장소",
+      noRepository: "저장소 정하지 않음",
+      openRepository: (repository: string) => `${repository} 열기`,
       states: { OPEN: "열림", DRAFT: "초안", MERGED: "머지됨", CLOSED: "닫힘" },
       pullRequestLabel: (repository: string, number: number, title: string, state: string) =>
         `${repository} #${number} ${title} (${state}, Git 서버에서 열기)`,

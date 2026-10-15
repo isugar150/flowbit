@@ -1,5 +1,13 @@
 import { apiFetch } from "@/lib/api/client";
-import type { GitAccount, GitConnection, GitConnectionInput, GitHubManifestForm, GitReceiptResult } from "./types";
+import type {
+  GitAccount,
+  GitConnection,
+  GitConnectionInput,
+  GitHubManifestForm,
+  GitReceiptResult,
+  GitRepositoryRef,
+  ProjectGitSettings,
+} from "./types";
 
 const ADMIN = "/api/v1/admin/git/connections";
 
@@ -48,4 +56,17 @@ export function syncGitConnection(id: string): Promise<GitReceiptResult> {
 /** Says which Git user a member is; an empty name takes it away. */
 export function saveGitAccount({ userId, username }: { userId: string; username: string }): Promise<GitAccount> {
   return apiFetch<GitAccount>(`/api/v1/admin/git/accounts/${userId}`, { method: "PUT", body: { username } });
+}
+
+/** Replaces the repositories a project's work happens in (D-148). Its managers only. */
+export function saveProjectGitRepositories({ projectId, repositories }: { projectId: string; repositories: GitRepositoryRef[] }): Promise<ProjectGitSettings> {
+  return apiFetch<ProjectGitSettings>(`/api/v1/projects/${encodeURIComponent(projectId)}/git/repositories`, {
+    method: "PUT",
+    body: { repositories },
+  });
+}
+
+/** Picks which of its project's repositories an issue's work is in; null takes the pick away. */
+export function setIssueGitRepository({ number, repository }: { number: number; repository: GitRepositoryRef | null }): Promise<void> {
+  return apiFetch<void>(`/api/v1/issues/${number}/git-repository`, { method: "PUT", body: repository ?? {} });
 }

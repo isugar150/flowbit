@@ -30,7 +30,7 @@
 - **프로젝트의 "한 줄 요약"을 화면에서 없앴다** (D-134). 컬럼·API 필드는 남아 있다. 이것도 검사하지 않았다.
 - **프로젝트의 "티켓" 탭을 없앴다** (D-135). 개요·목표 상세의 링크는 `/issues?project=…` 로 가고, `/project/{id}/issues` 는 그리로 넘겨 준다. 검사·화면 확인을 하지 않았다. **E2E(`changes`·`features`·`flows.spec.ts`)가 예전 주소와 탭을 쓰므로 고쳐야 할 수 있다.**
 
-- **Git 연동이 명세 끝까지 구현됐다** (D-141, D-145~D-147, 2026-10-15~16, [features/git-integration.md](features/git-integration.md)). Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(관리자 화면에서 매니페스트로 만들고 조직에 설치, 웹훅 또는 2분마다 API 가져오기). 관리자 설정 > "Git 연동" 탭(`/admin/git`, "사람 맞추기" 포함), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`, 티켓 키 옆 "브랜치 이름 복사"(Git 이 쓰일 때만), API 알림의 Git 종류. 마이그레이션 `V11`~`V13`. 백엔드 `GitIntegrationTest` 17개·`GitHubIntegrationTest` 3개, 프런트 단위 테스트(`npm test`)와 E2E `git.spec.ts` 통과. **실제 Gitea·GitLab·GitHub 서버로는 아직 아무도 시험하지 않았다**(견본 페이로드와 가짜 GitHub 로 테스트했다). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11`~`V13` 을 적용해야 한다.**
+- **Git 연동이 명세 끝까지 구현됐다** (D-141, D-145~D-147, 2026-10-15~16, [features/git-integration.md](features/git-integration.md)). Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(관리자 화면에서 매니페스트로 만들고 조직에 설치, 웹훅 또는 2분마다 API 가져오기). 관리자 설정 > "Git 연동" 탭(`/admin/git`, "사람 맞추기" 포함), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`, 티켓 키 옆 "브랜치 이름 복사"(Git 이 쓰일 때만), API 알림의 Git 종류. 마이그레이션 `V11`~`V14`. 백엔드 `GitIntegrationTest` 17개·`GitHubIntegrationTest` 3개, 프런트 단위 테스트(`npm test`)와 E2E `git.spec.ts` 통과. **실제 Gitea·GitLab·GitHub 서버로는 아직 아무도 시험하지 않았다**(견본 페이로드와 가짜 GitHub 로 테스트했다). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11`~`V14` 를 적용해야 한다.** 프로젝트마다 저장소를 정하고 티켓에서 고를 수 있다(D-148).
 - **편집기에 Figma·Google(문서·스프레드시트·프레젠테이션)·Office·Outline 임베드가 생겼다** (D-139, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
 
 ## 다음 작업
@@ -180,6 +180,13 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-16 — 프로젝트별 Git 저장소와 티켓의 저장소 (D-148)
+
+- 사용자 지시: 허용 프로젝트와 상관없이 프로젝트마다 Git 저장소를 정하게, 여러 개도 되게, 여럿이면 티켓에서 고르게(사용자가 "티켓에 저장소 지정"을 골랐다).
+- 백엔드: `V14`(`project_git_repositories`, `issue_git_repositories`), `git/GitProjectRepositories.kt`(`GET/PUT /api/v1/projects/{id}/git…`), `IssueService.setGitRepository`(`PUT /api/v1/issues/{번호}/git-repository`), 티켓 응답의 `gitRepository`·`gitRepositoryOptions`. 이벤트가 닿는 규칙은 `GitLinkService` 의 `Run.targets`: 티켓의 저장소 → 프로젝트의 저장소 → 연결의 허용 프로젝트. 통합 테스트 둘 추가(`GitIntegrationTest` 19개), `./gradlew check` 통과.
+- 프런트: 프로젝트 설정의 "Git 저장소"(`project-git-repositories.tsx`, Git 이 쓰일 때만), 티켓 옆 Git 묶음의 저장소 선택(`issue-git-repository.tsx`, 프로젝트에 저장소가 둘 이상일 때만), 키 메뉴의 "<저장소> 열기".
+- 화면 확인: 검사용 서버(8081/3100)에서 저장소 둘인 프로젝트의 티켓에서 `acme/api` 를 골라 패널과 키 메뉴를 봤고, 프로젝트 설정에서 저장소를 하나 더 추가했다.
 
 ### 2026-10-16 — Git 연동 나머지 전부: GitLab, GitHub App, 브랜치 이름 복사, API 알림, 사람 맞추기 (D-146, D-147)
 

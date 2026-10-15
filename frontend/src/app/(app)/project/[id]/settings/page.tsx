@@ -1,5 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { SettingsSection } from "@/components/settings-section";
+import { ProjectGitRepositories } from "@/features/git/components/project-git-repositories";
+import type { ProjectGitSettings } from "@/features/git/types";
 import type { UserSummary } from "@/features/members/types";
 import { ArchiveProjectSection } from "@/features/projects/components/archive-project-section";
 import { ProjectAccessRequests } from "@/features/projects/components/project-access-requests";
@@ -25,12 +27,13 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
   if (project.myRole !== "MANAGER") redirect(`/project/${project.id}`);
   const canManage = true;
   // The list of people to add, and who is waiting to be let in, are only for those who can add.
-  const [users, requests] = canManage
+  const [users, requests, git] = canManage
     ? await Promise.all([
         serverGet<UserSummary[]>("/api/v1/users").then((list) => list ?? []),
         serverGet<ProjectAccessRequest[]>(`${path}/access-requests`).then((list) => list ?? []),
+        serverGet<ProjectGitSettings>(`${path}/git`),
       ])
-    : [[], []];
+    : [[], [], null];
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10">
@@ -49,6 +52,12 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
         {/* Below the members: people waiting to be let in (D-128). Notifications about a request open this. */}
         {canManage ? <ProjectAccessRequests projectId={project.id} requests={requests} /> : null}
       </SettingsSection>
+      {/* Only while Git is in use (D-145); a project that already chose repositories keeps seeing them. */}
+      {canManage && git && (git.enabled || git.repositories.length > 0) ? (
+        <SettingsSection title={messages.git.repositories.title} description={messages.git.repositories.description}>
+          <ProjectGitRepositories projectId={project.id} settings={git} />
+        </SettingsSection>
+      ) : null}
       {canManage ? (
         <SettingsSection title={m.archiveTitle} description={m.archiveDescription}>
           <ArchiveProjectSection projectId={project.id} />

@@ -519,6 +519,99 @@ class GitIntegrationTest : IntegrationTest() {
         assertEquals(0, count("select count(*) from git_user_accounts"))
     }
 
+    @Test
+    fun `프로젝트마다 Git 저장소를 정하면 허용 프로젝트와 상관없이 그 저장소에서만 연결한다`() {
+        remember("WEB", admin.post("/api/v1/projects", """{"name":"웹"}""").json()["id"])
+        remember("OPS", admin.post("/api/v1/projects", """{"name":"운영"}""").json()["id"])
+        admin.post("/api/v1/issues", """{"title":"웹 티켓","projectId":"${p("WEB")}"}""") // FB-1
+        admin.post("/api/v1/issues", """{"title":"운영 티켓","projectId":"${p("OPS")}"}""") // FB-2
+        val editor = admin.post("/api/v1/admin/members", """{"loginId":"editor","password":"$PASSWORD"}""").json()["id"]
+        admin.put("/api/v1/projects/${p("OPS")}/members/$editor", """{"role":"EDITOR"}""")
+        admin.post("/api/v1/admin/members", """{"loginId":"outsider","password":"$PASSWORD"}""")
+        val editorClient = client().also { it.login("editor", PASSWORD) }
+        val outsider = client().also { it.login("outsider", PASSWORD) }
+        // The connection allows only WEB.
+        val connection = connect(allProjects = false, projectIds = listOf(p("WEB")), autoInProgress = false)
+        val id = connection["id"] as String
+
+        assertEquals(listOf("FB-1"), deliver(connection, "push", push("main", "FB-1 FB-2", repository = "acme/web")).json()["linkedIssues"])
+
+        // OPS's managers say its work is in acme/ops: events from there reach OPS, though the connection does not allow it.
+        assertEquals(
+            403,
+            editorClient.put("/api/v1/projects/${p("OPS")}/git/repositories", """{"repositories":[{"connectionId":"$id","repository":"acme/ops"}]}""").status,
+        )
+        assertEquals(404, outsider.get("/api/v1/projects/${p("OPS")}/git").status)
+        assertEquals(422, admin.put("/api/v1/projects/${p("OPS")}/git/repositories", """{"repositories":[{"connectionId":"$id","repository":"ops"}]}""").status)
+        assertEquals(
+            422,
+            admin
+                .put(
+                    "/api/v1/projects/${p("OPS")}/git/repositories",
+                    """{"repositories":[{"connectionId":"0192f0c4-0000-7000-8000-000000000000","repository":"acme/ops"}]}""",
+                ).status,
+        )
+        val saved = admin.put("/api/v1/projects/${p("OPS")}/git/repositories", """{"repositories":[{"connectionId":"$id","repository":" Acme/Ops "}]}""")
+        assertEquals(200, saved.status)
+        assertEquals(listOf(mapOf("connectionId" to id, "repository" to "acme/ops")), saved.json()["repositories"])
+        val settings = editorClient.get("/api/v1/projects/${p("OPS")}/git").json()
+        assertEquals(true, settings["enabled"])
+        assertEquals(listOf(mapOf("connectionId" to id, "repository" to "acme/web")), settings["suggestions"])
+
+        assertEquals(listOf("FB-2"), deliver(connection, "push", push("main", "FB-2 정리", repository = "acme/ops")).json()["linkedIssues"])
+        // From any other repository OPS is left alone, even one the connection would otherwise allow for it.
+        assertEquals(listOf("FB-1"), deliver(connection, "push", push("main", "FB-1 FB-2 둘 다", repository = "acme/web")).json()["linkedIssues"])
+
+        // WEB chooses acme/web: another repository no longer reaches it; names match without case.
+        admin.put("/api/v1/projects/${p("WEB")}/git/repositories", """{"repositories":[{"connectionId":"$id","repository":"acme/web"}]}""")
+        assertEquals(emptyList<String>(), deliver(connection, "push", push("main", "FB-1 다른 곳", repository = "acme/other")).json()["linkedIssues"])
+        assertEquals(listOf("FB-1"), deliver(connection, "push", push("main", "FB-1 대문자", repository = "ACME/Web")).json()["linkedIssues"])
+
+        // Removing the repositories goes back to the connection's allowed projects.
+        admin.put("/api/v1/projects/${p("OPS")}/git/repositories", """{"repositories":[]}""")
+        assertEquals(emptyList<String>(), deliver(connection, "push", push("main", "FB-2 다시", repository = "acme/ops")).json()["linkedIssues"])
+    }
+
+    @Test
+    fun `저장소가 여럿인 프로젝트의 티켓은 저장소를 골라 그 저장소에서만 연결한다`() {
+        remember("WEB", admin.post("/api/v1/projects", """{"name":"웹"}""").json()["id"])
+        admin.post("/api/v1/issues", """{"title":"웹 티켓","projectId":"${p("WEB")}"}""") // FB-1
+        admin.post("/api/v1/issues", """{"title":"혼자 있는 티켓"}""") // FB-2
+        admin.post("/api/v1/admin/members", """{"loginId":"outsider","password":"$PASSWORD"}""")
+        val outsider = client().also { it.login("outsider", PASSWORD) }
+        val connection = connect(autoInProgress = false)
+        val id = connection["id"] as String
+        val both = """{"repositories":[{"connectionId":"$id","repository":"acme/web"},{"connectionId":"$id","repository":"acme/api"}]}"""
+        assertEquals(200, admin.put("/api/v1/projects/${p("WEB")}/git/repositories", both).status)
+
+        val issue = admin.get("/api/v1/issues/1").json()
+        assertEquals(listOf("acme/web", "acme/api"), (issue["gitRepositoryOptions"] as List<*>).map { (it as Map<*, *>)["repository"] })
+        assertFalse("gitRepository" in issue)
+        // An issue on its own has nothing to pick from.
+        assertEquals(emptyList<Any?>(), admin.get("/api/v1/issues/2").json()["gitRepositoryOptions"])
+        assertEquals(422, admin.put("/api/v1/issues/2/git-repository", """{"connectionId":"$id","repository":"acme/web"}""").status)
+
+        assertEquals(422, admin.put("/api/v1/issues/1/git-repository", """{"connectionId":"$id","repository":"acme/other"}""").status)
+        assertEquals(404, outsider.put("/api/v1/issues/1/git-repository", """{"connectionId":"$id","repository":"acme/api"}""").status)
+        assertEquals(204, admin.put("/api/v1/issues/1/git-repository", """{"connectionId":"$id","repository":"Acme/API"}""").status)
+        assertEquals(
+            mapOf("connectionId" to id, "repository" to "acme/api", "url" to "https://git.example.com/acme/api"),
+            admin.get("/api/v1/issues/1").json()["gitRepository"],
+        )
+
+        // Picked acme/api: the project's other repository no longer reaches it.
+        assertEquals(emptyList<String>(), deliver(connection, "push", push("fb-1-x", repository = "acme/web")).json()["linkedIssues"])
+        assertEquals(listOf("FB-1"), deliver(connection, "push", push("fb-1-x", repository = "acme/api")).json()["linkedIssues"])
+
+        // The project gives up acme/api: the pick no longer counts.
+        admin.put("/api/v1/projects/${p("WEB")}/git/repositories", """{"repositories":[{"connectionId":"$id","repository":"acme/web"}]}""")
+        assertFalse("gitRepository" in admin.get("/api/v1/issues/1").json())
+        assertEquals(listOf("FB-1"), deliver(connection, "push", push("fb-1-y", repository = "acme/web")).json()["linkedIssues"])
+
+        assertEquals(204, admin.put("/api/v1/issues/1/git-repository", "{}").status)
+        assertEquals(0, count("select count(*) from issue_git_repositories"))
+    }
+
     // --- GitLab ---------------------------------------------------------------------------------
 
     @Test
@@ -622,9 +715,11 @@ class GitIntegrationTest : IntegrationTest() {
         branch: String,
         vararg messages: String,
         pusher: Triple<String, String, String>? = null,
+        repository: String? = null,
     ): String {
         val node = sample("gitea-push.json")
         node.put("ref", "refs/heads/$branch")
+        if (repository != null) (node.get("repository") as ObjectNode).put("full_name", repository)
         val commits = node.get("commits") as ArrayNode
         if (messages.isNotEmpty()) {
             val template = commits.get(0) as ObjectNode

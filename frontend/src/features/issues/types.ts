@@ -1,5 +1,5 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
-import type { IssueGitLink } from "@/features/git/types";
+import type { IssueGitLink, IssueGitRepository } from "@/features/git/types";
 
 export type IssueStatus = "BACKLOG" | "READY" | "IN_PROGRESS" | "DONE" | "CANCELED";
 export type IssuePriority = "NONE" | "URGENT" | "HIGH" | "MEDIUM" | "LOW";
@@ -118,6 +118,10 @@ export type IssueDetail = Issue & {
   documents: IssueDocumentSummary[];
   /** Pull requests and branches a Git server linked the issue to; empty without Git (D-141). */
   git?: IssueGitLink[];
+  /** The repository picked on the issue (D-148); absent when none. */
+  gitRepository?: IssueGitRepository;
+  /** The repositories of its project it can be picked from; empty for an issue on its own. */
+  gitRepositoryOptions?: IssueGitRepository[];
 };
 
 export type NewIssueInput = {

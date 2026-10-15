@@ -1,7 +1,8 @@
 import { GitBranchIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import type { GitPrState, IssueGitLink } from "../types";
+import type { GitPrState, IssueGitLink, IssueGitRepository } from "../types";
+import { IssueGitRepositoryPicker } from "./issue-git-repository";
 
 const m = messages.git.panel;
 
@@ -26,15 +27,30 @@ function PullRequestIcon({ state }: { state: GitPrState | null }) {
 }
 
 /**
- * The "Git" group of an issue's side panel (docs/features/git-integration.md "화면"): the pull
+ * The "Git" group of an issue's side panel (docs/features/git-integration.md "화면"): which of its
+ * project's repositories the work is in, when there are several to pick from (D-148), and the pull
  * requests and branches a Git server linked to it, each opening on the Git server in a new tab.
- * Nothing at all when there are none, so an installation without Git never sees it.
+ * Nothing at all when there is neither, so an installation without Git never sees it.
  */
-export function IssueGitLinks({ links }: { links: IssueGitLink[] }) {
-  if (links.length === 0) return null;
+export function IssueGitLinks({
+  number,
+  links,
+  repository = null,
+  repositoryOptions = [],
+  canEdit = false,
+}: {
+  number: number;
+  links: IssueGitLink[];
+  repository?: IssueGitRepository | null;
+  repositoryOptions?: IssueGitRepository[];
+  canEdit?: boolean;
+}) {
+  const picking = repositoryOptions.length > 1;
+  if (links.length === 0 && !picking) return null;
   return (
     <section className="flex flex-col gap-1">
       <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.heading}</h3>
+      {picking ? <IssueGitRepositoryPicker number={number} repository={repository} options={repositoryOptions} disabled={!canEdit} /> : null}
       <ul className="flex flex-col">
         {links.map((link) => {
           const pullRequest = link.kind === "PULL_REQUEST";

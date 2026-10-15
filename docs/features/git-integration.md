@@ -18,6 +18,20 @@
 
 범위 밖(필요해지면 따로 명세): 개인 Git 계정 연결(이메일이 다른 사람 맞추기, 내 이름으로 댓글), Flowbit 이 Git 서버에 쓰기(PR 에 티켓 링크 댓글 — API 토큰 필요), CI 결과 표시, Git 이슈 가져오기·양방향 동기화, 저장소 목록 불러오기, 배포 추적.
 
+## 프로젝트별 저장소와 티켓의 저장소 (D-148)
+
+**프로젝트 설정 > Git 저장소** (프로젝트 관리 역할): 이 프로젝트의 작업이 있는 저장소를 여러 개 정한다(연결 + `조직/저장소`, 50개까지, 이름은 소문자로 비교). Flowbit 이 이미 받아 본 저장소를 입력 칸의 제안으로 보인다. Git 이 쓰이지 않으면 이 절은 보이지 않는다.
+
+**티켓 옆 패널 > Git > 저장소**: 프로젝트에 저장소가 둘 이상이면 티켓마다 하나를 고른다(편집 역할). 고른 저장소가 있으면 키 옆 메뉴에 "<저장소> 열기"가 생긴다(저장소가 하나뿐인 프로젝트는 그 저장소).
+
+**어느 이벤트가 티켓에 닿는가** (위에서부터 먼저 맞는 것):
+
+1. 티켓에 고른 저장소가 있고 그것이 아직 프로젝트의 저장소면: 그 저장소에서 온 이벤트만.
+2. 프로젝트가 저장소를 정했으면: 그 저장소들에서 온 이벤트만. **연결의 허용 프로젝트와 상관없다**(허용하지 않은 프로젝트라도 닿는다).
+3. 그 밖(정하지 않은 프로젝트, 독립 티켓): 지금처럼 연결의 허용 프로젝트를 따른다.
+
+API: `GET /api/v1/projects/{id}/git`(들어갈 수 있는 사람) → `{ enabled, connections, repositories, suggestions }`, `PUT /api/v1/projects/{id}/git/repositories`(관리 역할) `{ repositories: [{ connectionId, repository }] }`, `PUT /api/v1/issues/{번호}/git-repository`(편집 역할) `{ connectionId, repository }` 또는 `{}`로 지우기(204, 프로젝트의 저장소가 아니면 422 `NOT_IN_PROJECT`). 티켓 응답에 `gitRepository`, `gitRepositoryOptions` 가 더해졌다. 표는 `project_git_repositories`, `issue_git_repositories`(`V14`).
+
 ## 쓰는 흐름
 
 1. 관리자가 **관리자 설정 > Git 연동**에서 "연결 추가": 이름, 종류(Gitea·GitLab·GitHub), 서버 주소, 허용 프로젝트를 정하고 저장한다.
