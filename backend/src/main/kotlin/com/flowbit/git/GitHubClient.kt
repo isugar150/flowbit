@@ -60,7 +60,13 @@ class GitHubClient(
     private val jsonMapper: JsonMapper,
     private val clock: Clock,
 ) {
-    private val http = WebClient.create()
+    // GitHub's lists (repositories, pull requests with their bodies) easily pass WebClient's
+    // default 256KB buffer; one answer is read whole, so allow a few megabytes.
+    private val http =
+        WebClient
+            .builder()
+            .codecs { it.defaultCodecs().maxInMemorySize(MAX_RESPONSE_BYTES) }
+            .build()
     private val tokens = ConcurrentHashMap<UUID, Pair<String, Instant>>()
     private val remaining = ConcurrentHashMap<UUID, Int>()
 
@@ -243,6 +249,7 @@ class GitHubClient(
 
     companion object {
         private const val API_VERSION = "2022-11-28"
+        private const val MAX_RESPONSE_BYTES = 16 * 1024 * 1024
         private val TIMEOUT: Duration = Duration.ofSeconds(15)
 
         /** A token is made again this long before it runs out. */
