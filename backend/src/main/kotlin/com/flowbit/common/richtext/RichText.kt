@@ -21,7 +21,7 @@ data class RichTextDocument(
  *
  * The client is not trusted to send a well-formed document: only the node and mark types the
  * editor offers are accepted, links may only point to web, mail or in-app addresses, images may
- * only be files this server stores, and size is capped. Nothing here is ever stored or served as HTML; the editor rebuilds the page from JSON.
+ * only be files this server stores, embeds only Figma files and Outline share pages, and size is capped. Nothing here is ever stored or served as HTML; the editor rebuilds the page from JSON.
  */
 @Component
 class RichText(
@@ -119,6 +119,11 @@ class RichText(
                 val title = attrs["title"]
                 if (title != null && (title !is String || title.length > MAX_PAGE_TITLE_LENGTH)) throw invalid(field)
             }
+            "embed" -> {
+                val url = attrs?.get("url") as? String ?: throw invalid(field)
+                val pattern = EMBED_URLS[attrs["provider"]] ?: throw invalid(field)
+                if (url.length > MAX_EMBED_URL_LENGTH || !pattern.matches(url)) throw invalid(field)
+            }
             "mention" -> {
                 val id = attrs?.get("id") as? String ?: throw invalid(field)
                 if (!DOCUMENT_ID.matches(id)) throw invalid(field)
@@ -168,7 +173,7 @@ class RichText(
         val NODE_TYPES =
             BLOCK_TYPES +
                 setOf("doc", "text", "bulletList", "orderedList", "taskList", "hardBreak") +
-                setOf("image", "table", "tableRow", "tableHeader", "tableCell", "pageLink", "mention")
+                setOf("image", "table", "tableRow", "tableHeader", "tableCell", "pageLink", "mention", "embed")
         val MARK_TYPES = setOf("bold", "italic", "strike", "code", "underline", "link")
 
         /** Only images uploaded here (ImageStorage keys); an outside address could track readers. */
@@ -180,6 +185,17 @@ class RichText(
 
         /** A mention points at a person by id; the label is their name when they were tagged. */
         const val MAX_MENTION_LABEL_LENGTH = 100
+
+        /**
+         * Pages shown in a frame, by service; the same as `PATTERNS` in components/editor/embed.ts.
+         * Outline is installed per organisation, so any host, but only its public share links.
+         */
+        val EMBED_URLS =
+            mapOf(
+                "figma" to Regex("""^https://(?:www\.)?figma\.com/(?:file|design|proto|board|slides|deck)/[A-Za-z0-9]+(?:[/?#]\S*)?$"""),
+                "outline" to Regex("""^https?://[^/\s?#]+/s/[A-Za-z0-9_-]+(?:[/?#]\S*)?$"""),
+            )
+        const val MAX_EMBED_URL_LENGTH = 2_000
         val CELL_ALIGN = setOf(null, "left", "center", "right")
         val CELL_VERTICAL_ALIGN = setOf(null, "top", "middle", "bottom")
         const val MAX_SPAN = 100

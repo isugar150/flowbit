@@ -648,6 +648,17 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals(200, editor.patch("/api/v1/documents/$top", """{"content":$page}""").status)
         val bad = """{"type":"doc","content":[{"type":"pageLink","attrs":{"id":"/etc/passwd"}}]}"""
         assertEquals(422, editor.patch("/api/v1/documents/$top", """{"content":$bad}""").status)
+        // Embeds: Figma files and Outline share pages only, never another scheme or service.
+        val embed = { provider: String, url: String ->
+            val node = """{"type":"embed","attrs":{"provider":"$provider","url":"$url"}}"""
+            editor.patch("/api/v1/documents/$top", """{"content":{"type":"doc","content":[$node]}}""").status
+        }
+        assertEquals(200, embed("figma", "https://www.figma.com/design/AbC123/Flow?node-id=1-2"))
+        assertEquals(200, embed("outline", "https://wiki.example.com/s/3f2a-team-notes"))
+        assertEquals(422, embed("figma", "javascript:alert(1)"))
+        assertEquals(422, embed("outline", "https://wiki.example.com/doc/private-abc"))
+        assertEquals(422, embed("youtube", "https://www.figma.com/design/AbC123/Flow"))
+        editor.patch("/api/v1/documents/$top", """{"content":$page}""")
 
         editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""")
         val issueDocument = editor.post("/api/v1/issues/1/documents", """{"title":"회의록"}""").json()["id"]

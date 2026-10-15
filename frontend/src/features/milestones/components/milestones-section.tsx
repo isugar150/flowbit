@@ -18,7 +18,7 @@ import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshi
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { createMilestone, deleteMilestone, updateMilestone } from "../api";
-import { milestoneProgress, type Milestone } from "../types";
+import { isMilestoneDone, milestoneProgress, type Milestone } from "../types";
 
 const m = messages.milestones;
 const NAME_MAX_LENGTH = 80;
@@ -49,6 +49,8 @@ export function MilestonesSection({
   canEdit: boolean;
 }) {
   const [adding, setAdding] = useState(false);
+  // Done milestones (every ticket done, D-136) are folded away below the open ones.
+  const [showDone, setShowDone] = useState(false);
   // After one is added the field starts over empty and stays, so several can be typed in a row.
   const [round, setRound] = useState(0);
   const create = useRefreshingMutation(createMilestone, () => setRound((current) => current + 1));
@@ -60,6 +62,18 @@ export function MilestonesSection({
     updateMilestone,
   );
   const milestones = update.value;
+  const open = milestones.filter((milestone) => !isMilestoneDone(milestone));
+  const done = milestones.filter(isMilestoneDone);
+  const row = (milestone: Milestone) => (
+    <MilestoneRow
+      key={milestone.id}
+      milestone={milestone}
+      canEdit={canEdit}
+      busy={remove.isPending}
+      onOpen={() => setOpenId(milestone.id)}
+      onDelete={() => remove.mutate({ projectId, id: milestone.id })}
+    />
+  );
   const remove = useRefreshingMutation(deleteMilestone);
   const error = create.error ?? update.error ?? remove.error;
   const [openId, setOpenId] = useState<string | null>(null);
@@ -80,18 +94,9 @@ export function MilestonesSection({
       {error ? <FormAlert>{apiErrorMessage(error)}</FormAlert> : null}
       {milestones.length === 0 && !adding ? (
         <p className="text-[0.8125rem] leading-5 text-muted-foreground">{canEdit ? m.empty : m.emptyReadOnly}</p>
-      ) : (
+      ) : open.length === 0 && !adding ? null : (
         <ul className="flex flex-col overflow-hidden rounded-lg border">
-          {milestones.map((milestone) => (
-            <MilestoneRow
-              key={milestone.id}
-              milestone={milestone}
-              canEdit={canEdit}
-              busy={remove.isPending}
-              onOpen={() => setOpenId(milestone.id)}
-              onDelete={() => remove.mutate({ projectId, id: milestone.id })}
-            />
-          ))}
+          {open.map(row)}
           {adding ? (
             <li className="flex h-11 items-center gap-2 border-t px-3 first:border-t-0">
               <DiamondIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -123,6 +128,23 @@ export function MilestonesSection({
           ) : null}
         </ul>
       )}
+      {done.length > 0 ? (
+        <button
+          type="button"
+          aria-expanded={showDone}
+          onClick={() => setShowDone((current) => !current)}
+          className="flex h-7 w-fit items-center gap-1 rounded-md px-1.5 text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-10"
+        >
+          <ChevronRightIcon className={cn("size-3.5", showDone && "rotate-90")} aria-hidden="true" />
+          {showDone ? m.doneHide : m.doneToggle(done.length)}
+        </button>
+      ) : null}
+      {/* Done milestones are a list of their own under the toggle, apart from the ones still going. */}
+      {showDone && done.length > 0 ? (
+        <ul aria-label={m.doneToggle(done.length)} className="flex flex-col overflow-hidden rounded-lg border">
+          {done.map(row)}
+        </ul>
+      ) : null}
       {opened ? (
         <MilestoneDetailDialog
           // A different milestone starts with its own document.

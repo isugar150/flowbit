@@ -32,6 +32,7 @@ import { isTyping } from "@/lib/is-typing";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
 import { STATUS_ORDER } from "../meta";
+import { MilestoneStrip } from "@/features/milestones/components/milestone-strip";
 import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
 import { DEFAULT_ISSUE_GROUPING, ISSUE_GROUPS, groupIssues, type IssueGrouping } from "../grouping";
 import { useRememberedListQuery } from "../list-memory";
@@ -119,6 +120,7 @@ export function IssuesView({
   deleted = false,
   empty,
   underTabs = false,
+  milestoneProjectId = null,
   defaultAssigneeId = null,
   rememberFilters = true,
 }: {
@@ -134,6 +136,8 @@ export function IssuesView({
    * the document, hidden, and its tabs would be counted.
    */
   underTabs?: boolean;
+  /** The project `milestones` belong to; the row of milestones shows while the list is filtered to it (D-136). */
+  milestoneProjectId?: string | null;
   /** What to say when there are no issues at all, where the usual words do not fit ("내 티켓"). */
   empty?: { title: string; description: string };
   /** The project whose issues these are; null on the list of every issue. */
@@ -266,7 +270,7 @@ export function IssuesView({
           {
             key: "milestone" as const,
             label: m.milestoneFilter,
-            options: [all(m.allMilestones, <DiamondIcon {...ALL_ICON} />), ...milestoneOptions(milestones)],
+            options: [all(m.allMilestones, <DiamondIcon {...ALL_ICON} />), ...milestoneOptions(milestones, filters.milestone)],
           },
         ]
       : []),
@@ -384,7 +388,7 @@ export function IssuesView({
   // "Long ago" is measured from when the list was opened, so lines do not drop out while it is looked at.
   const [now] = useState(() => Date.now());
   const groups = useMemo(() => {
-    return groupIssues(issues, grouping, projects).map((group) => {
+    return groupIssues(issues, grouping, projects, milestones).map((group) => {
       // Issues finished long ago leave the lines but are still counted, so the group can offer them.
       const shown = group.issues.filter((issue) => !finishedLongAgo(issue, completed, now));
       const items = sortIssues(shown, sort);
@@ -392,12 +396,13 @@ export function IssuesView({
         key: group.key,
         label: group.label,
         icon: group.icon,
+        meta: group.meta,
         count: items.length,
         hidden: group.issues.length - shown.length,
         rows: arrangeBySubIssues(items),
       };
     });
-  }, [issues, grouping, projects, sort, completed, now]);
+  }, [issues, grouping, projects, milestones, sort, completed, now]);
 
   // The last filters, order and grouping are shared by the three lists and kept across visits.
   useRememberedListQuery({
@@ -490,6 +495,13 @@ export function IssuesView({
             ) : null}
             <IssueViewSwitch view={view} onChange={setView} />
           </div>
+          {milestoneProjectId !== null && (projectId ?? filters.project) === milestoneProjectId && !deleted ? (
+            <MilestoneStrip
+              milestones={milestones}
+              selected={filters.milestone === ALL || filters.milestone === NONE ? null : filters.milestone}
+              onSelect={(id) => setFilter("milestone", id ?? ALL)}
+            />
+          ) : null}
           {deleted ? (
             <p className="border-t bg-muted/50 px-5 py-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedNotice}</p>
           ) : null}
@@ -521,6 +533,9 @@ export function IssuesView({
                 {group.icon}
                 <span className="truncate">{group.label}</span>
                 <span className="font-normal text-muted-foreground tabular-nums">{group.count}</span>
+                {group.meta ? (
+                  <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground tabular-nums">{group.meta}</span>
+                ) : null}
               </h2>
               <ul>
                 {group.rows.map((row) =>

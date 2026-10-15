@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArchiveIcon, DiamondIcon, LockIcon } from "lucide-react";
+import { ArchiveIcon, LockIcon } from "lucide-react";
 import { DueDate, TimeAgo } from "@/components/dates";
 import { PersonAvatar, personName } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
@@ -106,13 +106,6 @@ function ProjectRow({ project, archived }: { project: ProjectSummary; archived: 
               {locked ? <span className="sr-only"> ({m.locked})</span> : null}
             </Link>
           )}
-          {project.currentMilestone ? (
-            <span className="flex min-w-0 shrink items-center gap-1 text-muted-foreground">
-              <DiamondIcon className={cn("size-3.5 shrink-0", archived ? null : "text-warning")} aria-hidden="true" />
-              <span className="sr-only">{m.currentMilestone}: </span>
-              <span className="truncate">{project.currentMilestone}</span>
-            </span>
-          ) : null}
         </div>
       </td>
       <td className={cn(cell, widest, faded)}>

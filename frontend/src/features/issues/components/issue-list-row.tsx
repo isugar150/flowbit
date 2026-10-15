@@ -28,16 +28,14 @@ const LAYOUTS = {
     labels: "hidden w-44 shrink-0 overflow-hidden xl:flex",
     milestone: "hidden w-32 shrink-0 overflow-hidden lg:flex",
     due: "hidden w-16 shrink-0 sm:block",
-    assignee: "w-8 shrink-0 lg:w-28",
-    assigneeName: "max-lg:hidden",
+    assignee: "w-14 shrink-0",
   },
   panel: {
     project: "hidden",
     labels: "hidden w-44 shrink-0 overflow-hidden @3xl:flex",
     milestone: "hidden w-32 shrink-0 overflow-hidden @xl:flex",
     due: "hidden w-16 shrink-0 @md:block",
-    assignee: "w-8 shrink-0 @xl:w-28",
-    assigneeName: "@max-xl:hidden",
+    assignee: "w-14 shrink-0",
   },
 } as const;
 
@@ -81,9 +79,7 @@ export function IssueListHeader({
       <span className={columns.labels}>{m.labels}</span>
       <span className={columns.milestone}>{m.milestone}</span>
       <span className={columns.due}>{m.dueDate}</span>
-      <span className={cn(columns.assignee, "overflow-hidden whitespace-nowrap")}>
-        <span className={columns.assigneeName}>{m.assignee}</span>
-      </span>
+      <span className={cn(columns.assignee, "overflow-hidden whitespace-nowrap")}>{m.assignee}</span>
     </div>
   );
 }
@@ -204,7 +200,6 @@ export const IssueListRow = memo(function IssueListRow({
           <AssigneeChip
             cell
             label={m.assigneeOf(issue.key)}
-            nameClass={columns.assigneeName}
             members={members}
             current={issue.assignees}
             value={issue.assignees.map((person) => person.id)}
@@ -212,7 +207,7 @@ export const IssueListRow = memo(function IssueListRow({
           />
         </span>
       ) : (
-        <IssueAssignee issue={issue} className={columns.assignee} nameClass={columns.assigneeName} />
+        <IssueAssignee issue={issue} className={columns.assignee} />
       )}
     </li>
   );

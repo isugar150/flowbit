@@ -30,6 +30,7 @@ export async function AllIssues({ deleted = false, projectId = null }: { deleted
         issues={issues ?? []}
         members={usersAsMembers(users)}
         milestones={milestones ?? []}
+        milestoneProjectId={milestones ? projectId : null}
         labels={labels ?? []}
         projects={projects}
         canEdit

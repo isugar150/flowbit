@@ -1,6 +1,6 @@
 import { CircleSlashIcon, DiamondIcon, UserIcon } from "lucide-react";
 import { PersonAvatar, personName, type PersonLike } from "@/components/person";
-import type { Milestone } from "@/features/milestones/types";
+import { isMilestoneDone, type Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { messages } from "@/messages";
 import type { ChipOption } from "./components/chip-select";
@@ -54,10 +54,17 @@ export function assigneeOptions(members: ProjectMember[]): ChipOption<string>[] 
 }
 
 /** The project's milestones, plus "none". */
-export function milestoneOptions(milestones: Pick<Milestone, "id" | "name">[]): ChipOption<string>[] {
+/**
+ * The milestones to choose from. Done ones are left out (D-136), except `keep`: the one already
+ * chosen, which must still show.
+ */
+export function milestoneOptions(
+  milestones: (Pick<Milestone, "id" | "name"> & Partial<Pick<Milestone, "issueCount" | "doneCount">>)[],
+  keep?: string | null,
+): ChipOption<string>[] {
   return [
     { value: NONE, label: m.noMilestone, icon: <CircleSlashIcon className="size-4 text-muted-foreground" aria-hidden /> },
-    ...milestones.map((milestone) => ({
+    ...milestones.filter((milestone) => milestone.id === keep || !isMilestoneDone(milestone)).map((milestone) => ({
       value: milestone.id,
       label: milestone.name,
       icon: <DiamondIcon className="size-4 text-muted-foreground" aria-hidden />,

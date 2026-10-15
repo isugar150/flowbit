@@ -99,6 +99,7 @@ frontend/
 - **자주 고치는 내용은 설정 화면에 넣지 않는다.** 보이는 그 자리에서 고치고 자동 저장한다(프로젝트 요약·설명, 티켓 제목·본문). 설정 화면에는 드물게 바꾸는 것(이름, 구성원)만 둔다.
 - 편집기에 새 블록을 추가하려면 세 곳을 함께 고친다: 편집기의 `/` 메뉴(`SLASH_ITEMS`), 백엔드의 허용 목록(`RichText.kt` 의 `NODE_TYPES`), 글꼴·간격(`globals.css` 의 `.rich-text`).
 - 표는 `components/editor/table-extensions.ts`(칸의 `align`, `verticalAlign` 속성)와 `table-toolbar.tsx`(커서가 표 안에 있을 때 뜨는 도구 모음)에 있다. 칸에 새 속성을 더하면 `RichText.kt` 의 칸 검증도 함께 고친다.
+- 편집기의 임베드(Figma, Outline)는 `components/editor/embed.ts` 다(D-137). 받는 주소 규칙(`PATTERNS`)은 `RichText.kt` 의 `EMBED_URLS` 와 같아야 한다. 서비스를 더하려면 두 곳과 iframe 주소(`frameSource`)를 함께 고친다.
 - 편집기의 이미지는 `components/editor/upload-image.ts` 로 먼저 올리고 받은 주소를 `image` 블록에 넣는다. 밖의 주소나 base64 는 넣지 않는다(서버가 거부한다).
 - 지금 시각이 있어야 그릴 수 있는 화면(캘린더의 "이번 달")은 `useInBrowser()`(`components/dates.tsx`)로 브라우저에서만 그린다.
 - **렌더 중에 현재 시각을 읽지 않는다** (`Date.now()`, `new Date()`). `cacheComponents` 에서는 서버 렌더 중의 시각 읽기가 오류다("unstable value `Date.now()` while prerendering"). "3분 전"이나 "올해면 연도 생략"처럼 지금 시각에 기대는 글자는 `components/dates.tsx` 의 `<TimeAgo>`, `<DueDate>` 로 그린다(서버는 날짜 그대로, 브라우저가 바꿔 보여 준다).

@@ -1,6 +1,7 @@
 import { BoxIcon, CircleSlashIcon, DiamondIcon, ListIcon, UserIcon } from "lucide-react";
 import { PersonAvatar, personName } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
+import { milestoneSummary, type Milestone } from "@/features/milestones/types";
 import type { ProjectSummary } from "@/features/projects/types";
 import { messages } from "@/messages";
 import { PriorityIcon, STATUS_ORDER, StatusIcon, priorityLabel, statusLabel } from "./meta";
@@ -18,6 +19,8 @@ export type IssueGroup = {
   key: string;
   label: string;
   icon: React.ReactNode;
+  /** Beside the heading: how far a milestone is ("6/10 · 60% · 10-31"). */
+  meta?: string;
   issues: Issue[];
 };
 
@@ -30,7 +33,13 @@ const muted = "size-4 shrink-0 text-muted-foreground";
  * order keep it (status, priority); people, projects and milestones go by name, with "none" last.
  * An issue given to several people is in the group of each of them.
  */
-export function groupIssues(issues: Issue[], grouping: IssueGrouping, projects: ProjectSummary[]): IssueGroup[] {
+export function groupIssues(
+  issues: Issue[],
+  grouping: IssueGrouping,
+  projects: ProjectSummary[],
+  /** Known milestones with their progress, for the milestone headings; may be empty. */
+  milestones: Milestone[] = [],
+): IssueGroup[] {
   switch (grouping) {
     case "status":
       return fixed(
@@ -74,7 +83,12 @@ export function groupIssues(issues: Issue[], grouping: IssueGrouping, projects: 
       for (const issue of issues) if (issue.milestone) named.set(issue.milestone.id, issue.milestone.name);
       return fixed(
         [
-          ...byName([...named].map(([id, name]) => ({ key: id, label: name, icon: <DiamondIcon className={muted} aria-hidden="true" /> }))),
+          ...byName(
+            [...named].map(([id, name]) => {
+              const known = milestones.find((milestone) => milestone.id === id);
+              return { key: id, label: name, icon: <DiamondIcon className={muted} aria-hidden="true" />, meta: known ? milestoneSummary(known) : undefined };
+            }),
+          ),
           { key: NONE_KEY, label: m.noMilestone, icon: <CircleSlashIcon className={muted} aria-hidden="true" /> },
         ],
         issues,

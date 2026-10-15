@@ -30,6 +30,8 @@
 - **프로젝트의 "한 줄 요약"을 화면에서 없앴다** (D-134). 컬럼·API 필드는 남아 있다. 이것도 검사하지 않았다.
 - **프로젝트의 "티켓" 탭을 없앴다** (D-135). 개요·목표 상세의 링크는 `/issues?project=…` 로 가고, `/project/{id}/issues` 는 그리로 넘겨 준다. 검사·화면 확인을 하지 않았다. **E2E(`changes`·`features`·`flows.spec.ts`)가 예전 주소와 탭을 쓰므로 고쳐야 할 수 있다.**
 
+- **편집기에 Figma·Outline 임베드가 생겼다** (D-137, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
@@ -162,6 +164,8 @@
 
 [09-decisions.md](09-decisions.md) 의 "미결정" 표 참고. 작업 중 새로 생긴 질문은 아래에 적는다.
 
+- 목표(D-136, 완료는 티켓으로 정하기로 확정): 티켓이 없는 목표를 완료로 볼지(지금은 아니다), 서버의 `currentMilestone` 계산(이제 화면에서 안 씀)을 지울지.
+
 - LDAP·SSO: (아이디가 같은 계정은 전환하기로 정해졌다, D-097) 이메일만 같은 계정도 이을지, LDAP 그룹으로 역할을 정할지, 디렉터리에서 사라진 사람을 자동으로 비활성화할지, SAML 이 필요한지. ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) "확인이 필요한 것")
 - hrm `/api/works/send` 에 쓸 만료되지 않는 토큰을 받을 수 있는지(문서에 없다). 없으면 API 알림의 고정 헤더로는 못 쓴다.
 - 알림: 첨부 파일·문서 변경도 알릴지(지금은 안 간다), 프로젝트에서 빠진 사람의 티켓 구독을 정리할지, 이메일 주소 확인 절차와 수신함이 필요한지, 프로젝트 구독을 자동으로 걸지(만든 사람·리드·새 구성원)와 구독자 목록을 보일지, 사람마다 받을 변경 종류를 고르게 할지. ([features/M7a-notification-channels.md](features/M7a-notification-channels.md) "확인이 필요한 것")
@@ -172,6 +176,25 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-15 — 편집기의 Figma·Outline 임베드 (D-137)
+
+- 사용자 지시: 편집기에 Figma 링크를 넣으면 임베드되게, Outline 도.
+- 한 일: `components/editor/embed.ts`(Tiptap 노드 `embed`, 주소 인식 `embedFor`, Figma → `embed.figma.com?embed-host=flowbit` 변환, 위쪽 줄 + `sandbox` iframe), `rich-text-editor.tsx` 의 붙여넣기 처리와 `/` 메뉴 "임베드"(문서 이름 칸을 주소 칸으로도 쓰게 `naming.kind`), `ko.ts` 문구. 백엔드 `RichText.kt` 가 `embed` 를 받고 주소를 검증한다(`EMBED_URLS`, 2000자). `IssuesIntegrationTest` 의 문서 테스트에 받기·거부 5가지.
+- 확인: `IssuesIntegrationTest`(37개)와 ktlint 통과, 프런트 `typecheck`·`eslint` 통과. `localhost:3000` 화면에서 같은 sandbox 의 iframe 으로 Figma 예제 파일과 Outline 공유 문서(`docs.getoutline.com/s/hosting`)가 열리는 것을 봤다. **로그인할 수 없어 편집기 안에서 붙여 넣는 것은 확인하지 못했다.** 전체 `./gradlew check`·E2E 는 돌리지 않았다.
+- 알아둘 것: 비공개 Figma 파일은 보는 사람이 브라우저에서 Figma 에 로그인해 있어야 보인다(Figma 쪽 제한). 붙여넣기로 들어간 임베드는 `Ctrl+Z` 로 지우면 링크도 남지 않는다.
+
+### 2026-10-15 — 목표 줄, 묶음 진행률, 완료된 목표 접기, 전체 프로젝트의 현재 목표 제거 (D-136)
+
+- 사용자 요청: 티켓 화면에서 목표를 보고 싶다(에이전트 제안: 목록 위 목표 줄 + 목표별 묶음 머리줄 진행률 → "ㅇㅇ 만들어"). 전체 프로젝트의 목표 표시는 필요 없다. 100% 끝난 목표가 계속 목록에 뜬다. 목표 관리를 어떻게 할지 고민해 달라.
+- 한 일: `milestones/types.ts` 에 `isMilestoneDone`·`milestoneSummary`·`shortDate`. `milestoneOptions(milestones, keep)` 이 완료 목표를 뺀다(티켓 상세·새 티켓·목록 필터). 새 `MilestoneStrip`(`/issues?project=` 일 때 `IssuesView` 의 도구 줄 아래, `milestoneProjectId` 속성). `groupIssues` 가 목표 묶음에 `meta`. 개요 `MilestonesSection` 은 완료 목표를 접는다. `ProjectTable` 의 현재 목표 표시와 문구 삭제(API 의 `currentMilestone` 은 남음).
+- 확인하지 않음: lint·typecheck·build·화면(사용자 요청으로 생략).
+
+### 2026-10-15 — 티켓 목록의 담당자 열은 아바타만
+
+- 사용자 지적: 담당자 열에 이름이 두 번("김찬범 김찬범", 잘리면 "김… 김…") 나오고, 없으면 "담당자 없음" 글자가 나온다. 아바타만 나오면 된다.
+- 원인: `AssigneeChip` 의 `cell` 분기가 이름을 그린 뒤 공통 꼬리 `<span>{summary}</span>` 가 한 번 더 그렸다.
+- 한 일: 목록 칸(`AssigneeChip cell`, 읽기 전용 `IssueAssignee`)은 아바타(2명까지 겹침, 없으면 빈 사람 아이콘)만. 이름은 `title` 툴팁과 스크린 리더 문구로. 열 폭은 `w-14` 고정, `assigneeName` 클래스와 `nameClass` 속성은 없앴다. 검사·화면 확인은 하지 않았다.
 
 ### 2026-10-15 — 프로젝트의 "티켓" 탭 제거 (D-135)
 

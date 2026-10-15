@@ -10,6 +10,7 @@ import StarterKit from "@tiptap/starter-kit";
 import {
   AtSignIcon,
   CodeIcon,
+  FrameIcon,
   FileTextIcon,
   Heading1Icon,
   Heading2Icon,
@@ -27,6 +28,7 @@ import { fileProblem, settingsErrorMessage } from "@/features/settings/error-mes
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { BlockDragHandle } from "./block-drag-handle";
+import { Embed, MAX_EMBED_URL_LENGTH, embedFor } from "./embed";
 import { fixedOrigin } from "./fixed-origin";
 import { Mention, MentionPeopleContext, type MentionPerson } from "./mention";
 import { PageLink } from "./page-link";
@@ -51,7 +53,7 @@ type SlashItem = {
 };
 
 /** What a block needs from the editor component beyond the document itself. */
-type SlashActions = { pickImage: () => void; createDocument: () => void };
+type SlashActions = { pickImage: () => void; createDocument: () => void; addEmbed: () => void };
 
 const block = (editor: Editor, range: { from: number; to: number }) => editor.chain().focus().deleteRange(range);
 
@@ -93,6 +95,16 @@ const SLASH_ITEMS: SlashItem[] = [
     run: (e, r, actions) => {
       block(e, r).run();
       actions.createDocument();
+    },
+  },
+  {
+    id: "embed",
+    label: m.embed,
+    keywords: "embed figma outline iframe 임베드 피그마 아웃라인",
+    icon: <FrameIcon />,
+    run: (e, r, actions) => {
+      block(e, r).run();
+      actions.addEmbed();
     },
   },
   { id: "rule", label: m.divider, keywords: "hr divider line 구분선", icon: <MinusIcon />, run: (e, r) => block(e, r).setHorizontalRule().run() },
@@ -336,17 +348,17 @@ export function RichTextEditor({
   useEffect(() => {
     createDocumentRef.current = onCreateDocument;
   }, [onCreateDocument]);
-  // "/문서" first asks for the document's title, in a small field at the cursor.
-  const [naming, setNaming] = useState<{ top: number; left: number } | null>(null);
+  // "/문서" first asks for the document's title, and "/임베드" for the address, in a small field at the cursor.
+  const [naming, setNaming] = useState<{ top: number; left: number; kind: "document" | "embed" } | null>(null);
   const [namingBusy, setNamingBusy] = useState(false);
-  const askDocumentTitle = () => {
+  const askAtCursor = (kind: "document" | "embed") => {
     const current = editorRef.current;
-    if (!current || !createDocumentRef.current) return;
+    if (!current || (kind === "document" && !createDocumentRef.current)) return;
     interactedRef.current = true;
     setImageError(null);
     const coords = current.view.coordsAtPos(current.state.selection.from);
     const origin = fixedOrigin(probeRef.current);
-    setNaming({ top: coords.bottom + 6 - origin.y, left: Math.max(8, coords.left) - origin.x });
+    setNaming({ top: coords.bottom + 6 - origin.y, left: Math.max(8, coords.left) - origin.x, kind });
   };
   /** Back to the text with nothing made: no title was given. */
   const cancelNaming = () => {
@@ -374,13 +386,31 @@ export function RichTextEditor({
       setNaming(null);
     }
   };
-  const insertDocumentLinkRef = useRef(askDocumentTitle);
+  /** Puts the Figma file or Outline page at this address in place, or says it cannot. */
+  const insertEmbed = (raw: string) => {
+    const current = editorRef.current;
+    setNaming(null);
+    if (!current) return;
+    if (!raw.trim()) {
+      current.commands.focus();
+      return;
+    }
+    const embed = embedFor(raw);
+    if (!embed) {
+      setImageError(m.embedUnsupported);
+      current.commands.focus();
+      return;
+    }
+    current.chain().focus().insertContent({ type: "embed", attrs: embed }).run();
+  };
+  const askAtCursorRef = useRef(askAtCursor);
   useEffect(() => {
-    insertDocumentLinkRef.current = askDocumentTitle;
+    askAtCursorRef.current = askAtCursor;
   });
   const slashActions: SlashActions = {
     pickImage: () => fileInputRef.current?.click(),
-    createDocument: () => void insertDocumentLinkRef.current(),
+    createDocument: () => askAtCursorRef.current("document"),
+    addEmbed: () => askAtCursorRef.current("embed"),
   };
 
   const editor = useEditor({
@@ -398,13 +428,21 @@ export function RichTextEditor({
       ...tableExtensions,
       PageLink,
       Mention,
+      Embed,
     ],
     editorProps: {
       attributes: { "aria-label": ariaLabel, role: "textbox", "aria-multiline": "true" },
-      handlePaste: (_view, event) => {
+      handlePaste: (view, event) => {
         const files = imageFiles(event.clipboardData?.files);
-        if (files.length === 0) return false;
-        void insertImagesRef.current(files);
+        if (files.length > 0) {
+          void insertImagesRef.current(files);
+          return true;
+        }
+        // A Figma or Outline link pasted on its own is shown in place rather than as a link.
+        const text = event.clipboardData?.getData("text/plain")?.trim() ?? "";
+        const embed = /\s/.test(text) ? null : embedFor(text);
+        if (!embed || view.state.selection.$from.parent.type.name === "codeBlock") return false;
+        editorRef.current?.chain().focus().insertContent({ type: "embed", attrs: embed }).run();
         return true;
       },
       handleDrop: (view, event, _slice, moved) => {
@@ -442,7 +480,11 @@ export function RichTextEditor({
             item.run(
               current,
               { from: state.from, to: state.to },
-              { pickImage: () => fileInputRef.current?.click(), createDocument: () => void insertDocumentLinkRef.current() },
+              {
+                pickImage: () => fileInputRef.current?.click(),
+                createDocument: () => askAtCursorRef.current("document"),
+                addEmbed: () => askAtCursorRef.current("embed"),
+              },
             );
           }
           return true;
@@ -570,19 +612,23 @@ export function RichTextEditor({
         <input
           autoFocus
           disabled={namingBusy}
-          maxLength={200}
+          maxLength={naming.kind === "embed" ? MAX_EMBED_URL_LENGTH : 200}
           autoComplete="off"
-          placeholder={m.documentTitlePlaceholder}
-          aria-label={m.documentTitlePlaceholder}
+          placeholder={naming.kind === "embed" ? m.embedUrlPlaceholder : m.documentTitlePlaceholder}
+          aria-label={naming.kind === "embed" ? m.embedUrlPlaceholder : m.documentTitlePlaceholder}
           style={{ top: naming.top, left: naming.left }}
-          className="fixed z-50 h-9 w-64 rounded-lg bg-popover px-3 text-[0.8125rem] leading-5 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(
+            naming.kind === "embed" ? "w-96 max-w-[calc(100vw-1rem)]" : "w-64",
+            "fixed z-50 h-9 rounded-lg bg-popover px-3 text-[0.8125rem] leading-5 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring",
+          )}
           onKeyDown={(event) => {
             // Stays in this field: the editor around it must not take the keys.
             event.stopPropagation();
             if (event.nativeEvent.isComposing) return;
             if (event.key === "Enter") {
               event.preventDefault();
-              void insertDocument(event.currentTarget.value);
+              if (naming.kind === "embed") insertEmbed(event.currentTarget.value);
+              else void insertDocument(event.currentTarget.value);
             } else if (event.key === "Escape") {
               event.preventDefault();
               cancelNaming();

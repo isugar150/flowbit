@@ -92,7 +92,7 @@ export function IssuePropertyFields({
   disabled?: boolean;
 }) {
   // No milestone chosen is shown as an empty field: grey words and no icon (the user's call).
-  const milestoneChoices = milestoneOptions(milestones).map((option) =>
+  const milestoneChoices = milestoneOptions(milestones, values.milestoneId).map((option) =>
     option.value === NONE ? { value: option.value, label: m.emptyMilestone, muted: true } : option,
   );
 

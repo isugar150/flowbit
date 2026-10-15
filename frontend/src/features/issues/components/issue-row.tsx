@@ -4,7 +4,6 @@ import { DueDate } from "@/components/dates";
 import { PeopleAvatars, PeopleMarks, personName } from "@/components/person";
 import { messages } from "@/messages";
 import { PriorityIcon, StatusIcon, priorityLabel, statusLabel } from "../meta";
-import { assigneeSummary } from "../options";
 import type { Issue, IssuePriority, IssueStatus } from "../types";
 import { LabelPill } from "./label-chip";
 import { SubIssueIndent, SubIssueProgress } from "./sub-issue-rows";
@@ -88,14 +87,11 @@ export function IssueDue({ issue }: { issue: Issue }) {
  */
 export function IssueAssignee({
   issue,
-  className = "w-8 shrink-0 lg:w-28",
-  nameClass = "max-lg:hidden",
+  className = "w-14 shrink-0",
 }: {
   issue: Issue;
   /** The column's width. */
   className?: string;
-  /** When the name beside the avatars shows. */
-  nameClass?: string;
 }) {
   const people = issue.assignees;
   const names = people.length > 0 ? people.map(personName).join(", ") : messages.issues.noAssignee;
@@ -106,11 +102,6 @@ export function IssueAssignee({
       ) : (
         <CircleUserRoundIcon className="size-4.5 text-muted-foreground/60" aria-hidden="true" />
       )}
-      {people.length > 0 ? (
-        <span aria-hidden="true" className={`block min-w-0 truncate ${nameClass} ${metaText}`}>
-          {assigneeSummary(people)}
-        </span>
-      ) : null}
       <span className="sr-only">{names}</span>
     </span>
   );

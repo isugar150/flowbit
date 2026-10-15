@@ -14,7 +14,7 @@ const m = messages.issues;
 
 /**
  * The assignees of an issue as a quiet row of the side panel (D-125), or with `cell` as the
- * assignee column of a list line, drawn as the list draws it (IssueAssignee). It opens a list of
+ * assignee column of a list line, drawn as the list draws it (IssueAssignee): avatars only. It opens a list of
  * the people who may be given the issue, where any number of them (up to ten) are ticked.
  */
 export function AssigneeChip({
@@ -25,7 +25,6 @@ export function AssigneeChip({
   disabled,
   cell,
   label = m.assignee,
-  nameClass,
 }: {
   /** Who the issue can be given to. */
   members: ProjectMember[];
@@ -38,8 +37,6 @@ export function AssigneeChip({
   cell?: boolean;
   /** What the button changes, for screen readers. */
   label?: string;
-  /** In a cell, when the name beside the avatars shows. */
-  nameClass?: string;
 }) {
   const [tooMany, setTooMany] = useState(false);
   const people = [
@@ -70,7 +67,6 @@ export function AssigneeChip({
             ) : (
               <PeopleAvatars people={selected} max={2} />
             )}
-            {selected.length > 0 ? <span className={`block min-w-0 truncate ${nameClass ?? ""}`}>{summary}</span> : null}
           </>
         ) : selected.length === 0 ? (
           <UserIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -79,7 +75,8 @@ export function AssigneeChip({
         ) : (
           <PeopleAvatars people={selected} />
         )}
-        <span className="truncate">{summary}</span>
+        {/* A list cell shows faces only; the names are in the tooltip and the button's label. */}
+        {cell ? null : <span className="truncate">{summary}</span>}
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0">
         <MultiCombobox
