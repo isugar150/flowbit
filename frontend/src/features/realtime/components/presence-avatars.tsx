@@ -24,10 +24,15 @@ type Shown = PagePerson & { online: boolean };
  * now first, then the others from whoever looked last, dimmed. Pointing at one (or giving it
  * focus) brings it forward and says at once whether they are looking now or when they last did.
  * The signed-in person comes first.
+ *
+ * `page` limits it to pages whose key starts with it (`issue:`), so that a frame shown over another
+ * page stays empty until its own page has taken over, instead of showing the people of the page below.
  */
-export function PresenceAvatars() {
+export function PresenceAvatars({ page }: { page?: string } = {}) {
   const viewers = useViewers();
-  const { pageKey, userId } = usePresencePage();
+  const presence = usePresencePage();
+  const userId = presence.userId;
+  const pageKey = page === undefined || presence.pageKey?.startsWith(page) ? presence.pageKey : null;
   // Who is here comes over the socket; the rest is read, and read again whenever someone comes
   // or goes, since leaving is what sets a person's time.
   const here = viewers
@@ -51,7 +56,7 @@ export function PresenceAvatars() {
     // Already in the order they last looked, those who never did at the end.
     ...(members.data ?? []).filter((person) => person.id !== userId && !online.has(person.id)).map((person) => ({ ...person, online: false })),
   ];
-  if (people.length === 0) return null;
+  if (pageKey === null || people.length === 0) return null;
   const shown = people.slice(0, MAX_SHOWN);
   const hidden = people.slice(MAX_SHOWN);
 

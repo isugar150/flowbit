@@ -52,7 +52,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
   const mentionables = mentionablesOf(members ?? []);
 
   return (
-    <div className="flex flex-1 flex-col gap-8 p-4 pt-10 sm:p-5 sm:pt-10 lg:flex-row lg:items-start lg:gap-6">
+    <div className="flex flex-1 flex-col gap-8 p-4 pt-1 sm:p-5 sm:pt-1 lg:flex-row lg:items-start lg:gap-6">
       {/* Presence on an issue is about this issue, not the list behind it. */}
       <RealtimeScope topics={[`issue:${issue.number}`]} presence={`issue:${issue.number}`} priority={1} />
       <article className="flex w-full min-w-0 flex-1 flex-col gap-5 px-1">

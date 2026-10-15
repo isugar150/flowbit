@@ -274,6 +274,7 @@ export const ko = {
     assignee: "담당자",
     dueDate: "기한",
     noAssignee: "담당자 없음",
+    closeDialog: "닫기",
     assigneeSummary: (first: string, others: number) => `${first} 외 ${others}명`,
     assigneeSearchPlaceholder: "사람 찾기",
     assigneeCandidates: "담당자가 될 수 있는 사람",
@@ -330,6 +331,9 @@ export const ko = {
     subIssues: {
       heading: "하위 티켓",
       progress: (done: number, total: number) => `하위 티켓 ${total}개 중 ${done}개 완료`,
+      progressBar: (percent: number) => `하위 티켓 진행률 ${percent}%`,
+      showMore: (count: number) => `${count}개 더 보기`,
+      showLess: "접기",
       parentContext: "아래 하위 티켓의 상위 티켓",
       add: "하위 티켓 추가",
       titlePlaceholder: "하위 티켓 제목",
@@ -346,8 +350,6 @@ export const ko = {
       restore: "복원",
       restoreOf: (title: string) => `${title} 복원`,
       deletedTitle: "삭제된 문서",
-      deletedLoading: "불러오는 중",
-      deletedEmpty: "삭제된 문서가 없습니다.",
       deletedAt: "삭제:",
     },
     activity: {

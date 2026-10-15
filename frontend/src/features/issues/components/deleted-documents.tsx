@@ -19,7 +19,8 @@ const m = messages.issues.documents;
 /**
  * The deleted documents of an issue or a project, folded away under what is written there.
  * Deleting a document only archives it: each one here can be opened (read-only) or restored.
- * `path` is where the list is read from; it is read when the section is opened.
+ * `path` is where the list is read from. It is read with the page, and the section only shows when
+ * there is something in it (the user's call, 2026-10-15: an empty "삭제된 문서" was noise).
  */
 export function DeletedDocuments({ path, canEdit }: { path: string; canEdit: boolean }) {
   const router = useRouter();
@@ -29,7 +30,6 @@ export function DeletedDocuments({ path, canEdit }: { path: string; canEdit: boo
   const documents = useQuery({
     queryKey: key,
     queryFn: () => apiFetch<IssueDocumentSummary[]>(path),
-    enabled: open,
     staleTime: 0,
   });
   const restore = useMutation({
@@ -40,6 +40,9 @@ export function DeletedDocuments({ path, canEdit }: { path: string; canEdit: boo
       router.refresh();
     },
   });
+
+  // Nothing to show until it is known that there is something; a failed read says so once opened.
+  if (documents.isPending || documents.data?.length === 0) return null;
 
   return (
     <section className="flex flex-col gap-1">
@@ -52,14 +55,10 @@ export function DeletedDocuments({ path, canEdit }: { path: string; canEdit: boo
         <ChevronDownIcon className={cn("size-3", open ? null : "-rotate-90")} aria-hidden="true" />
         {m.deletedTitle}
       </button>
-      {!open ? null : documents.isPending ? (
-        <p className="px-1 text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedLoading}</p>
-      ) : documents.isError ? (
+      {!open ? null : documents.isError ? (
         <p role="alert" className="px-1 text-[0.8125rem] leading-5 text-destructive">
           {apiErrorMessage(documents.error)}
         </p>
-      ) : documents.data.length === 0 ? (
-        <p className="px-1 text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedEmpty}</p>
       ) : (
         <ul className="flex flex-col">
           {documents.data.map((document) => (

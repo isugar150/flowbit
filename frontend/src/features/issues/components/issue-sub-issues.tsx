@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CircleUserRoundIcon, PlusIcon } from "lucide-react";
+import { ChevronDownIcon, CircleUserRoundIcon, PlusIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import { PeopleMarks } from "@/components/person";
 import { Button } from "@/components/ui/button";
@@ -16,15 +16,29 @@ import { SubIssueProgress } from "./sub-issue-rows";
 
 const m = messages.issues.subIssues;
 
+/** How many sub-issues show before "더 보기" (the user's call, 2026-10-15). */
+const SHOWN = 5;
+
 /**
- * The issues that hang under this one, with how many are done. A new one needs only a title; it
- * is linked to the same project as its parent and is otherwise an ordinary issue.
+ * The issues that hang under this one, with how many are done and a progress bar. The first five
+ * show; "더 보기" opens the rest. A new one needs only a title; it is linked to the same project as
+ * its parent and is otherwise an ordinary issue.
  */
 export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
-  const mutation = useRefreshingMutation(createIssue, () => setTitle(""));
+  const [expanded, setExpanded] = useState(false);
+  const mutation = useRefreshingMutation(createIssue, () => {
+    setTitle("");
+    // A new sub-issue comes last; the list opens so that it can be seen.
+    setExpanded(true);
+  });
+  const total = issue.subIssues.length;
   const done = issue.subIssues.filter((child) => child.status === "DONE").length;
+  // The same count as "1/2" beside it: done out of every sub-issue.
+  const percent = total === 0 ? 0 : Math.round((done / total) * 100);
+  const shown = expanded ? issue.subIssues : issue.subIssues.slice(0, SHOWN);
+  const more = total - SHOWN;
 
   const submit = () => {
     if (!title.trim() || mutation.isPending) return;
@@ -54,9 +68,22 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
         <h3 id="sub-issues-title" className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">
           {m.heading}
         </h3>
-        {issue.subIssues.length > 0 ? (
-          <span className="text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
-            {done}/{issue.subIssues.length}
+        {total > 0 ? (
+          <span className="flex items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
+            <span
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+              aria-label={m.progressBar(percent)}
+              className="h-1.5 w-24 overflow-hidden rounded-full bg-muted-foreground/20 max-sm:w-16"
+            >
+              <span className="block h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
+            </span>
+            <span title={m.progress(done, total)}>
+              {done}/{total}
+            </span>
+            <span className="text-foreground">{percent}%</span>
           </span>
         ) : null}
         <span className="flex-1" />
@@ -75,9 +102,9 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
           </Button>
         ) : null}
       </div>
-      {issue.subIssues.length > 0 ? (
+      {total > 0 ? (
         <ul className="flex flex-col">
-          {issue.subIssues.map((child) => (
+          {shown.map((child) => (
             <li key={child.id} className="flex h-9 items-center gap-2 rounded-md px-1 hover:bg-muted max-md:h-11">
               <StatusMark status={child.status} />
               <span className="shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{child.key}</span>
@@ -106,6 +133,19 @@ export function IssueSubIssues({ issue, canEdit }: { issue: IssueDetail; canEdit
             </li>
           ))}
         </ul>
+      ) : null}
+      {more > 0 ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="self-start text-muted-foreground max-md:h-11"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <ChevronDownIcon data-icon="inline-start" className={expanded ? "rotate-180" : undefined} />
+          {expanded ? m.showLess : m.showMore(more)}
+        </Button>
       ) : null}
       {adding ? (
         <form
