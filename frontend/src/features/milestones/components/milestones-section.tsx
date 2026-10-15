@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { CalendarIcon, ChevronRightIcon, DiamondIcon, EllipsisIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import {
@@ -18,6 +19,7 @@ import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshi
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { createMilestone, deleteMilestone, updateMilestone } from "../api";
+import { milestoneOutline } from "../outline";
 import { isMilestoneDone, milestoneProgress, type Milestone } from "../types";
 
 const m = messages.milestones;
@@ -76,7 +78,8 @@ export function MilestonesSection({
   );
   const remove = useRefreshingMutation(deleteMilestone);
   const error = create.error ?? update.error ?? remove.error;
-  const [openId, setOpenId] = useState<string | null>(null);
+  // `?milestone=` (from a ticket's milestone card, D-137) opens that milestone.
+  const [openId, setOpenId] = useState<string | null>(useSearchParams().get("milestone"));
   const opened = milestones.find((milestone) => milestone.id === openId);
 
   return (
@@ -175,6 +178,7 @@ function MilestoneRow({
 }) {
   const percent = milestoneProgress(milestone);
   const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
+  const purpose = milestoneOutline(milestone.content).purpose;
 
   return (
     <li
@@ -196,8 +200,8 @@ function MilestoneRow({
           >
             {milestone.name}
           </button>
-          {milestone.content ? <span className="shrink-0 text-xs leading-4 text-muted-foreground">{m.hasNotes}</span> : null}
         </div>
+        {purpose ? <p className="truncate pl-6 text-[0.8125rem] leading-5 text-muted-foreground">{purpose}</p> : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-6 text-[0.8125rem] leading-5 whitespace-nowrap text-muted-foreground">
           <span className="flex items-center gap-2">
             <span

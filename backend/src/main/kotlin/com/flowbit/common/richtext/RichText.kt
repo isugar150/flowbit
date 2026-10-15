@@ -189,11 +189,21 @@ class RichText(
         /**
          * Pages shown in a frame, by service; the same as `PATTERNS` in components/editor/embed.ts.
          * Outline is installed per organisation, so any host, but only its public share links.
+         * Google: Docs, Sheets and Slides. Office: SharePoint and OneDrive documents, Office's own
+         * embed address, and its web viewer.
          */
         val EMBED_URLS =
             mapOf(
                 "figma" to Regex("""^https://(?:www\.)?figma\.com/(?:file|design|proto|board|slides|deck)/[A-Za-z0-9]+(?:[/?#]\S*)?$"""),
                 "outline" to Regex("""^https?://[^/\s?#]+/s/[A-Za-z0-9_-]+(?:[/?#]\S*)?$"""),
+                "google" to
+                    Regex("""^https://docs\.google\.com/(?:document|spreadsheets|presentation)/d/(?:e/)?[A-Za-z0-9_-]+(?:[/?#]\S*)?$"""),
+                "office" to
+                    Regex(
+                        """^https://(?:[a-z0-9-]+\.sharepoint\.com/(?::[wxp]:/\S+|\S*/_layouts/15/(?:Doc|Doc2|WopiFrame|guestaccess)\.aspx\?\S+)""" +
+                            """|onedrive\.live\.com/embed\?\S+|view\.officeapps\.live\.com/op/(?:view|embed)\.aspx\?\S*src=\S+)$""",
+                        RegexOption.IGNORE_CASE,
+                    ),
             )
         const val MAX_EMBED_URL_LENGTH = 2_000
         val CELL_ALIGN = setOf(null, "left", "center", "right")

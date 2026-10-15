@@ -39,6 +39,8 @@ export function groupIssues(
   projects: ProjectSummary[],
   /** Known milestones with their progress, for the milestone headings; may be empty. */
   milestones: Milestone[] = [],
+  /** From `useThisYear()`, for the milestone headings' dates; null on the server. */
+  thisYear: number | null = null,
 ): IssueGroup[] {
   switch (grouping) {
     case "status":
@@ -86,7 +88,7 @@ export function groupIssues(
           ...byName(
             [...named].map(([id, name]) => {
               const known = milestones.find((milestone) => milestone.id === id);
-              return { key: id, label: name, icon: <DiamondIcon className={muted} aria-hidden="true" />, meta: known ? milestoneSummary(known) : undefined };
+              return { key: id, label: name, icon: <DiamondIcon className={muted} aria-hidden="true" />, meta: known ? milestoneSummary(known, thisYear) : undefined };
             }),
           ),
           { key: NONE_KEY, label: m.noMilestone, icon: <CircleSlashIcon className={muted} aria-hidden="true" /> },

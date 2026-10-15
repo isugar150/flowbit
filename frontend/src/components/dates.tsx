@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { formatDueDate } from "@/features/issues/meta";
 import { timeAgo } from "@/features/projects/meta";
 
@@ -16,6 +16,34 @@ export function useInBrowser(): boolean {
     subscribe,
     () => true,
     () => false,
+  );
+}
+
+/**
+ * When the component was first shown, in milliseconds; null while the server renders (which may not
+ * read the clock) and during hydration, so the first browser render matches the server's.
+ */
+export function useShownAt(): number | null {
+  const inBrowser = useInBrowser();
+  const [shownAt] = useState(() => (typeof window === "undefined" ? null : Date.now()));
+  return inBrowser ? shownAt : null;
+}
+
+/** This year in the browser; null while the server renders, which may not read the clock. */
+export function useThisYear(): number | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => new Date().getFullYear(),
+    () => null,
+  );
+}
+
+/** Today as YYYY-MM-DD in the browser's time zone; null while the server renders. */
+export function useToday(): string | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => new Intl.DateTimeFormat("sv-SE").format(new Date()),
+    () => null,
   );
 }
 

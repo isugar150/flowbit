@@ -30,7 +30,7 @@
 - **프로젝트의 "한 줄 요약"을 화면에서 없앴다** (D-134). 컬럼·API 필드는 남아 있다. 이것도 검사하지 않았다.
 - **프로젝트의 "티켓" 탭을 없앴다** (D-135). 개요·목표 상세의 링크는 `/issues?project=…` 로 가고, `/project/{id}/issues` 는 그리로 넘겨 준다. 검사·화면 확인을 하지 않았다. **E2E(`changes`·`features`·`flows.spec.ts`)가 예전 주소와 탭을 쓰므로 고쳐야 할 수 있다.**
 
-- **편집기에 Figma·Outline 임베드가 생겼다** (D-137, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
+- **편집기에 Figma·Google(문서·스프레드시트·프레젠테이션)·Office·Outline 임베드가 생겼다** (D-139, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
 
 ## 다음 작업
 
@@ -177,11 +177,40 @@
 
 ## 작업 기록
 
-### 2026-10-15 — 편집기의 Figma·Outline 임베드 (D-137)
+### 2026-10-15 — 목표 카드 제거, 목표 창 상시 표시 (D-140)
+
+- 사용자 지적: 아직 카드(이름·진행률·`>`)가 있다. 카드를 없애고, 누르면 나오던 목표 창을 항상 띄워라. (에이전트가 D-139 에서 "접기 없앤 카드"로 잘못 이해했다.)
+- 한 일: `MilestoneCard` 삭제(`milestone-card.tsx` 에는 목표 줄이 쓰는 `OutlineView`·`milestoneHref` 만 남음). `IssueProperties` 가 `useMilestonePanel()` 로 지금 목표를 `IssueDialog` 에 알린다(효과, 사라질 때 null). `MilestonePanel` 은 닫기 버튼·`onClose`·자동 스크롤 없음, 사라질 때 쓰던 문서가 있으면 저장 후 새로 읽기.
+- 확인하지 않음(사용자 요청).
+
+### 2026-10-15 — 목표 카드 접기 없앰, 좁은 화면에서 패널은 티켓 아래 (D-139)
+
+- 사용자: 옆 패널이 잘 나온다. 접고 펼치기는 없애고, 폭이 모자라면 티켓 아래에 그려 달라.
+- 한 일: `MilestoneCard` 는 이름·진행률·목표일만 있는 버튼(티켓 창 밖이면 개요 링크), `localStorage` 기억과 요약 부분 삭제. `IssueDialog` 는 패널을 스크롤 상자 안 맨 끝에 둔다. `MilestonePanel` 은 기본이 흐름 안의 상자(티켓 아래), `xl` 에서 `absolute` 로 창 옆. 좁을 때 열리면 `scrollIntoView`. "티켓으로" 버튼과 문구 삭제.
+- 확인하지 않음(사용자 요청). 볼 곳: `xl` 에서 스크롤 상자 안의 절대 위치 패널이 잘리지 않고 스크롤을 따라 움직이지 않는지(상자가 positioned 가 아니어야 한다).
+
+### 2026-10-15 — 목표 카드 접기, 티켓 창 옆 목표 패널 (D-138)
+
+- 사용자 지적: 티켓 상세의 목표 카드에 긴 Figma 주소가 목적으로 그대로 나와 칸을 차지한다. 첨부 화면처럼 창을 나누거나 접게 하자. 에이전트 제안(접는 카드 + 옆 패널)에 "진행해".
+- 한 일: `outline.ts` 가 주소를 사이트 이름으로 줄인다. `MilestoneCard` 접기/펼치기(`useSyncExternalStore` + `localStorage`), `canEdit` 속성, 티켓 창 안이면 "목표 열기"가 패널을 연다. `milestone-detail-dialog.tsx` 를 `MilestoneDetailBody`·`useMilestoneNotes` 로 나눴다(개요 창은 그대로 씀). 새 `milestone-panel.tsx`(`MilestonePanelProvider`, `useMilestonePanel`, `MilestonePanel`: 목표 목록을 불러 찾고, 이름·날짜는 낙관적 갱신, 닫을 때 문서 저장 후 새로 읽기). `IssueDialog` 가 패널 상태를 갖고 `xl` 에서 자신을 왼쪽으로 옮긴다.
+- 그 사이 누군가 `shortDate(date, thisYear)`·`useThisYear` 로 바꿔 둔 것을 살려 합쳤다.
+- 확인하지 않음: lint·typecheck·build·화면(사용자 요청으로 생략). 볼 곳: `xl` 폭 계산(`calc(50%-11.875rem)`, `min(64rem,calc(100vw-26rem))`), 패널의 `xl:min-h-full`, 패널 안 편집기 메뉴가 잘리지 않는지, Esc 가 티켓 창까지 닫는 것.
+
+### 2026-10-15 — 목표 내용을 티켓·목록·개요에서 보기, 목표 문서 기본 틀 (D-137)
+
+- 사용자 요청: 티켓 상세에서는 목표 이름만 보이고, 목표 문서 내용은 프로젝트 개요 → 목표로 들어가야 보인다. 에이전트가 노출 위치 네 곳 + 기본 틀을 제안했고 "구현해봐".
+- 한 일: `milestones/outline.ts`(`milestoneOutline`: 목적·완료 조건 추출, `milestoneTemplate`). `milestone-card.tsx`(`MilestoneCard`, `OutlineView`, `milestoneHref`). 티켓 상세 `IssueProperties` 아래 카드. `MilestoneStrip` 에 `projectId` 와 고른 목표의 설명 띠, 칩 툴팁에 목적. 개요 `MilestoneRow` 에 목적 한 줄(“정리 있음” 문구 삭제), `MilestonesSection` 이 `?milestone=` 로 상세 창을 연다(`useSearchParams`). `ChipOption.hint` 를 더해 목표 선택지에 목적. 상세 창의 빈 문서는 틀로 시작.
+- 확인하지 않음: lint·typecheck·build·화면(사용자 요청으로 생략). 볼 곳: 프로젝트 개요에서 `useSearchParams` 가 Suspense 경고를 내는지, 틀의 빈 `taskItem` 이 백엔드 RichText 검사를 통과하는지.
+
+### 2026-10-15 — 편집기의 Figma·Outline 임베드 (D-139)
 
 - 사용자 지시: 편집기에 Figma 링크를 넣으면 임베드되게, Outline 도.
 - 한 일: `components/editor/embed.ts`(Tiptap 노드 `embed`, 주소 인식 `embedFor`, Figma → `embed.figma.com?embed-host=flowbit` 변환, 위쪽 줄 + `sandbox` iframe), `rich-text-editor.tsx` 의 붙여넣기 처리와 `/` 메뉴 "임베드"(문서 이름 칸을 주소 칸으로도 쓰게 `naming.kind`), `ko.ts` 문구. 백엔드 `RichText.kt` 가 `embed` 를 받고 주소를 검증한다(`EMBED_URLS`, 2000자). `IssuesIntegrationTest` 의 문서 테스트에 받기·거부 5가지.
 - 확인: `IssuesIntegrationTest`(37개)와 ktlint 통과, 프런트 `typecheck`·`eslint` 통과. `localhost:3000` 화면에서 같은 sandbox 의 iframe 으로 Figma 예제 파일과 Outline 공유 문서(`docs.getoutline.com/s/hosting`)가 열리는 것을 봤다. **로그인할 수 없어 편집기 안에서 붙여 넣는 것은 확인하지 못했다.** 전체 `./gradlew check`·E2E 는 돌리지 않았다.
+- 사용자 지적(같은 날): 새 티켓 창에서 Figma 임베드가 창 밖으로 뚫고 나오고 오른쪽 속성 열이 밀려 사라졌다. 원인: 블록 위쪽 줄의 긴 주소(한 줄로 자름)의 최소 폭이 `DialogContent` 의 grid 칸을 넓혔다. 블록에 `contain: inline-size` 를 줘서 주어진 폭만 쓰게 했다. 같은 구조를 페이지에 만들어 폭이 3009px → 300px 로 바뀌는 것을 확인했고, 실제 창에서는 확인하지 못했다.
+- 사용자 지적(같은 날): 새 티켓을 만들 때 "문서 형식이 올바르지 않습니다". 원인은 코드가 아니라 IntelliJ 로 띄운 백엔드가 임베드 전의 클래스(`backend/build/classes`)로 돌고 있던 것. 에이전트가 기본 빌드 폴더에 `./gradlew compileKotlin` 을 돌려 IntelliJ 빌드와 Kotlin 캐시 잠금이 겹쳤다(`Could not delete …caches-jvm`). **사용자 IDE 가 쓰는 `backend/build` 에는 gradle 을 돌리지 말고 항상 `FLOWBIT_BUILD_DIR` 을 준다.**
+- 사용자 지적(같은 날, 임베드와 별개): 앱에서 "Next.js encountered the unstable value `Date.now()` while prerendering". 렌더 중에 시각을 읽는 곳이 세 군데 있었다: 목표 줄의 `today()`(오늘 커밋 66c9b8c), `shortDate()`(올해면 연도 생략. 목표 줄·목표 카드·목표별 묶음 머리), 티켓 목록의 `useState(() => Date.now())`. `components/dates.tsx` 에 `useThisYear`·`useToday`·`useShownAt` 을 두고 `shortDate(date, thisYear)`·`milestoneSummary(m, thisYear)`·`groupIssues(…, thisYear)` 로 받게 했다. `issues-view.tsx` 의 eslint 오류 6개(`preserve-manual-memoization`)는 HEAD 에도 있던 것이다. 로그인할 수 없어 화면에서 오류가 사라진 것은 확인하지 못했다. 같은 시각 다른 작업이 목표 파일(`milestone-card.tsx`, `milestone-panel`)을 고치는 중이었고, 그쪽의 타입 오류 2개는 그 작업의 것이다. 임베드 결정이 다른 작업의 D-137(목표 내용 보기)과 번호가 겹쳐서, 그쪽 코드 주석이 D-137·D-138 을 쓰고 있으므로 임베드를 **D-139** 로 옮겼다.
+- 사용자 지시(같은 날): Office 웹, Google 스프레드시트·프레젠테이션·문서도 똑같이. `embed.ts` 에 `google`·`office` 를 더했다(주소 인식, 서비스 이름, iframe 주소: Google 은 `/preview`·`/embed`·게시 보기, SharePoint 는 `action=embedview`, 웹 뷰어는 `embed.aspx`). `RichText.EMBED_URLS` 와 테스트 6가지 추가. 확인: Google 공개 예제 파일(API 문서의 시트·문서·슬라이드)과 Office 웹 뷰어의 공개 .docx 가 같은 sandbox iframe 에서 열리는 것을 봤다. **SharePoint·OneDrive 는 테스트할 계정이 없어 iframe 으로 열어 보지 못했다**(`action=embedview` 는 Microsoft 커뮤니티 자료 기준).
 - 알아둘 것: 비공개 Figma 파일은 보는 사람이 브라우저에서 Figma 에 로그인해 있어야 보인다(Figma 쪽 제한). 붙여넣기로 들어간 임베드는 `Ctrl+Z` 로 지우면 링크도 남지 않는다.
 
 ### 2026-10-15 — 목표 줄, 묶음 진행률, 완료된 목표 접기, 전체 프로젝트의 현재 목표 제거 (D-136)

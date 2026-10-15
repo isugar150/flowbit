@@ -19,6 +19,7 @@ import {
   LayersIcon,
 } from "lucide-react";
 
+import { useShownAt, useThisYear } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Kbd } from "@/components/ui/kbd";
@@ -386,11 +387,13 @@ export function IssuesView({
   }));
 
   // "Long ago" is measured from when the list was opened, so lines do not drop out while it is looked at.
-  const [now] = useState(() => Date.now());
+  // The server may not read the clock: until the browser takes over, nothing counts as long ago.
+  const now = useShownAt();
+  const thisYear = useThisYear();
   const groups = useMemo(() => {
-    return groupIssues(issues, grouping, projects, milestones).map((group) => {
+    return groupIssues(issues, grouping, projects, milestones, thisYear).map((group) => {
       // Issues finished long ago leave the lines but are still counted, so the group can offer them.
-      const shown = group.issues.filter((issue) => !finishedLongAgo(issue, completed, now));
+      const shown = group.issues.filter((issue) => (now === null || !finishedLongAgo(issue, completed, now)));
       const items = sortIssues(shown, sort);
       return {
         key: group.key,
@@ -402,7 +405,7 @@ export function IssuesView({
         rows: arrangeBySubIssues(items),
       };
     });
-  }, [issues, grouping, projects, milestones, sort, completed, now]);
+  }, [issues, grouping, projects, milestones, sort, completed, now, thisYear]);
 
   // The last filters, order and grouping are shared by the three lists and kept across visits.
   useRememberedListQuery({
@@ -497,6 +500,7 @@ export function IssuesView({
           </div>
           {milestoneProjectId !== null && (projectId ?? filters.project) === milestoneProjectId && !deleted ? (
             <MilestoneStrip
+              projectId={milestoneProjectId}
               milestones={milestones}
               selected={filters.milestone === ALL || filters.milestone === NONE ? null : filters.milestone}
               onSelect={(id) => setFilter("milestone", id ?? ALL)}

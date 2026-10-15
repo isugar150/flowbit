@@ -655,6 +655,12 @@ class IssuesIntegrationTest : IntegrationTest() {
         }
         assertEquals(200, embed("figma", "https://www.figma.com/design/AbC123/Flow?node-id=1-2"))
         assertEquals(200, embed("outline", "https://wiki.example.com/s/3f2a-team-notes"))
+        assertEquals(200, embed("google", "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0"))
+        assertEquals(200, embed("google", "https://docs.google.com/document/d/e/2PACX-1vAbc_123/pub"))
+        assertEquals(200, embed("office", "https://contoso.sharepoint.com/:x:/r/sites/team/Shared%20Documents/plan.xlsx?d=w1&e=AbC"))
+        assertEquals(200, embed("office", "https://onedrive.live.com/embed?resid=ABC%21123&authkey=xyz&em=2"))
+        assertEquals(422, embed("google", "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view"))
+        assertEquals(422, embed("office", "https://contoso.sharepoint.com.evil.example/:w:/r/x"))
         assertEquals(422, embed("figma", "javascript:alert(1)"))
         assertEquals(422, embed("outline", "https://wiki.example.com/doc/private-abc"))
         assertEquals(422, embed("youtube", "https://www.figma.com/design/AbC123/Flow"))

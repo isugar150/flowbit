@@ -1,5 +1,6 @@
 import { CircleSlashIcon, DiamondIcon, UserIcon } from "lucide-react";
 import { PersonAvatar, personName, type PersonLike } from "@/components/person";
+import { milestoneOutline } from "@/features/milestones/outline";
 import { isMilestoneDone, type Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { messages } from "@/messages";
@@ -59,7 +60,7 @@ export function assigneeOptions(members: ProjectMember[]): ChipOption<string>[] 
  * chosen, which must still show.
  */
 export function milestoneOptions(
-  milestones: (Pick<Milestone, "id" | "name"> & Partial<Pick<Milestone, "issueCount" | "doneCount">>)[],
+  milestones: (Pick<Milestone, "id" | "name"> & Partial<Pick<Milestone, "issueCount" | "doneCount" | "content">>)[],
   keep?: string | null,
 ): ChipOption<string>[] {
   return [
@@ -68,6 +69,8 @@ export function milestoneOptions(
       value: milestone.id,
       label: milestone.name,
       icon: <DiamondIcon className="size-4 text-muted-foreground" aria-hidden />,
+      // What the milestone is for, so similar names are told apart (D-137).
+      hint: milestoneOutline(milestone.content).purpose ?? undefined,
     })),
   ];
 }

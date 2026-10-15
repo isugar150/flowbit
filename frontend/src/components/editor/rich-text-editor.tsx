@@ -100,7 +100,9 @@ const SLASH_ITEMS: SlashItem[] = [
   {
     id: "embed",
     label: m.embed,
-    keywords: "embed figma outline iframe 임베드 피그마 아웃라인",
+    hint: m.embedHint,
+    keywords:
+      "embed iframe figma outline google docs sheets slides office word excel powerpoint sharepoint onedrive 임베드 피그마 아웃라인 구글 문서 시트 스프레드시트 슬라이드 프레젠테이션 오피스 워드 엑셀 파워포인트",
     icon: <FrameIcon />,
     run: (e, r, actions) => {
       block(e, r).run();

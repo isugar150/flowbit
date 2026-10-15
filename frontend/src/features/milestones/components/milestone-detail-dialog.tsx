@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
+import { milestoneTemplate } from "../outline";
 import { SaveStatus } from "@/components/editor/save-status";
 import { PeopleMarks } from "@/components/person";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -60,7 +61,58 @@ export function MilestoneDetailDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const notes = useAutosave((content: RichDoc | null) => updateMilestone({ projectId, id: milestone.id, changes: { content } }));
+  const notes = useMilestoneNotes(projectId, milestone.id);
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (open) return;
+        // What was typed last is sent before the overview is read again, so the line behind
+        // (and the next opening of this dialog) starts from what was written.
+        void notes.flush().then(() => router.refresh());
+        onClose();
+      }}
+    >
+      {/* Hung from the top rather than centred, so it does not jump as the document grows. */}
+      <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl lg:max-w-5xl">
+        <DialogTitle className="sr-only">{milestone.name}</DialogTitle>
+        <DialogDescription className="sr-only">{m.detailDescription}</DialogDescription>
+        {/* The scroll box is inside, not the dialog itself, so the editor's menus are not clipped. */}
+        <div className="max-h-[88dvh] min-h-64 overflow-y-auto overscroll-contain rounded-xl">
+          <MilestoneDetailBody projectId={projectId} milestone={milestone} canEdit={canEdit} onChange={onChange} notes={notes} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The milestone document's autosave; whoever shows the body holds it, to flush it on closing. */
+export function useMilestoneNotes(projectId: string, milestoneId: string) {
+  return useAutosave((content: RichDoc | null) => updateMilestone({ projectId, id: milestoneId, changes: { content } }));
+}
+
+/**
+ * What a milestone shows, in the overview's dialog or in the panel beside a ticket (D-138): name,
+ * progress, target date, the document, and its tickets. `stacked` puts the tickets under the
+ * document instead of beside it, for a narrow panel.
+ */
+export function MilestoneDetailBody({
+  projectId,
+  milestone,
+  canEdit,
+  onChange,
+  notes,
+  stacked = false,
+}: {
+  projectId: string;
+  milestone: Milestone;
+  canEdit: boolean;
+  onChange: (changes: { name?: string; targetDate?: string | null }) => void;
+  notes: ReturnType<typeof useMilestoneNotes>;
+  stacked?: boolean;
+}) {
+  const router = useRouter();
   const percent = milestoneProgress(milestone);
   const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
   const nameInput = useRemoteValue<HTMLInputElement>(milestone.name, isFocused);
@@ -108,24 +160,9 @@ export function MilestoneDetailDialog({
   };
 
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (open) return;
-        // What was typed last is sent before the overview is read again, so the line behind
-        // (and the next opening of this dialog) starts from what was written.
-        void notes.flush().then(() => router.refresh());
-        onClose();
-      }}
-    >
-      {/* Hung from the top rather than centred, so it does not jump as the document grows. */}
-      <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl lg:max-w-5xl">
-        {/* The scroll box is inside, not the dialog itself, so the editor's menus are not clipped. */}
-        <div className="flex max-h-[88dvh] min-h-64 flex-col overflow-y-auto overscroll-contain rounded-xl lg:flex-row">
+        <div className={cn("flex flex-col", !stacked && "lg:flex-row")}>
           <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 pt-6">
             <div className="flex flex-col gap-3">
-              <DialogTitle className="sr-only">{milestone.name}</DialogTitle>
-              <DialogDescription className="sr-only">{m.detailDescription}</DialogDescription>
               <div className="flex items-center gap-2 pr-8">
                 <DiamondIcon className={cn("size-5 shrink-0", done ? "fill-primary text-primary" : "text-muted-foreground")} aria-hidden="true" />
                 {canEdit ? (
@@ -186,7 +223,8 @@ export function MilestoneDetailDialog({
               </div>
               {canEdit || milestone.content ? (
                 <RichTextEditor
-                  initialContent={milestone.content}
+                  // An empty document starts from the template so it is clear what to write (D-137).
+                  initialContent={milestone.content ?? (canEdit ? milestoneTemplate(m.template) : null)}
                   editable={canEdit}
                   placeholder={m.notesPlaceholder}
                   ariaLabel={m.notesLabel}
@@ -201,9 +239,12 @@ export function MilestoneDetailDialog({
           </div>
           <aside
             aria-labelledby="milestone-issues-title"
-            className="flex w-full shrink-0 flex-col gap-2 border-t p-5 lg:w-96 lg:border-t-0 lg:border-l lg:pt-6"
+            className={cn(
+              "flex w-full shrink-0 flex-col gap-2 border-t p-5",
+              !stacked && "lg:w-96 lg:border-t-0 lg:border-l lg:pt-6",
+            )}
           >
-            <div className="flex items-center justify-between gap-2 lg:pr-8">
+            <div className={cn("flex items-center justify-between gap-2", !stacked && "lg:pr-8")}>
               <h3 id="milestone-issues-title" className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">
                 {m.issuesTitle}
                 {issues.data ? <span className="ml-1.5 font-normal tabular-nums">{issues.data.length}</span> : null}
@@ -284,7 +325,5 @@ export function MilestoneDetailDialog({
             )}
           </aside>
         </div>
-      </DialogContent>
-    </Dialog>
   );
 }

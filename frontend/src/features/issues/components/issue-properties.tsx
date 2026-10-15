@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { CircleSlashIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { FormAlert } from "@/features/auth/components/form-alert";
+import { useMilestonePanel } from "@/features/milestones/components/milestone-panel";
 import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
@@ -233,6 +235,18 @@ export function IssueProperties({
   // The milestones on hand are those of the saved project; another project's arrive with the
   // refresh, so until then the milestone row has nothing to pick from.
   const projectSaved = values.projectId === saved.projectId;
+
+  // The ticket's milestone stays open beside the ticket (below it on a narrow screen) for as long
+  // as the ticket has one (D-140). The dialog draws it; this says which.
+  const milestone = projectSaved && values.projectId ? milestones.find((item) => item.id === values.milestoneId) : undefined;
+  const showMilestone = useMilestonePanel();
+  const panelProjectId = milestone ? values.projectId : null;
+  const panelMilestoneId = milestone?.id ?? null;
+  useEffect(() => {
+    if (!showMilestone) return;
+    showMilestone(panelProjectId && panelMilestoneId ? { projectId: panelProjectId, milestoneId: panelMilestoneId, canEdit } : null);
+    return () => showMilestone(null);
+  }, [showMilestone, panelProjectId, panelMilestoneId, canEdit]);
 
   return (
     <div className="flex flex-col gap-3">
