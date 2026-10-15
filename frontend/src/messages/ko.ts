@@ -787,6 +787,11 @@ export const ko = {
     saving: "저장하는 중",
     delete: "삭제",
     deleteConfirm: "한 번 더 누르면 연결과 이 연결로 티켓에 연결한 브랜치·PR·커밋이 삭제됩니다",
+    branchCopy: {
+      menuLabel: (key: string) => `${key} 메뉴`,
+      copy: "브랜치 이름 복사",
+      copied: "복사했습니다",
+    },
     github: {
       title: "GitHub 앱",
       description: "GitHub는 조직에 설치하는 GitHub 앱으로 연결합니다. 사람 계정과 상관없이 동작하고, 저장소 읽기 권한만 받습니다.",

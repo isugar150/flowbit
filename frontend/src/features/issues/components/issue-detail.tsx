@@ -7,6 +7,7 @@ import { DialogTitle } from "@/components/ui/dialog";
 import type { UserSummary } from "@/features/members/types";
 import type { Milestone } from "@/features/milestones/types";
 import { mentionablesOf, usersAsMembers, type ProjectMember } from "@/features/projects/types";
+import { branchName } from "@/features/git/branch-name";
 import { IssueGitLinks } from "@/features/git/components/issue-git-links";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { getProjects, requireUser, serverGet } from "@/lib/current-user";
@@ -32,12 +33,13 @@ const m = messages.issues;
 export async function IssueDetail({ issueKey }: { issueKey: string }) {
   const number = issueNumberOf(issueKey);
   if (number === null) notFound();
-  const [user, issue, activity, labels, projects] = await Promise.all([
+  const [user, issue, activity, labels, projects, git] = await Promise.all([
     requireUser(),
     serverGet<IssueDetailData>(`/api/v1/issues/${number}`),
     serverGet<IssueActivityFeed>(`/api/v1/issues/${number}/activity`),
     serverGet<Label[]>("/api/v1/labels"),
     getProjects(),
+    serverGet<{ enabled: boolean }>("/api/v1/git/status"),
   ]);
   if (!issue || !labels) notFound();
   // Who can be assigned and which milestones exist depend on the project the issue is linked to.
@@ -74,7 +76,12 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
           </Link>
         ) : null}
         <DeletedIssueBanner issue={issue} />
-        <IssueBody issue={issue} canEdit={canEdit} mentionables={mentionables} />
+        <IssueBody
+          issue={issue}
+          canEdit={canEdit}
+          mentionables={mentionables}
+          branch={git?.enabled ? branchName(user.loginId, issue.key, issue.title) : null}
+        />
         <IssueAttachments number={issue.number} attachments={issue.attachments} canEdit={canEdit} />
         <IssueReactions number={issue.number} reactions={issue.reactions} readOnly={Boolean(issue.deletedAt)} />
         <IssueSubIssues issue={issue} canEdit={canEdit} members={members ?? []} />

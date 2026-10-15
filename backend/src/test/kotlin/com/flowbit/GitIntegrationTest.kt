@@ -456,6 +456,22 @@ class GitIntegrationTest : IntegrationTest() {
         assertTrue(payload.get("text").asString().contains("parkhs(Git) 님이 Git에서 티켓을 수정했습니다"))
     }
 
+    @Test
+    fun `Git 이 쓰이는지는 누구나 알 수 있고 켜진 연결이 있을 때만 참이다`() {
+        admin.post("/api/v1/admin/members", """{"loginId":"member","password":"$PASSWORD"}""")
+        val member = client().also { it.login("member", PASSWORD) }
+        assertEquals(mapOf("enabled" to false), member.get("/api/v1/git/status").json())
+
+        val connection = connect()
+        assertEquals(mapOf("enabled" to true), member.get("/api/v1/git/status").json())
+        admin.put("/api/v1/admin/git/connections/${connection["id"]}", connectionJson(enabled = false))
+        assertEquals(mapOf("enabled" to false), member.get("/api/v1/git/status").json())
+        // A GitHub connection counts once its app is installed.
+        admin.post("/api/v1/admin/git/connections", """{"name":"GitHub","provider":"GITHUB","githubOrganization":"acme"}""")
+        assertEquals(mapOf("enabled" to false), member.get("/api/v1/git/status").json())
+        assertEquals(401, client().get("/api/v1/git/status").status)
+    }
+
     // --- GitLab ---------------------------------------------------------------------------------
 
     @Test

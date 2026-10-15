@@ -8,6 +8,7 @@
         "start": "next start",
         "lint": "eslint",
         "typecheck": "next typegen && tsc --noEmit",
+        "test": "vitest run",
         "test:e2e": "playwright test"
     },
     "dependencies": {

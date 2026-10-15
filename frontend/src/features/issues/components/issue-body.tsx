@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
+import { IssueKeyMenu } from "@/features/git/components/issue-key-menu";
 import { useAutosave } from "@/lib/use-autosave";
 import { useRemoteValue } from "@/lib/use-remote-value";
 import { messages } from "@/messages";
@@ -21,9 +22,12 @@ export function IssueBody({
   issue,
   canEdit,
   mentionables,
+  branch = null,
 }: {
   issue: IssueDetail;
   canEdit: boolean;
+  /** The branch name the key's menu copies; null without Git (D-145). */
+  branch?: string | null;
   /** The people "@" offers in the body. */
   mentionables: MentionPerson[];
 }) {
@@ -45,7 +49,7 @@ export function IssueBody({
     <>
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{issue.key}</span>
+          <IssueKeyMenu issueKey={issue.key} branch={branch} />
           <SaveStatus status={status} />
         </div>
         {canEdit ? (

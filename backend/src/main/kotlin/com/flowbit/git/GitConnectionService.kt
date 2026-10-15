@@ -92,8 +92,11 @@ class GitConnectionService(
     /** The connection, or null when there is none with this id. */
     suspend fun find(id: UUID): GitConnectionView? = repository.findById(id)?.let { GitConnectionView(it, projectIds(it.id)) }
 
-    /** Whether any connection exists, enabled or not. */
-    suspend fun any(): Boolean = repository.count() > 0
+    /**
+     * Whether Git is in use: a connection is switched on and can receive something (a GitHub one
+     * once its app is installed). Without one, people see no Git buttons (D-145).
+     */
+    suspend fun inUse(): Boolean = repository.findAllOrdered().toList().any { it.enabled && (it.provider != GitProviderType.GITHUB || it.githubReady()) }
 
     /** Adds a connection with a new secret. The secret is in the returned connection and shown this once. */
     suspend fun create(
