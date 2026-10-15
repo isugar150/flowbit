@@ -53,6 +53,8 @@ data class IssueView(
     /** Null when the issue is linked to no project. */
     val project: IssueProject?,
     val parent: IssueParent?,
+    /** Every issue above this one, the top-level one first and [parent] last; empty for a top-level issue. */
+    val ancestors: List<IssueParent> = emptyList(),
     val title: String,
     val description: String,
     val status: IssueStatus,
@@ -73,8 +75,19 @@ data class IssueView(
     val updatedAt: Instant,
     /** When the issue was deleted; null for an issue in use. */
     val deletedAt: Instant? = null,
+    /**
+     * When a done or canceled issue was finished: its last status change, or when it was made if
+     * it was made finished. Null while it is open. Lists hide the ones finished long ago.
+     */
+    val completedAt: Instant? = null,
     /** The body as raw editor JSON. Loaded for a single issue only, never in lists. */
     val content: String? = null,
+)
+
+/** An issue above another, as the query reads it; the key is added from the workspace's issue key. */
+private data class AncestorRow(
+    val number: Int = 0,
+    val title: String = "",
 )
 
 /** Which of a person's issues to list on "내 티켓". The condition never comes from input. */
@@ -251,9 +264,20 @@ class IssueQueries(
                 """
                 select i.id, i.number, i.title, i.description, i.status, i.priority, i.start_date, i.due_date,
                        i.version, i.created_at, i.updated_at, i.deleted_at,
+                       case when i.status in ('DONE', 'CANCELED') then coalesce(
+                           (select max(sa.created_at) from issue_activities sa where sa.issue_id = i.id and sa.type = 'STATUS_CHANGED'),
+                           i.created_at) end as completed_at,
                        (select workspace_key from instance_settings where id = 1) as issue_prefix,
                        p.id as project_id, p.name as project_name,
                        parent.number as parent_number, parent.title as parent_title,
+                       (with recursive up (id, parent_id, number, title, lvl) as (
+                            select a.id, a.parent_id, a.number, a.title, 1 from issues a where a.id = i.parent_id
+                            union all
+                            select a.id, a.parent_id, a.number, a.title, up.lvl + 1
+                            from issues a join up on a.id = up.parent_id
+                            where up.lvl < 20)
+                        select coalesce(json_agg(json_build_object('number', number, 'title', title) order by lvl desc), '[]')::text
+                        from up) as ancestors,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null) as sub_total,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null and s.status = 'DONE') as sub_done,
                        (select coalesce(json_agg(json_build_object('id', a.id, 'loginId', a.login_id,
@@ -300,6 +324,10 @@ class IssueQueries(
                     row.get("parent_number", Int::class.javaObjectType)?.let { parentNumber ->
                         IssueParent(parentNumber, "$prefix-$parentNumber", checkNotNull(row.get("parent_title", String::class.java)))
                     },
+                ancestors =
+                    jsonMapper
+                        .readValue(checkNotNull(row.get("ancestors", String::class.java)), Array<AncestorRow>::class.java)
+                        .map { IssueParent(it.number, "$prefix-${it.number}", it.title) },
                 title = checkNotNull(row.get("title", String::class.java)),
                 description = checkNotNull(row.get("description", String::class.java)),
                 status = IssueStatus.valueOf(checkNotNull(row.get("status", String::class.java))),
@@ -323,6 +351,7 @@ class IssueQueries(
                 createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
                 updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
                 deletedAt = row.get("deleted_at", OffsetDateTime::class.java)?.toInstant(),
+                completedAt = row.get("completed_at", OffsetDateTime::class.java)?.toInstant(),
             )
         }.all()
             .collectList()

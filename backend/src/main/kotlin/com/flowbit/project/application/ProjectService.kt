@@ -63,6 +63,11 @@ data class ProjectView(
     val healthUpdatedAt: Instant?,
     /** Whether this person follows the project: is told about every change to its issues. */
     val subscribed: Boolean,
+    /**
+     * Whether the person was added to the project. A workspace administrator may enter every
+     * project (`myRole`) but belongs only to these; the sidebar lists only these.
+     */
+    val member: Boolean = false,
     /** When the project was archived; null for a project in use. */
     val archivedAt: Instant? = null,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
@@ -497,6 +502,7 @@ class ProjectService(
         health = row.health,
         healthUpdatedAt = row.healthUpdatedAt,
         subscribed = row.subscribed,
+        member = row.memberRole != null,
         archivedAt = row.archivedAt,
     )
 

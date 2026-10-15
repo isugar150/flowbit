@@ -15,6 +15,8 @@ import {
   UsersIcon,
   XIcon,
   ArrowUpDownIcon,
+  CircleCheckIcon,
+  LayersIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,8 +31,10 @@ import { cn } from "@/lib/utils";
 import { isTyping } from "@/lib/is-typing";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
-import { STATUS_ORDER, StatusIcon, statusLabel } from "../meta";
+import { STATUS_ORDER } from "../meta";
 import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
+import { DEFAULT_ISSUE_GROUPING, ISSUE_GROUPS, groupIssues, type IssueGrouping } from "../grouping";
+import { useRememberedListQuery } from "../list-memory";
 import { arrangeBySubIssues } from "../sub-issue-tree";
 import type { Issue, IssueChanges, IssueStatus, Label } from "../types";
 import { NEW_ISSUE_EVENT } from "./new-issue-launcher";
@@ -68,6 +72,30 @@ const SORT_OPTIONS: ChipOption<IssueSort>[] = ISSUE_SORTS.map((value) => ({
   label: m.sorts[value],
   icon: <ArrowUpDownIcon className="size-4 text-muted-foreground" aria-hidden />,
 }));
+/**
+ * How long done and canceled issues stay in the list after they were finished: `?completed=`.
+ * Two weeks is the default and is left out; older ones are counted under their group instead
+ * (the user's call, 2026-10-15: a list that keeps every finished issue only grows).
+ */
+const COMPLETED_KEY = "completed";
+const COMPLETED_WINDOWS = ["2w", "1m", "all", "none"] as const;
+type CompletedWindow = (typeof COMPLETED_WINDOWS)[number];
+const DEFAULT_COMPLETED: CompletedWindow = "2w";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const COMPLETED_DAYS: Record<CompletedWindow, number | null> = { "2w": 14, "1m": 30, all: null, none: 0 };
+const COMPLETED_ICON = <CircleCheckIcon className="size-4 text-muted-foreground" aria-hidden />;
+
+/** Whether a finished issue is left out of the list for now: finished before the window began. */
+function finishedLongAgo(issue: Issue, window: CompletedWindow, now: number): boolean {
+  const days = COMPLETED_DAYS[window];
+  if (days === null || (issue.status !== "DONE" && issue.status !== "CANCELED")) return false;
+  if (days === 0) return true;
+  return issue.completedAt !== null && now - Date.parse(issue.completedAt) > days * DAY_MS;
+}
+
+/** What the list is grouped by in the address: `?group=`. The default is left out. */
+const GROUP_KEY = "group";
+const GROUP_ICON = <LayersIcon className="size-4 text-muted-foreground" aria-hidden />;
 /** The title search in the address: `?q=`. */
 const SEARCH_KEY = "q";
 const ALL_ICON = { className: "size-4 text-muted-foreground", "aria-hidden": true } as const;
@@ -92,7 +120,10 @@ export function IssuesView({
   empty,
   underTabs = false,
   defaultAssigneeId = null,
+  rememberFilters = true,
 }: {
+  /** Whether the list takes part in the filters, order and grouping the three lists remember together. */
+  rememberFilters?: boolean;
   /** True when `issues` are the deleted ones: the list is then read-only, there to look things up. */
   deleted?: boolean;
   /** Who a new issue made from this list is assigned to at first: the person whose issues these are. */
@@ -326,17 +357,54 @@ export function IssuesView({
       else params.set(SORT_KEY, value);
     });
 
-  const groups = useMemo(
-    () =>
-      STATUS_ORDER.map((group) => {
-        const items = sortIssues(
-          issues.filter((issue) => issue.status === group),
-          sort,
-        );
-        return { status: group, count: items.length, rows: arrangeBySubIssues(items) };
-      }).filter((group) => group.count > 0),
-    [issues, sort],
-  );
+  // How the list is split: by status unless something else was picked (`?group=`).
+  const groupParam = searchParams.get(GROUP_KEY);
+  const groupChoices = ISSUE_GROUPS.filter((value) => value !== "project" || projectId === null);
+  const grouping = groupChoices.find((value) => value === groupParam) ?? DEFAULT_ISSUE_GROUPING;
+  const setGrouping = (value: IssueGrouping) =>
+    replaceQuery((params) => {
+      if (value === DEFAULT_ISSUE_GROUPING) params.delete(GROUP_KEY);
+      else params.set(GROUP_KEY, value);
+    });
+  const groupOptions: ChipOption<IssueGrouping>[] = groupChoices.map((value) => ({ value, label: m.groupings[value], icon: GROUP_ICON }));
+
+  const completedParam = searchParams.get(COMPLETED_KEY);
+  const completed = COMPLETED_WINDOWS.find((value) => value === completedParam) ?? DEFAULT_COMPLETED;
+  const setCompleted = (value: CompletedWindow) =>
+    replaceQuery((params) => {
+      if (value === DEFAULT_COMPLETED) params.delete(COMPLETED_KEY);
+      else params.set(COMPLETED_KEY, value);
+    });
+  const completedOptions: ChipOption<CompletedWindow>[] = COMPLETED_WINDOWS.map((value) => ({
+    value,
+    label: m.completedWindows[value],
+    icon: COMPLETED_ICON,
+  }));
+
+  // "Long ago" is measured from when the list was opened, so lines do not drop out while it is looked at.
+  const [now] = useState(() => Date.now());
+  const groups = useMemo(() => {
+    return groupIssues(issues, grouping, projects).map((group) => {
+      // Issues finished long ago leave the lines but are still counted, so the group can offer them.
+      const shown = group.issues.filter((issue) => !finishedLongAgo(issue, completed, now));
+      const items = sortIssues(shown, sort);
+      return {
+        key: group.key,
+        label: group.label,
+        icon: group.icon,
+        count: items.length,
+        hidden: group.issues.length - shown.length,
+        rows: arrangeBySubIssues(items),
+      };
+    });
+  }, [issues, grouping, projects, sort, completed, now]);
+
+  // The last filters, order and grouping are shared by the three lists and kept across visits.
+  useRememberedListQuery({
+    query: searchParams.toString(),
+    enabled: rememberFilters && !deleted,
+    restore: (saved) => replaceQuery((params) => saved.forEach((value, key) => params.set(key, value))),
+  });
 
   return (
     <>
@@ -413,7 +481,13 @@ export function IssuesView({
             <span className="flex-1" />
             {deletedToggle}
             {/* The chart and the calendar have an order of their own (by milestone, by day). */}
-            {view === "list" ? <ChipSelect label={m.sort} value={sort} options={SORT_OPTIONS} onChange={setSort} /> : null}
+            {view === "list" ? (
+              <>
+                <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />
+                <ChipSelect label={m.groupBy} value={grouping} options={groupOptions} onChange={setGrouping} />
+                <ChipSelect label={m.sort} value={sort} options={SORT_OPTIONS} onChange={setSort} />
+              </>
+            ) : null}
             <IssueViewSwitch view={view} onChange={setView} />
           </div>
           {deleted ? (
@@ -442,10 +516,10 @@ export function IssuesView({
             <>
               <IssueListHeader showProject={projectId === null} sticky={underTabs ? "top-20 max-md:top-22" : "top-11"} />
               {groups.map((group) => (
-            <section key={group.status} aria-label={statusLabel(group.status)}>
+            <section key={group.key} aria-label={group.label}>
               <h2 className="flex h-9 items-center gap-2 border-y bg-muted px-5 text-[0.8125rem] leading-5 font-medium">
-                <StatusIcon status={group.status} />
-                {statusLabel(group.status)}
+                {group.icon}
+                <span className="truncate">{group.label}</span>
                 <span className="font-normal text-muted-foreground tabular-nums">{group.count}</span>
               </h2>
               <ul>
@@ -454,7 +528,16 @@ export function IssuesView({
                     <SubIssueContextRow
                       key={`context-${row.parent.number}`}
                       parent={row.parent}
-                      className="flex h-10 items-center gap-2 border-b pr-5 pl-12 max-md:h-12"
+                      depth={row.depth}
+                      className="flex h-10 items-center gap-2 border-b bg-muted/60 pr-5 pl-3 max-md:h-12"
+                      // Where the status and priority are on an issue line.
+                      lead={
+                        <>
+                          <span className="w-7 shrink-0" />
+                          <span className="w-4 shrink-0" />
+                        </>
+                      }
+                      keyClassName="w-16"
                     />
                   ) : (
                     <IssueListRow
@@ -467,6 +550,17 @@ export function IssuesView({
                     />
                   ),
                 )}
+                {group.hidden > 0 ? (
+                  <li className="flex h-10 items-center border-b pr-5 pl-12 max-md:h-12">
+                    <button
+                      type="button"
+                      className="rounded-sm text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                      onClick={() => setCompleted("all")}
+                    >
+                      {m.moreCompleted(group.hidden)}
+                    </button>
+                  </li>
+                ) : null}
               </ul>
             </section>
               ))}

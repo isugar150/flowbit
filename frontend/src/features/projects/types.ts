@@ -37,6 +37,8 @@ export type Project = {
   healthUpdatedAt: string | null;
   /** Whether the signed-in user follows the project: is told about every change to its issues. */
   subscribed: boolean;
+  /** Whether the signed-in user was added to the project; a workspace administrator may enter every one without. */
+  member: boolean;
   /** When the project was archived; null for a project in use. Only the archived list has it set. */
   archivedAt: string | null;
   /** The overview document. Only sent when a single project is requested; null in lists. */

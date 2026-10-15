@@ -87,6 +87,8 @@ export type Issue = {
   milestone: { id: string; name: string; /** YYYY-MM-DD */ targetDate?: string | null } | null;
   /** The issue this one is a sub-issue of. */
   parent: { number: number; key: string; title: string } | null;
+  /** Every issue above this one, the top-level one first and `parent` last; empty for a top-level issue. */
+  ancestors: { number: number; key: string; title: string }[];
   labels: Label[];
   /** How many sub-issues the issue has, and how many of them are done. */
   subIssueCount: number;
@@ -97,6 +99,8 @@ export type Issue = {
   updatedAt: string;
   /** When the issue was deleted; null for an issue in use. */
   deletedAt: string | null;
+  /** When a done or canceled issue was finished; null while it is open. */
+  completedAt: string | null;
 };
 
 /** One issue with what its page shows (GET /api/v1/issues/{number}). */

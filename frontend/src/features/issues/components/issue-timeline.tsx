@@ -166,12 +166,13 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
                 {arrangeBySubIssues(group.bars.map((bar) => bar.issue)).map((row) => {
                   if (row.kind === "context") {
                     return (
-                      <li key={`parent-${row.parent.number}`} className="flex h-8 items-center">
+                      <li key={`parent-${row.parent.number}`} className="flex h-8 items-center bg-muted/60">
                         <Link
                           href={`/issue/${row.parent.key}`}
                           title={messages.issues.subIssues.parentContext}
-                          className="sticky left-0 z-20 flex h-full shrink-0 items-center gap-2 bg-background pr-3 pl-10 text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-                          style={{ width: NAME_WIDTH }}
+                          // Opaque: the name column stays put over the bars when the chart scrolls sideways.
+                          className="sticky left-0 z-20 flex h-full shrink-0 items-center gap-2 bg-muted pr-3 text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                          style={{ width: NAME_WIDTH, paddingLeft: 40 + row.depth * 20 }}
                         >
                           <span className="shrink-0 tabular-nums">{row.parent.key}</span>
                           <span className="truncate">{row.parent.title}</span>

@@ -234,7 +234,8 @@ export function MilestoneDetailDialog({
                 {rows.map((row) =>
                   row.kind === "context" ? (
                     // The parent is in another milestone (or none); it only gives its sub-issues their place.
-                    <li key={`parent-${row.parent.number}`} className="flex h-9 items-center gap-2 px-2 max-md:h-11">
+                    <li key={`parent-${row.parent.number}`} className="flex h-9 items-center gap-2 rounded-md bg-muted/60 px-2 max-md:h-11">
+                      <SubIssueIndent depth={row.depth} />
                       <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.parent.key}</span>
                       <Link
                         href={`/issue/${row.parent.key}`}

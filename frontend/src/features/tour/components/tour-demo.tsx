@@ -53,6 +53,8 @@ export function TourDemo({
       </p>
       {screen === "my" || screen === "list" ? (
         <IssuesView
+          // The example list starts plain and leaves the person's own saved filters alone.
+          rememberFilters={false}
           // The two lists are different screens: each starts on its own.
           key={screen}
           projectId={null}

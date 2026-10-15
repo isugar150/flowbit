@@ -18,9 +18,11 @@ export function ProjectMemberList({
   return (
     <ul className="flex flex-col gap-2 px-1 py-1">
       {members.map((member) => (
-        <li key={member.userId} className="flex min-h-8 min-w-0 items-center gap-1.5">
-          <Person person={member} />
-          {member.userId === currentUserId ? <Badge variant="secondary">{messages.members.you}</Badge> : null}
+        <li key={member.userId} className="flex min-h-8 min-w-0 items-center">
+          {/* "나" sits right after the name, as in the settings' member list. */}
+          <Person person={member}>
+            {member.userId === currentUserId ? <Badge variant="secondary">{messages.members.you}</Badge> : null}
+          </Person>
         </li>
       ))}
     </ul>

@@ -31,13 +31,29 @@ export function SubIssueProgress({ issue }: { issue: Issue }) {
 }
 
 /**
- * A dimmed line for the parent of the sub-issues below it, in a group the parent itself is not
- * in (another status, or not on this list). It only gives them their place; open it to see it.
+ * A dimmed line on a grey ground for an issue above the sub-issues below it, in a group it is not
+ * in itself (another status, or not on this list). Every one from the top-level issue down gets a
+ * line, one step in for each level. It only gives them their place; open it to see it.
  */
-export function SubIssueContextRow({ parent, className }: { parent: NonNullable<Issue["parent"]>; className?: string }) {
+export function SubIssueContextRow({
+  parent,
+  depth,
+  className,
+  lead,
+  keyClassName = "w-20",
+}: {
+  parent: NonNullable<Issue["parent"]>;
+  depth: number;
+  className?: string;
+  /** Empty columns before the key, so it lines up with the key of the issue lines. */
+  lead?: React.ReactNode;
+  keyClassName?: string;
+}) {
   return (
     <li className={className}>
-      <span className="w-20 shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{parent.key}</span>
+      <SubIssueIndent depth={depth} />
+      {lead}
+      <span className={`${keyClassName} shrink-0 truncate text-[0.8125rem] leading-5 text-muted-foreground tabular-nums`}>{parent.key}</span>
       <Link
         href={`/issue/${parent.key}`}
         title={m.parentContext}

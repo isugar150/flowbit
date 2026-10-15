@@ -133,6 +133,8 @@ data class IssueResponse(
     val milestone: IssueMilestone?,
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val parent: IssueParent?,
+    /** Every issue above this one, the top-level one first and `parent` last. */
+    val ancestors: List<IssueParent>,
     val labels: List<IssueLabel>,
     /** How many sub-issues the issue has, and how many of them are done; for the progress shown in lists. */
     val subIssueCount: Int,
@@ -144,6 +146,9 @@ data class IssueResponse(
     /** When the issue was deleted; null for an issue in use. */
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val deletedAt: Instant?,
+    /** When a done or canceled issue was finished; null while it is open. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val completedAt: Instant?,
     val canEdit: Boolean? = null,
     /** Whether the caller may restore the issue; only on a deleted one. */
     val canRestore: Boolean? = null,
@@ -171,6 +176,7 @@ data class IssueResponse(
                 project = issue.project,
                 milestone = issue.milestone,
                 parent = issue.parent,
+                ancestors = issue.ancestors,
                 labels = issue.labels,
                 subIssueCount = issue.subIssueCount,
                 subIssueDoneCount = issue.subIssueDoneCount,
@@ -179,6 +185,7 @@ data class IssueResponse(
                 createdAt = issue.createdAt,
                 updatedAt = issue.updatedAt,
                 deletedAt = issue.deletedAt,
+                completedAt = issue.completedAt,
             )
 
         fun from(detail: IssueDetail) =

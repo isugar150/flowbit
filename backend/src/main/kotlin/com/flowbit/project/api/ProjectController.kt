@@ -62,6 +62,8 @@ data class ProjectResponse(
     val healthUpdatedAt: Instant?,
     /** Whether the caller follows the project. */
     val subscribed: Boolean,
+    /** Whether the caller was added to the project (a workspace administrator may enter it without). */
+    val member: Boolean,
     /** When the project was archived; null for a project in use. */
     val archivedAt: Instant?,
     /** The overview document as editor JSON; present only when one project is requested. */
@@ -91,6 +93,7 @@ data class ProjectResponse(
                 health = view.health,
                 healthUpdatedAt = view.healthUpdatedAt,
                 subscribed = view.subscribed,
+                member = view.member,
                 archivedAt = view.archivedAt,
                 content = view.content,
             )

@@ -78,6 +78,7 @@ export function createDemo(): Demo {
     health: "ON_TRACK",
     healthUpdatedAt: at,
     subscribed: false,
+    member: true,
     archivedAt: null,
     content: null,
   };
@@ -96,6 +97,8 @@ export function createDemo(): Demo {
     project: { id: project.id, name: project.name },
     milestone: null,
     parent: null,
+    ancestors: [],
+    completedAt: null,
     labels: [],
     subIssueCount: 0,
     subIssueDoneCount: 0,

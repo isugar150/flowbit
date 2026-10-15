@@ -461,6 +461,9 @@ class IssuesIntegrationTest : IntegrationTest() {
         }
         assertEquals(listOf("editor"), loginIdsOf(child["assignees"]))
         assertEquals(listOf("editor"), loginIdsOf(grandchild["assignees"]))
+        // Every issue above it, the top-level one first.
+        assertEquals(listOf("FB-1", "FB-2"), (grandchild["ancestors"] as List<*>).map { (it as Map<*, *>)["key"] })
+        assertEquals(emptyList<Any?>(), parent["ancestors"])
         assertEquals(emptyList<Any?>(), ownWay["assignees"])
 
         // On a sub-issue the project and milestone cannot be set; the assignees can.
