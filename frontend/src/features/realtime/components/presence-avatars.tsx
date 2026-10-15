@@ -13,6 +13,8 @@ import { usePresencePage, useViewers } from "../realtime-provider";
 
 const m = messages.realtime;
 const MAX_SHOWN = 6;
+/** Someone who last looked longer ago than this is no longer shown (the user's call, 2026-10-15). */
+const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Someone who belongs on the page (GET /api/v1/presence), with when they last had it open. */
 type PagePerson = PersonLike & { id: string; lastSeenAt: string | null };
@@ -22,7 +24,7 @@ type Shown = PagePerson & { online: boolean };
 /**
  * The people of this page who have looked at it, as a row of avatars: the signed-in person, the
  * people who have it open right now first, then the others from whoever looked last, dimmed. Those
- * who have never opened it are left out (the user's call, 2026-10-15). Pointing at one (or giving it
+ * who have never opened it, or not in the last 30 days, are left out (the user's call, 2026-10-15). Pointing at one (or giving it
  * focus) brings it forward and says at once whether they are looking now or when they last did.
  * The signed-in person comes first.
  *
@@ -54,9 +56,9 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
   const people: Shown[] = [
     ...(me ? [{ ...me, lastSeenAt: null, online: true }] : []),
     ...viewers.map((viewer) => ({ ...viewer, lastSeenAt: null, online: true })),
-    // Already in the order they last looked. Those who never did are not shown.
+    // Already in the order they last looked. Those who never did, or not in the last 30 days, are not shown.
     ...(members.data ?? [])
-      .filter((person) => person.id !== userId && !online.has(person.id) && person.lastSeenAt !== null)
+      .filter((person) => person.id !== userId && !online.has(person.id) && seenRecently(person.lastSeenAt, members.dataUpdatedAt))
       .map((person) => ({ ...person, online: false })),
   ];
   if (pageKey === null || people.length === 0) return null;
@@ -120,4 +122,9 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
       ) : null}
     </AvatarGroup>
   );
+}
+
+/** Whether `lastSeenAt` falls within the 30 days before `now` (when the list was read). */
+function seenRecently(lastSeenAt: string | null, now: number): boolean {
+  return lastSeenAt !== null && now - Date.parse(lastSeenAt) <= RECENT_MS;
 }

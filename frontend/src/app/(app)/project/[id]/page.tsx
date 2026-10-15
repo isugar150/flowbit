@@ -4,10 +4,8 @@ import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { ProjectIssueSummary } from "@/features/issues/components/project-issue-summary";
 import type { Issue, IssueDocumentSummary } from "@/features/issues/types";
-import type { UserSummary } from "@/features/members/types";
 import { MilestonesSection } from "@/features/milestones/components/milestones-section";
 import type { Milestone } from "@/features/milestones/types";
-import { AddProjectMemberButton } from "@/features/projects/components/add-project-member-button";
 import { ProjectMemberList } from "@/features/projects/components/project-member-list";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { ProjectProperties } from "@/features/projects/components/project-properties";
@@ -43,10 +41,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
     serverGet<Issue[]>(`${path}/issues`),
   ]);
   if (!members || !milestones || !updates) notFound();
-  // People who manage the project can add members right from the card; they need the list of everyone.
   const canManage = project.myRole === "MANAGER";
-  const users = canManage ? ((await serverGet<UserSummary[]>("/api/v1/users")) ?? []) : [];
-  const candidates = users.filter((person) => !members.some((member) => member.userId === person.id));
   const labelSuggestions = [...new Set(projects.flatMap((other) => other.labels))].sort((a, b) => a.localeCompare(b, "ko"));
   const created = formatDate(project.createdAt, user.timezone);
 
@@ -106,11 +101,9 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
             </PropertyRow>
           </dl>
         </PropertyCard>
-        <PropertyCard
-          title={m.membersCardTitle}
-          action={canManage ? <AddProjectMemberButton projectId={project.id} candidates={candidates} /> : undefined}
-        >
-          <ProjectMemberList projectId={project.id} members={members} canManage={canManage} currentUserId={user.id} />
+        {/* Who is in the project, nothing more: people are added, removed and given roles in the settings. */}
+        <PropertyCard title={m.membersCardTitle}>
+          <ProjectMemberList members={members} currentUserId={user.id} />
         </PropertyCard>
       </aside>
     </div>
