@@ -1,7 +1,7 @@
 import { apiFetch, fileForm } from "@/lib/api/client";
 import type { Project, ProjectChanges, ProjectEntry, ProjectHealth, ProjectMember, ProjectRole, ProjectUpdate } from "./types";
 
-export function createProject(input: { name: string; description: string }): Promise<Project> {
+export function createProject(input: { name: string }): Promise<Project> {
   return apiFetch<Project>("/api/v1/projects", { method: "POST", body: input });
 }
 

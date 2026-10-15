@@ -11,7 +11,7 @@ export type ProjectHealth = "ON_TRACK" | "AT_RISK" | "OFF_TRACK";
 export type Project = {
   id: string;
   name: string;
-  /** One-line summary. */
+  /** The old one-line summary (D-134): still sent, no longer shown. */
   description: string;
   /** The uploaded icon; null shows the default box. */
   iconUrl: string | null;

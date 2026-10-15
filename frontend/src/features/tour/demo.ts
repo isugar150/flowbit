@@ -61,7 +61,7 @@ export function createDemo(): Demo {
   const project: Project = {
     id: DEMO_PROJECT_ID,
     name: m.project,
-    description: m.projectSummary,
+    description: "",
     iconUrl: null,
     myRole: "MANAGER",
     memberCount: members.length,

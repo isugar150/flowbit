@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ChevronDownIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { NewIssueButton } from "@/features/issues/components/new-issue-launcher";
+import { SearchButton } from "@/features/search/components/search-dialog";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import type { ProjectSummary } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,9 @@ export function SidebarNav({ projects: allProjects }: { projects: ProjectSummary
     <nav aria-label={m.title} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2 py-1">
       <NewIssueButton variant="sidebar" />
       <ul data-tour="nav" className="flex flex-col gap-px">
+        <li>
+          <SearchButton variant="sidebar" />
+        </li>
         {NAV_DESTINATIONS.map(({ href, label, icon: Icon, exact }) => (
           <li key={href}>
             <NavItem href={href} current={isCurrentPath(pathname, href, exact)}>

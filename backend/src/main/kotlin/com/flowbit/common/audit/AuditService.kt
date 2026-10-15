@@ -30,6 +30,8 @@ enum class AuditEventType {
     PROJECT_RESTORED,
     BACKUP_EXPORTED,
     BACKUP_RESTORED,
+    RETENTION_SETTINGS_CHANGED,
+    DATA_PURGED,
 }
 
 /** Append-only record of security-relevant events. Never pass passwords or other secrets in `detail`. */

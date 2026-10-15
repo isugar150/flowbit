@@ -121,7 +121,7 @@
 |---|---|---|
 | `projects.id` | `uuid` PK | |
 | `projects.name` | `text` | 1~80자 |
-| `projects.description` | `text` | 500자 이하, 기본 빈 문자열 |
+| `projects.description` | `text` | 500자 이하, 기본 빈 문자열. 한 줄 요약이었고 화면에서는 더 쓰지 않는다 (D-134) |
 | `projects.created_by` | `uuid` FK → `users` | |
 | `projects.archived_at` | `timestamptz` null | 아카이브한 때(D-115). 값이 있으면 프로젝트와 그 티켓이 모든 목록에서 빠지고 들어갈 수 없다. 복원하면 null |
 | `projects.status` (`V6`) | `text` | `BACKLOG` \| `PLANNED` \| `IN_PROGRESS` \| `COMPLETED` \| `CANCELED`, 기본 `BACKLOG` |
@@ -190,9 +190,26 @@
 | `created_by` | `uuid` FK → `users` | |
 | `version` | `int` | 바뀔 때마다 1 증가. 충돌 감지와 실시간 순서 판단에 쓸 예정 |
 
-`projects.content jsonb` (`V5`): 프로젝트 개요의 설명 문서. `projects.description` 은 한 줄 요약이다.
+`projects.content jsonb` (`V5`): 프로젝트 개요의 설명 문서. `projects.description` 은 한 줄 요약이었고 D-134 로 화면에서 뺐다(컬럼만 남음).
 
 `content` 컬럼은 엔티티에 매핑하지 않는다. `RichText` 가 SQL 로 직접 읽고 쓴다(목록 조회에 큰 문서가 딸려 오지 않게 하려는 것이기도 하다).
+
+### `retention_policies` (`V9`, D-132)
+
+삭제한 것을 얼마 뒤에 영구 삭제할지. 항목당 한 행이고, **행이 없는 항목은 영구 삭제하지 않는다**(기본). [features/admin-retention.md](features/admin-retention.md)
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `item` | text PK | `ISSUES`·`DOCUMENTS`·`COMMENTS` |
+| `amount` | integer | 1~999 |
+| `unit` | text | `DAYS`·`WEEKS`·`MONTHS` |
+| `updated_at` | timestamptz | |
+
+`issues.deleted_at`·`documents.deleted_at`·`issue_comments.deleted_at` 이 이 기간보다 오래되면 정리 작업이 행을 지운다. 지운 티켓의 하위 데이터는 외래 키의 `CASCADE` 로 함께 사라진다.
+
+### 검색 함수 `hangul_initials(text)` (`V10`, D-133)
+
+한글 음절을 초성으로 바꾼 글자를 돌려준다(`결제 개편` → `ㄱㅈ ㄱㅍ`). 한글 음절이 아닌 글자는 그대로. `IMMUTABLE`. 검색이 초성만으로 된 검색어를 티켓·문서 제목과 맞출 때 쓴다 ([features/search.md](features/search.md)).
 
 ## 이후 마일스톤의 모델 (초안)
 
@@ -278,4 +295,4 @@ notifications (수신함)
 | `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at` |
 | `documents` | `id`, `issue_id` null, `project_id` null, `parent_id` null(안에 들어 있는 상위 문서. 프로젝트 문서만, 5단계까지, 상위가 지워지면 함께 지워진다. D-083), `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 티켓이나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |
 | `issues.start_date` | 티켓이 기간을 가질 때의 첫날. `due_date` 가 있어야 하고 그보다 늦을 수 없다(`issues_dates_order`) (D-077) |
-| `issues.deleted_at`, `issues.deleted_by` | 삭제 표시. 삭제된 티켓은 목록·집계에서 빠지지만 행은 남는다 (D-079) |
+| `issues.deleted_at`, `issues.deleted_by` | 삭제 표시. 삭제된 티켓은 목록·집계에서 빠지지만 행은 남는다 (D-079). 관리자가 보관 기간을 정했으면 그 기간이 지난 뒤 행을 지운다 (D-132, `retention_policies`) |

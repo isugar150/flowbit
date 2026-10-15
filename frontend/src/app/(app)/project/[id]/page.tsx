@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { CalendarIcon, UsersIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { ProjectIssueSummary } from "@/features/issues/components/project-issue-summary";
@@ -52,20 +51,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/projec
           <ProjectIcon iconUrl={project.iconUrl} size="lg" />
           <h2 className="text-2xl leading-8 font-semibold">{project.name}</h2>
         </div>
-        <ProjectOverviewEditor project={project} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"}>
-        <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem] leading-5">
-          <div className="flex items-center gap-1.5">
-            <UsersIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            <dt className="sr-only">{m.propMembers}</dt>
-            <dd className="font-medium">{m.memberCount(project.memberCount)}</dd>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <CalendarIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            <dt className="text-muted-foreground">{m.propCreated}</dt>
-            <dd className="font-medium tabular-nums">{created}</dd>
-          </div>
-        </dl>
-        </ProjectOverviewEditor>
+        <ProjectOverviewEditor project={project} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"} />
         <ProjectIssueSummary projectId={project.id} issues={issues ?? []} canEdit={project.myRole !== "VIEWER"} />
         <MilestonesSection projectId={project.id} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
         <ProjectUpdates

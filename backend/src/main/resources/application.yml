@@ -43,6 +43,12 @@ flowbit:
     batch-delay: 1m
     # Sent this long after their first change even if they keep changing it.
     batch-max-delay: 10m
+  retention:
+    # Removes deleted issues, documents and comments once they are older than the periods an
+    # administrator set (D-132). Integration tests switch it off and run it themselves.
+    enabled: true
+    initial-delay: 1m
+    interval: 1h
   storage:
     # Where uploaded files are kept. Relative paths are resolved against the working directory.
     path: ${FLOWBIT_STORAGE_PATH:./data/uploads}

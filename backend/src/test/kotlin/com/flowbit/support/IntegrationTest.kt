@@ -13,7 +13,7 @@ import org.springframework.r2dbc.core.DatabaseClient
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     // Uploads made by tests stay inside the build directory.
-    properties = ["flowbit.storage.path=build/test-uploads"],
+    properties = ["flowbit.storage.path=build/test-uploads", "flowbit.retention.enabled=false"],
 )
 @Import(TestcontainersConfiguration::class, TestClockConfiguration::class)
 abstract class IntegrationTest {
@@ -51,6 +51,7 @@ abstract class IntegrationTest {
         execute(
             "update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null, workspace_key = 'FB', next_issue_number = 1",
         )
+        execute("delete from retention_policies")
         execute("delete from webhooks")
         execute("delete from notification_settings")
         execute("insert into notification_settings (id) values (1)")

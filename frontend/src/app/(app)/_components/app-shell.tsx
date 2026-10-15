@@ -9,6 +9,7 @@ import type { Workspace } from "@/features/settings/types";
 import { TourProvider } from "@/features/tour/components/onboarding-tour";
 import { mark } from "@/lib/initials";
 import { NewIssueButton, NewIssueProvider } from "@/features/issues/components/new-issue-launcher";
+import { SearchButton, SearchProvider } from "@/features/search/components/search-dialog";
 import { MobileNav } from "./mobile-nav";
 import { SidebarNav } from "./sidebar-nav";
 import { UserMenu } from "./user-menu";
@@ -33,6 +34,7 @@ export function AppShell({
     <RealtimeProvider userId={user.id}>
       <TooltipProvider>
         <NewIssueProvider projects={projects}>
+        <SearchProvider>
         <div className="flex h-dvh bg-sidebar text-foreground">
           <aside className="hidden w-60 shrink-0 flex-col md:flex">
             <div className="flex h-12 items-center px-2">
@@ -52,6 +54,7 @@ export function AppShell({
                   <WorkspaceLink workspace={workspace} />
                 </div>
                 <div className="flex items-center">
+                  <SearchButton variant="icon" />
                   <NewIssueButton variant="icon" />
                   <UserMenu user={user} placement="header" />
                 </div>
@@ -65,6 +68,7 @@ export function AppShell({
             </div>
           </div>
         </div>
+        </SearchProvider>
         </NewIssueProvider>
       </TooltipProvider>
     </RealtimeProvider>

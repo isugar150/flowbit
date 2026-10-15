@@ -7,10 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { ApiError } from "@/lib/api/errors";
@@ -23,7 +22,7 @@ const m = messages.projects;
 
 type Input = z.input<typeof createProjectSchema>;
 type Values = z.output<typeof createProjectSchema>;
-const DEFAULTS: Input = { name: "", description: "" };
+const DEFAULTS: Input = { name: "" };
 
 /** create-project-dialog.tsx looks for the same id when it opens. */
 const PROJECT_NAME_FIELD = "project-name";
@@ -84,20 +83,6 @@ export function CreateProjectForm({ onClose }: { onClose: () => void }) {
             {...form.register("name")}
           />
           {errors.name ? <FieldError>{errors.name.message}</FieldError> : null}
-        </Field>
-        <Field data-invalid={errors.description ? true : undefined}>
-          <FieldLabel htmlFor="project-description">{m.descriptionLabel}</FieldLabel>
-          <Textarea
-            id="project-description"
-            rows={3}
-            aria-invalid={errors.description ? true : undefined}
-            {...form.register("description")}
-          />
-          {errors.description ? (
-            <FieldError>{errors.description.message}</FieldError>
-          ) : (
-            <FieldDescription>{m.descriptionHint}</FieldDescription>
-          )}
         </Field>
       </FieldGroup>
       <DialogFooter>
