@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.time.Clock
 import java.util.UUID
@@ -40,8 +41,11 @@ data class ProjectGitSettings(
     val enabled: Boolean,
     val connections: List<GitConnectionOption>,
     val repositories: List<GitRepositoryRef>,
-    /** Repositories Flowbit has already heard from, to pick from. */
-    val suggestions: List<GitRepositoryRef>,
+    /**
+     * Repositories to pick from, by connection (D-151): a GitHub App's installed repositories, and
+     * the repositories that sent events to any connection. The project's own are left out.
+     */
+    val available: List<GitRepositoryRef>,
 )
 
 data class ProjectGitRepositoriesRequest(
@@ -58,6 +62,7 @@ class GitProjectRepositoryService(
     private val databaseClient: DatabaseClient,
     private val connections: GitConnectionRepository,
     private val connectionService: GitConnectionService,
+    private val catalog: GitRepositoryCatalog,
     private val projectService: ProjectService,
     private val transactionalOperator: TransactionalOperator,
     private val clock: Clock,
@@ -66,32 +71,35 @@ class GitProjectRepositoryService(
     suspend fun settings(
         user: AuthenticatedUser,
         projectId: String,
+        refresh: Boolean = false,
     ): ProjectGitSettings {
         val project = projectService.access(user, projectId).project
-        val options =
-            connections
-                .findAllOrdered()
-                .toList()
-                .filter { it.enabled }
-                .map { GitConnectionOption(it.id, it.name, it.provider) }
+        val enabled = connections.findAllOrdered().toList().filter { it.enabled }
+        // GitHub can be asked for its list; asked again at most once a minute unless [refresh].
+        enabled.filter { it.provider == GitProviderType.GITHUB }.forEach { catalog.refreshGitHub(it, force = refresh) }
+        val options = enabled.map { GitConnectionOption(it.id, it.name, it.provider) }
         val repositories = repositoriesOf(project.id)
-        val suggestions =
+        val seen =
             databaseClient
                 .sql(
                     """
                     select distinct r.connection_id, lower(r.repository) as repository
                     from (select connection_id, repository from issue_git_links
                           union select connection_id, repository from issue_git_commits) r
-                    join git_connections c on c.id = r.connection_id and c.enabled
-                    order by repository
                     """.trimIndent(),
                 ).map { row ->
                     GitRepositoryRef(checkNotNull(row.get("connection_id", UUID::class.java)), checkNotNull(row.get("repository", String::class.java)))
                 }.all()
                 .collectList()
                 .awaitSingle()
-                .filter { it !in repositories }
-        return ProjectGitSettings(connectionService.inUse(), options, repositories, suggestions)
+        val known = catalog.list(enabled.map { it.id }).map { GitRepositoryRef(it.connectionId, it.repository) }
+        val enabledIds = enabled.map { it.id }.toSet()
+        val available =
+            (known + seen)
+                .filter { it.connectionId in enabledIds && it !in repositories }
+                .distinct()
+                .sortedBy { it.repository }
+        return ProjectGitSettings(connectionService.inUse(), options, repositories, available)
     }
 
     /** Replaces the project's repositories. Its managers only. */
@@ -202,11 +210,13 @@ class GitProjectRepositoryService(
 class ProjectGitController(
     private val service: GitProjectRepositoryService,
 ) {
+    /** With `refresh=true`, GitHub Apps' repository lists are read from GitHub now (D-151). */
     @GetMapping
     suspend fun settings(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable projectId: String,
-    ): ProjectGitSettings = service.settings(user, projectId)
+        @RequestParam(defaultValue = "false") refresh: Boolean,
+    ): ProjectGitSettings = service.settings(user, projectId, refresh)
 
     @PutMapping("/repositories")
     suspend fun replace(

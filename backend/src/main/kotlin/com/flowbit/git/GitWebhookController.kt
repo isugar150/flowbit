@@ -34,6 +34,7 @@ class GitWebhookService(
     private val githubApps: GitHubAppService,
     private val providers: List<GitProvider>,
     private val links: GitLinkService,
+    private val catalog: GitRepositoryCatalog,
     private val transactionalOperator: TransactionalOperator,
     private val jsonMapper: JsonMapper,
 ) {
@@ -81,6 +82,7 @@ class GitWebhookService(
                 throw e
             }
         connections.recordReceipt(id, event, jsonMapper.writeValueAsString(result.receipt), null)
+        catalog.remember(connection.id, events.map { it.repository })
         return result
     }
 

@@ -85,3 +85,8 @@ export function finishMyGitHub(code: string, state: string): Promise<MyGitHubAcc
 export function unlinkMyGitHub(): Promise<void> {
   return apiFetch<void>("/api/v1/me/git/github", { method: "DELETE" });
 }
+
+/** Reads the GitHub Apps' repository lists from GitHub again (D-151). */
+export function refreshProjectGitRepositories(projectId: string): Promise<ProjectGitSettings> {
+  return apiFetch<ProjectGitSettings>(`/api/v1/projects/${encodeURIComponent(projectId)}/git?refresh=true`);
+}

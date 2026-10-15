@@ -112,8 +112,11 @@ export type ProjectGitSettings = {
   enabled: boolean;
   connections: { id: string; name: string; provider: GitProvider }[];
   repositories: GitRepositoryRef[];
-  /** Repositories Flowbit has already heard from, to pick from. */
-  suggestions: GitRepositoryRef[];
+  /**
+   * Repositories to pick from, by connection (D-151): a GitHub App's installed repositories and
+   * those that sent events. The project's own are left out.
+   */
+  available: GitRepositoryRef[];
 };
 
 /** A branch or pull request an issue is linked to (GET /api/v1/issues/{number}, `git`). */

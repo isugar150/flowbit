@@ -41,6 +41,7 @@ class GitHubUnavailableException(
 class GitHubAppService(
     private val repository: GitConnectionRepository,
     private val client: GitHubClient,
+    private val catalog: GitRepositoryCatalog,
     private val publicUrl: PublicUrl,
     private val auditService: AuditService,
     private val jsonMapper: JsonMapper,
@@ -155,7 +156,10 @@ class GitHubAppService(
         connection.githubInstallationId = installationId
         connection.githubRepositorySelection = installation?.let { text(it, "repository_selection") }
         connection.updatedAt = clock.instant()
-        return repository.save(connection)
+        val saved = repository.save(connection)
+        // The repositories it is installed on, for projects to pick from (D-151).
+        catalog.refreshGitHub(saved, force = true)
+        return saved
     }
 
     /**

@@ -551,7 +551,7 @@ class GitIntegrationTest : IntegrationTest() {
         assertEquals(listOf(mapOf("connectionId" to id, "repository" to "acme/ops")), saved.json()["repositories"])
         val settings = editorClient.get("/api/v1/projects/${p("OPS")}/git").json()
         assertEquals(true, settings["enabled"])
-        assertEquals(listOf(mapOf("connectionId" to id, "repository" to "acme/web")), settings["suggestions"])
+        assertEquals(listOf(mapOf("connectionId" to id, "repository" to "acme/web")), settings["available"])
 
         assertEquals(listOf("FB-2"), deliver(connection, "push", push("main", "FB-2 정리", repository = "acme/ops")).json()["linkedIssues"])
         // From any other repository OPS is left alone.

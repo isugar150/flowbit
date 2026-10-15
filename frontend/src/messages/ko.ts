@@ -867,6 +867,13 @@ export const ko = {
       connection: "Git 연결",
       repository: "저장소",
       placeholder: "조직/저장소 (예: acme/web)",
+      choose: "저장소 고르기",
+      typeIn: "목록에 없음: 직접 입력",
+      typedName: "저장소 이름",
+      reload: "목록 새로 고침",
+      reloading: "불러오는 중",
+      noneHeardYet:
+        "이 연결로 아직 이벤트를 보낸 저장소가 없어 목록이 비어 있습니다. 이름을 직접 입력하거나, 저장소에 한 번 push 한 뒤 다시 열어 보세요.",
       add: "추가",
       remove: (repository: string) => `${repository} 빼기`,
     },

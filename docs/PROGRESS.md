@@ -30,7 +30,7 @@
 - **프로젝트의 "한 줄 요약"을 화면에서 없앴다** (D-134). 컬럼·API 필드는 남아 있다. 이것도 검사하지 않았다.
 - **프로젝트의 "티켓" 탭을 없앴다** (D-135). 개요·목표 상세의 링크는 `/issues?project=…` 로 가고, `/project/{id}/issues` 는 그리로 넘겨 준다. 검사·화면 확인을 하지 않았다. **E2E(`changes`·`features`·`flows.spec.ts`)가 예전 주소와 탭을 쓰므로 고쳐야 할 수 있다.**
 
-- **Git 연동이 명세 끝까지 구현됐다** (D-141, D-145~D-147, 2026-10-15~16, [features/git-integration.md](features/git-integration.md)). Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(관리자 화면에서 매니페스트로 만들고 조직에 설치, 웹훅 또는 2분마다 API 가져오기). 관리자 설정 > "Git 연동" 탭(`/admin/git`, "사람 맞추기" 포함), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`, 티켓 키 옆 "브랜치 이름 복사"(Git 이 쓰일 때만), API 알림의 Git 종류. 마이그레이션 `V11`~`V16`. 백엔드 `GitIntegrationTest` 17개·`GitHubIntegrationTest` 3개, 프런트 단위 테스트(`npm test`)와 E2E `git.spec.ts` 통과. **실제 Gitea·GitLab·GitHub 서버로는 아직 아무도 시험하지 않았다**(견본 페이로드와 가짜 GitHub 로 테스트했다). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11`~`V16` 을 적용해야 한다.** 프로젝트마다 저장소를 정하고 티켓에서 고를 수 있다(D-148).
+- **Git 연동이 명세 끝까지 구현됐다** (D-141, D-145~D-147, 2026-10-15~16, [features/git-integration.md](features/git-integration.md)). Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(관리자 화면에서 매니페스트로 만들고 조직에 설치, 웹훅 또는 2분마다 API 가져오기). 관리자 설정 > "Git 연동" 탭(`/admin/git`, "사람 맞추기" 포함), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`, 티켓 키 옆 "브랜치 이름 복사"(Git 이 쓰일 때만), API 알림의 Git 종류. 마이그레이션 `V11`~`V17`. 백엔드 `GitIntegrationTest` 17개·`GitHubIntegrationTest` 3개, 프런트 단위 테스트(`npm test`)와 E2E `git.spec.ts` 통과. **실제 Gitea·GitLab·GitHub 서버로는 아직 아무도 시험하지 않았다**(견본 페이로드와 가짜 GitHub 로 테스트했다). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11`~`V17` 을 적용해야 한다.** 프로젝트마다 저장소를 정하고 티켓에서 고를 수 있다(D-148).
 - **편집기에 Figma·Google(문서·스프레드시트·프레젠테이션)·Office·Outline 임베드가 생겼다** (D-139, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
 
 ## 다음 작업
@@ -180,6 +180,13 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-16 — 프로젝트 저장소를 목록에서 고르기 (D-151)
+
+- 사용자 지시: 동기화할 때 저장소도 가져와서, 프로젝트 설정에서 연결을 고른 뒤 저장소를 select 로 고르게.
+- 백엔드: `V17`(`git_repositories`), `git/GitRepositoryCatalog.kt`. GitHub App 은 설치 확인·API 가져오기 회차·프로젝트 설정 열기(1분 간격)·"목록 새로 고침"에서 설치된 저장소를 읽어 목록을 바꾸고, 모든 연결은 웹훅으로 이벤트를 보낸 저장소를 목록에 더한다. `GET /api/v1/projects/{id}/git` 의 `suggestions` 를 `available` 로 바꿨다(`?refresh=true`).
+- 프런트: 프로젝트 설정의 Git 저장소 추가 줄이 "Git 연결" select → "저장소" select(+ "목록에 없음: 직접 입력")로 바뀌었다. GitHub 연결이면 "목록 새로 고침" 버튼.
+- 컴파일·타입 검사만 했다. 테스트 코드의 `suggestions` 는 `available` 로 고쳤지만 돌리지 않았다. 백엔드를 다시 띄워야 `V17` 이 적용된다.
 
 ### 2026-10-16 — GitHub 동기화 "Exceeded limit on max bytes to buffer : 262144"
 

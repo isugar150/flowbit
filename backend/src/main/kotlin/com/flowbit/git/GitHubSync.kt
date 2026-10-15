@@ -58,6 +58,7 @@ class GitHubSyncService(
     private val repository: GitConnectionRepository,
     private val client: GitHubClient,
     private val links: GitLinkService,
+    private val catalog: GitRepositoryCatalog,
     private val keyMatcher: IssueKeyMatcher,
     private val databaseClient: DatabaseClient,
     private val transactionalOperator: TransactionalOperator,
@@ -112,7 +113,9 @@ class GitHubSyncService(
         val keys = keyMatcher.keys()
         val events = mutableListOf<GitEvent>()
         val cursors = mutableMapOf<String, SyncCursor>()
-        for (repo in repositories(connection)) {
+        val installed = catalog.installationRepositories(connection)
+        catalog.replace(connection.id, installed)
+        for (repo in installed) {
             val name = text(repo, "full_name") ?: continue
             val defaultBranch = text(repo, "default_branch")
             val htmlUrl = text(repo, "html_url")
@@ -159,22 +162,6 @@ class GitHubSyncService(
             cursors[name] = next
         }
         return events to cursors
-    }
-
-    /** The repositories the app is installed on. */
-    private suspend fun repositories(connection: GitConnection): List<JsonNode> {
-        val all = mutableListOf<JsonNode>()
-        for (page in 1..MAX_REPOSITORY_PAGES) {
-            val response = client.get(connection, "/installation/repositories?per_page=100&page=$page")
-            val repositories =
-                response.body
-                    ?.path("repositories")
-                    ?.let(::items)
-                    .orEmpty()
-            all += repositories
-            if (repositories.size < 100) break
-        }
-        return all
     }
 
     private suspend fun pullRequest(
@@ -344,7 +331,6 @@ class GitHubSyncService(
     private companion object {
         const val PULLS_PER_ROUND = 50
         const val BRANCHES_PER_ROUND = 100
-        const val MAX_REPOSITORY_PAGES = 10
         const val ERROR_MAX_LENGTH = 500
     }
 }
