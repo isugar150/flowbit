@@ -186,7 +186,7 @@ frontend/
   - `tour.spec.ts`: 온보딩 투어([features/onboarding-tour.md](features/onboarding-tour.md)). **다른 테스트에서 계정으로 로그인할 때는 `logIn()`(`e2e/support.ts`)을 쓴다.** 투어를 본 것으로 표시해 준다. `/api/v1/auth/login` 을 직접 부르면 투어가 화면을 덮어 아무것도 누를 수 없다. 로그인은 IP당 분당 10회로 제한되니 새 계정 로그인을 늘릴 때 주의한다.
   - 대화상자가 열려 있는 동안 뒤의 화면은 보조 기술에서 숨겨진다. 그때 뒤의 요소는 `getByRole` 이 아니라 `locator` 로 찾는다.
   - 화면이 서버에서 온 그대로 보여도 스크립트가 붙기 전에는 단축키가 동작하지 않는다. 키를 누르기 전에 `settled(page)` 로 기다린다.
-- 단위 테스트(Vitest): `npm test`(`vitest run`). 설정 파일 없이 `src/**/*.test.ts` 를 돌린다. 첫 테스트는 `features/git/branch-name.test.ts`(2026-10-16).
+- 단위 테스트(Vitest): `npm test`(`vitest run --dir src`). 설정 파일 없이 `src` 아래의 `*.test.ts` 만 돌린다(`e2e/` 의 Playwright 파일은 빼야 해서 `--dir src`). 첫 테스트는 `features/git/branch-name.test.ts`(2026-10-16).
 - UI 를 바꿨으면 실제 브라우저에서 라이트/다크, 좁은 폭(360px)을 확인한다.
 
 - **"이 화면에 무엇이 있는가"를 CSS 의 `:has()` 로 문서 전체에서 찾지 않는다.** 방금 떠난 화면이 숨겨진 채 문서에 남아 있어(`cacheComponents`) 그 화면의 요소까지 걸린다. 화면이 prop 으로 알려 준다(예: `IssuesView` 의 `underTabs`).
