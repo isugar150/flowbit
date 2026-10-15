@@ -7,11 +7,11 @@ const m = messages.issues.summary;
 
 /**
  * The tickets linked to a project, on its overview: how many are done and how many are in each
- * status. Each status opens the project's list filtered to it. Canceled tickets are not counted
+ * status. Each status opens the list of all tickets filtered to the project and that status (D-135). Canceled tickets are not counted
  * as work to do.
  */
 export function ProjectIssueSummary({ projectId, issues, canEdit }: { projectId: string; issues: Issue[]; canEdit: boolean }) {
-  const list = `/project/${encodeURIComponent(projectId)}/issues`;
+  const list = `/issues?project=${encodeURIComponent(projectId)}`;
   const counts = STATUS_ORDER.map((status) => ({ status, count: issues.filter((issue) => issue.status === status).length }));
   const done = counts.find((item) => item.status === "DONE")?.count ?? 0;
   const total = issues.length - (counts.find((item) => item.status === "CANCELED")?.count ?? 0);
@@ -55,7 +55,7 @@ export function ProjectIssueSummary({ projectId, issues, canEdit }: { projectId:
               .map(({ status, count }) => (
                 <li key={status}>
                   <Link
-                    href={`${list}?status=${status}`}
+                    href={`${list}&status=${status}`}
                     aria-label={m.count(statusLabel(status), count)}
                     className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[0.8125rem] leading-5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-9"
                   >

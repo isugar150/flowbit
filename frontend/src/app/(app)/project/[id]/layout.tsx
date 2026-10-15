@@ -52,7 +52,6 @@ async function ProjectNav({ params }: { params: LayoutProps<"/project/[id]">["pa
         label={m.tabsLabel}
         tabs={[
           { href: base, label: m.tabOverview },
-          { href: `${base}/issues`, label: m.tabIssues },
           // The settings are the managers' (D-131).
           ...(project.myRole === "MANAGER" ? [{ href: `${base}/settings`, label: m.tabSettings }] : []),
         ]}

@@ -28,6 +28,7 @@
 - **삭제한 티켓·문서·댓글을 기간이 지나면 영구 삭제한다** (D-132, 2026-10-15, [features/admin-retention.md](features/admin-retention.md)). 관리자 설정 > "데이터 보관" 탭에서 항목별로 "영구 삭제 안 함" 또는 N일·주·개월. 기본은 셋 다 "영구 삭제 안 함". 서버가 시작 1분 뒤, 그 뒤 1시간마다 정리한다. 마이그레이션 `V9__retention_policies.sql`. **개발 DB 에는 백엔드를 다시 띄울 때 `V9` 이 적용된다.** 백엔드 테스트는 이제 198개.
 - **티켓·문서 검색이 생겼다** (D-133, 2026-10-15, [features/search.md](features/search.md)). `Ctrl/⌘+K`·`/`·사이드바 "검색"의 검색 창과 `/search` 페이지, API `GET /api/v1/search`, 마이그레이션 `V10__hangul_initials.sql`(초성 함수). **컴파일·테스트·화면 어느 것도 돌려 보지 않았다**(사용자가 토큰 때문에 생략을 요청). 다음 사람은 먼저 `./gradlew check`, `npm run lint`·`typecheck`, 화면 확인을 하고 `SearchIntegrationTest` 를 쓴다.
 - **프로젝트의 "한 줄 요약"을 화면에서 없앴다** (D-134). 컬럼·API 필드는 남아 있다. 이것도 검사하지 않았다.
+- **프로젝트의 "티켓" 탭을 없앴다** (D-135). 개요·목표 상세의 링크는 `/issues?project=…` 로 가고, `/project/{id}/issues` 는 그리로 넘겨 준다. 검사·화면 확인을 하지 않았다. **E2E(`changes`·`features`·`flows.spec.ts`)가 예전 주소와 탭을 쓰므로 고쳐야 할 수 있다.**
 
 ## 다음 작업
 
@@ -171,6 +172,12 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-15 — 프로젝트의 "티켓" 탭 제거 (D-135)
+
+- 사용자 요청: 프로젝트 위쪽 메뉴의 "티켓"은 필요 없다. 개요의 "모두 보기"나 항목을 누르면 전체 티켓으로 가서 필터만 걸면 된다.
+- 한 일: 프로젝트 레이아웃의 탭에서 "티켓" 삭제(`tabIssues` 문구도). `ProjectIssueSummary` 와 목표 상세 링크를 `/issues?project=…(&status=|&milestone=)` 로. `/project/[id]/issues/page.tsx` 는 쿼리를 그대로 붙여 `/issues?project=` 로 `redirect`. `AllIssues` 가 `projectId` 를 받아 그 프로젝트의 목표를 불러 목표 필터가 된다.
+- 확인하지 않음: lint·typecheck·build·E2E·화면(사용자 요청으로 생략).
 
 ### 2026-10-15 — 티켓·문서 검색 (D-133), 프로젝트 한 줄 요약 제거 (D-134)
 

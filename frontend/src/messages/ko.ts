@@ -521,7 +521,6 @@ export const ko = {
     contentLabel: "프로젝트 설명",
     contentPlaceholder: "설명 추가… ('/' 로 제목, 목록, 체크리스트 넣기)",
     membersCardTitle: "구성원",
-    tabIssues: "티켓",
     tabSettings: "설정",
     tabsLabel: "프로젝트 메뉴",
     issuesEmptyTitle: "티켓 기능은 아직 준비 중입니다",

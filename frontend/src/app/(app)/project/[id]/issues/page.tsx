@@ -1,35 +1,15 @@
-import { notFound } from "next/navigation";
-import { IssuesView } from "@/features/issues/components/issues-view";
-import type { Issue, Label } from "@/features/issues/types";
-import type { Milestone } from "@/features/milestones/types";
-import type { ProjectMember } from "@/features/projects/types";
-import { getProjects, loadProject, serverGet } from "@/lib/current-user";
+import { redirect } from "next/navigation";
 
-/** `?deleted=1` shows the deleted issues instead of the ones in use. */
+/**
+ * A project has no ticket list of its own any more (D-135): its tickets are the list of all
+ * tickets filtered to the project. Old links land there with their filters.
+ */
 export default async function ProjectIssuesPage({ params, searchParams }: PageProps<"/project/[id]/issues">) {
-  const [{ id }, { deleted }] = await Promise.all([params, searchParams]);
-  const path = `/api/v1/projects/${encodeURIComponent(id)}`;
-  const [project, issues, members, milestones, labels, projects] = await Promise.all([
-    loadProject(id),
-    serverGet<Issue[]>(`${path}/issues${deleted ? "?deleted=true" : ""}`),
-    serverGet<ProjectMember[]>(`${path}/members`),
-    serverGet<Milestone[]>(`${path}/milestones`),
-    serverGet<Label[]>("/api/v1/labels"),
-    getProjects(),
-  ]);
-  if (!issues || !members || !milestones || !labels) notFound();
-
-  return (
-    <IssuesView
-      projectId={project.id}
-      underTabs
-      issues={issues}
-      members={members}
-      milestones={milestones}
-      labels={labels}
-      projects={projects}
-      deleted={Boolean(deleted)}
-      canEdit={project.myRole !== "VIEWER"}
-    />
-  );
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const next = new URLSearchParams({ project: id });
+  for (const [key, value] of Object.entries(query)) {
+    if (key === "project") continue;
+    for (const one of Array.isArray(value) ? value : value === undefined ? [] : [value]) next.append(key, one);
+  }
+  redirect(`/issues?${next.toString()}`);
 }

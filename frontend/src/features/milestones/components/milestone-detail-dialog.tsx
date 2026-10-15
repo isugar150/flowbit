@@ -209,7 +209,7 @@ export function MilestoneDetailDialog({
                 {issues.data ? <span className="ml-1.5 font-normal tabular-nums">{issues.data.length}</span> : null}
               </h3>
               <Link
-                href={`/project/${projectId}/issues?milestone=${milestone.id}`}
+                href={`/issues?project=${projectId}&milestone=${milestone.id}`}
                 className="flex items-center gap-1 rounded-sm text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {m.openInList}
