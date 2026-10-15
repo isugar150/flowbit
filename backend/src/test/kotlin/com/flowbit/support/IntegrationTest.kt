@@ -53,6 +53,7 @@ abstract class IntegrationTest {
         )
         execute("delete from retention_policies")
         execute("delete from webhooks")
+        execute("delete from git_connections")
         execute("delete from notification_settings")
         execute("insert into notification_settings (id) values (1)")
         execute("delete from ldap_settings")

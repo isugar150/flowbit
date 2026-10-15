@@ -2,6 +2,7 @@ package com.flowbit.backup
 
 import com.flowbit.auth.application.LdapSettingsInput
 import com.flowbit.auth.application.SsoSettingsInput
+import com.flowbit.git.GitConnectionBackup
 import com.flowbit.notification.PushInput
 import com.flowbit.notification.SmtpInput
 import com.flowbit.notification.WebhookInput
@@ -11,7 +12,7 @@ import com.flowbit.user.domain.UserStatus
 import java.time.Instant
 
 /** The parts of the installation's settings that can be backed up and restored on their own. */
-enum class BackupSection { WORKSPACE, AUTH, NOTIFICATIONS, MEMBERS }
+enum class BackupSection { WORKSPACE, AUTH, NOTIFICATIONS, MEMBERS, GIT }
 
 data class WorkspaceBackup(
     val name: String,
@@ -52,6 +53,8 @@ data class BackupData(
     val auth: AuthBackup? = null,
     val notifications: NotificationsBackup? = null,
     val members: List<MemberBackup>? = null,
+    /** The Git server connections with their secrets (docs/features/git-integration.md). */
+    val git: List<GitConnectionBackup>? = null,
 )
 
 /** [BackupData] as JSON, encrypted with a key made from the password the administrator chose. */
@@ -89,4 +92,6 @@ data class RestoreResult(
     /** Accounts left alone because someone already signs in with that id or e-mail address. */
     val membersSkipped: Int,
     val webhooks: Int,
+    /** Git server connections now in place; 0 when they were not restored. */
+    val gitConnections: Int = 0,
 )

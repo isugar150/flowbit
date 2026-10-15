@@ -13,6 +13,8 @@ import com.flowbit.common.error.ApiException
 import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.web.ClientInfo
+import com.flowbit.git.GitConnectionBackup
+import com.flowbit.git.GitConnectionService
 import com.flowbit.instance.application.InstanceService
 import com.flowbit.notification.NotificationSettings
 import com.flowbit.notification.NotificationSettingsService
@@ -50,6 +52,7 @@ class BackupService(
     private val instanceService: InstanceService,
     private val externalAuth: ExternalAuthSettingsService,
     private val notifications: NotificationSettingsService,
+    private val gitConnections: GitConnectionService,
     private val userRepository: UserRepository,
     private val entityTemplate: R2dbcEntityTemplate,
     private val transactionalOperator: TransactionalOperator,
@@ -77,6 +80,7 @@ class BackupService(
                         null
                     },
                 members = if (BackupSection.MEMBERS in chosen) userRepository.findAllOrdered().toList().map(::memberOf) else null,
+                git = if (BackupSection.GIT in chosen) gitConnections.backups() else null,
             )
         val file =
             if (secret == null) {
@@ -110,6 +114,7 @@ class BackupService(
                 var added = 0
                 var skipped = 0
                 var webhooks = 0
+                var git = 0
                 for (section in chosen) {
                     when (section) {
                         BackupSection.WORKSPACE -> restoreWorkspace(data.workspace ?: throw broken())
@@ -120,10 +125,11 @@ class BackupService(
                             added = counts.first
                             skipped = counts.second
                         }
+                        BackupSection.GIT -> git = restoreGit(data.git ?: throw broken())
                     }
                 }
                 auditService.record(AuditEventType.BACKUP_RESTORED, actor.id, client, detailOf(chosen, file.encrypted != null))
-                RestoreResult(chosen, added, skipped, webhooks)
+                RestoreResult(chosen, added, skipped, webhooks, git)
             }
         } catch (_: DuplicateKeyException) {
             // Someone was added between the check and the insert; nothing of the restore was kept.
@@ -194,6 +200,12 @@ class BackupService(
             backup.webhooks.forEach { notifications.createWebhook(it.copy(signingSecret = it.signingSecret.orEmpty())) }
         }
         return backup.webhooks.size
+    }
+
+    /** The connections are made what the backup says, keeping their ids (and so their webhook addresses). */
+    private suspend fun restoreGit(backup: List<GitConnectionBackup>): Int {
+        section(BackupSection.GIT) { gitConnections.restore(backup) }
+        return backup.size
     }
 
     /**
@@ -390,6 +402,7 @@ class BackupService(
                 BackupSection.AUTH to "로그인 연동",
                 BackupSection.NOTIFICATIONS to "알림",
                 BackupSection.MEMBERS to "구성원",
+                BackupSection.GIT to "Git 연동",
             )
     }
 }

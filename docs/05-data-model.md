@@ -207,6 +207,19 @@
 
 `issues.deleted_at`·`documents.deleted_at`·`issue_comments.deleted_at` 이 이 기간보다 오래되면 정리 작업이 행을 지운다. 지운 티켓의 하위 데이터는 외래 키의 `CASCADE` 로 함께 사라진다.
 
+### Git 연동 (`V11`, D-141)
+
+관리자가 연결한 Git 서버와, 티켓 키로 티켓에 연결된 브랜치·PR·커밋. [features/git-integration.md](features/git-integration.md)
+
+| 테이블 | 컬럼 | 설명 |
+|---|---|---|
+| `git_connections` | `id`, `name`(1~80자), `provider`(`GITEA`\|`GITLAB`\|`GITHUB`), `base_url`, `secret`, `enabled`, `all_projects`, `auto_in_progress`, `auto_done`, `last_received_at`, `last_event`, `last_result`, `last_error`, `created_at`, `updated_at` | `secret` 은 평문(D-090), 32바이트 무작위 값의 16진수 64자. `last_result` 는 JSON 을 담은 `text`(`{linkedIssues, statusChanged, skipped}`, 엔티티에 그대로 매핑하려고 `jsonb` 를 쓰지 않았다) |
+| `git_connection_projects` | `connection_id`, `project_id`(둘이 PK, 둘 다 CASCADE) | `all_projects` 가 거짓일 때 허용 프로젝트 |
+| `issue_git_links` | `id`, `issue_id`(CASCADE), `connection_id`(CASCADE), `kind`(`BRANCH`\|`PULL_REQUEST`), `repository`, `branch`, `pr_number`, `title`, `url`, `pr_state`(`OPEN`\|`DRAFT`\|`MERGED`\|`CLOSED`), `closes`, `created_at`, `updated_at` | 유일 인덱스 `(issue_id, connection_id, repository, kind, coalesce(pr_number, 0), coalesce(branch, ''))`. PR 줄의 `branch` 는 PR 을 올린 브랜치 |
+| `issue_git_commits` | `issue_id`(CASCADE), `connection_id`(CASCADE), `repository`, `sha`, `message`(첫 줄), `url`, `author_name`, `committed_at` | PK `(issue_id, sha)`: 다시 온 배달과 다른 브랜치로 옮긴 커밋을 두 번 기록하지 않는다 |
+
+`V11` 은 `issue_activities.actor_id` 의 NOT NULL 도 뺀다. Git 이 한 일은 `detail.via = {"source":"git","name":"<Git 사용자 이름>"}` 를 달고, Flowbit 계정이 맞으면 `actor_id` 도 채운다.
+
 ### 검색 함수 `hangul_initials(text)` (`V10`, D-133)
 
 한글 음절을 초성으로 바꾼 글자를 돌려준다(`결제 개편` → `ㄱㅈ ㄱㅍ`). 한글 음절이 아닌 글자는 그대로. `IMMUTABLE`. 검색이 초성만으로 된 검색어를 티켓·문서 제목과 맞출 때 쓴다 ([features/search.md](features/search.md)).
@@ -262,7 +275,7 @@ notifications (수신함)
 
 | 테이블 | 컬럼 | 설명 |
 |---|---|---|
-| `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`, `type` text, `detail` jsonb, `created_at` | 티켓의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨·담당자는 `{added,removed}`. 담당자의 D-125 전 기록은 `{from,to}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
+| `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`(Git 이 한 일이고 계정이 맞지 않으면 null, `V11`), `type` text, `detail` jsonb, `created_at` | 티켓의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨·담당자는 `{added,removed}`. 담당자의 D-125 전 기록은 `{from,to}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
 | `issue_subscriptions` | `issue_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 티켓을 구독하는 사람. 알림의 받는 사람 |
 | `project_subscriptions` (D-102) | `project_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 프로젝트를 구독하는 사람. 그 프로젝트에 연결된 모든 티켓의 알림을 받는다. 프로젝트에서 빠져도 행은 남지만, 받는 사람을 고를 때 지금 구성원(또는 워크스페이스 관리자)인지 확인한다 |
 

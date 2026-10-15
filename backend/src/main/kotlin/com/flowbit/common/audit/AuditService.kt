@@ -32,6 +32,10 @@ enum class AuditEventType {
     BACKUP_RESTORED,
     RETENTION_SETTINGS_CHANGED,
     DATA_PURGED,
+    GIT_CONNECTION_CREATED,
+    GIT_CONNECTION_CHANGED,
+    GIT_CONNECTION_DELETED,
+    GIT_SECRET_REGENERATED,
 }
 
 /** Append-only record of security-relevant events. Never pass passwords or other secrets in `detail`. */

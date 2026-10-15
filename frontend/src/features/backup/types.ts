@@ -1,4 +1,4 @@
-export type BackupSection = "WORKSPACE" | "AUTH" | "NOTIFICATIONS" | "MEMBERS";
+export type BackupSection = "WORKSPACE" | "AUTH" | "NOTIFICATIONS" | "MEMBERS" | "GIT";
 
 /** In the order they are listed on screen and restored. */
 export const BACKUP_SECTIONS: BackupSection[] = [
@@ -6,6 +6,7 @@ export const BACKUP_SECTIONS: BackupSection[] = [
   "AUTH",
   "NOTIFICATIONS",
   "MEMBERS",
+  "GIT",
 ];
 
 /**
@@ -27,6 +28,7 @@ export type RestoreResult = {
   membersAdded: number;
   membersSkipped: number;
   webhooks: number;
+  gitConnections: number;
 };
 
 export const BACKUP_FORMAT = "flowbit-backup";
