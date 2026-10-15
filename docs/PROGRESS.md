@@ -181,6 +181,12 @@
 
 ## 작업 기록
 
+### 2026-10-16 — GitHub 앱 만들기·설치 확인 문제
+
+- 사용자 지시: **테스트는 사용자가 시키기 전까지 돌리지 않는다**(컴파일·타입 검사만). 아래 변경은 테스트 코드도 고쳤지만 돌리지 않았다.
+- 앱 만들기 오류: "API로 가져오기" 연결에서 GitHub 이 "Hook url is not supported because it isn't reachable over the public Internet (localhost)"로 거절했다. 꺼 둔 웹훅의 주소도 GitHub 이 검사하기 때문이다. 가져오기 방식은 매니페스트에 `hook_attributes` 를 넣지 않고, 웹훅 방식은 localhost·사설 IP·도메인 없는 주소면 422 `WEBHOOK_NOT_REACHABLE` 로 먼저 막는다.
+- 설치 확인이 반응이 없음: 사용자가 조직에 설치(모든 저장소)하고 돌아와 "설치 확인"을 눌러도 아무 표시가 없었다. 원인은 확인하지 못했다(사용자 백엔드의 로그를 볼 수 없었다). 고친 것: 설치를 `GET /orgs/{조직}/installation` 로 못 찾으면 `GET /app/installations` 에서 찾고, 그래도 없으면 409 `GITHUB_NOT_INSTALLED` 로 이유를 보이며, GitHub 이 거절한 말(502 `GITHUB_UNAVAILABLE`)은 "서버 오류" 대신 그대로 보인다. 설치 뒤 돌아오는 페이지에서 실패하면 서버 로그에 WARN 을 남긴다. **사용자가 다시 "설치 확인"을 눌러 나오는 문구로 원인을 이어서 본다.**
+
 ### 2026-10-16 — 내 설정의 GitHub 계정 연결 (D-150)
 
 - 사용자 지시: 내 설정에 GitHub 계정 연결(OAuth)을 더하고, 관리자의 사람 맞추기는 GitLab·Gitea 와 연결 안 한 사람용으로 남긴다.

@@ -125,9 +125,23 @@ class GitHubClient(
         return when (response.status) {
             200 -> response.body
             404 -> null
-            else -> throw GitHubException("설치 정보를 읽지 못했습니다 (HTTP ${response.status})")
+            else -> throw GitHubException("설치 정보를 읽지 못했습니다 (HTTP ${response.status}${reasonOf(response)})")
         }
     }
+
+    /** Every installation of the app, wherever it is: `GET /app/installations`, signed by the app. */
+    suspend fun appInstallations(connection: GitConnection): List<JsonNode> {
+        val response = send(HttpMethod.GET, "${apiUrl(connection.baseUrl)}/app/installations?per_page=100", "Bearer ${appJwt(connection)}", null, null)
+        if (response.status != 200) throw GitHubException("앱의 설치 목록을 읽지 못했습니다 (HTTP ${response.status}${reasonOf(response)})")
+        return response.body?.let(::items).orEmpty()
+    }
+
+    /** GitHub's own words for a refusal, such as ": A JSON web token could not be decoded". */
+    private fun reasonOf(response: GitHubResponse): String =
+        response.body
+            ?.let { text(it, "message") }
+            ?.let { ": $it" }
+            .orEmpty()
 
     /**
      * A GET with the installation's token. With [etag], GitHub answers 304 when nothing changed,

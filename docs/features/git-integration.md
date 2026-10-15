@@ -157,7 +157,7 @@ GitHub 은 앱 설정을 JSON(매니페스트)으로 넘겨 앱을 만들게 해
      "default_events": ["push", "pull_request"]
    }
    ```
-   가져오기 방식이면 `hook_attributes.active` 를 `false` 로 둔다(이벤트 구독도 비운다).
+   가져오기 방식이면 `hook_attributes` 를 **아예 넣지 않는다**(이벤트 구독도 비운다). GitHub 은 꺼 둔 웹훅(`active: false`)의 주소도 인터넷에서 닿는지 검사해서 `localhost` 면 "Hook url is not supported because it isn't reachable over the public Internet" 으로 앱 만들기를 거절한다(사용자가 겪음, 2026-10-16). 웹훅 방식인데 Flowbit 주소가 localhost·사설 IP(10·172.16~31·192.168)·도메인 없는 이름이면 GitHub 으로 보내기 전에 422 `WEBHOOK_NOT_REACHABLE`(필드 `receiveMode`)로 막는다. 가져오기로 만든 앱을 나중에 웹훅으로 바꾸려면 연결을 새로 만든다(앱에 웹훅 비밀 값이 없다).
 3. GitHub 화면에서 관리자가 이름을 확인하고 **Create GitHub App** 을 누른다. **조직 소유자(owner) 권한이 필요하다.** 앱 이름은 GitHub 전체에서 유일하고 34자까지다.
 4. GitHub 이 `redirect_url?code=…&state=…` 로 돌려보낸다. Flowbit 은 `state` 를 확인하고 서버에서 `POST https://api.github.com/app-manifests/{code}/conversions` 를 부른다. 응답의 `id`(앱 ID), `slug`, `client_id`, `client_secret`, `webhook_secret`, `pem`(비공개 키)을 연결에 저장한다. **세 단계를 1시간 안에 끝내야 하고** `code` 는 한 번만 쓴다. 이 호출에 인증이 필요한지는 문서 예시에 헤더가 없어 "필요 없음"으로 보지만, 구현할 때 실제로 확인한다.
 
@@ -166,7 +166,7 @@ GitHub 은 앱 설정을 JSON(매니페스트)으로 넘겨 앱을 만들게 해
 ### 설치: 저장소 고르기
 
 5. 앱을 만든 뒤 Flowbit 이 "조직에 설치" 버튼으로 `https://github.com/apps/{slug}/installations/new` 를 연다. 관리자가 **All repositories** 또는 **Only select repositories** 를 고르고 Install 을 누른다.
-6. GitHub 이 `setup_url?installation_id=…&setup_action=install` 로 돌려보낸다. Flowbit 은 `installation_id` 를 그대로 믿지 않고, 앱 JWT 로 `GET /app/installations` 를 불러 그 설치가 이 앱의 것인지, 대상 조직이 맞는지 확인한 뒤 저장한다.
+6. GitHub 이 `setup_url?installation_id=…&setup_action=install` 로 돌려보낸다. Flowbit 은 `installation_id` 를 그대로 믿지 않고 앱 JWT 로 설치를 찾는다: 먼저 `GET /orgs/{조직}/installation`, 못 찾으면 `GET /app/installations` 에서 계정이 그 조직인 것(없으면 하나뿐인 설치). "설치 확인"이 그래도 못 찾으면 409 `GITHUB_NOT_INSTALLED` 로 이유(설치된 곳이 없음, 또는 다른 계정에 설치됨)를 보인다. GitHub 이 거절하면 502 `GITHUB_UNAVAILABLE` 에 GitHub 의 말(`message`)을 붙여 화면에 그대로 보인다.
 7. 저장소를 나중에 더하거나 빼는 것은 GitHub 의 앱 설치 설정에서 한다. 웹훅 방식이면 `installation_repositories` 이벤트로, 가져오기 방식이면 다음 주기의 저장소 목록으로 Flowbit 이 안다.
 
 ### 인증 (서버가 GitHub API 를 부를 때)

@@ -73,16 +73,22 @@ class GitHubIntegrationTest : IntegrationTest() {
             connection["github"],
         )
 
-        val form = admin.get("/api/v1/admin/git/connections/$id/github/manifest?origin=http://localhost:3000").json()
+        // GitHub refuses a webhook it cannot reach, so a private address stops here with a reason.
+        for (privateOrigin in listOf("http://localhost:3000", "http://10.1.2.3", "http://192.168.0.5:3000", "http://flowbit")) {
+            val refused = admin.get("/api/v1/admin/git/connections/$id/github/manifest?origin=$privateOrigin")
+            assertEquals(422, refused.status, privateOrigin)
+            assertEquals("WEBHOOK_NOT_REACHABLE", fieldError(refused.json()))
+        }
+        val form = admin.get("/api/v1/admin/git/connections/$id/github/manifest?origin=https://flowbit.example.com").json()
         val action = form["action"] as String
         assertTrue(action.startsWith("${GitHub.base}/organizations/acme/settings/apps/new?state="))
         val state = action.substringAfter("state=")
         val manifest = mapper.readTree(form["manifest"] as String)
-        assertEquals("http://localhost:3000/api/v1/integrations/git/$id/webhook", manifest.get("hook_attributes").get("url").asString())
+        assertEquals("https://flowbit.example.com/api/v1/integrations/git/$id/webhook", manifest.get("hook_attributes").get("url").asString())
         assertEquals(true, manifest.get("hook_attributes").get("active").asBoolean())
-        assertEquals("http://localhost:3000/admin/git/github/created", manifest.get("redirect_url").asString())
-        assertEquals("http://localhost:3000/admin/git/github/installed", manifest.get("setup_url").asString())
-        assertEquals("http://localhost:3000/settings/github/callback", manifest.get("callback_urls").get(0).asString())
+        assertEquals("https://flowbit.example.com/admin/git/github/created", manifest.get("redirect_url").asString())
+        assertEquals("https://flowbit.example.com/admin/git/github/installed", manifest.get("setup_url").asString())
+        assertEquals("https://flowbit.example.com/settings/github/callback", manifest.get("callback_urls").get(0).asString())
         assertEquals("read", manifest.get("default_permissions").get("pull_requests").asString())
         assertEquals(listOf("push", "pull_request"), (0 until manifest.get("default_events").size()).map { manifest.get("default_events").get(it).asString() })
 
@@ -99,12 +105,26 @@ class GitHubIntegrationTest : IntegrationTest() {
         assertEquals("gh-webhook-secret", text("select secret from git_connections"))
         // The code is used up: the state no longer leads anywhere.
         assertEquals(422, admin.post("/api/v1/admin/git/github/created", """{"code":"good-code","state":"$state"}""").status)
-        assertEquals(409, admin.get("/api/v1/admin/git/connections/$id/github/manifest?origin=http://localhost:3000").status)
+        assertEquals(409, admin.get("/api/v1/admin/git/connections/$id/github/manifest?origin=https://flowbit.example.com").status)
+
+        // Read through the API: no webhook in the manifest at all, so a private address is fine.
+        val polling = admin.post("/api/v1/admin/git/connections", githubJson(mode = "POLL")).json()["id"]
+        val pollForm = admin.get("/api/v1/admin/git/connections/$polling/github/manifest?origin=http://localhost:3000")
+        assertEquals(200, pollForm.status)
+        val pollManifest = mapper.readTree(pollForm.json()["manifest"] as String)
+        assertTrue(pollManifest.get("hook_attributes") == null)
+        assertEquals(0, pollManifest.get("default_events").size())
+        assertEquals("http://localhost:3000/admin/git/github/created", pollManifest.get("redirect_url").asString())
+
+        // Not installed yet: checking says so instead of seeming to do nothing.
+        val notYet = admin.post("/api/v1/admin/git/connections/$id/github/installation")
+        assertEquals(409, notYet.status)
+        assertEquals("GITHUB_NOT_INSTALLED", notYet.json()["code"])
 
         // Installed on GitHub: the page GitHub sends back to reads it.
         GitHub.installed = true
         @Suppress("UNCHECKED_CAST")
-        val installed = admin.post("/api/v1/admin/git/github/installations").jsonList().single()["github"] as Map<String, Any?>
+        val installed = admin.post("/api/v1/admin/git/github/installations").jsonList().single { it["id"] == id }["github"] as Map<String, Any?>
         assertEquals(555, installed["installationId"])
         assertEquals("selected", installed["repositorySelection"])
         // Every call to GitHub was signed by the app's key.
@@ -277,7 +297,8 @@ class GitHubIntegrationTest : IntegrationTest() {
     /** A GitHub connection whose app is made and installed; returns its id. */
     private fun installedConnection(mode: String = "WEBHOOK"): String {
         val id = admin.post("/api/v1/admin/git/connections", githubJson(mode = mode)).json()["id"] as String
-        val action = admin.get("/api/v1/admin/git/connections/$id/github/manifest?origin=http://localhost:3000").json()["action"] as String
+        val origin = if (mode == "POLL") "http://localhost:3000" else "https://flowbit.example.com"
+        val action = admin.get("/api/v1/admin/git/connections/$id/github/manifest?origin=$origin").json()["action"] as String
         admin.post("/api/v1/admin/git/github/created", """{"code":"good-code","state":"${action.substringAfter("state=")}"}""")
         GitHub.installed = true
         admin.post("/api/v1/admin/git/connections/$id/github/installation")
@@ -414,6 +435,14 @@ class GitHubIntegrationTest : IntegrationTest() {
                     checkJwt(authorization)
                     if (!installed) return answer(exchange, 404, """{"message":"Not Found"}""")
                     answer(exchange, 200, """{"id":$installationId,"account":{"login":"acme"},"repository_selection":"selected"}""")
+                }
+                path == "/app/installations" -> {
+                    checkJwt(authorization)
+                    answer(
+                        exchange,
+                        200,
+                        if (installed) """[{"id":$installationId,"account":{"login":"acme"},"repository_selection":"selected"}]""" else "[]",
+                    )
                 }
                 path.startsWith("/app/installations/") && path.endsWith("/access_tokens") -> {
                     checkJwt(authorization)

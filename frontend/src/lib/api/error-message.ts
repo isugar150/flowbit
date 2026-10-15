@@ -9,7 +9,8 @@ export function apiErrorMessage(error: unknown): string {
   if (error instanceof NetworkError) return messages.common.networkError;
   if (!(error instanceof ApiError)) return messages.common.serverError;
   if (error.status === 429) return messages.common.tooManyRequests(error.retryAfterSeconds ?? 60);
-  if (error.status >= 500) return messages.common.serverError;
+  // GitHub being unreachable or refusing (D-146) says why, which the administrator can act on.
+  if (error.status >= 500 && error.code !== "GITHUB_UNAVAILABLE") return messages.common.serverError;
   return error.fieldErrors[0]?.message ?? (error.message || messages.common.serverError);
 }
 

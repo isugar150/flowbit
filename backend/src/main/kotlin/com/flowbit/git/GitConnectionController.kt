@@ -2,6 +2,7 @@ package com.flowbit.git
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.flowbit.auth.application.AuthenticatedUser
+import com.flowbit.common.error.ConflictException
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.common.web.PublicUrl
 import org.springframework.http.HttpStatus
@@ -172,8 +173,12 @@ class GitConnectionController(
     suspend fun githubInstallation(
         @PathVariable id: UUID,
     ): GitConnectionResponse {
-        githubApps.refresh(id)
-        return response(checkNotNull(service.find(id)))
+        val connection = githubApps.refresh(id)
+        // Said out loud: without it the button seemed to do nothing when GitHub found no installation.
+        if (connection.githubAppId != null && connection.githubInstallationId == null) {
+            throw ConflictException("GITHUB_NOT_INSTALLED", githubApps.notInstalledReason(connection))
+        }
+        return response(connection)
     }
 
     /** Reads the GitHub API now instead of waiting for the next round (receive mode POLL). */
