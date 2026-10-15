@@ -15,6 +15,8 @@ data class NotificationMessage(
     val path: String,
     /** The full address when this installation knows its own, otherwise the path. */
     val url: String,
+    /** The words of the link in a mail. */
+    val linkLabel: String = "티켓 열기",
 ) {
     /**
      * Everything in one paragraph, for places with a single text field (chat messages). The last
@@ -46,6 +48,19 @@ class NotificationText(
             headline = "${notification.actorName} 님이 $did",
             path = path,
             url = publicUrl.of(path),
+        )
+    }
+
+    /** A request to join a project; the link opens the project's settings, where it is answered (D-128). */
+    fun of(request: ProjectAccessRequestNotification): NotificationMessage {
+        val path = "/project/${request.projectId}/settings#access-requests"
+        return NotificationMessage(
+            title = "[${request.projectName}] 접근 요청",
+            lines = listOf("프로젝트 설정의 구성원에서 승인하거나 거절할 수 있습니다."),
+            headline = "${request.requesterName} 님이 프로젝트 접근을 요청했습니다",
+            path = path,
+            url = publicUrl.of(path),
+            linkLabel = "설정 열기",
         )
     }
 

@@ -62,6 +62,15 @@ data class ProjectProperties(
     val labels: List<String>,
 )
 
+/** Someone waiting to be let into a project (D-128). */
+data class ProjectAccessRequestRow(
+    val userId: UUID,
+    val loginId: String,
+    val displayName: String?,
+    val avatarKey: String?,
+    val requestedAt: Instant,
+)
+
 data class ProjectMemberRow(
     val userId: UUID,
     val loginId: String,
@@ -126,6 +135,75 @@ class ProjectMemberStore(
             .rowsUpdated()
             .awaitSingle()
     }
+
+    /** Records a request to be let in. False when one was already waiting. */
+    suspend fun requestAccess(
+        projectId: UUID,
+        userId: UUID,
+        now: Instant,
+    ): Boolean =
+        databaseClient
+            .sql(
+                """
+                insert into project_access_requests (project_id, user_id, created_at)
+                values (:projectId, :userId, :now)
+                on conflict do nothing
+                """.trimIndent(),
+            ).bind("projectId", projectId)
+            .bind("userId", userId)
+            .bind("now", OffsetDateTime.ofInstant(now, ZoneOffset.UTC))
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle() > 0
+
+    /** When the user asked to be let in, if they are waiting. */
+    suspend fun accessRequestedAt(
+        projectId: UUID,
+        userId: UUID,
+    ): Instant? =
+        databaseClient
+            .sql("select created_at from project_access_requests where project_id = :projectId and user_id = :userId")
+            .bind("projectId", projectId)
+            .bind("userId", userId)
+            .map { row -> checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant() }
+            .one()
+            .awaitSingleOrNull()
+
+    /** The active people waiting to be let in, the longest waiting first. */
+    suspend fun accessRequests(projectId: UUID): List<ProjectAccessRequestRow> =
+        databaseClient
+            .sql(
+                """
+                select u.id, u.login_id, u.display_name, u.avatar_key, r.created_at
+                from project_access_requests r join users u on u.id = r.user_id
+                where r.project_id = :projectId and u.status = 'ACTIVE'
+                order by r.created_at, u.login_id
+                """.trimIndent(),
+            ).bind("projectId", projectId)
+            .map { row ->
+                ProjectAccessRequestRow(
+                    userId = checkNotNull(row.get("id", UUID::class.java)),
+                    loginId = checkNotNull(row.get("login_id", String::class.java)),
+                    displayName = row.get("display_name", String::class.java),
+                    avatarKey = row.get("avatar_key", String::class.java),
+                    requestedAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
+                )
+            }.all()
+            .collectList()
+            .awaitSingle()
+
+    /** Takes the request away (answered either way). False when there was none. */
+    suspend fun removeAccessRequest(
+        projectId: UUID,
+        userId: UUID,
+    ): Boolean =
+        databaseClient
+            .sql("delete from project_access_requests where project_id = :projectId and user_id = :userId")
+            .bind("projectId", projectId)
+            .bind("userId", userId)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle() > 0
 
     /** Following twice is the same as once. */
     suspend fun subscribe(

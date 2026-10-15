@@ -40,6 +40,24 @@ data class WebhookRecipient(
 )
 
 /**
+ * What one webhook call is about, put into words once: the parts of the standard JSON and the
+ * placeholders that say what happened. A change to an issue or a request to join a project (D-128).
+ */
+class WebhookContent(
+    /** `issue.updated`, `project.access_requested` … */
+    val event: String,
+    /** The kinds of change in it, matched against the ones a webhook chose. */
+    val types: Set<String>,
+    /** What the log says it was about. */
+    val about: String,
+    val message: NotificationMessage,
+    /** `issue`, `project`, `actor` and `changes` of the standard JSON. */
+    val subject: Map<String, Any?>,
+    /** The placeholders that say what happened; the rest are the same for every call. */
+    val values: Map<String, String>,
+)
+
+/**
  * Builds and sends the outgoing API call for a notification
  * (docs/features/M7a-notification-channels.md, "API 알림").
  */
@@ -51,56 +69,103 @@ class WebhookSender(
 ) {
     private val http = WebClient.create()
 
+    fun contentOf(notification: IssueNotification): WebhookContent {
+        val message = texts.of(notification)
+        return WebhookContent(
+            event = eventName(notification),
+            types = notification.events.map { it.type }.toSet(),
+            about = notification.issueKey,
+            message = message,
+            subject =
+                mapOf(
+                    "issue" to
+                        mapOf(
+                            "key" to notification.issueKey,
+                            "number" to notification.issueNumber,
+                            "title" to notification.issueTitle,
+                            "url" to message.url,
+                            "projectId" to notification.projectId?.toString(),
+                        ),
+                    "actor" to mapOf("id" to notification.actorId.toString(), "name" to notification.actorName),
+                    "changes" to notification.events.map { mapOf("type" to it.type, "detail" to it.detail) },
+                ),
+            values =
+                mapOf(
+                    "issue.key" to notification.issueKey,
+                    "issue.number" to notification.issueNumber.toString(),
+                    "issue.title" to notification.issueTitle,
+                    "issue.url" to message.url,
+                    "actor.name" to notification.actorName,
+                ),
+        )
+    }
+
+    /** A request to join a project: no issue, the project instead, and the requester as the actor. */
+    fun contentOf(request: ProjectAccessRequestNotification): WebhookContent {
+        val message = texts.of(request)
+        return WebhookContent(
+            event = ProjectAccessRequestNotification.EVENT,
+            types = setOf(ProjectAccessRequestNotification.TYPE),
+            about = "the access request to ${request.projectId}",
+            message = message,
+            subject =
+                mapOf(
+                    "issue" to null,
+                    "project" to mapOf("id" to request.projectId.toString(), "name" to request.projectName, "url" to message.url),
+                    "actor" to mapOf("id" to request.requesterId.toString(), "name" to request.requesterName),
+                    "changes" to listOf(mapOf("type" to ProjectAccessRequestNotification.TYPE, "detail" to mapOf("project" to request.projectName))),
+                ),
+            values =
+                mapOf(
+                    "project.name" to request.projectName,
+                    "project.url" to message.url,
+                    "actor.name" to request.requesterName,
+                ),
+        )
+    }
+
     /** The standard payload: what is sent when a webhook has no body template, and `{{payload}}` in one that has. */
     fun payload(
-        notification: IssueNotification,
+        content: WebhookContent,
         deliveryId: UUID,
         recipient: WebhookRecipient,
     ): Map<String, Any?> {
-        val message = texts.of(notification)
+        val message = content.message
         return mapOf(
-            "event" to eventName(notification),
+            "event" to content.event,
             "deliveryId" to deliveryId.toString(),
             "occurredAt" to OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC).toString(),
-            "issue" to
-                mapOf(
-                    "key" to notification.issueKey,
-                    "number" to notification.issueNumber,
-                    "title" to notification.issueTitle,
-                    "url" to message.url,
-                    "projectId" to notification.projectId?.toString(),
-                ),
-            "actor" to mapOf("id" to notification.actorId.toString(), "name" to notification.actorName),
-            "changes" to notification.events.map { mapOf("type" to it.type, "detail" to it.detail) },
-            "recipient" to mapOf("id" to recipient.id.toString(), "loginId" to recipient.loginId, "name" to recipient.name, "email" to recipient.email),
-            "title" to message.title,
-            "headline" to message.headline,
-            "lines" to message.lines,
-            "text" to message.text,
-        )
+        ) + content.subject +
+            mapOf(
+                "recipient" to mapOf("id" to recipient.id.toString(), "loginId" to recipient.loginId, "name" to recipient.name, "email" to recipient.email),
+                "title" to message.title,
+                "headline" to message.headline,
+                "lines" to message.lines,
+                "text" to message.text,
+            )
     }
 
     /** The address to call: the webhook's address with its `{{placeholders}}` filled in, URL-encoded. */
     fun url(
         webhook: Webhook,
-        notification: IssueNotification,
+        content: WebhookContent,
         deliveryId: UUID,
         recipient: WebhookRecipient,
     ): String {
-        val values = values(notification, deliveryId, recipient)
+        val values = values(content, deliveryId, recipient)
         return PLACEHOLDER.replace(webhook.url) { match -> values[match.groupValues[1]]?.let(::urlEncode).orEmpty() }
     }
 
     /** The body to send: the standard JSON, or the template with its `{{placeholders}}` filled in. */
     fun body(
         webhook: Webhook,
-        notification: IssueNotification,
+        content: WebhookContent,
         deliveryId: UUID,
         recipient: WebhookRecipient,
     ): String {
-        val json = jsonMapper.writeValueAsString(payload(notification, deliveryId, recipient))
+        val json = jsonMapper.writeValueAsString(payload(content, deliveryId, recipient))
         if (webhook.bodyTemplate.isBlank()) return json
-        val values = values(notification, deliveryId, recipient)
+        val values = values(content, deliveryId, recipient)
         val escape = escaperFor(webhook.contentType)
         return PLACEHOLDER.replace(webhook.bodyTemplate) { match ->
             when (val name = match.groupValues[1]) {
@@ -112,28 +177,23 @@ class WebhookSender(
     }
 
     private fun values(
-        notification: IssueNotification,
+        content: WebhookContent,
         deliveryId: UUID,
         recipient: WebhookRecipient,
     ): Map<String, String> {
-        val message = texts.of(notification)
+        val message = content.message
         return mapOf(
-            "event" to eventName(notification),
+            "event" to content.event,
             "deliveryId" to deliveryId.toString(),
             "title" to message.title,
             "headline" to message.headline,
             "changes" to message.lines.joinToString("\n"),
             "text" to message.text,
-            "issue.key" to notification.issueKey,
-            "issue.number" to notification.issueNumber.toString(),
-            "issue.title" to notification.issueTitle,
-            "issue.url" to message.url,
-            "actor.name" to notification.actorName,
             "recipient.id" to recipient.id.toString(),
             "recipient.loginId" to recipient.loginId,
             "recipient.name" to recipient.name,
             "recipient.email" to recipient.email.orEmpty(),
-        )
+        ) + content.values
     }
 
     /**
@@ -143,17 +203,17 @@ class WebhookSender(
      */
     suspend fun deliver(
         webhook: Webhook,
-        notification: IssueNotification,
+        content: WebhookContent,
         recipient: WebhookRecipient,
         retry: Boolean,
     ): WebhookDelivery {
         val deliveryId = UUID.randomUUID()
         val hasBody = webhook.method !in BODILESS
-        val body = if (hasBody) body(webhook, notification, deliveryId, recipient) else ""
+        val body = if (hasBody) body(webhook, content, deliveryId, recipient) else ""
         val uri =
             try {
                 // Already encoded above; handing WebClient a string would encode the % signs again.
-                URI.create(url(webhook, notification, deliveryId, recipient))
+                URI.create(url(webhook, content, deliveryId, recipient))
             } catch (e: IllegalArgumentException) {
                 return WebhookDelivery(null, "주소가 올바르지 않습니다: ${e.message.orEmpty().take(MAX_ERROR_LENGTH)}")
             }
@@ -164,7 +224,7 @@ class WebhookSender(
                 .headers { headers ->
                     if (hasBody) headers.set("Content-Type", webhook.contentType)
                     headers.set("User-Agent", "Flowbit-Webhook")
-                    headers.set("X-Flowbit-Event", eventName(notification))
+                    headers.set("X-Flowbit-Event", content.event)
                     headers.set("X-Flowbit-Delivery", deliveryId.toString())
                     if (hasBody && webhook.signingSecret.isNotEmpty()) headers.set("X-Flowbit-Signature", "sha256=" + sign(body, webhook.signingSecret))
                     // Last, so an administrator's own header (Authorization, a custom User-Agent) wins.
@@ -275,12 +335,22 @@ class WebhookNotificationChannel(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override suspend fun send(notification: IssueNotification) {
-        val types = notification.events.map { it.type }.toSet()
-        val wanted = webhooks.findEnabled().toList().filter { webhook -> webhook.eventTypeSet.let { it.isEmpty() || it.any(types::contains) } }
-        if (wanted.isEmpty() || notification.recipientIds.isEmpty()) return
+        deliverAll(sender.contentOf(notification), notification.recipientIds)
+    }
+
+    override suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {
+        deliverAll(sender.contentOf(request), request.recipientIds)
+    }
+
+    private suspend fun deliverAll(
+        content: WebhookContent,
+        recipientIds: List<UUID>,
+    ) {
+        val wanted = webhooks.findEnabled().toList().filter { webhook -> webhook.eventTypeSet.let { it.isEmpty() || it.any(content.types::contains) } }
+        if (wanted.isEmpty() || recipientIds.isEmpty()) return
         val recipients =
             userRepository
-                .findActiveByIds(notification.recipientIds)
+                .findActiveByIds(recipientIds)
                 .toList()
                 .map { WebhookRecipient(it.id, it.loginId, it.displayName ?: it.loginId, it.email) }
         for (webhook in wanted) {
@@ -288,17 +358,17 @@ class WebhookNotificationChannel(
             val needsEmail = "recipient.email" in webhook.url || "recipient.email" in webhook.bodyTemplate
             for (recipient in recipients) {
                 if (needsEmail && recipient.email == null) continue
-                record(webhook, notification, sender.deliver(webhook, notification, recipient, retry = true))
+                record(webhook, content, sender.deliver(webhook, content, recipient, retry = true))
             }
         }
     }
 
     private suspend fun record(
         webhook: Webhook,
-        notification: IssueNotification,
+        content: WebhookContent,
         delivery: WebhookDelivery,
     ) {
-        if (!delivery.ok) log.warn("Webhook '{}' failed for {}: {}", webhook.name, notification.issueKey, delivery.error)
+        if (!delivery.ok) log.warn("Webhook '{}' failed for {}: {}", webhook.name, content.about, delivery.error)
         webhooks.recordAttempt(webhook.id, delivery.status, delivery.error, clock.instant())
     }
 }

@@ -83,13 +83,24 @@ class MailNotificationChannel(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override suspend fun send(notification: IssueNotification) {
-        if (notification.recipientIds.isEmpty()) return
+        mail(notification.recipientIds, texts.of(notification), notification.issueKey)
+    }
+
+    override suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {
+        mail(request.recipientIds, texts.of(request), "the access request to ${request.projectId}")
+    }
+
+    private suspend fun mail(
+        recipientIds: List<java.util.UUID>,
+        message: NotificationMessage,
+        about: String,
+    ) {
+        if (recipientIds.isEmpty()) return
         val settings = settingsService.settings()
         if (!settings.smtpEnabled) return
-        val message = texts.of(notification)
         val addresses =
             userRepository
-                .findActiveByIds(notification.recipientIds)
+                .findActiveByIds(recipientIds)
                 .toList()
                 .filter { it.notifyEmail }
                 .mapNotNull { it.email }
@@ -98,7 +109,7 @@ class MailNotificationChannel(
                 mailer.send(settings, address, message.title, textOf(message), htmlOf(message))
             } catch (e: Exception) {
                 // One bad address must not keep the mail from everyone after it.
-                log.warn("Could not mail the notification for {}: {}", notification.issueKey, e.message)
+                log.warn("Could not mail the notification for {}: {}", about, e.message)
             }
         }
     }
@@ -110,7 +121,7 @@ class MailNotificationChannel(
         // Without a public address there is nothing a mail client could open.
         val link =
             if (message.url.startsWith("http")) {
-                """<p><a href="${HtmlUtils.htmlEscape(message.url)}">티켓 열기</a></p>"""
+                """<p><a href="${HtmlUtils.htmlEscape(message.url)}">${HtmlUtils.htmlEscape(message.linkLabel)}</a></p>"""
             } else {
                 ""
             }

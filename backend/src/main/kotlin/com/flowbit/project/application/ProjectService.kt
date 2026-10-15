@@ -14,6 +14,7 @@ import com.flowbit.common.web.ClientInfo
 import com.flowbit.media.application.ImageProcessor
 import com.flowbit.media.application.ImageSpec
 import com.flowbit.media.application.ImageStorage
+import com.flowbit.notification.ProjectAccessRequestNotification
 import com.flowbit.project.domain.Project
 import com.flowbit.project.domain.ProjectHealth
 import com.flowbit.project.domain.ProjectPriority
@@ -75,6 +76,14 @@ data class ProjectEntry(
     val myRole: ProjectRole?,
     /** Whom to ask for access. */
     val managers: List<ProjectMemberRow>,
+    /** When the caller asked to be let in and is still waiting (D-128). */
+    val requestedAt: Instant? = null,
+)
+
+/** A request to be let in, and what to tell the people who can answer it (null when it was already waiting). */
+data class AccessRequestResult(
+    val entry: ProjectEntry,
+    val notification: ProjectAccessRequestNotification?,
 )
 
 /**
@@ -148,7 +157,75 @@ class ProjectService(
         val project = findActive(projectId) ?: throw notFound()
         val role = effectiveRole(memberStore.roleOf(project.id, user.id), user)
         val managers = memberStore.members(project.id).filter { it.role == ProjectRole.MANAGER }
-        return ProjectEntry(project.id, project.name, role, managers)
+        val requestedAt = if (role == null) memberStore.accessRequestedAt(project.id, user.id) else null
+        return ProjectEntry(project.id, project.name, role, managers, requestedAt)
+    }
+
+    /**
+     * Someone who may not enter asks to be let in (D-128). The project's active managers are told,
+     * or the workspace administrators when it has none. Asking again while waiting changes nothing
+     * and tells nobody again.
+     */
+    @Transactional
+    suspend fun requestAccess(
+        user: AuthenticatedUser,
+        projectId: String,
+    ): AccessRequestResult {
+        val project = findActive(projectId) ?: throw notFound()
+        if (effectiveRole(memberStore.roleOf(project.id, user.id), user) != null) {
+            throw ConflictException("ALREADY_MEMBER", "이미 이 프로젝트의 구성원입니다")
+        }
+        val added = memberStore.requestAccess(project.id, user.id, clock.instant())
+        val notification =
+            if (added) {
+                val active = userService.activeUsers()
+                val activeIds = active.map { it.id }.toSet()
+                val managers = memberStore.members(project.id).filter { it.role == ProjectRole.MANAGER && it.userId in activeIds }.map { it.userId }
+                val recipients = managers.ifEmpty { active.filter { it.role == UserRole.ADMIN }.map { it.id } }
+                val requester = active.firstOrNull { it.id == user.id }
+                ProjectAccessRequestNotification(
+                    projectId = project.id,
+                    projectName = project.name,
+                    requesterId = user.id,
+                    requesterName = requester?.let { it.displayName ?: it.loginId } ?: user.loginId,
+                    recipientIds = recipients,
+                )
+            } else {
+                null
+            }
+        return AccessRequestResult(entry(user, projectId), notification)
+    }
+
+    /** The people waiting to be let in. Managers only. */
+    suspend fun accessRequests(
+        user: AuthenticatedUser,
+        projectId: String,
+    ): List<ProjectAccessRequestRow> = memberStore.accessRequests(manage(user, projectId).id)
+
+    /** Lets a waiting person in with the role the manager picked. Managers only. */
+    @Transactional
+    suspend fun approveAccess(
+        user: AuthenticatedUser,
+        projectId: String,
+        requesterId: UUID,
+        role: ProjectRole,
+    ): List<ProjectMemberRow> {
+        val project = manage(user, projectId)
+        if (!memberStore.removeAccessRequest(project.id, requesterId)) throw accessRequestNotFound()
+        userService.findActive(requesterId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
+        memberStore.put(project.id, requesterId, role, clock.instant())
+        return memberStore.members(project.id)
+    }
+
+    /** Turns a request down; the person may ask again. Managers only. */
+    @Transactional
+    suspend fun rejectAccess(
+        user: AuthenticatedUser,
+        projectId: String,
+        requesterId: UUID,
+    ) {
+        val project = manage(user, projectId)
+        if (!memberStore.removeAccessRequest(project.id, requesterId)) throw accessRequestNotFound()
     }
 
     suspend fun get(
@@ -319,6 +396,8 @@ class ProjectService(
         userService.findActive(memberId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
         if (role != ProjectRole.MANAGER) requireAnotherManager(project.id, memberId)
         memberStore.put(project.id, memberId, role, clock.instant())
+        // Added directly: a request they had waiting is answered by it.
+        memberStore.removeAccessRequest(project.id, memberId)
         return memberStore.members(project.id)
     }
 
@@ -444,6 +523,8 @@ class ProjectService(
         )
 
     private fun notFound() = NotFoundException("PROJECT_NOT_FOUND", "프로젝트를 찾을 수 없습니다")
+
+    private fun accessRequestNotFound() = NotFoundException("ACCESS_REQUEST_NOT_FOUND", "접근 요청을 찾을 수 없습니다")
 
     private val AuthenticatedUser.isAdmin: Boolean
         get() = role == UserRole.ADMIN

@@ -41,6 +41,25 @@ data class IssueNotification(
 }
 
 /**
+ * Someone asked to be let into a project they may not enter (D-128). Told at once, not held,
+ * to the people who can let them in.
+ */
+data class ProjectAccessRequestNotification(
+    val projectId: UUID,
+    val projectName: String,
+    val requesterId: UUID,
+    val requesterName: String,
+    /** The project's active managers, or the workspace administrators when it has none. */
+    val recipientIds: List<UUID>,
+) {
+    companion object {
+        /** The kind of change a webhook can choose, next to the IssueActivityType names. */
+        const val TYPE = "ACCESS_REQUESTED"
+        const val EVENT = "project.access_requested"
+    }
+}
+
+/**
  * One way of telling the world outside the app: mail (SMTP), web push (Firebase Cloud Messaging),
  * outgoing API calls (webhooks). To add one, implement this as a Spring bean; the dispatcher picks
  * it up. A channel checks for itself whether it is switched on, looks up what it needs for each
@@ -48,6 +67,9 @@ data class IssueNotification(
  */
 interface NotificationChannel {
     suspend fun send(notification: IssueNotification)
+
+    /** A request to join a project. A channel that has nothing to say about it leaves this out. */
+    suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {}
 }
 
 /**
@@ -111,6 +133,22 @@ class NotificationDispatcher(
                     release(key, generation)
                 }
             pending[key] = Pending(merged, since, generation, timer)
+        }
+    }
+
+    /** Tells about a request to join a project, at once: someone is waiting for the answer. */
+    fun announce(request: ProjectAccessRequestNotification) {
+        if (request.recipientIds.isEmpty()) return
+        for (channel in channels) {
+            scope.launch {
+                try {
+                    channel.sendAccessRequest(request)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    log.warn("Notification channel {} failed for the access request to {}", channel.javaClass.simpleName, request.projectId, e)
+                }
+            }
         }
     }
 

@@ -73,6 +73,7 @@ export function IssuePropertyFields({
   projects,
   milestones,
   assignees,
+  followsParent = false,
   disabled,
 }: {
   values: IssuePropertyValues;
@@ -86,6 +87,8 @@ export function IssuePropertyFields({
   milestones: Milestone[];
   /** The saved assignees of an existing issue. */
   assignees?: IssuePerson[];
+  /** A sub-issue: its project and milestone are its parent's and cannot be changed here (D-129). */
+  followsParent?: boolean;
   disabled?: boolean;
 }) {
   // No milestone chosen is shown as an empty field: grey words and no icon (the user's call).
@@ -151,7 +154,7 @@ export function IssuePropertyFields({
             label={m.project}
             value={values.projectId ?? NONE}
             options={projectOptions(projects, values.projectId)}
-            disabled={disabled}
+            disabled={disabled || followsParent}
             onChange={(value) => onChange({ projectId: value === NONE ? null : value })}
           />
         </Row>
@@ -168,16 +171,17 @@ export function IssuePropertyFields({
                 label={m.milestone}
                 value={values.milestoneId ?? NONE}
                 options={milestoneChoices}
-                disabled={disabled}
+                disabled={disabled || followsParent}
                 onChange={(value) => onChange({ milestoneId: value === NONE ? null : value })}
               />
             ) : (
               <span className="flex h-8 items-center text-[0.8125rem] leading-5 text-muted-foreground">{m.emptyMilestone}</span>
             )}
           </Row>
-        ) : (
+        ) : followsParent ? null : (
           <p className="text-xs leading-4 text-muted-foreground">{m.noProjectHint}</p>
         )}
+        {followsParent ? <p className="text-xs leading-4 text-muted-foreground">{m.followsParentHint}</p> : null}
       </Section>
     </div>
   );
@@ -241,6 +245,7 @@ export function IssueProperties({
         projects={projects}
         milestones={projectSaved ? milestones : []}
         assignees={issue.assignees}
+        followsParent={issue.parent !== null}
         disabled={!canEdit}
       />
     </div>

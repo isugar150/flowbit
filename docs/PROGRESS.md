@@ -23,6 +23,7 @@
 - **마이그레이션은 `V1__schema.sql` 하나다** (D-104, 2026-10-13). 운영 배포를 앞두고 `V1`~`V6` 을 한 번 합쳤다. **이 파일은 이제 고치지 않는다. 스키마 변경은 `V2__….sql` 부터 새 파일로 추가한다.** 이 문서의 예전 작업 기록에 나오는 `V2`~`V9` 는 합치기 전 파일 번호다.
 - 개발 DB(`flowbit`)는 합치기 전 마이그레이션이 적용돼 있어 **지우고 다시 만들어야 백엔드가 뜬다**(Flyway 체크섬 불일치). 사용자가 직접 지우기로 했다. 에이전트는 지우지 않는다.
 - **티켓의 담당자를 여러 명 둘 수 있다** (D-125, 2026-10-15). 표 `issue_assignees`, 마이그레이션 `V6__issue_assignees.sql`(기존 `issues.assignee_id` 를 옮기고 컬럼을 지운다). API 는 `assignees`(응답)·`assigneeIds`(요청). **개발 DB 에는 백엔드를 다시 띄울 때 `V6` 이 적용된다.**
+- **들어갈 수 없는 프로젝트에 접근을 요청할 수 있다** (D-128, 2026-10-15). 마이그레이션 `V7__project_access_requests.sql`.
 - **처음 로그인하면 온보딩 투어가 뜬다** (D-120, 2026-10-13, [features/onboarding-tour.md](features/onboarding-tour.md)). 예시 티켓으로 연습하고, 건너뛸 수 있고, 내 설정에서 다시 본다. 마이그레이션 `V4__user_tour.sql`. E2E 는 이제 32개다(위의 "30개"는 그 전 숫자).
 
 ## 다음 작업
@@ -166,6 +167,29 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-15 — 하위 티켓은 프로젝트·목표가 항상 상위와 같다, 담당자는 상위 것으로 시작 (D-129)
+
+- 사용자 지시: 상위 티켓에서 하위 티켓을 만들면 프로젝트와 목표는 무조건 상위를 따라가고 수정할 수 없게. 담당자도 상위를 따라가되 수정은 가능하게.
+- 한 일
+  - 백엔드 `IssueService`: 만들 때 상위의 프로젝트·목표를 쓰고 요청 값은 무시, `assigneeIds` 가 없으면 상위 담당자 중 지금 담당자가 될 수 있는 사람(`inheritedAssignees`). 고칠 때는 `parentId` 를 먼저 처리하고, 상위가 있으면 다른 `projectId`·`milestoneId` 는 409 `FOLLOWS_PARENT`(같은 값은 받음), 다른 티켓 아래로 옮기면 그 상위의 프로젝트·목표(다른 프로젝트면 그 프로젝트 편집 권한), `moveSubIssuesAlong` 은 아래 단계 전부를 상위에 맞춘다. `NewIssue.assigneeIds` 는 null 이면 기본값.
+  - 마이그레이션 `V8__sub_issues_follow_parent.sql`: 상위와 다른 곳에 있던 기존 하위 티켓을 맨 위 티켓의 프로젝트·목표로 맞춘다(활동 기록 없음, `version` 만 올림). **개발 DB 에도 백엔드를 다시 띄우면 적용된다.**
+  - 프런트: 하위 티켓의 옆 패널에서 프로젝트·목표 줄이 잠기고 "하위 티켓의 프로젝트와 목표는 상위 티켓을 따릅니다." (`IssuePropertyFields` 의 `followsParent`). 하위 티켓 빠른 추가는 프로젝트·목표·담당자를 보내지 않는다(`NewSubIssueInput`).
+  - 테스트: `IssuesIntegrationTest` 의 물려받기 테스트를 새 규칙으로 다시 썼다(손주까지 따라감, 409, 담당자 물려받기와 수정, 떼어 내기·붙이기).
+  - 문서: 09 D-129(D-080 에 표시), M3 표.
+- 확인: `./gradlew check` 통과(테스트 195개). 프런트 `typecheck`·`lint`·`next build`. 화면은 확인하지 않았다.
+
+### 2026-10-15 — 프로젝트 접근 요청과 승인 (D-128)
+
+- 사용자 지시: 권한 없는 프로젝트 화면에 "요청하기" 버튼. 누르면 그 프로젝트의 관리 역할에게 알림이 가고, 알림 링크는 그 프로젝트의 설정. 설정의 구성원 맨 아래에 승인 안 된 사람이 보이고, 역할을 골라 승인·거절.
+- 한 일
+  - 백엔드: `V7__project_access_requests.sql`. `ProjectMemberStore` 의 요청 저장·목록·삭제, `ProjectService.requestAccess`·`accessRequests`·`approveAccess`·`rejectAccess`(직접 추가해도 요청을 지운다), `/access` 응답의 `requestedAt`. API: `POST·GET /api/v1/projects/{id}/access-requests`, `POST …/{userId}/approve`, `DELETE …/{userId}`.
+  - 알림: `ProjectAccessRequestNotification`, `NotificationChannel.sendAccessRequest`(기본은 아무것도 안 함), `NotificationDispatcher.announce`(모으지 않고 바로). 메일(링크 글자 "설정 열기", `NotificationMessage.linkLabel`), 푸시(`tag` = `access-<프로젝트 id>`), API 알림(`WebhookSender` 를 `WebhookContent` 로 일반화해 티켓 변경과 접근 요청을 같은 길로 보낸다. `event: project.access_requested`, `issue: null`, `project`). 변경 종류 `ACCESS_REQUESTED`.
+  - 프런트: `request-access-button.tsx`("접근 요청", 요청 후 "접근을 요청했습니다 · 3분 전"), `project-access-requests.tsx`(설정 구성원 아래 "승인 대기", `#access-requests`, 역할 기본 편집), `api.ts`, 타입, 문구, API 알림의 "보낼 변경"에 "프로젝트 접근 요청".
+  - 테스트: `ProjectAccessRequestIntegrationTest` 2개(요청 → 두 관리 역할에게 웹훅 → 다시 눌러도 알림 없음 → 권한 검사 → 승인, 거절 → 다시 요청 → 직접 추가로 지워짐).
+  - 문서: 09 D-128, M3 "접근 요청", M7a, 05 `project_access_requests`.
+- 확인: `./gradlew check` 통과(테스트 195개). 프런트 `typecheck`·`lint`·`next build`. **화면과 실제 메일·푸시로는 확인하지 않았다.**
+- 알아둘 것: 요청한 사람에게 승인·거절 결과를 알리지 않는다(필요하면 사용자에게 물을 것). 관리 역할이 없는 프로젝트는 워크스페이스 관리자에게 간다.
 
 ### 2026-10-15 — 프로젝트 개요의 구성원 카드: 보여 주기만
 

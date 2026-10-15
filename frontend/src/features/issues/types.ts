@@ -131,6 +131,15 @@ export type NewIssueInput = {
   parentId?: string;
 };
 
+/**
+ * A sub-issue made under an issue (D-129): its project and milestone are always its parent's,
+ * and without `assigneeIds` it starts with its parent's assignees.
+ */
+export type NewSubIssueInput = Omit<NewIssueInput, "projectId" | "milestoneId" | "assigneeIds" | "parentId"> & {
+  parentId: string;
+  assigneeIds?: string[];
+};
+
 /** Only the fields present are changed; null clears the due date or milestone. `labelIds` and `assigneeIds` replace all labels and assignees. */
 export type IssueChanges = Partial<{
   title: string;

@@ -135,6 +135,16 @@
 
 `project_members` 는 기본 키가 두 컬럼이라, `projects` 의 속성 컬럼은 배열(`labels`)이 있어서 Spring Data 리포지토리 대신 `ProjectMemberStore` 가 SQL 로 직접 다룬다.
 
+### `project_access_requests` (`V7`, D-128)
+
+들어갈 수 없는 프로젝트에 들어가게 해 달라는 요청. 대기 중인 것만 있다: 승인하거나 거절하면 지운다.
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `project_id` | `uuid` FK → `projects` (CASCADE) | `(project_id, user_id)` 가 PK |
+| `user_id` | `uuid` FK → `users` (CASCADE) | 요청한 사람 |
+| `created_at` | `timestamptz` | 요청한 때. 목록은 오래된 것부터 |
+
 ### `project_updates`
 
 프로젝트가 어떻게 진행되는지 남기는 글. 가장 최근 것의 `health` 가 프로젝트의 건강도다 (D-048).

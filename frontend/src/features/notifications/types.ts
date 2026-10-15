@@ -56,6 +56,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "RESTORED",
   "COMMENT_ADDED",
   "MENTIONED",
+  "ACCESS_REQUESTED",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];

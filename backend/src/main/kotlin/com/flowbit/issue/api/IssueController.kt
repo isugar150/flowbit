@@ -301,7 +301,7 @@ data class CreateIssueRequest(
     val content: Map<String, Any?>? = null,
     val status: IssueStatus? = null,
     val priority: IssuePriority? = null,
-    /** The people to give the issue to, in order. */
+    /** The people to give the issue to, in order. Left out, a sub-issue starts with its parent's (D-129). */
     val assigneeIds: List<UUID>? = null,
     val dueDate: LocalDate? = null,
     val milestoneId: UUID? = null,
@@ -320,7 +320,7 @@ data class CreateIssueRequest(
             content,
             status,
             priority,
-            assigneeIds.orEmpty(),
+            assigneeIds,
             dueDate,
             milestoneId,
             labelIds.orEmpty(),

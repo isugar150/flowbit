@@ -438,32 +438,55 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `하위 티켓은 상위 티켓의 프로젝트와 목표를 물려받고 상위가 옮겨 가면 따라간다`() {
+    fun `하위 티켓의 프로젝트와 목표는 항상 상위를 따르고 담당자는 상위 것으로 시작해 바꿀 수 있다`() {
         remember("SEC", admin.post("/api/v1/projects", """{"name":"보안"}""").json()["id"])
         val beta = admin.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"베타"}""").json()["id"]
         val release = admin.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"출시"}""").json()["id"]
         val alpha = admin.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"알파"}""").json()["id"]
-        val parent = admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"상위","milestoneId":"$beta"}""").json()
+        val parent =
+            admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"상위","milestoneId":"$beta","assigneeIds":["$editorId"]}""").json()
 
         val child = admin.post("/api/v1/issues", """{"title":"하위","parentId":"${parent["id"]}"}""").json()
-        val ownWay = admin.post("/api/v1/issues", """{"title":"다른 목표","parentId":"${parent["id"]}","milestoneId":"$alpha"}""").json()
+        // Another project or milestone in the request is not used; assignees that are sent are.
+        val ownWay =
+            admin
+                .post(
+                    "/api/v1/issues",
+                    """{"title":"다른 곳","parentId":"${parent["id"]}","projectId":"${p("SEC")}","milestoneId":"$alpha","assigneeIds":[]}""",
+                ).json()
+        val grandchild = admin.post("/api/v1/issues", """{"title":"손주","parentId":"${child["id"]}"}""").json()
 
-        assertEquals(p("PAY") to "베타", (child["project"] as Map<*, *>)["id"] to (child["milestone"] as Map<*, *>)["name"])
-        assertEquals("알파", (ownWay["milestone"] as Map<*, *>)["name"])
+        listOf(child, ownWay, grandchild).forEach {
+            assertEquals(p("PAY") to "베타", (it["project"] as Map<*, *>)["id"] to (it["milestone"] as Map<*, *>)["name"])
+        }
+        assertEquals(listOf("editor"), loginIdsOf(child["assignees"]))
+        assertEquals(listOf("editor"), loginIdsOf(grandchild["assignees"]))
+        assertEquals(emptyList<Any?>(), ownWay["assignees"])
 
-        // The parent moves to another milestone: the child that shared it follows, the other stays.
+        // On a sub-issue the project and milestone cannot be set; the assignees can.
+        val otherMilestone = admin.patch("/api/v1/issues/2", """{"milestoneId":"$alpha"}""")
+        assertEquals(409, otherMilestone.status)
+        assertEquals("FOLLOWS_PARENT", otherMilestone.json()["code"])
+        assertEquals(409, admin.patch("/api/v1/issues/2", """{"projectId":"${p("SEC")}"}""").status)
+        assertEquals(200, admin.patch("/api/v1/issues/2", """{"milestoneId":"$beta","projectId":"${p("PAY")}"}""").status)
+        assertEquals(emptyList<Any?>(), admin.patch("/api/v1/issues/2", """{"assigneeIds":[]}""").json()["assignees"])
+
+        // The parent moves to another milestone, then to another project: everything below follows.
         admin.patch("/api/v1/issues/1", """{"milestoneId":"$release"}""")
-        assertEquals("출시", (admin.get("/api/v1/issues/2").json()["milestone"] as Map<*, *>)["name"])
-        assertEquals("알파", (admin.get("/api/v1/issues/3").json()["milestone"] as Map<*, *>)["name"])
-
-        // The parent moves to another project: both children go with it, without a milestone.
+        listOf(2, 3, 4).forEach { assertEquals("출시", (admin.get("/api/v1/issues/$it").json()["milestone"] as Map<*, *>)["name"]) }
         admin.patch("/api/v1/issues/1", """{"projectId":"${p("SEC")}"}""")
-        listOf(2, 3).forEach { number ->
+        listOf(2, 3, 4).forEach { number ->
             val moved = admin.get("/api/v1/issues/$number").json()
             assertEquals(p("SEC"), (moved["project"] as Map<*, *>)["id"])
             assertNull(moved["milestone"])
         }
-        assertTrue(activityOf(admin.get("/api/v1/issues/2/activity").json()).any { it["type"] == "PROJECT_CHANGED" })
+        assertTrue(activityOf(admin.get("/api/v1/issues/4/activity").json()).any { it["type"] == "PROJECT_CHANGED" })
+
+        // Taken off its parent it is free again; put under one, it goes where that one is.
+        assertNull(admin.patch("/api/v1/issues/3", """{"parentId":null}""").json()["parent"])
+        assertEquals(p("PAY"), (admin.patch("/api/v1/issues/3", """{"projectId":"${p("PAY")}"}""").json()["project"] as Map<*, *>)["id"])
+        val attached = admin.patch("/api/v1/issues/3", """{"parentId":"${parent["id"]}"}""").json()
+        assertEquals(p("SEC"), (attached["project"] as Map<*, *>)["id"])
     }
 
     @Test

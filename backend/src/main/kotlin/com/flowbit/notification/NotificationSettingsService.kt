@@ -317,6 +317,7 @@ class NotificationSettingsService(
                 "RESTORED",
                 "COMMENT_ADDED",
                 "MENTIONED",
+                ProjectAccessRequestNotification.TYPE,
             )
         private val METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE")
         private const val DEFAULT_CONTENT_TYPE = "application/json"

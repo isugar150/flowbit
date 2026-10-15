@@ -6,6 +6,8 @@ import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.media.api.UploadReader
 import com.flowbit.media.application.ImageStorage
+import com.flowbit.notification.NotificationDispatcher
+import com.flowbit.project.application.ProjectAccessRequestRow
 import com.flowbit.project.application.ProjectEntry
 import com.flowbit.project.application.ProjectMemberRow
 import com.flowbit.project.application.ProjectPerson
@@ -123,9 +125,26 @@ data class ProjectEntryResponse(
     val name: String,
     val myRole: ProjectRole?,
     val managers: List<ProjectMemberResponse>,
+    /** When the caller asked to be let in and is still waiting; null otherwise (D-128). */
+    val requestedAt: Instant?,
 ) {
     companion object {
-        fun from(entry: ProjectEntry) = ProjectEntryResponse(entry.id, entry.name, entry.myRole, entry.managers.map(ProjectMemberResponse::from))
+        fun from(entry: ProjectEntry) =
+            ProjectEntryResponse(entry.id, entry.name, entry.myRole, entry.managers.map(ProjectMemberResponse::from), entry.requestedAt)
+    }
+}
+
+/** Someone waiting to be let into the project. */
+data class ProjectAccessRequestResponse(
+    val userId: UUID,
+    val loginId: String,
+    val displayName: String?,
+    val avatarUrl: String?,
+    val requestedAt: Instant,
+) {
+    companion object {
+        fun from(row: ProjectAccessRequestRow) =
+            ProjectAccessRequestResponse(row.userId, row.loginId, row.displayName, ImageStorage.urlOf(row.avatarKey), row.requestedAt)
     }
 }
 
@@ -148,6 +167,7 @@ class ProjectController(
     private val projectService: ProjectService,
     private val uploadReader: UploadReader,
     private val realtime: RealtimeHub,
+    private val notifications: NotificationDispatcher,
 ) {
     /** The projects in use, or with `?archived=true` the ones that were put away. */
     @GetMapping
@@ -180,6 +200,55 @@ class ProjectController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable projectId: String,
     ): ProjectEntryResponse = ProjectEntryResponse.from(projectService.entry(user, projectId))
+
+    /**
+     * For someone who may not enter: asks to be let in (D-128). The managers are told at once;
+     * asking again while waiting tells nobody again. Answers like `/access`.
+     */
+    @PostMapping("/{projectId}/access-requests")
+    suspend fun requestAccess(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+    ): ProjectEntryResponse {
+        val result = projectService.requestAccess(user, projectId)
+        result.notification?.let(notifications::announce)
+        // A manager on the settings page sees the new request without reloading.
+        realtime.publish("project:${result.entry.id}", user.id)
+        return ProjectEntryResponse.from(result.entry)
+    }
+
+    /** The people waiting to be let in, the longest waiting first. Managers only. */
+    @GetMapping("/{projectId}/access-requests")
+    suspend fun accessRequests(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+    ): List<ProjectAccessRequestResponse> = projectService.accessRequests(user, projectId).map(ProjectAccessRequestResponse::from)
+
+    /** Lets the person in with the role in the body. Managers only. Answers with the members. */
+    @PostMapping("/{projectId}/access-requests/{userId}/approve")
+    suspend fun approveAccess(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+        @PathVariable userId: UUID,
+        @RequestBody body: PutProjectMemberRequest,
+    ): List<ProjectMemberResponse> {
+        val members = projectService.approveAccess(user, projectId, userId, body.role)
+        realtime.publish("project:$projectId", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
+        return members.map(ProjectMemberResponse::from)
+    }
+
+    /** Turns the request down; the person may ask again. Managers only. */
+    @DeleteMapping("/{projectId}/access-requests/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun rejectAccess(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable projectId: String,
+        @PathVariable userId: UUID,
+    ) {
+        projectService.rejectAccess(user, projectId, userId)
+        realtime.publish("project:$projectId", user.id)
+    }
 
     @PatchMapping("/{projectId}")
     suspend fun update(

@@ -94,6 +94,17 @@ export type ProjectEntry = {
   name: string;
   myRole: ProjectRole | null;
   managers: ProjectMember[];
+  /** When the signed-in user asked to be let in and is still waiting (D-128). */
+  requestedAt: string | null;
+};
+
+/** Someone waiting to be let into a project (GET /api/v1/projects/{id}/access-requests). */
+export type ProjectAccessRequest = {
+  userId: string;
+  loginId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  requestedAt: string;
 };
 
 /** A note on how the project is going (GET /api/v1/projects/{id}/updates). */

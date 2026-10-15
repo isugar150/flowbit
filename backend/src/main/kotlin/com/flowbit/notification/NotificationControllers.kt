@@ -208,7 +208,7 @@ class AdminNotificationController(
             )
         // Tried on the administrator pressing the button.
         val recipient = WebhookRecipient(actor.id, actor.loginId, actor.loginId, service.mine(actor.id).email)
-        val delivery = webhookSender.deliver(webhook, sample, recipient, retry = false)
+        val delivery = webhookSender.deliver(webhook, webhookSender.contentOf(sample), recipient, retry = false)
         return if (delivery.ok) {
             TestResponse(true, "보냈습니다. 응답: HTTP ${delivery.status}")
         } else {

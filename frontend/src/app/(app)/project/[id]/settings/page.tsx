@@ -2,10 +2,11 @@ import { notFound } from "next/navigation";
 import { SettingsSection } from "@/components/settings-section";
 import type { UserSummary } from "@/features/members/types";
 import { ArchiveProjectSection } from "@/features/projects/components/archive-project-section";
+import { ProjectAccessRequests } from "@/features/projects/components/project-access-requests";
 import { ProjectDetailsForm } from "@/features/projects/components/project-details-form";
 import { ProjectIconField } from "@/features/projects/components/project-icon-field";
 import { ProjectMembersPanel } from "@/features/projects/components/project-members-panel";
-import type { ProjectMember } from "@/features/projects/types";
+import type { ProjectAccessRequest, ProjectMember } from "@/features/projects/types";
 import { loadProject, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
 
@@ -21,8 +22,13 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
   ]);
   if (!members) notFound();
   const canManage = project.myRole === "MANAGER";
-  // The list of people to add is only needed by those who can add.
-  const users = canManage ? ((await serverGet<UserSummary[]>("/api/v1/users")) ?? []) : [];
+  // The list of people to add, and who is waiting to be let in, are only for those who can add.
+  const [users, requests] = canManage
+    ? await Promise.all([
+        serverGet<UserSummary[]>("/api/v1/users").then((list) => list ?? []),
+        serverGet<ProjectAccessRequest[]>(`${path}/access-requests`).then((list) => list ?? []),
+      ])
+    : [[], []];
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10">
@@ -38,6 +44,8 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
           canManage={canManage}
           currentUserId={user.id}
         />
+        {/* Below the members: people waiting to be let in (D-128). Notifications about a request open this. */}
+        {canManage ? <ProjectAccessRequests projectId={project.id} requests={requests} /> : null}
       </SettingsSection>
       {canManage ? (
         <SettingsSection title={m.archiveTitle} description={m.archiveDescription}>

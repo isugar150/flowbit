@@ -1,5 +1,5 @@
 import { apiFetch, fileForm } from "@/lib/api/client";
-import type { Project, ProjectChanges, ProjectHealth, ProjectMember, ProjectRole, ProjectUpdate } from "./types";
+import type { Project, ProjectChanges, ProjectEntry, ProjectHealth, ProjectMember, ProjectRole, ProjectUpdate } from "./types";
 
 export function createProject(input: { name: string; description: string }): Promise<Project> {
   return apiFetch<Project>("/api/v1/projects", { method: "POST", body: input });
@@ -60,4 +60,22 @@ export function uploadProjectIcon(id: string, file: File): Promise<Project> {
 
 export function removeProjectIcon(id: string): Promise<Project> {
   return apiFetch<Project>(`/api/v1/projects/${id}/icon`, { method: "DELETE" });
+}
+
+/** Asks the managers to let the signed-in user in (D-128). Asking again while waiting changes nothing. */
+export function requestProjectAccess(id: string): Promise<ProjectEntry> {
+  return apiFetch<ProjectEntry>(`/api/v1/projects/${id}/access-requests`, { method: "POST" });
+}
+
+/** Lets a waiting person in with this role. Managers only. */
+export function approveProjectAccess(input: { id: string; userId: string; role: ProjectRole }): Promise<ProjectMember[]> {
+  return apiFetch<ProjectMember[]>(`/api/v1/projects/${input.id}/access-requests/${input.userId}/approve`, {
+    method: "POST",
+    body: { role: input.role },
+  });
+}
+
+/** Turns a request down; the person may ask again. Managers only. */
+export function rejectProjectAccess(input: { id: string; userId: string }): Promise<void> {
+  return apiFetch<void>(`/api/v1/projects/${input.id}/access-requests/${input.userId}`, { method: "DELETE" });
 }

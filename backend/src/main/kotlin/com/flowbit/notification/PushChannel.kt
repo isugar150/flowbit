@@ -176,6 +176,13 @@ class PushNotificationChannel(
         pushTo(notification.recipientIds, message.title, body, notification.issueKey, message.path)
     }
 
+    override suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {
+        val message = texts.of(request)
+        if (request.recipientIds.isEmpty()) return
+        val body = (listOf(message.headline) + message.lines).joinToString("\n")
+        pushTo(request.recipientIds, message.title, body, "access-${request.projectId}", message.path)
+    }
+
     /** Returns how many browsers were reached; forgets the ones whose registration is gone. */
     suspend fun pushTo(
         userIds: Collection<UUID>,

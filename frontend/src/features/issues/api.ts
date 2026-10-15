@@ -10,10 +10,11 @@ import type {
   IssueDocumentSummary,
   Label,
   NewIssueInput,
+  NewSubIssueInput,
   Reaction,
 } from "./types";
 
-export function createIssue(issue: NewIssueInput): Promise<Issue> {
+export function createIssue(issue: NewIssueInput | NewSubIssueInput): Promise<Issue> {
   return apiFetch<Issue>("/api/v1/issues", { method: "POST", body: issue });
 }
 
