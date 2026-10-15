@@ -763,14 +763,25 @@ export const ko = {
     lastResult: (linked: number, changed: number) => `티켓 ${linked}개 연결${changed > 0 ? `, ${changed}개 상태 변경` : ""}`,
     lastIgnored: "처리할 내용 없음",
     lastError: (error: string) => `오류: ${error}`,
-    guide: {
-      title: "Gitea에 등록하기",
-      steps: [
-        "Gitea의 조직 설정 > 웹훅 > 웹훅 추가에서 'Gitea'를 고릅니다. 조직 아래 모든 저장소에 적용됩니다.",
-        "대상 URL에 위의 웹훅 주소를, 비밀 값(Secret)에 위의 비밀 값을 넣습니다. HTTP 메서드는 POST, 콘텐츠 형식은 application/json입니다.",
-        "트리거는 '사용자 지정 이벤트'에서 '푸시'와 '풀 리퀘스트'를 고르고 저장합니다.",
-        "Git 서버가 Flowbit 주소에 접근할 수 있어야 합니다. 저장한 뒤 '테스트 전송'을 누르면 여기의 마지막 수신에 결과가 보입니다.",
-      ],
+    guides: {
+      GITEA: {
+        title: "Gitea에 등록하기",
+        steps: [
+          "Gitea의 조직 설정 > 웹훅 > 웹훅 추가에서 'Gitea'를 고릅니다. 조직 아래 모든 저장소에 적용됩니다.",
+          "대상 URL에 위의 웹훅 주소를, 비밀 값(Secret)에 위의 비밀 값을 넣습니다. HTTP 메서드는 POST, 콘텐츠 형식은 application/json입니다.",
+          "트리거는 '사용자 지정 이벤트'에서 '푸시'와 '풀 리퀘스트'를 고르고 저장합니다.",
+          "Git 서버가 Flowbit 주소에 접근할 수 있어야 합니다. 저장한 뒤 '테스트 전송'을 누르면 여기의 마지막 수신에 결과가 보입니다.",
+        ],
+      },
+      GITLAB: {
+        title: "GitLab에 등록하기",
+        steps: [
+          "그룹 설정 > Webhooks에서 '새 웹훅 추가'를 누릅니다. 그룹 웹훅은 Premium 이상에서만 됩니다. Free라면 프로젝트마다 설정 > Webhooks에 같은 값을 넣습니다.",
+          "URL에 위의 웹훅 주소를, 비밀 토큰(Secret token)에 위의 비밀 값을 넣습니다.",
+          "트리거에서 '푸시 이벤트'와 '병합 요청 이벤트'를 고르고 저장합니다.",
+          "GitLab 서버가 Flowbit 주소에 접근할 수 있어야 합니다. 저장한 뒤 '테스트 > 푸시 이벤트'를 누르면 여기의 마지막 수신에 결과가 보입니다.",
+        ],
+      },
     },
     save: "저장",
     saving: "저장하는 중",

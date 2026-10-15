@@ -363,7 +363,7 @@ class GitConnectionService(
 
     companion object {
         /** The kinds of server this version can receive events from (docs/features/git-integration.md "구현 순서"). */
-        val SUPPORTED_PROVIDERS = setOf(GitProviderType.GITEA)
+        val SUPPORTED_PROVIDERS = setOf(GitProviderType.GITEA, GitProviderType.GITLAB)
         const val GITHUB_URL = "https://github.com"
         private const val SECRET_BYTES = 32
         private const val SECRET_MAX_LENGTH = 256

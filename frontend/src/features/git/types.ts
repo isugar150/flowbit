@@ -1,8 +1,8 @@
 /** docs/features/git-integration.md. Gitea covers Forgejo too. */
 export type GitProvider = "GITEA" | "GITLAB" | "GITHUB";
 
-/** The kinds this version can receive events from; GitLab and GitHub come later. */
-export const GIT_PROVIDERS: GitProvider[] = ["GITEA"];
+/** The kinds that are connected by a webhook address and secret; GitHub is connected as a GitHub App. */
+export const GIT_PROVIDERS: GitProvider[] = ["GITEA", "GITLAB"];
 
 /** What the last call from the Git server did. */
 export type GitReceiptResult = {

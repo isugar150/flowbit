@@ -142,6 +142,7 @@ function WebhookDetails({
     onSecret(secret);
   });
   const incomplete = connection.webhookUrl.startsWith("/");
+  const guide = connection.provider === "GITLAB" ? m.guides.GITLAB : m.guides.GITEA;
 
   return (
     <div className="flex flex-col gap-7">
@@ -175,9 +176,9 @@ function WebhookDetails({
           {regenerate.isError ? <span className="text-[0.8125rem] text-destructive">{apiErrorMessage(regenerate.error)}</span> : null}
         </div>
       </FieldSection>
-      <FieldSection title={m.guide.title}>
+      <FieldSection title={guide.title}>
         <ol className="flex list-decimal flex-col gap-1 pl-5 text-[0.8125rem] leading-5 text-muted-foreground sm:col-span-2">
-          {m.guide.steps.map((step) => (
+          {guide.steps.map((step) => (
             <li key={step}>{step}</li>
           ))}
         </ol>

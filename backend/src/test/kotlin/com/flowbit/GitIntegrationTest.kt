@@ -109,8 +109,6 @@ class GitIntegrationTest : IntegrationTest() {
             mapOf("provider" to "REQUIRED"),
             fieldErrors(admin.post("/api/v1/admin/git/connections", """{"name":"Git","baseUrl":"https://git.example.com"}""").json()),
         )
-        // GitLab and GitHub come in a later step of the plan.
-        assertEquals(mapOf("provider" to "UNSUPPORTED"), fieldErrors(admin.post("/api/v1/admin/git/connections", connectionJson(provider = "GITLAB")).json()))
 
         remember("WEB", admin.post("/api/v1/projects", """{"name":"웹"}""").json()["id"])
         val limited = admin.post("/api/v1/admin/git/connections", connectionJson(allProjects = false, projectIds = listOf(p("WEB"))))
@@ -458,6 +456,39 @@ class GitIntegrationTest : IntegrationTest() {
         assertTrue(payload.get("text").asString().contains("parkhs(Git) 님이 Git에서 티켓을 수정했습니다"))
     }
 
+    // --- GitLab ---------------------------------------------------------------------------------
+
+    @Test
+    fun `GitLab 은 비밀 토큰으로 확인하고 push 와 MR 로 연결하고 상태를 바꾼다`() {
+        createIssues("BACKLOG")
+        admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD"}""")
+        val connection = admin.post("/api/v1/admin/git/connections", connectionJson(name = "GitLab", provider = "GITLAB")).json()
+        val push = mapper.writeValueAsString(sample("gitlab-push.json"))
+
+        assertEquals(401, deliverGitLab(connection, "Push Hook", push, token = "not-the-token").status)
+        assertEquals(401, deliverGitLab(connection, "Push Hook", push, token = null).status)
+
+        val pushed = deliverGitLab(connection, "Push Hook", push).json()
+        assertEquals(listOf("FB-1"), pushed["linkedIssues"])
+        assertEquals(listOf("FB-1"), pushed["statusChanged"])
+        assertEquals("https://gitlab.example.com/acme/web/-/tree/kimjm/fb-1-login-error", gitOf(1).single()["url"])
+        assertEquals(2, count("select count(*) from issue_git_commits"))
+
+        deliverGitLab(connection, "Merge Request Hook", mapper.writeValueAsString(sample("gitlab-merge-request.json")))
+        val mr = gitOf(1).first()
+        assertEquals("PULL_REQUEST" to 34, mr["kind"] to mr["prNumber"])
+        assertEquals("OPEN", mr["prState"])
+        assertEquals("https://gitlab.example.com/acme/web/-/merge_requests/34", mr["url"])
+
+        val merged = deliverGitLab(connection, "Merge Request Hook", mapper.writeValueAsString(sample("gitlab-merge-request-merged.json"))).json()
+        assertEquals(listOf("FB-1"), merged["statusChanged"])
+        assertEquals("DONE", statuses(1).single())
+        assertEquals("MERGED", gitOf(1).first()["prState"])
+        // GitLab names the merger by user name only; leesj has an account here.
+        assertEquals("leesj", (activity(1).last()["actor"] as Map<*, *>)["loginId"])
+        assertEquals(200, deliverGitLab(connection, "Note Hook", "{}").status)
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private val mapper: JsonMapper = JsonMapper.builder().build()
@@ -492,6 +523,23 @@ class GitIntegrationTest : IntegrationTest() {
                 .header("X-Gitea-Delivery", "c0ffee00-0000-4000-8000-000000000000")
         if (secret != null) request.header("X-Gitea-Signature", hmac(bytes, secret))
         val response = http.send(request.POST(HttpRequest.BodyPublishers.ofByteArray(bytes)).build(), HttpResponse.BodyHandlers.ofString())
+        return ApiResponse(response.statusCode(), response.body(), response.headers().map())
+    }
+
+    /** Calls the webhook as GitLab does: the secret token as it is in a header. */
+    private fun deliverGitLab(
+        connection: Map<String, Any?>,
+        event: String,
+        body: String,
+        token: String? = connection["secret"] as String,
+    ): ApiResponse {
+        val request =
+            HttpRequest
+                .newBuilder(URI.create("http://localhost:$port/api/v1/integrations/git/${connection["id"]}/webhook"))
+                .header("Content-Type", "application/json")
+                .header("X-Gitlab-Event", event)
+        if (token != null) request.header("X-Gitlab-Token", token)
+        val response = http.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString())
         return ApiResponse(response.statusCode(), response.body(), response.headers().map())
     }
 
