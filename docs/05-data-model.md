@@ -218,6 +218,10 @@
 | `issue_git_links` | `id`, `issue_id`(CASCADE), `connection_id`(CASCADE), `kind`(`BRANCH`\|`PULL_REQUEST`), `repository`, `branch`, `pr_number`, `title`, `url`, `pr_state`(`OPEN`\|`DRAFT`\|`MERGED`\|`CLOSED`), `closes`, `created_at`, `updated_at` | 유일 인덱스 `(issue_id, connection_id, repository, kind, coalesce(pr_number, 0), coalesce(branch, ''))`. PR 줄의 `branch` 는 PR 을 올린 브랜치 |
 | `issue_git_commits` | `issue_id`(CASCADE), `connection_id`(CASCADE), `repository`, `sha`, `message`(첫 줄), `url`, `author_name`, `committed_at` | PK `(issue_id, sha)`: 다시 온 배달과 다른 브랜치로 옮긴 커밋을 두 번 기록하지 않는다 |
 
+`V12`(D-146): `git_connections` 에 `receive_mode`(`WEBHOOK`\|`POLL`), GitHub App 의 `github_organization`, `github_app_id`, `github_app_slug`, `github_client_id`, `github_client_secret`, `github_private_key`(PEM, 평문 D-090), `github_installation_id`, `github_repository_selection`, `github_setup_state`(매니페스트 왕복용 일회용 값, 유일), 가져오기의 `last_synced_at`, `sync_error`, `rate_limit_remaining`. 새 표 `git_sync_cursors`(`connection_id` CASCADE, `repository`, `pulls_etag`, `pulls_updated_at`, `branches_etag`, `branch_heads`(브랜치 → 머리 커밋 JSON 을 담은 text), PK `(connection_id, repository)`).
+
+`V13`(D-147): `git_user_accounts`(`user_id` PK·CASCADE, `username` 소문자·유일): 관리자가 적은 구성원의 Git 아이디.
+
 `V11` 은 `issue_activities.actor_id` 의 NOT NULL 도 뺀다. Git 이 한 일은 `detail.via = {"source":"git","name":"<Git 사용자 이름>"}` 를 달고, Flowbit 계정이 맞으면 `actor_id` 도 채운다.
 
 ### 검색 함수 `hangul_initials(text)` (`V10`, D-133)

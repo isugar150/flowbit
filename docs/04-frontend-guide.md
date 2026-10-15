@@ -182,10 +182,11 @@ frontend/
   - `changes.spec.ts`: **변경하는 동안 화면에 무엇이 보였는지**를 본다. `recordFrames`(`e2e/support.ts`)가 그려진 프레임마다 값을 기록하고, 네트워크를 일부러 늦춰(`slowDown`) 잠깐 보였다 사라지는 상태도 잡는다. 기대값은 "예전 값 → 새 값" 두 줄이다. 값을 고르는 컨트롤을 새로 만들면 여기에 한 건 더한다.
   - `flows.spec.ts`: 만들기·수정·삭제·보기 권한·다른 사람의 변경이 실시간으로 오는 것까지, 화면에서 하는 일이 끝까지 되는지.
   - `features.spec.ts`: 목표의 상세(티켓 목록, 정리, 그 위에 티켓 열기), 프로젝트 아카이브와 복원, 다른 사람에게 보이는 하이라이트(올리기만 하면 안 뜨고 누르거나 입력하면 뜬다).
+  - `git.spec.ts`: Git 연동([features/git-integration.md](features/git-integration.md)). 관리자 화면에서 Gitea 연결을 만들고, 받은 비밀 값으로 서명한 PR 웹훅을 직접 보낸 뒤 티켓 옆 패널의 PR 줄과 브랜치 이름 복사 메뉴를 본다. 돌릴 때마다 연결이 하나씩 늘어난다.
   - `tour.spec.ts`: 온보딩 투어([features/onboarding-tour.md](features/onboarding-tour.md)). **다른 테스트에서 계정으로 로그인할 때는 `logIn()`(`e2e/support.ts`)을 쓴다.** 투어를 본 것으로 표시해 준다. `/api/v1/auth/login` 을 직접 부르면 투어가 화면을 덮어 아무것도 누를 수 없다. 로그인은 IP당 분당 10회로 제한되니 새 계정 로그인을 늘릴 때 주의한다.
   - 대화상자가 열려 있는 동안 뒤의 화면은 보조 기술에서 숨겨진다. 그때 뒤의 요소는 `getByRole` 이 아니라 `locator` 로 찾는다.
   - 화면이 서버에서 온 그대로 보여도 스크립트가 붙기 전에는 단축키가 동작하지 않는다. 키를 누르기 전에 `settled(page)` 로 기다린다.
-- 단위 테스트(Vitest)는 도구만 설치되어 있고 **아직 테스트가 없다.** 추가할 때 `package.json` 에 `test` 스크립트를 만들고 이 절을 고친다.
+- 단위 테스트(Vitest): `npm test`(`vitest run`). 설정 파일 없이 `src/**/*.test.ts` 를 돌린다. 첫 테스트는 `features/git/branch-name.test.ts`(2026-10-16).
 - UI 를 바꿨으면 실제 브라우저에서 라이트/다크, 좁은 폭(360px)을 확인한다.
 
 - **"이 화면에 무엇이 있는가"를 CSS 의 `:has()` 로 문서 전체에서 찾지 않는다.** 방금 떠난 화면이 숨겨진 채 문서에 남아 있어(`cacheComponents`) 그 화면의 요소까지 걸린다. 화면이 prop 으로 알려 준다(예: `IssuesView` 의 `underTabs`).

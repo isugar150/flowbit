@@ -7,7 +7,7 @@
 - **M1(로그인 및 초기 설정)이 구현되어 동작한다.** 사용자가 브라우저에서 초기 설정 → 로그아웃 → 로그인을 직접 확인했다 (2026-10-12).
 - 제품 방향은 **Linear식**이다 (D-020). 기준 문서는 [01-product.md](01-product.md). M2 이후의 화면은 아직 하나도 없다.
 - 백엔드는 **WebFlux + 코루틴 + R2DBC** 다 (D-019). `./gradlew check` 통과: ktlint, 테스트 96개(통합 86, 단위 10), PostgreSQL 18 Testcontainers. **실시간·마일스톤·건강도·프로젝트 아이콘(`V7`~`V9`)까지 포함한 현재 코드로 2026-10-12 에 다시 통과를 확인했다.** 다만 그 기능들의 전용 통합 테스트는 아직 없다(아래 체크리스트).
-- 프론트엔드는 `npm run lint`, `npm run typecheck`, `npx next build` 통과. **E2E 테스트 30개가 있다** (`npm run test:e2e`, 2026-10-13. 돌리는 법은 [04-frontend-guide.md](04-frontend-guide.md) "테스트와 검사"). 단위 테스트(Vitest)는 아직 없다.
+- 프론트엔드는 `npm run lint`, `npm run typecheck`, `npx next build` 통과. **E2E 테스트 30개가 있다** (`npm run test:e2e`, 2026-10-13. 돌리는 법은 [04-frontend-guide.md](04-frontend-guide.md) "테스트와 검사"). 단위 테스트(Vitest)는 `npm test` 로 돌리고, 지금은 `features/git/branch-name.test.ts` 하나다(2026-10-16).
 - **M2a(설정 화면과 이미지 업로드)가 구현됐다** ([features/M2a-settings-and-images.md](features/M2a-settings-and-images.md)). 백엔드는 테스트로 확인했고, **화면은 아무도 아직 확인하지 않았다** (에이전트는 사용자 계정의 비밀번호를 몰라 로그인 후 화면을 볼 수 없었다).
 - **M3 1단계(구성원 관리, 프로젝트, 프로젝트 권한)가 구현됐다** ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md)). 팀 개념은 없어지고 프로젝트로 합쳐졌다 (D-032). 2~4단계는 처음에 명세만 있었고, 지금 된 것은 아래 줄들과 명세의 "지금 구현된 범위"가 기준이다.
 - **티켓 댓글과 `@` 태그가 구현됐다** (D-101, 2026-10-13). 댓글·티켓 본문에서 태그된 사람은 그 티켓의 구독자가 되어 등록한 알림 수단 전부로 알림을 받는다. 마이그레이션 `V5`. **화면은 아무도 확인하지 않았다.**
@@ -30,7 +30,7 @@
 - **프로젝트의 "한 줄 요약"을 화면에서 없앴다** (D-134). 컬럼·API 필드는 남아 있다. 이것도 검사하지 않았다.
 - **프로젝트의 "티켓" 탭을 없앴다** (D-135). 개요·목표 상세의 링크는 `/issues?project=…` 로 가고, `/project/{id}/issues` 는 그리로 넘겨 준다. 검사·화면 확인을 하지 않았다. **E2E(`changes`·`features`·`flows.spec.ts`)가 예전 주소와 탭을 쓰므로 고쳐야 할 수 있다.**
 
-- **Git 연동 1~3단계가 구현됐다: Gitea(Forgejo) 웹훅으로 티켓에 브랜치·PR·커밋을 잇고 상태를 바꾼다** (D-141, D-145, 2026-10-15, [features/git-integration.md](features/git-integration.md)). 관리자 설정 > "Git 연동" 탭(`/admin/git`), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`(로그인 없음, 서명으로 인증), 마이그레이션 `V11__git_integration.sql`(`issue_activities.actor_id` 가 null 을 허용하게 된다). 백엔드 통합 테스트 14개(`GitIntegrationTest`)와 `./gradlew check` 통과. 화면은 에이전트가 빈 DB 의 검사용 서버로 확인했다(아래 작업 기록). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11` 을 적용해야 한다.** GitLab·GitHub(4단계)와 브랜치 이름 복사(5단계)는 아직 없다.
+- **Git 연동이 명세 끝까지 구현됐다** (D-141, D-145~D-147, 2026-10-15~16, [features/git-integration.md](features/git-integration.md)). Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(관리자 화면에서 매니페스트로 만들고 조직에 설치, 웹훅 또는 2분마다 API 가져오기). 관리자 설정 > "Git 연동" 탭(`/admin/git`, "사람 맞추기" 포함), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`, 티켓 키 옆 "브랜치 이름 복사"(Git 이 쓰일 때만), API 알림의 Git 종류. 마이그레이션 `V11`~`V13`. 백엔드 `GitIntegrationTest` 17개·`GitHubIntegrationTest` 3개, 프런트 단위 테스트(`npm test`)와 E2E `git.spec.ts` 통과. **실제 Gitea·GitLab·GitHub 서버로는 아직 아무도 시험하지 않았다**(견본 페이로드와 가짜 GitHub 로 테스트했다). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11`~`V13` 을 적용해야 한다.**
 - **편집기에 Figma·Google(문서·스프레드시트·프레젠테이션)·Office·Outline 임베드가 생겼다** (D-139, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
 
 ## 다음 작업
@@ -39,7 +39,7 @@
 
 (이전 메모) M3 2단계(프리셋과 문서형 티켓 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
 
-**Git 연동은 1~3단계(연결 관리, 받기와 연결, 상태 자동 변경)까지 됐다** ([features/git-integration.md](features/git-integration.md), D-141, D-145, 2026-10-15). 먼저 붙인 서버는 Gitea 다(사용자 확정). 남은 것: 4단계 GitLab·GitHub 제공자(`GitProvider` 를 구현한 빈을 더하고 `GitConnectionService.SUPPORTED_PROVIDERS` 와 프런트의 `GIT_PROVIDERS` 에 넣는다. **GitHub 는 GitHub App 으로 붙이기로 했다(D-146)**: 등록·설치·인증·받는 방식(웹훅 또는 가져오기)은 명세의 "GitHub: GitHub App 으로 연결" 절에 정리했고, 구현 전에 그 절의 "확인이 필요한 것"을 사용자에게 묻는다), 5단계 브랜치 이름 복사(**Git 연결이 하나도 없으면 메뉴를 보이지 않아야 한다**: 지금은 일반 사용자가 연결이 있는지 알 API 가 없으니 함께 만든다), API 알림의 "보낼 변경"에 Git 종류 더하기, 화면 E2E(명세의 인수 기준 마지막 줄). 실제 Gitea 서버로는 아직 아무도 시험하지 않았다(페이로드 견본은 Gitea 형식을 따라 만든 것이다).
+**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-147). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
 
 그 밖의 일은 사용자가 지시하기 전에 임의로 시작하지 않는다. 지시를 받으면:
 
@@ -176,10 +176,20 @@
 - 프로젝트 아카이브(D-115): 아카이브된 프로젝트를 읽기 전용으로 열어 볼 수 있게 할지(지금은 복원해야 볼 수 있다), 완전히 삭제하는 기능이 필요한지, 아카이브할 때 구성원에게 알릴지.
 - 사용성 점검(2026-10-13)에서 나온, 사용자가 정해야 하는 것: (①③④⑤⑥⑦ 은 D-123 으로 했다. 남은 것은 ②) ② 상태 이름 "백로그·준비됨"을 접수·처리에 맞는 말로 바꿀지 ③ "만든 사람"을 "요청자"로, 내 티켓의 첫 탭을 무엇으로 할지 ④ 사이드바에 항상 보이는 "새 티켓" 버튼(지금은 전체 프로젝트·프로젝트 개요 화면에 버튼이 없다. 거기서 `C` 키가 되는지는 보지 않았다) ⑤ 로그인 뒤 첫 화면이 전체 프로젝트인 것 ⑥ 전체 티켓 목록에서 프로젝트 칸이 좁은 폭(1024px 미만)에서 사라지고, 연결하지 않은 티켓은 빈칸인 것 ⑦ 프로젝트 개요에 그 프로젝트의 티켓 요약이 없는 것(목표의 `티켓 n/m` 뿐).
 - 데이터 보관(D-132): 아카이브된 프로젝트도 기간이 지나면 영구 삭제할지(그러면 그 안의 티켓도 함께 지울지 정해야 한다), 이 설정을 백업 파일에 넣을지, 편집기에 넣은 이미지 파일(어느 문서에서도 쓰지 않게 된 것)을 정리할지, 화면에 마지막 정리 시각과 개수를 보여 줄지.
-- Git 연동(D-141, 1~3단계 구현): "리뷰 중" 상태가 필요한지, 커밋을 활동에 남길지(지금은 남긴다), 개인 Git 계정 연결이 필요한지, GitHub.com 을 쓸 때 외부에 열 주소. 명세의 "확인이 필요한 것".
+- Git 연동(D-141, D-145~D-147): "리뷰 중" 상태가 필요한지, 커밋을 활동에 남길지(지금은 남긴다), 관리자 입력 대신 개인 GitHub 계정 연결(OAuth)이 필요한지, 구성원 Git 아이디를 백업에 넣을지, 가져오기 주기(2분), GitHub 를 웹훅으로 받을 때 외부에 열 주소. 명세의 "확인이 필요한 것".
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-16 — Git 연동 나머지 전부: GitLab, GitHub App, 브랜치 이름 복사, API 알림, 사람 맞추기 (D-146, D-147)
+
+- 사용자 지시: "전부 다 구현해". 커밋 다섯: `751d1e1`(GitLab 웹훅), `4b04125`(GitHub App: 매니페스트·설치·JWT·웹훅·가져오기), `cc87472`(브랜치 이름 복사와 `GET /api/v1/git/status`), `a17da1e`(API 알림의 Git 종류, 구성원 Git 아이디), 그리고 이 문서 갱신. 단계마다 `FLOWBIT_BUILD_DIR=build-check ./gradlew check` 통과.
+- 백엔드 `com.flowbit.git` 에 더한 것: `GitLabProvider`, `ForgePayloads.kt`(Gitea·GitHub 공용 파싱과 JSON 도우미), `GitHubProvider`, `GitHubClient`(앱 JWT·설치 토큰 캐시·ETag GET, PKCS#1 키를 PKCS#8 로 감쌈), `GitHubAppService`(매니페스트, code 교환, 설치 읽기), `GitHubSync.kt`(`GitHubSyncService` 가져오기, `GitHubSyncJob` 2분 주기, 테스트에서는 `flowbit.git.sync-enabled=false`), `GitStatusController`, `GitAccounts.kt`. 설정 `flowbit.git.sync-enabled`, `flowbit.git.sync-interval`.
+- 알림: `IssueNotification.OPT_IN_TYPES`(GIT_*)는 메일·푸시와 "모든 변경" API 알림에서 빼고, 그 종류를 고른 API 알림에만 보낸다(`forEveryChannel`). 같이 고친 버그: `NotificationMerge` 가 모인 상태 변경의 `via` 를 버렸다. 테스트 사이에 보류된 알림이 남아 다음 테스트로 새던 것을 `NotificationDispatcher.reset()`(IntegrationTest 가 부른다)으로 막았다.
+- 프런트: GitHub 연결은 "GitHub 앱" 단계 화면(`github-app-details.tsx`): 앱 만들기 버튼이 manifest 를 GitHub 에 폼으로 POST 한다. GitHub 이 돌려보내는 `/admin/git/github/created`·`/installed`(`github-return.tsx`). 키 옆 메뉴 `issue-key-menu.tsx`, `branch-name.ts`(+ 첫 Vitest 테스트, `npm test`). Git 탭의 "사람 맞추기"(`git-accounts-panel.tsx`)는 연결이 있을 때만 보인다. API 알림 폼의 Git 종류는 Git 이 쓰일 때만 보인다.
+- 화면 확인: 일회용 PostgreSQL 컨테이너(55432)·검사용 백엔드(8081)·프로덕션 빌드(3100)로 E2E `git.spec.ts` 를 돌려 통과(연결 추가 → 주소·비밀 값 → 서명한 PR 웹훅 → 옆 패널 PR 줄·진행 중·브랜치 이름 복사 메뉴). GitHub 연결을 화면에서 만들어 단계 표시(앱 만들기·설치·가져오기)와 조직·받는 방식 입력을 봤고, API 알림 폼에 Git 종류 다섯이 보이는 것을 확인했다. "GitHub 에서 앱 만들기"는 실제 GitHub 으로 가므로 누르지 않았다. 끝나고 서버를 끄고 컨테이너를 지우고 `BACKEND_URL` 없이 다시 빌드했다.
+- 린트: `issues-view.tsx` 의 기존 오류 6개 외에는 없다.
+
 
 ### 2026-10-15 — GitHub 는 GitHub App 으로 (D-146, 명세만)
 

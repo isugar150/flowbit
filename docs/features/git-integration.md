@@ -1,6 +1,6 @@
 # Git 연동 (Gitea · GitLab · GitHub)
 
-상태 (2026-10-15): **1~3단계(연결 관리, 받기와 연결, 상태 자동 변경)를 Gitea(Forgejo)로 구현했다** (D-145). 4단계(GitLab·GitHub)와 5단계(브랜치 이름 복사), API 알림의 Git 종류, 화면 E2E 는 아직 없다. 처음 계획은 D-141. D-039 에서 "SaaS 전용"이라 빼 두었던 GitHub 연결을 설치형에 맞는 모양(사내 Git 서버의 웹훅)으로 들인다.
+상태 (2026-10-16): **명세 전부를 구현했다**: Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(웹훅 또는 API 가져오기), 브랜치 이름 복사, API 알림의 Git 종류, 구성원 Git 아이디(D-145~D-147). 실제 Gitea·GitLab·GitHub 서버로는 아직 시험하지 않았다(견본과 가짜 GitHub 로 테스트했다). 처음 계획은 D-141. D-039 에서 "SaaS 전용"이라 빼 두었던 GitHub 연결을 설치형에 맞는 모양으로 들인다.
 
 브랜치 이름, PR 제목, 커밋 메시지에 티켓 키(`FB-12`)를 쓰면 Flowbit 이 그 티켓에 PR·브랜치·커밋을 연결하고, 작업 흐름에 따라 티켓 상태를 바꾼다. 개발자는 Flowbit 에서 따로 할 일이 없다.
 
@@ -87,7 +87,7 @@
 | `GIT_COMMITS_PUSHED` | 김지민 님이 커밋 3개를 올렸습니다 (펼치면 커밋 제목 5개까지, 각 줄은 Git 서버 링크) |
 | `STATUS_CHANGED` (Git 출처) | 이수진 님이 Git 에서 상태를 바꿨습니다: 진행 중 → 완료 |
 
-**알림**: Git 이 바꾼 **상태**는 손으로 바꾼 것처럼 구독자에게 알림으로 간다(D-126 의 모아 보내기도 같다). PR·브랜치 연결과 커밋은 활동 기록과 화면에만 남고 알림은 보내지 않는다(커밋마다 알림이 오면 너무 많다). API 알림(웹훅)의 "보낼 변경"에서 Git 종류를 고르면 그것도 보낼 수 있다.
+**알림**: Git 이 바꾼 **상태**는 손으로 바꾼 것처럼 구독자에게 알림으로 간다(D-126 의 모아 보내기도 같다). PR·브랜치 연결과 커밋은 활동 기록과 화면에만 남고 메일·웹 푸시는 보내지 않는다(커밋마다 알림이 오면 너무 많다). API 알림(웹훅)의 "보낼 변경"에서 Git 종류(`GIT_BRANCH_LINKED`, `GIT_PR_LINKED`, `GIT_PR_MERGED`, `GIT_PR_CLOSED`, `GIT_COMMITS_PUSHED`)를 **직접 고른** API 알림에만 그것도 보낸다. 아무것도 고르지 않은 API 알림("모든 변경")에는 가지 않는다. Git 이 쓰이지 않으면 이 선택지를 보이지 않는다.
 
 **브랜치 이름 복사**: 티켓 상세 위의 키 옆 메뉴에 "브랜치 이름 복사". 형식은 `<내 아이디>/fb-12-<제목 슬러그>`. 슬러그는 제목에서 영문·숫자만 남겨 `-` 로 잇고(한글 제목이면 비어서 `kimjm/fb-12`), 전체 60자까지.
 
@@ -119,7 +119,7 @@
 
 ## GitHub: GitHub App 으로 연결 (D-146)
 
-상태 (2026-10-15): **명세만 있다.** 사용자가 GitHub(github.com)는 조직 웹훅이 아니라 **GitHub App** 으로 붙이기로 정했다. 아래는 GitHub 공식 문서(docs.github.com)를 보고 정리한 등록·연동 방법이다. 이 절이 위의 "Git 서버에 등록하기" 표의 GitHub 칸과 4단계의 GitHub 부분을 대신한다(GitLab 은 그대로 웹훅).
+상태 (2026-10-16): **구현했다.** 사용자가 GitHub(github.com)는 조직 웹훅이 아니라 **GitHub App** 으로 붙이기로 정했다(D-146). 아래는 GitHub 공식 문서(docs.github.com)를 보고 정리한 등록·연동 방법이고, 코드는 이대로다. 이 절이 위의 "Git 서버에 등록하기" 표의 GitHub 칸을 대신한다(GitLab 은 그대로 웹훅).
 
 **왜 GitHub App 인가**: 사람 계정에 묶이지 않는 토큰(설치 토큰)을 쓰고, 권한을 저장소 읽기로 좁힐 수 있고, 조직이 고른 저장소에만 설치된다. Flowbit 이 인터넷에서 열려 있으면 웹훅으로 바로 받고, 열려 있지 않으면 같은 앱의 토큰으로 GitHub API 를 주기적으로 읽어 온다. **어느 쪽이든 GitHub 쪽 설정은 한 번이다.** 개인 OAuth 토큰은 그 사람이 나가면 멈추고, 비공개 저장소를 읽으려면 `repo`(쓰기 포함) 권한을 받아야 해서 쓰지 않는다.
 
@@ -188,14 +188,16 @@ Flowbit 이 `api.github.com` 으로 나가는 연결만 있으면 된다. 실시
 
 ### 사람 맞추기
 
-GitHub 의 PR 이벤트·목록에는 이메일이 없고 GitHub 아이디만 있다. github.com 아이디는 회사의 Flowbit 아이디와 다른 경우가 많아, 지금 규칙(이메일 → 아이디)으로는 대부분 "아이디(Git)"로 남는다. 상태 변경·알림은 그대로 동작한다. 보완은 따로 정한다: 관리자가 구성원마다 GitHub 아이디를 적어 두거나, 같은 앱의 사용자 인증(OAuth, 앱의 Callback URL)으로 "내 설정 > GitHub 계정 연결"을 더한다.
+GitHub 의 PR 이벤트·목록에는 이메일이 없고 GitHub 아이디만 있다. github.com 아이디는 회사의 Flowbit 아이디와 다른 경우가 많아 **관리자가 Git 연동 탭의 "사람 맞추기"에서 구성원마다 Git 아이디를 적는다**(D-147, 표 `git_user_accounts`, 모든 종류에 쓰인다). 사람 찾기 순서는 이메일 → 적어 둔 Git 아이디 → Flowbit 아이디. 각자 OAuth 로 잇는 "내 설정 > GitHub 계정 연결"은 만들지 않았다(필요해지면 같은 앱의 사용자 인증으로 더한다).
 
 ### 확인이 필요한 것 (GitHub App)
 
-- 실제 배포에서 Flowbit 의 웹훅 경로를 인터넷에 열지(받는 방식 A/B). 사용자: "배포하면 가능은 하다".
+- 실제 배포에서 Flowbit 의 웹훅 경로를 인터넷에 열지(받는 방식 A/B). 사용자: "배포하면 가능은 하다". 둘 다 구현돼 있어 연결마다 고른다.
 - 매니페스트로 앱을 만드는 사람이 조직 소유자인지. 아니면 소유자에게 부탁해야 한다.
-- 가져오기 주기(기본 2분)가 괜찮은지.
-- 사람 맞추기를 관리자 입력으로 할지 개인 OAuth 연결로 할지.
+- 가져오기 주기(기본 2분, `flowbit.git.sync-interval`)가 괜찮은지.
+- `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는데, 실제 github.com 에서 되는지 확인하지 않았다.
+
+**구현하며 정한 것 (D-146)**: 받는 방식은 연결마다 `receive_mode`(웹훅이면 매니페스트의 웹훅을 켜고 push·pull_request 를 구독, 가져오기면 웹훅을 끈다). 앱의 웹훅 비밀 값은 GitHub 이 만든 것을 그대로 쓰고 Flowbit 에서 다시 만들지 않는다(422). 앱을 만든 뒤에는 종류와 조직을 바꿀 수 없다(422 `LOCKED`). 설치는 `setup_url` 의 `installation_id` 를 믿지 않고 앱 JWT 로 `GET /orgs/{조직}/installation` 을 읽는다. `installation`·`installation_repositories` 웹훅이 오면 다시 읽는다. 가져오기의 첫 동기화는 저장소마다 기준(PR 의 최신 `updated_at`, 브랜치 머리)만 잡는다. 새 커밋은 `GET /repos/{저장소}/compare/{이전}...{지금}` 으로 읽어(브랜치를 처음 보면 기본 브랜치와 비교) 기본 브랜치의 예전 커밋이 걸리지 않게 했다. GitHub Enterprise Server 는 서버 주소를 넣으면 `<주소>/api/v3` 를 부른다.
 
 ## 받는 방식
 
@@ -238,6 +240,16 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 | PUT, DELETE | `/api/v1/admin/git/connections/{id}` | 관리자 | `{ name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone }` |
 | POST | `/api/v1/admin/git/connections/{id}/secret` | 관리자 | 비밀 값 다시 만들기 → `{ secret }`. 예전 값은 바로 무효 |
 | GET | `/api/v1/issues/{번호}` | 기존 | 응답에 `git: [{ kind, repository, branch, prNumber, title, url, prState, closes }]` 를 더한다 |
+| GET | `/api/v1/git/status` | 로그인 | `{ enabled }`: 켜진 연결(GitHub 는 설치까지 끝난 것)이 있는지. 없으면 브랜치 이름 복사와 API 알림의 Git 종류를 보이지 않는다 |
+| GET | `/api/v1/admin/git/connections/{id}/github/manifest?origin=` | 관리자 | `{ action, manifest }`: 브라우저가 GitHub 에 POST 할 폼. 앱이 이미 있으면 409 `GITHUB_APP_EXISTS` |
+| POST | `/api/v1/admin/git/github/created` | 관리자 | `{ code, state }` → 연결. GitHub 이 돌려보낸 code 를 앱 ID·키로 바꾼다. state 가 틀리면 422, GitHub 오류는 502 `GITHUB_UNAVAILABLE` |
+| POST | `/api/v1/admin/git/github/installations` | 관리자 | GitHub 연결 전부의 설치를 다시 읽고 목록을 돌려준다(설치 뒤 돌아오는 페이지가 부른다) |
+| POST | `/api/v1/admin/git/connections/{id}/github/installation` | 관리자 | 한 연결의 설치를 다시 읽는다 |
+| POST | `/api/v1/admin/git/connections/{id}/sync` | 관리자 | 가져오기를 지금 한 번 → `{ linkedIssues, statusChanged, skipped }` |
+| GET | `/api/v1/admin/git/accounts` | 관리자 | 활성 구성원과 그 Git 아이디(D-147) |
+| PUT | `/api/v1/admin/git/accounts/{userId}` | 관리자 | `{ username }`. 빈 값이면 지운다. 다른 사람이 쓰면 409 `GIT_USERNAME_TAKEN` |
+
+연결 요청에 `receiveMode`(`WEBHOOK`\|`POLL`, POLL 은 GitHub 만), `githubOrganization`(GitHub 만, 필수)이 더해졌고, 응답에 `receiveMode`, `github: { organization, appId, appSlug, appUrl, installUrl, settingsUrl, installationId, repositorySelection }`, `lastSyncedAt`, `syncError`, `rateLimitRemaining` 이 더해졌다.
 
 오류: 422 `INVALID_URL`(서버 주소), 422 `REQUIRED`, 404 `GIT_CONNECTION_NOT_FOUND`.
 
@@ -252,11 +264,12 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 
 ## 구현 순서
 
-각 단계가 끝나면 테스트와 함께 커밋한다. 1~3단계는 됐다(2026-10-15, Gitea).
+각 단계가 끝나면 테스트와 함께 커밋한다. 1~3단계는 2026-10-15(Gitea), 4~5단계와 API 알림의 Git 종류, 구성원 Git 아이디는 2026-10-16 에 됐다.
 
 구현하며 정한 것 (D-145):
 
-- 지금은 Gitea 만 고를 수 있다. 다른 종류는 422 `UNSUPPORTED`(필드 `provider`). 4단계에서 `GitConnectionService.SUPPORTED_PROVIDERS` 와 프런트의 `GIT_PROVIDERS` 에 더한다.
+- (1~3단계 동안은 Gitea 만 고를 수 있었다. 지금은 세 종류 모두 된다.)
+- GitLab 은 서명이 없고 `X-Gitlab-Token` 에 비밀 값이 그대로 온다. `Push Hook`·`Merge Request Hook` 만 본다. MR 은 `iid` 를 번호로 PR 처럼 저장하고, 상태는 `state`(opened·closed·locked·merged)와 `draft`, 한 사람은 이벤트의 `user`(연 사람·머지한 사람). 이메일 `[REDACTED]` 는 버린다. 브랜치 주소는 `<프로젝트>/-/tree/<브랜치>`.
 - Gitea 는 `X-Gitea-Signature`(Forgejo 는 `X-Forgejo-Signature` 도) 와 `X-Gitea-Event`(`X-Forgejo-Event`) 를 본다. PR 의 모든 변경(열림, 닫힘, 수정, 동기화, 담당 지정…)이 `pull_request` 로 오고 동작은 본문의 `action` 이다. 초안은 `draft` 값이나 제목 앞의 `WIP:`·`[WIP]` 로 안다.
 - 키가 든 브랜치에 올린 커밋은 메시지에 키가 없어도 그 티켓에 연결한다. 기본 브랜치에 올린 커밋의 닫는 말만 완료로 바꾼다.
 - 상태를 진행 중으로 바꾸는 것은 닫는 연결이 **처음** 생길 때(브랜치를 처음 올림, PR 이 처음 연결됨)와 PR 이 다시 열릴 때뿐이다. 그래서 손으로 되돌린 상태를 같은 브랜치의 다음 push 가 다시 바꾸지 않는다.
@@ -280,14 +293,16 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 - 닫는 연결의 PR 이 머지되면 완료가 되고, 참고 연결과 머지 없이 닫힌 PR 은 상태를 바꾸지 않는다. 닫는 연결로 걸린 다른 PR 이 열려 있으면 완료가 되지 않는다
 - 자동 상태 변경을 끈 연결은 연결만 한다
 - 같은 배달이 다시 와도 연결·커밋·활동이 두 번 쌓이지 않는다
-- 사람 맞추기: 이메일, 그다음 아이디, 둘 다 없으면 Git 이름만. 상태 변경은 구독자에게 알림으로 가고 연결·커밋은 가지 않는다
-- 화면(E2E): 연결을 추가하면 주소와 비밀 값이 보이고, 연결이 있는 티켓의 옆 패널에 PR 줄이 보인다
+- 사람 맞추기: 이메일, 그다음 관리자가 적은 Git 아이디, 그다음 Flowbit 아이디, 모두 없으면 Git 이름만. 상태 변경은 구독자에게 알림으로 가고 연결·커밋은 그 종류를 고른 API 알림에만 간다
+- 화면(E2E): 연결을 추가하면 주소와 비밀 값이 보이고, 연결이 있는 티켓의 옆 패널에 PR 줄이 보인다 (`frontend/e2e/git.spec.ts`)
+- GitHub App(`GitHubIntegrationTest`, 가짜 GitHub): 매니페스트·code 교환·설치 읽기, 앱 JWT 서명, 웹훅 서명과 `ping`·설치 이벤트, 가져오기의 기준 잡기·ETag 304·브랜치·커밋·PR·머지
 
 ## 확인이 필요한 것
 
 - ~~어떤 Git 서버를 먼저 붙일지~~ → Gitea (사용자 확정, D-145).
 - "리뷰 중" 상태가 필요한지. 지금 상태는 고정 5개라, 두려면 상태 구조부터 바꿔야 한다.
 - 커밋을 활동에 남길지, PR·브랜치만 남길지(커밋이 많은 팀은 활동이 길어진다).
-- 이메일·아이디가 둘 다 안 맞는 사람이 많으면 "내 설정 > Git 계정"(개인 연결)을 더할지.
-- GitHub.com 을 쓸 경우 외부에 열 주소와 리버스 프록시 구성.
+- 관리자가 Git 아이디를 적는 것으로 모자라면 "내 설정 > Git 계정"(개인 OAuth 연결)을 더할지.
+- GitHub.com 을 웹훅으로 받을 경우 외부에 열 주소와 리버스 프록시 구성(가져오기로 받으면 필요 없다).
+- 구성원 Git 아이디(`git_user_accounts`)는 백업에 넣지 않았다(사용자 id 가 설치마다 달라서). 넣을지.
 - 비밀 값이 DB 에 평문이다(다른 연동 설정과 같다, D-090).
