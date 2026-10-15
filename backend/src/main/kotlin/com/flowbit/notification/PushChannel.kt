@@ -170,8 +170,9 @@ class PushNotificationChannel(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override suspend fun send(notification: IssueNotification) {
-        if (notification.recipientIds.isEmpty()) return
-        val message = texts.of(notification)
+        val shown = notification.forEveryChannel() ?: return
+        if (shown.recipientIds.isEmpty()) return
+        val message = texts.of(shown)
         val body = (listOf(message.headline) + message.lines).joinToString("\n")
         pushTo(notification.recipientIds, message.title, body, notification.issueKey, message.path)
     }

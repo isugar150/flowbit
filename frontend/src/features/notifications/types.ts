@@ -57,7 +57,15 @@ export const WEBHOOK_EVENT_TYPES = [
   "COMMENT_ADDED",
   "MENTIONED",
   "ACCESS_REQUESTED",
+  "GIT_BRANCH_LINKED",
+  "GIT_PR_LINKED",
+  "GIT_PR_MERGED",
+  "GIT_PR_CLOSED",
+  "GIT_COMMITS_PUSHED",
 ] as const;
+
+/** Sent only to API notifications that choose them, and offered only while Git is in use (D-141). */
+export const GIT_EVENT_TYPES: readonly WebhookEventType[] = ["GIT_BRANCH_LINKED", "GIT_PR_LINKED", "GIT_PR_MERGED", "GIT_PR_CLOSED", "GIT_COMMITS_PUSHED"];
 
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 export type WebhookMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

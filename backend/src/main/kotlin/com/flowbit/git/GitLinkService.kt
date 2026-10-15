@@ -24,7 +24,7 @@ data class GitApplyResult(
     val touched: Set<Int>,
     /** The projects those issues are linked to, whose lists should read again. */
     val projectIds: Set<UUID>,
-    /** Status changes, with who made them, to announce once they are committed. */
+    /** What to tell once committed, with who did it: status changes, and Git entries for the API notifications that ask for them. */
     val changes: List<Pair<Actor, IssueChange>> = emptyList(),
 )
 
@@ -40,6 +40,7 @@ data class GitApplyResult(
 class GitLinkService(
     private val issueService: IssueService,
     private val userService: UserService,
+    private val accounts: GitAccountService,
     private val keyMatcher: IssueKeyMatcher,
     private val databaseClient: DatabaseClient,
     private val clock: Clock,
@@ -112,7 +113,7 @@ class GitLinkService(
                         mapOf("repository" to push.repository, "branch" to branch, "count" to added.size, "commits" to shown),
                     )
             }
-            issueService.recordFromGit(issue.id, actor, events)
+            record(run, issue, actor, events)
             if (branchLinked) moveTo(run, issue, IssueStatus.IN_PROGRESS, actor)
             if (push.toDefaultBranch && commits.any { issue.number in keys.closingNumbers(it.message) }) moveTo(run, issue, IssueStatus.DONE, actor)
             run.linked[issue.number] = issue
@@ -137,8 +138,9 @@ class GitLinkService(
         for (issue in issues) {
             val link = linkPullRequest(run.connection.id, issue.id, pr, issue.number in closing)
             if (link.created) {
-                issueService.recordFromGit(
-                    issue.id,
+                record(
+                    run,
+                    issue,
                     run.actorOf(pr.author),
                     listOf(
                         IssueEvent(
@@ -154,7 +156,7 @@ class GitLinkService(
                     pr.state == GitPrState.CLOSED && link.previousState != GitPrState.CLOSED -> IssueActivityType.GIT_PR_CLOSED
                     else -> null
                 }
-            if (ended != null) issueService.recordFromGit(issue.id, run.actorOf(pr.actor), listOf(IssueEvent(ended, reference)))
+            if (ended != null) record(run, issue, run.actorOf(pr.actor), listOf(IssueEvent(ended, reference)))
             if (link.closes) {
                 val open = pr.state == GitPrState.OPEN || pr.state == GitPrState.DRAFT
                 if (open && (link.created || pr.action == "reopened")) {
@@ -166,6 +168,17 @@ class GitLinkService(
             }
             run.linked[issue.number] = issue
         }
+    }
+
+    /** Keeps the entries in the issue's history, and tells API notifications that ask for Git's changes. */
+    private suspend fun record(
+        run: Run,
+        issue: Issue,
+        actor: Actor,
+        events: List<IssueEvent>,
+    ) {
+        issueService.recordFromGit(issue.id, actor, events)
+        issueService.gitNotice(issue.id, actor, events)?.let { run.changes += actor to it }
     }
 
     /**
@@ -371,11 +384,15 @@ class GitLinkService(
             return found.take(MAX_ISSUES)
         }
 
-        /** The Flowbit account of a Git user: by e-mail address, then by login id. */
+        /** The Flowbit account of a Git user. */
         suspend fun actorOf(person: GitPerson): Actor =
             actors.getOrPut(person) {
                 val via = mapOf("source" to "git", "name" to person.label)
-                val user = userService.findActiveByEmailOrLoginId(person.email, person.username)
+                // The e-mail address, then the Git user name an administrator gave someone, then the login id (D-147).
+                val user =
+                    person.email?.let { userService.findActiveByEmailOrLoginId(it, null) }
+                        ?: person.username?.let { accounts.userIdOf(it) }?.let { userService.findActive(it) }
+                        ?: person.username?.let { userService.findActiveByEmailOrLoginId(null, it) }
                 if (user != null) Actor(user.id, user.displayName ?: user.loginId, via) else Actor(null, "${person.label}(Git)", via)
             }
     }

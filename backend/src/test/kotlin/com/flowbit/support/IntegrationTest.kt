@@ -2,6 +2,7 @@ package com.flowbit.support
 
 import com.flowbit.TestcontainersConfiguration
 import com.flowbit.common.ratelimit.RateLimiter
+import com.flowbit.notification.NotificationDispatcher
 import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
@@ -28,6 +29,9 @@ abstract class IntegrationTest {
 
     @Autowired
     private lateinit var rateLimiter: RateLimiter
+
+    @Autowired
+    private lateinit var notificationDispatcher: NotificationDispatcher
 
     /** Ids of the projects a test made, by the short handle the test gave them ("PAY"). */
     private val projectIds = mutableMapOf<String, String>()
@@ -62,6 +66,7 @@ abstract class IntegrationTest {
         execute("insert into sso_settings (id) values (1)")
         clock.reset()
         rateLimiter.reset()
+        notificationDispatcher.reset()
     }
 
     protected fun client(): ApiClient = ApiClient("http://localhost:$port")

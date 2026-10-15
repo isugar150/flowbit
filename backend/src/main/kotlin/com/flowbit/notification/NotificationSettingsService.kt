@@ -318,7 +318,7 @@ class NotificationSettingsService(
                 "COMMENT_ADDED",
                 "MENTIONED",
                 ProjectAccessRequestNotification.TYPE,
-            )
+            ) + IssueNotification.OPT_IN_TYPES
         private val METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE")
         private const val DEFAULT_CONTENT_TYPE = "application/json"
         private const val NAME_MAX_LENGTH = 60

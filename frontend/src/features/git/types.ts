@@ -76,6 +76,14 @@ export type GitConnectionInput = {
   githubOrganization: string;
 };
 
+/** A member and the Git user they are (GET /api/v1/admin/git/accounts, D-147). */
+export type GitAccount = {
+  userId: string;
+  loginId: string;
+  displayName: string | null;
+  username: string | null;
+};
+
 /** What the browser posts to GitHub to make the app. */
 export type GitHubManifestForm = { action: string; manifest: string };
 

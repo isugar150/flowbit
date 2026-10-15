@@ -416,10 +416,15 @@ class GitIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `상태 변경은 구독자에게 알림으로 가고 연결과 커밋은 가지 않는다`() {
+    fun `상태 변경은 구독자에게 알림으로 가고 연결과 커밋은 그것을 고른 API 알림에만 간다`() {
         admin.post(
             "/api/v1/admin/notifications/webhooks",
             """{"name":"받기","url":"$outside/notify","method":"POST","contentType":"application/json","headers":{},"bodyTemplate":"","eventTypes":[]}""",
+        )
+        admin.post(
+            "/api/v1/admin/notifications/webhooks",
+            """{"name":"Git","url":"$outside/git","method":"POST","contentType":"application/json","headers":{},"bodyTemplate":"",""" +
+                """"eventTypes":["GIT_PR_LINKED","GIT_COMMITS_PUSHED"]}""",
         )
         val kim = admin.post("/api/v1/admin/members", """{"loginId":"jimin","password":"$PASSWORD","displayName":"김지민"}""").json()["id"]
         admin.post("/api/v1/issues", """{"title":"로그인 오류","assigneeIds":["$kim"]}""")
@@ -429,31 +434,49 @@ class GitIntegrationTest : IntegrationTest() {
         awaitTrue { received.size == 1 }
         received.clear()
 
-        // A link and commits only: nothing to tell.
+        // A link and commits only: the API notification that chose them gets them, once per follower; nothing else does.
         deliver(connection, "pull_request", pullRequest(number = 50, title = "정리", body = "Refs FB-1", branch = "chore"))
         deliver(connection, "push", push("main", "FB-1 언급"))
         dispatcher.flush(1, null)
+        awaitTrue { received.size == 2 }
         Thread.sleep(300)
-        assertEquals(emptyList(), received.toList())
+        assertEquals(listOf("/git", "/git"), received.map { it.first })
+        assertEquals(listOf("GIT_PR_LINKED", "GIT_COMMITS_PUSHED"), changeTypes(received.first().second))
+        assertTrue(
+            mapper
+                .readTree(received.first().second)
+                .get("text")
+                .asString()
+                .contains("PR 연결: web#50 정리"),
+        )
+        received.clear()
 
         // Work started by someone without an account here: everyone who follows the issue hears it.
         deliver(connection, "push", push("fb-1-login", pusher = Triple("parkhs", "parkhs@example.com", "박현수")))
         dispatcher.flush(1, null)
-        awaitTrue { received.size == 2 }
-        val payload = mapper.readTree(received.first())
+        awaitTrue { received.size == 4 }
+        val plain = received.filter { it.first == "/notify" }
+        assertEquals(2, plain.size)
+        val payload = mapper.readTree(plain.first().second)
         assertEquals("parkhs(Git)", payload.get("actor").get("name").asString())
-        val changes = payload.get("changes")
-        assertEquals(1, changes.size())
-        assertEquals("STATUS_CHANGED", changes.get(0).get("type").asString())
+        assertEquals(listOf("STATUS_CHANGED"), changeTypes(plain.first().second))
         assertEquals(
             "IN_PROGRESS",
-            changes
+            payload
+                .get("changes")
                 .get(0)
                 .get("detail")
                 .get("to")
                 .asString(),
         )
         assertTrue(payload.get("text").asString().contains("parkhs(Git) 님이 Git에서 티켓을 수정했습니다"))
+        // The one that chose Git's kinds gets the whole change, the commit with the status.
+        assertEquals(listOf("GIT_BRANCH_LINKED", "GIT_COMMITS_PUSHED", "STATUS_CHANGED"), changeTypes(received.first { it.first == "/git" }.second))
+    }
+
+    private fun changeTypes(body: String): List<String> {
+        val changes = mapper.readTree(body).get("changes")
+        return (0 until changes.size()).map { changes.get(it).get("type").asString() }
     }
 
     @Test
@@ -470,6 +493,30 @@ class GitIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/admin/git/connections", """{"name":"GitHub","provider":"GITHUB","githubOrganization":"acme"}""")
         assertEquals(mapOf("enabled" to false), member.get("/api/v1/git/status").json())
         assertEquals(401, client().get("/api/v1/git/status").status)
+    }
+
+    @Test
+    fun `관리자가 정한 Git 아이디로 사람을 맞춘다`() {
+        val jimin = admin.post("/api/v1/admin/members", """{"loginId":"jimin","password":"$PASSWORD","displayName":"김지민"}""").json()["id"]
+        val other = admin.post("/api/v1/admin/members", """{"loginId":"other","password":"$PASSWORD"}""").json()["id"]
+        val member = client().also { it.login("jimin", PASSWORD) }
+        assertEquals(403, member.get("/api/v1/admin/git/accounts").status)
+
+        assertEquals(422, admin.put("/api/v1/admin/git/accounts/$jimin", """{"username":"한글 아이디"}""").status)
+        val saved = admin.put("/api/v1/admin/git/accounts/$jimin", """{"username":"@Kim-GitHub"}""")
+        assertEquals("kim-github", saved.json()["username"])
+        assertEquals(409, admin.put("/api/v1/admin/git/accounts/$other", """{"username":"kim-github"}""").json()["status"])
+        val listed = admin.get("/api/v1/admin/git/accounts").jsonList().associate { it["loginId"] to it["username"] }
+        assertEquals(mapOf<Any?, Any?>("admin" to null, "jimin" to "kim-github", "other" to null), listed)
+
+        admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
+        val connection = connect(autoInProgress = false)
+        // The address is hidden and the name is not a login id here; the administrator's word decides.
+        deliver(connection, "push", push("fb-1-login", pusher = Triple("Kim-GitHub", "kim@users.noreply.github.com", "Jimin Kim")))
+        assertEquals(jimin, (activity(1).last()["actor"] as Map<*, *>)["id"])
+
+        assertEquals(200, admin.put("/api/v1/admin/git/accounts/$jimin", """{"username":""}""").status)
+        assertEquals(0, count("select count(*) from git_user_accounts"))
     }
 
     // --- GitLab ---------------------------------------------------------------------------------
@@ -694,13 +741,13 @@ class GitIntegrationTest : IntegrationTest() {
         (problem["errors"] as List<Map<String, Any?>>).associate { it["field"] as String to it["code"] as String }
 
     companion object {
-        /** Bodies of the API notifications Flowbit sent. */
-        private val received = CopyOnWriteArrayList<String>()
+        /** The address and body of each API notification Flowbit sent. */
+        private val received = CopyOnWriteArrayList<Pair<String, String>>()
 
         private val server: HttpServer =
             HttpServer.create(InetSocketAddress("localhost", 0), 0).apply {
                 createContext("/") { exchange ->
-                    received += String(exchange.requestBody.readAllBytes())
+                    received += exchange.requestURI.path to String(exchange.requestBody.readAllBytes())
                     exchange.sendResponseHeaders(200, -1)
                     exchange.close()
                 }

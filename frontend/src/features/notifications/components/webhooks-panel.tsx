@@ -26,6 +26,7 @@ import {
   updateWebhook,
 } from "../api";
 import {
+  GIT_EVENT_TYPES,
   WEBHOOK_EVENT_TYPES,
   type Webhook,
   type WebhookEventType,
@@ -114,7 +115,7 @@ function inputOf(form: Form, id?: string): WebhookInput {
 }
 
 /** Every outgoing API call as a row that opens to its form, and one more form to add another. */
-export function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
+export function WebhooksPanel({ webhooks, gitEnabled }: { webhooks: Webhook[]; gitEnabled: boolean }) {
   const [open, setOpen] = useState<string | null>(null);
 
   return (
@@ -154,7 +155,7 @@ export function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
                 </Button>
               </div>
               {open === webhook.id ? (
-                <WebhookForm webhook={webhook} onDone={() => setOpen(null)} />
+                <WebhookForm webhook={webhook} gitEnabled={gitEnabled} onDone={() => setOpen(null)} />
               ) : null}
             </li>
           ))}
@@ -163,7 +164,7 @@ export function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
       {open === "new" ? (
         <div className="flex flex-col gap-5 rounded-lg border px-4 py-4">
           <h4 className="font-medium">{w.newTitle}</h4>
-          <WebhookForm onDone={() => setOpen(null)} />
+          <WebhookForm gitEnabled={gitEnabled} onDone={() => setOpen(null)} />
         </div>
       ) : (
         <div>
@@ -195,9 +196,11 @@ function lastResult(webhook: Webhook): string {
 
 function WebhookForm({
   webhook,
+  gitEnabled,
   onDone,
 }: {
   webhook?: Webhook;
+  gitEnabled: boolean;
   onDone: () => void;
 }) {
   const prefix = `webhook-${webhook?.id ?? "new"}`;
@@ -330,7 +333,10 @@ function WebhookForm({
         <fieldset className="flex flex-col gap-2 sm:col-span-2">
           <legend className="mb-1.5 text-sm font-medium">{w.eventTypes}</legend>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-            {WEBHOOK_EVENT_TYPES.map((type) => (
+            {WEBHOOK_EVENT_TYPES.filter(
+              // Git kinds only while Git is in use, or when this webhook already has one.
+              (type) => gitEnabled || !GIT_EVENT_TYPES.includes(type) || form.eventTypes.includes(type),
+            ).map((type) => (
               <CheckSetting
                 key={type}
                 id={`${prefix}-event-${type}`}

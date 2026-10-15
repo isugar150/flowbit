@@ -781,6 +781,21 @@ class IssueService(
         return IssueChange(after, events, activities.recipientIds(issue.id).filter { it != actor.userId })
     }
 
+    /**
+     * What to tell about Git entries that were just recorded: they go only to API notifications
+     * that ask for them (IssueNotification.OPT_IN_TYPES), to the people who follow the issue.
+     */
+    suspend fun gitNotice(
+        issueId: UUID,
+        actor: Actor,
+        events: List<IssueEvent>,
+    ): IssueChange? {
+        if (events.isEmpty()) return null
+        val issue = repository.findById(issueId) ?: return null
+        val view = detail(issue.number) ?: return null
+        return IssueChange(view, events.map(actor::mark), activities.recipientIds(issue.id).filter { it != actor.userId })
+    }
+
     /** Adds history entries for something a Git server reported, marked as coming from Git. */
     suspend fun recordFromGit(
         issueId: UUID,

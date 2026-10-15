@@ -83,7 +83,8 @@ class MailNotificationChannel(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override suspend fun send(notification: IssueNotification) {
-        mail(notification.recipientIds, texts.of(notification), notification.issueKey)
+        val shown = notification.forEveryChannel() ?: return
+        mail(shown.recipientIds, texts.of(shown), shown.issueKey)
     }
 
     override suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {

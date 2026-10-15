@@ -14,15 +14,16 @@ const m = messages.notifications;
 export const metadata: Metadata = { title: m.title };
 
 export default async function AdminNotificationsPage() {
-  const [settings, webhooks] = await Promise.all([
+  const [settings, webhooks, git] = await Promise.all([
     serverGet<NotificationSettings>("/api/v1/admin/notifications"),
     serverGet<Webhook[]>("/api/v1/admin/notifications/webhooks"),
+    serverGet<{ enabled: boolean }>("/api/v1/git/status"),
   ]);
   if (!settings || !webhooks) notFound();
 
   return (
     <SettingsSection title={m.title} description={m.description}>
-      <NotificationChannels settings={settings} webhooks={webhooks} />
+      <NotificationChannels settings={settings} webhooks={webhooks} gitEnabled={git?.enabled ?? false} />
     </SettingsSection>
   );
 }

@@ -14,9 +14,12 @@ const m = messages.notifications;
 export function NotificationChannels({
   settings,
   webhooks,
+  gitEnabled,
 }: {
   settings: NotificationSettings;
   webhooks: Webhook[];
+  /** Whether Git is in use; without it the Git kinds of change are not offered. */
+  gitEnabled: boolean;
 }) {
   // What the badges show follows the last save, without reloading the page.
   const [smtpOn, setSmtpOn] = useState(settings.smtp.enabled);
@@ -48,7 +51,7 @@ export function NotificationChannels({
         description={m.webhooks.description}
         status={{ on: active > 0, label: active > 0 ? m.count(active) : m.off }}
       >
-        <WebhooksPanel webhooks={webhooks} />
+        <WebhooksPanel webhooks={webhooks} gitEnabled={gitEnabled} />
       </SettingsCard>
     </div>
   );

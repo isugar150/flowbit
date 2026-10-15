@@ -39,6 +39,17 @@ data class IssueNotification(
         val type: String,
         val detail: Map<String, Any?>,
     )
+
+    /**
+     * Without the changes only an API notification that names them gets: a Git server's links
+     * and commits (D-141). Null when nothing else is left to tell.
+     */
+    fun forEveryChannel(): IssueNotification? = events.filterNot { it.type in OPT_IN_TYPES }.takeIf { it.isNotEmpty() }?.let { copy(events = it) }
+
+    companion object {
+        /** Sent only to API notifications that list them in their "보낼 변경"; never by mail or push. */
+        val OPT_IN_TYPES = setOf("GIT_BRANCH_LINKED", "GIT_PR_LINKED", "GIT_PR_MERGED", "GIT_PR_CLOSED", "GIT_COMMITS_PUSHED")
+    }
 }
 
 /**
@@ -191,6 +202,14 @@ class NotificationDispatcher(
         }
     }
 
+    /** Drops everything held without sending it. For tests, which must not hear what an earlier one did. */
+    fun reset() {
+        synchronized(pending) {
+            pending.values.forEach { it.timer.cancel() }
+            pending.clear()
+        }
+    }
+
     @PreDestroy
     fun stop() {
         val held = synchronized(pending) { pending.values.toList().also { pending.clear() } }
@@ -270,7 +289,8 @@ object NotificationMerge {
                 replace(events, index, event.copy(detail = mapOf("added" to added.distinct(), "removed" to removed.distinct())))
             }
             type in FROM_TO && "to" in event.detail && "from" in held.detail -> {
-                replace(events, index, event.copy(detail = mapOf("from" to held.detail["from"], "to" to event.detail["to"])))
+                // The newer change's other details (who did it through Git, say) stay.
+                replace(events, index, event.copy(detail = event.detail + ("from" to held.detail["from"])))
             }
             type == "MENTIONED" -> {
                 val mentions = (names(held.detail["mentions"]) + names(event.detail["mentions"])).distinct()

@@ -94,6 +94,12 @@ class NotificationText(
                     names(detail["mentions"]).takeIf { it.isNotEmpty() }?.let { "언급: " + it.joinToString(", ") },
                 ).joinToString("\n").ifEmpty { null }
             "MENTIONED" -> "본문에서 언급: " + names(detail["mentions"]).joinToString(", ")
+            // Git (D-141): only API notifications that ask for these get them.
+            "GIT_BRANCH_LINKED" -> "브랜치 연결: ${detail["branch"]}"
+            "GIT_PR_LINKED" -> "PR 연결: ${pullRequest(detail)} ${detail["title"] ?: ""}".trimEnd()
+            "GIT_PR_MERGED" -> "PR 머지: ${pullRequest(detail)}"
+            "GIT_PR_CLOSED" -> "PR 닫힘: ${pullRequest(detail)}"
+            "GIT_COMMITS_PUSHED" -> "커밋 ${detail["count"]}개: ${detail["branch"]}"
             else -> event.type
         }
     }
@@ -113,6 +119,9 @@ class NotificationText(
     ): String = "$label: " + (names(detail["added"]).map { "+$it" } + names(detail["removed"]).map { "-$it" }).joinToString(", ")
 
     private fun names(value: Any?): List<String> = (value as? List<*>).orEmpty().map { it.toString() }
+
+    /** `web#34`: the repository without its organization, and the number. */
+    private fun pullRequest(detail: Map<String, Any?>): String = "${detail["repository"].toString().substringAfterLast('/')}#${detail["number"]}"
 
     private companion object {
         val STATUSES = mapOf("BACKLOG" to "백로그", "READY" to "준비됨", "IN_PROGRESS" to "진행 중", "DONE" to "완료", "CANCELED" to "취소")

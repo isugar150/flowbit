@@ -334,26 +334,36 @@ class WebhookNotificationChannel(
 ) : NotificationChannel {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    /**
+     * A webhook that chose no kinds gets every change but Git's links and commits; one that chose
+     * kinds gets the whole notification when any of them is in it.
+     */
     override suspend fun send(notification: IssueNotification) {
-        deliverAll(sender.contentOf(notification), notification.recipientIds)
+        val full = sender.contentOf(notification)
+        val common = notification.forEveryChannel()?.let(sender::contentOf)
+        deliverAll(notification.recipientIds) { webhook ->
+            val types = webhook.eventTypeSet
+            if (types.isEmpty()) common else full.takeIf { types.any(full.types::contains) }
+        }
     }
 
     override suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {
-        deliverAll(sender.contentOf(request), request.recipientIds)
+        val content = sender.contentOf(request)
+        deliverAll(request.recipientIds) { webhook -> content.takeIf { webhook.eventTypeSet.let { it.isEmpty() || it.any(content.types::contains) } } }
     }
 
     private suspend fun deliverAll(
-        content: WebhookContent,
         recipientIds: List<UUID>,
+        contentFor: (Webhook) -> WebhookContent?,
     ) {
-        val wanted = webhooks.findEnabled().toList().filter { webhook -> webhook.eventTypeSet.let { it.isEmpty() || it.any(content.types::contains) } }
+        val wanted = webhooks.findEnabled().toList().mapNotNull { webhook -> contentFor(webhook)?.let { webhook to it } }
         if (wanted.isEmpty() || recipientIds.isEmpty()) return
         val recipients =
             userRepository
                 .findActiveByIds(recipientIds)
                 .toList()
                 .map { WebhookRecipient(it.id, it.loginId, it.displayName ?: it.loginId, it.email) }
-        for (webhook in wanted) {
+        for ((webhook, content) in wanted) {
             // Someone without an address cannot be reached through an API that is addressed by e-mail.
             val needsEmail = "recipient.email" in webhook.url || "recipient.email" in webhook.bodyTemplate
             for (recipient in recipients) {
