@@ -49,6 +49,11 @@ flowbit:
     enabled: true
     initial-delay: 1m
     interval: 1h
+  git:
+    # GitHub App connections that cannot receive webhooks read the GitHub API this often (D-146).
+    # Integration tests switch it off and sync by hand.
+    sync-enabled: true
+    sync-interval: 2m
   storage:
     # Where uploaded files are kept. Relative paths are resolved against the working directory.
     path: ${FLOWBIT_STORAGE_PATH:./data/uploads}

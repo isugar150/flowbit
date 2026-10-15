@@ -11,6 +11,9 @@ import java.util.UUID
 /** The kind of Git server a connection receives events from. Gitea covers Forgejo too. */
 enum class GitProviderType { GITEA, GITLAB, GITHUB }
 
+/** How events reach Flowbit: the server calls the webhook, or Flowbit reads the GitHub API (GitHub only). */
+enum class GitReceiveMode { WEBHOOK, POLL }
+
 /** One Git server (or organization on it) whose webhook calls reach Flowbit (docs/features/git-integration.md). */
 @Table("git_connections")
 class GitConnection(
@@ -36,7 +39,28 @@ class GitConnection(
     var lastError: String? = null,
     val createdAt: Instant,
     var updatedAt: Instant,
+    var receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
+    // --- GitHub App (D-146): the organization it is installed on and its credentials ---
+    var githubOrganization: String? = null,
+    var githubAppId: Long? = null,
+    var githubAppSlug: String? = null,
+    var githubClientId: String? = null,
+    var githubClientSecret: String? = null,
+    /** The app's private key (PEM) that signs its JWTs. */
+    var githubPrivateKey: String? = null,
+    var githubInstallationId: Long? = null,
+    /** `all` or `selected`. */
+    var githubRepositorySelection: String? = null,
+    /** Ties GitHub's redirect after the app is made back to this connection; cleared once used. */
+    var githubSetupState: String? = null,
+    // --- reading the GitHub API ---
+    var lastSyncedAt: Instant? = null,
+    var syncError: String? = null,
+    var rateLimitRemaining: Int? = null,
 ) {
+    /** A GitHub connection whose app exists and is installed: one Flowbit can call the API for. */
+    fun githubReady(): Boolean = provider == GitProviderType.GITHUB && githubAppId != null && githubPrivateKey != null && githubInstallationId != null
+
     companion object {
         const val NAME_MAX_LENGTH = 80
     }
@@ -45,4 +69,6 @@ class GitConnection(
 interface GitConnectionRepository : CoroutineCrudRepository<GitConnection, UUID> {
     @Query("select * from git_connections order by created_at, id")
     fun findAllOrdered(): Flow<GitConnection>
+
+    suspend fun findByGithubSetupState(state: String): GitConnection?
 }

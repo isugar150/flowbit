@@ -31,6 +31,7 @@ import java.util.UUID
 @Service
 class GitWebhookService(
     private val connections: GitConnectionService,
+    private val githubApps: GitHubAppService,
     private val providers: List<GitProvider>,
     private val links: GitLinkService,
     private val transactionalOperator: TransactionalOperator,
@@ -50,6 +51,11 @@ class GitWebhookService(
         if (!provider.verify(headers, body, connection.secret)) {
             connections.recordReceipt(id, event, null, "서명이 맞지 않습니다. Git 서버의 비밀 값을 확인하세요")
             throw UnauthenticatedException("INVALID_SIGNATURE", "서명이 맞지 않습니다")
+        }
+        // A GitHub App was installed, removed or given other repositories: read where it is now.
+        if (connection.provider == GitProviderType.GITHUB && event in GitHubProvider.INSTALLATION_EVENTS) {
+            runCatching { githubApps.refresh(connection) }
+                .onFailure { log.warn("Reading the installation of Git connection {} failed", id, it) }
         }
         val events =
             try {

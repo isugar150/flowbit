@@ -13,7 +13,7 @@ import org.springframework.r2dbc.core.DatabaseClient
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     // Uploads made by tests stay inside the build directory.
-    properties = ["flowbit.storage.path=build/test-uploads", "flowbit.retention.enabled=false"],
+    properties = ["flowbit.storage.path=build/test-uploads", "flowbit.retention.enabled=false", "flowbit.git.sync-enabled=false"],
 )
 @Import(TestcontainersConfiguration::class, TestClockConfiguration::class)
 abstract class IntegrationTest {

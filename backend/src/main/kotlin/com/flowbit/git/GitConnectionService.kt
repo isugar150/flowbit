@@ -32,6 +32,10 @@ data class GitConnectionInput(
     val projectIds: List<UUID> = emptyList(),
     val autoInProgress: Boolean = true,
     val autoDone: Boolean = true,
+    /** POLL only for GitHub, when Flowbit cannot be reached from the internet (D-146). */
+    val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
+    /** The GitHub organization the app is made for and installed on; GitHub only. */
+    val githubOrganization: String? = null,
 )
 
 /** A connection with the projects it is limited to (empty when it covers every project). */
@@ -52,6 +56,16 @@ data class GitConnectionBackup(
     val projectIds: List<UUID> = emptyList(),
     val autoInProgress: Boolean = true,
     val autoDone: Boolean = true,
+    val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
+    // A GitHub App and where it is installed, with its keys (D-146).
+    val githubOrganization: String? = null,
+    val githubAppId: Long? = null,
+    val githubAppSlug: String? = null,
+    val githubClientId: String? = null,
+    val githubClientSecret: String? = null,
+    val githubPrivateKey: String? = null,
+    val githubInstallationId: Long? = null,
+    val githubRepositorySelection: String? = null,
 )
 
 /**
@@ -102,6 +116,8 @@ class GitConnectionService(
                 autoDone = checked.autoDone,
                 createdAt = now,
                 updatedAt = now,
+                receiveMode = checked.receiveMode,
+                githubOrganization = checked.githubOrganization,
             )
         transactionalOperator.executeAndAwait {
             entityTemplate.insert(connection).awaitSingle()
@@ -119,6 +135,12 @@ class GitConnectionService(
     ): GitConnectionView {
         val connection = repository.findById(id) ?: throw notFound()
         val checked = checked(input)
+        // A GitHub App belongs to the organization it was made for; another one needs a new connection.
+        if (connection.githubAppId != null &&
+            (checked.provider != GitProviderType.GITHUB || !checked.githubOrganization.equals(connection.githubOrganization, ignoreCase = true))
+        ) {
+            throw ValidationException("githubOrganization", "LOCKED", "GitHub 앱을 만든 뒤에는 종류와 조직을 바꿀 수 없습니다. 연결을 새로 만드세요")
+        }
         connection.apply {
             name = checked.name
             enabled = checked.enabled
@@ -127,6 +149,8 @@ class GitConnectionService(
             allProjects = checked.allProjects
             autoInProgress = checked.autoInProgress
             autoDone = checked.autoDone
+            receiveMode = checked.receiveMode
+            githubOrganization = checked.githubOrganization
             updatedAt = clock.instant()
         }
         transactionalOperator.executeAndAwait {
@@ -157,6 +181,8 @@ class GitConnectionService(
         client: ClientInfo,
     ): String {
         val connection = repository.findById(id) ?: throw notFound()
+        // GitHub keeps the app's webhook secret in the app; it is changed there.
+        if (connection.provider == GitProviderType.GITHUB) throw ValidationException("secret", "UNSUPPORTED", "GitHub 앱의 웹훅 비밀 값은 GitHub 의 앱 설정에서 바꿉니다")
         connection.secret = newSecret()
         connection.updatedAt = clock.instant()
         transactionalOperator.executeAndAwait {
@@ -200,6 +226,15 @@ class GitConnectionService(
                 projectIds = projectIds,
                 autoInProgress = connection.autoInProgress,
                 autoDone = connection.autoDone,
+                receiveMode = connection.receiveMode,
+                githubOrganization = connection.githubOrganization,
+                githubAppId = connection.githubAppId,
+                githubAppSlug = connection.githubAppSlug,
+                githubClientId = connection.githubClientId,
+                githubClientSecret = connection.githubClientSecret,
+                githubPrivateKey = connection.githubPrivateKey,
+                githubInstallationId = connection.githubInstallationId,
+                githubRepositorySelection = connection.githubRepositorySelection,
             )
         }
 
@@ -240,13 +275,26 @@ class GitConnectionService(
                     lastError = stored?.lastError,
                     createdAt = stored?.createdAt ?: now,
                     updatedAt = now,
+                    receiveMode = checked.receiveMode,
+                    githubOrganization = checked.githubOrganization,
+                    githubAppId = backup.githubAppId,
+                    githubAppSlug = backup.githubAppSlug,
+                    githubClientId = backup.githubClientId,
+                    githubClientSecret = backup.githubClientSecret,
+                    githubPrivateKey = backup.githubPrivateKey,
+                    githubInstallationId = backup.githubInstallationId,
+                    githubRepositorySelection = backup.githubRepositorySelection,
+                    lastSyncedAt = stored?.lastSyncedAt,
+                    syncError = stored?.syncError,
+                    rateLimitRemaining = stored?.rateLimitRemaining,
                 )
             if (stored == null) entityTemplate.insert(connection).awaitSingle() else repository.save(connection)
             replaceProjects(connection.id, if (checked.allProjects) emptyList() else checked.projectIds.filter { it in existingProjects })
         }
     }
 
-    private fun GitConnectionBackup.toInput() = GitConnectionInput(name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone)
+    private fun GitConnectionBackup.toInput() =
+        GitConnectionInput(name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone, receiveMode, githubOrganization)
 
     // --- rules ----------------------------------------------------------------------------------
 
@@ -276,6 +324,15 @@ class GitConnectionService(
         } else if (!isHttpUrl(baseUrl)) {
             errors += FieldError("baseUrl", "INVALID_URL", "http:// 또는 https:// 로 시작하는 주소를 입력하세요")
         }
+        val organization = input.githubOrganization?.trim()?.takeIf { it.isNotEmpty() }
+        if (provider == GitProviderType.GITHUB) {
+            when {
+                organization == null -> errors += FieldError("githubOrganization", "REQUIRED", "GitHub 조직 이름을 입력하세요")
+                !GITHUB_ORGANIZATION.matches(organization) -> errors += FieldError("githubOrganization", "INVALID", "GitHub 조직 이름은 영문, 숫자, - 로 된 39자 이하여야 합니다")
+            }
+        } else if (input.receiveMode == GitReceiveMode.POLL) {
+            errors += FieldError("receiveMode", "UNSUPPORTED", "API 로 가져오기는 GitHub 에서만 됩니다")
+        }
         val projectIds = if (input.allProjects) emptyList() else input.projectIds.distinct()
         if (!input.allProjects && requireProjects) {
             if (projectIds.isEmpty()) {
@@ -285,7 +342,12 @@ class GitConnectionService(
             }
         }
         if (errors.isNotEmpty()) throw ValidationException(errors)
-        return input.copy(name = name, baseUrl = baseUrl, projectIds = projectIds)
+        return input.copy(
+            name = name,
+            baseUrl = baseUrl,
+            projectIds = projectIds,
+            githubOrganization = organization.takeIf { provider == GitProviderType.GITHUB },
+        )
     }
 
     private fun isHttpUrl(value: String): Boolean {
@@ -363,7 +425,8 @@ class GitConnectionService(
 
     companion object {
         /** The kinds of server this version can receive events from (docs/features/git-integration.md "구현 순서"). */
-        val SUPPORTED_PROVIDERS = setOf(GitProviderType.GITEA, GitProviderType.GITLAB)
+        val SUPPORTED_PROVIDERS = setOf(GitProviderType.GITEA, GitProviderType.GITLAB, GitProviderType.GITHUB)
+        private val GITHUB_ORGANIZATION = Regex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
         const val GITHUB_URL = "https://github.com"
         private const val SECRET_BYTES = 32
         private const val SECRET_MAX_LENGTH = 256

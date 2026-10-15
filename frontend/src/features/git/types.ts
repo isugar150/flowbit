@@ -1,8 +1,26 @@
 /** docs/features/git-integration.md. Gitea covers Forgejo too. */
 export type GitProvider = "GITEA" | "GITLAB" | "GITHUB";
 
-/** The kinds that are connected by a webhook address and secret; GitHub is connected as a GitHub App. */
-export const GIT_PROVIDERS: GitProvider[] = ["GITEA", "GITLAB"];
+/** Gitea and GitLab are connected by a webhook address and secret; GitHub as a GitHub App (D-146). */
+export const GIT_PROVIDERS: GitProvider[] = ["GITEA", "GITLAB", "GITHUB"];
+
+/** WEBHOOK: the server calls Flowbit. POLL: Flowbit reads the GitHub API every few minutes (GitHub only). */
+export type GitReceiveMode = "WEBHOOK" | "POLL";
+
+/** A connection's GitHub App and where it is installed. */
+export type GitHubApp = {
+  organization: string | null;
+  /** Null until the app is made. */
+  appId: number | null;
+  appSlug: string | null;
+  appUrl: string | null;
+  installUrl: string | null;
+  settingsUrl: string | null;
+  /** Null until the app is installed on the organization. */
+  installationId: number | null;
+  /** "all" or "selected". */
+  repositorySelection: string | null;
+};
 
 /** What the last call from the Git server did. */
 export type GitReceiptResult = {
@@ -33,7 +51,14 @@ export type GitConnection = {
   lastError: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Only in the response that made the connection. */
+  receiveMode: GitReceiveMode;
+  /** GitHub connections only. */
+  github?: GitHubApp;
+  /** When the GitHub API was last read (POLL), what went wrong then, and the calls left this hour. */
+  lastSyncedAt: string | null;
+  syncError: string | null;
+  rateLimitRemaining: number | null;
+  /** Only in the response that made the connection (not for GitHub, whose app holds its own). */
   secret?: string;
 };
 
@@ -46,7 +71,13 @@ export type GitConnectionInput = {
   projectIds: string[];
   autoInProgress: boolean;
   autoDone: boolean;
+  receiveMode: GitReceiveMode;
+  /** GitHub only: the organization the app is made for. */
+  githubOrganization: string;
 };
+
+/** What the browser posts to GitHub to make the app. */
+export type GitHubManifestForm = { action: string; manifest: string };
 
 export type GitPrState = "OPEN" | "DRAFT" | "MERGED" | "CLOSED";
 

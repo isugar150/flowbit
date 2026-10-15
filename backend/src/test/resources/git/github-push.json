@@ -1,0 +1,152 @@
+{
+  "ref": "refs/heads/kimjm/fb-1-login-error",
+  "before": "0000000000000000000000000000000000000000",
+  "after": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+  "repository": {
+    "id": 12001,
+    "node_id": "R_kgDOAAAA",
+    "name": "web",
+    "full_name": "acme/web",
+    "private": true,
+    "owner": {
+      "login": "acme",
+      "id": 3001,
+      "node_id": "MDQ6VXNlcj3001",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3001?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/acme",
+      "html_url": "https://github.com/acme",
+      "type": "Organization",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "html_url": "https://github.com/acme/web",
+    "description": null,
+    "fork": false,
+    "url": "https://api.github.com/repos/acme/web",
+    "created_at": "2025-03-02T00:10:00Z",
+    "updated_at": "2026-10-16T01:12:00Z",
+    "pushed_at": "2026-10-16T01:12:00Z",
+    "git_url": "git://github.com/acme/web.git",
+    "ssh_url": "git@github.com:acme/web.git",
+    "clone_url": "https://github.com/acme/web.git",
+    "size": 2048,
+    "language": "TypeScript",
+    "has_issues": true,
+    "default_branch": "main",
+    "visibility": "private",
+    "archived": false,
+    "disabled": false
+  },
+  "pusher": {
+    "name": "kimjm",
+    "email": "5001+kimjm@users.noreply.github.com"
+  },
+  "organization": {
+    "login": "acme",
+    "id": 3001,
+    "node_id": "O_kgDOAAAA",
+    "url": "https://api.github.com/orgs/acme",
+    "repos_url": "https://api.github.com/orgs/acme/repos",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3001?v=4",
+    "description": ""
+  },
+  "installation": {
+    "id": 555,
+    "node_id": "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNTU1"
+  },
+  "sender": {
+    "login": "kimjm",
+    "id": 5001,
+    "node_id": "MDQ6VXNlcj5001",
+    "avatar_url": "https://avatars.githubusercontent.com/u/5001?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/kimjm",
+    "html_url": "https://github.com/kimjm",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "created": true,
+  "deleted": false,
+  "forced": false,
+  "base_ref": null,
+  "compare": "https://github.com/acme/web/compare/kimjm/fb-1-login-error",
+  "commits": [
+    {
+      "id": "9f2c1e0b7d4a3c6e8f1a2b3c4d5e6f708192a3b4",
+      "tree_id": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+      "distinct": true,
+      "message": "로그인 화면의 세션 만료 처리\n\n세션이 끝나면 로그인 화면으로 보낸다",
+      "timestamp": "2026-10-16T10:05:00+09:00",
+      "url": "https://github.com/acme/web/commit/9f2c1e0b7d4a3c6e8f1a2b3c4d5e6f708192a3b4",
+      "author": {
+        "name": "김지민",
+        "email": "kimjm@example.com",
+        "date": "2026-10-16T10:05:00+09:00",
+        "username": "kimjm"
+      },
+      "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com",
+        "date": "2026-10-16T10:05:00+09:00",
+        "username": "web-flow"
+      },
+      "added": [],
+      "removed": [],
+      "modified": [
+        "src/login.ts"
+      ]
+    },
+    {
+      "id": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+      "tree_id": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+      "distinct": true,
+      "message": "오류 문구 수정",
+      "timestamp": "2026-10-16T10:11:00+09:00",
+      "url": "https://github.com/acme/web/commit/1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+      "author": {
+        "name": "김지민",
+        "email": "kimjm@example.com",
+        "date": "2026-10-16T10:11:00+09:00",
+        "username": "kimjm"
+      },
+      "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com",
+        "date": "2026-10-16T10:11:00+09:00",
+        "username": "web-flow"
+      },
+      "added": [],
+      "removed": [],
+      "modified": [
+        "src/login.ts"
+      ]
+    }
+  ],
+  "head_commit": {
+    "id": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+    "tree_id": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+    "distinct": true,
+    "message": "오류 문구 수정",
+    "timestamp": "2026-10-16T10:11:00+09:00",
+    "url": "https://github.com/acme/web/commit/1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+    "author": {
+      "name": "김지민",
+      "email": "kimjm@example.com",
+      "date": "2026-10-16T10:11:00+09:00",
+      "username": "kimjm"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-16T10:11:00+09:00",
+      "username": "web-flow"
+    },
+    "added": [],
+    "removed": [],
+    "modified": [
+      "src/login.ts"
+    ]
+  }
+}

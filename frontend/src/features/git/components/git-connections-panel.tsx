@@ -15,6 +15,7 @@ import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createGitConnection, deleteGitConnection, regenerateGitSecret, updateGitConnection } from "../api";
 import { GIT_PROVIDERS, type GitConnection, type GitConnectionInput } from "../types";
+import { GitHubAppDetails } from "./github-app-details";
 
 const m = messages.git;
 
@@ -27,12 +28,28 @@ const EMPTY: GitConnectionInput = {
   projectIds: [],
   autoInProgress: true,
   autoDone: true,
+  receiveMode: "WEBHOOK",
+  githubOrganization: "",
 };
 
 function inputOf(connection: GitConnection): GitConnectionInput {
-  const { name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone } = connection;
-  return { name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone };
+  const { name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone, receiveMode } = connection;
+  return {
+    name,
+    enabled,
+    provider,
+    // github.com is the default; only a GitHub Enterprise Server address is worth showing.
+    baseUrl: provider === "GITHUB" && baseUrl === GITHUB_COM ? "" : baseUrl,
+    allProjects,
+    projectIds,
+    autoInProgress,
+    autoDone,
+    receiveMode,
+    githubOrganization: connection.github?.organization ?? "",
+  };
 }
+
+const GITHUB_COM = "https://github.com";
 
 /**
  * The Git servers whose webhooks reach Flowbit (docs/features/git-integration.md "관리자 설정").
@@ -79,7 +96,11 @@ export function GitConnectionsPanel({ connections, projects }: { connections: Gi
               </div>
               {open === connection.id ? (
                 <div className="flex flex-col gap-7">
-                  <WebhookDetails connection={connection} secret={secrets[connection.id]} onSecret={(secret) => reveal(connection.id, secret)} />
+                  {connection.provider === "GITHUB" ? (
+                    <GitHubAppDetails connection={connection} />
+                  ) : (
+                    <WebhookDetails connection={connection} secret={secrets[connection.id]} onSecret={(secret) => reveal(connection.id, secret)} />
+                  )}
                   <ConnectionForm connection={connection} projects={projects} onDone={() => setOpen(null)} />
                 </div>
               ) : null}
@@ -93,7 +114,7 @@ export function GitConnectionsPanel({ connections, projects }: { connections: Gi
           <ConnectionForm
             projects={projects}
             onDone={() => setOpen(null)}
-            onCreated={(created) => created.secret && reveal(created.id, created.secret)}
+            onCreated={(created) => (created.provider === "GITHUB" || !created.secret ? setOpen(created.id) : reveal(created.id, created.secret))}
           />
         </div>
       ) : (
@@ -110,6 +131,23 @@ export function GitConnectionsPanel({ connections, projects }: { connections: Gi
 
 /** When the Git server last called, and what came of it. */
 function LastReceipt({ connection }: { connection: GitConnection }) {
+  if (connection.provider === "GITHUB") {
+    if (connection.github?.appId == null) return <>{m.github.notMade}</>;
+    if (connection.github.installationId == null) return <>{m.github.notInstalled}</>;
+    if (connection.receiveMode === "POLL") {
+      if (!connection.lastSyncedAt) return <>{m.github.neverSynced}</>;
+      return (
+        <>
+          {m.github.lastSynced} <TimeAgo iso={connection.lastSyncedAt} /> ·{" "}
+          {connection.syncError
+            ? m.github.syncError(connection.syncError)
+            : connection.lastResult
+              ? m.lastResult(connection.lastResult.linkedIssues.length, connection.lastResult.statusChanged.length)
+              : m.lastIgnored}
+        </>
+      );
+    }
+  }
   if (!connection.lastReceivedAt) return <>{m.neverReceived}</>;
   const result = connection.lastResult;
   const outcome = connection.lastError
@@ -236,6 +274,7 @@ function ConnectionForm({
     save.reset();
   };
   const failure = [save, remove].find((mutation) => mutation.isError && Object.keys(fieldErrorsOf(mutation.error)).length === 0);
+  const github = form.provider === "GITHUB";
 
   return (
     <form
@@ -255,19 +294,45 @@ function ConnectionForm({
           label={m.provider}
           value={form.provider}
           options={GIT_PROVIDERS.map((value) => ({ value, label: m.providers[value] }))}
-          onChange={(v) => set("provider", v)}
+          onChange={(v) => {
+            set("provider", v);
+            // Only GitHub can be read through its API.
+            if (v !== "GITHUB") set("receiveMode", "WEBHOOK");
+          }}
         />
+        {github ? (
+          <TextSetting
+            id={`${prefix}-githubOrganization`}
+            label={m.github.organization}
+            hint={m.github.organizationHint}
+            placeholder="acme"
+            value={form.githubOrganization}
+            error={errors.githubOrganization}
+            onChange={(v) => set("githubOrganization", v)}
+          />
+        ) : null}
         <TextSetting
           id={`${prefix}-baseUrl`}
           wide
           type="url"
-          label={m.baseUrl}
-          hint={m.baseUrlHint}
-          placeholder="https://git.example.com"
+          label={github ? m.github.serverUrl : m.baseUrl}
+          hint={github ? m.github.serverUrlHint : m.baseUrlHint}
+          placeholder={github ? GITHUB_COM : "https://git.example.com"}
           value={form.baseUrl}
           error={errors.baseUrl}
           onChange={(v) => set("baseUrl", v)}
         />
+        {github ? (
+          <SegmentedSetting
+            label={m.github.receiveMode}
+            value={form.receiveMode}
+            options={[
+              { value: "WEBHOOK", label: m.github.receive.WEBHOOK, description: m.github.webhookOption },
+              { value: "POLL", label: m.github.receive.POLL, description: m.github.pollOption },
+            ]}
+            onChange={(v) => set("receiveMode", v)}
+          />
+        ) : null}
         <CheckSetting id={`${prefix}-enabled`} wide label={m.enabled} checked={form.enabled} onChange={(v) => set("enabled", v)} />
       </FieldSection>
 
