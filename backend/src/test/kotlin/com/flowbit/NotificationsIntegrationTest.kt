@@ -497,6 +497,8 @@ class NotificationsIntegrationTest : IntegrationTest() {
         @DynamicPropertySource
         fun properties(registry: DynamicPropertyRegistry) {
             registry.add("flowbit.notifications.fcm-url") { outside }
+            // Every change goes out at once here; holding and merging (D-126) has tests of its own.
+            registry.add("flowbit.notifications.batch-delay") { "0s" }
         }
     }
 }

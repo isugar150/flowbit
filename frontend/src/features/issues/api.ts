@@ -93,3 +93,11 @@ export function deleteDocument(id: string): Promise<void> {
 export function restoreDocument(id: string): Promise<void> {
   return apiFetch<void>(`/api/v1/documents/${id}/restore`, { method: "POST" });
 }
+
+/**
+ * The person has left the issue: what they changed on it goes out to its followers now, as one
+ * notification, instead of after a minute of quiet (D-126).
+ */
+export function flushIssueNotifications(number: number): Promise<void> {
+  return apiFetch<void>(`/api/v1/issues/${number}/notifications/flush`, { method: "POST" });
+}

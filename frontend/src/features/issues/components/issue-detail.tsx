@@ -15,6 +15,7 @@ import type { IssueActivityFeed, IssueDetail as IssueDetailData, Label } from ".
 import { IssueActivity } from "./issue-activity";
 import { IssueAttachments } from "./issue-attachments";
 import { IssueBody } from "./issue-body";
+import { IssueLeaveNotifier } from "./issue-leave-notifier";
 import { DeleteIssueButton, DeletedIssueBanner } from "./issue-deletion";
 import { IssueProperties } from "./issue-properties";
 import { IssueReactions } from "./issue-reactions";
@@ -55,6 +56,8 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
     <div className="flex flex-1 flex-col gap-8 p-4 pt-1 sm:p-5 sm:pt-1 lg:flex-row lg:items-start lg:gap-6">
       {/* Presence on an issue is about this issue, not the list behind it. */}
       <RealtimeScope topics={[`issue:${issue.number}`]} presence={`issue:${issue.number}`} priority={1} />
+      {/* Only someone who can change the issue has changes waiting to be announced. */}
+      {canEdit ? <IssueLeaveNotifier number={issue.number} /> : null}
       <article className="flex w-full min-w-0 flex-1 flex-col gap-5 px-1">
         <DialogTitle className="sr-only">{`${issue.key} ${issue.title}`}</DialogTitle>
         <DocumentTitle title={`${issue.key} ${issue.title}`} />

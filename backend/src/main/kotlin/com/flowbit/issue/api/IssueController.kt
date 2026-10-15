@@ -377,6 +377,14 @@ class IssueAnnouncer(
         )
     }
 
+    /** The person left the issue (closed it): what they did to it and is still held goes out now (D-126). */
+    fun left(
+        user: AuthenticatedUser,
+        number: Int,
+    ) {
+        notifications.flush(number, user.id)
+    }
+
     /** A document changed; whoever shows the issue or the project it belongs to should read again. */
     fun documentChanged(
         user: AuthenticatedUser,
@@ -449,6 +457,20 @@ class IssueController(
         announcer.changed(user, change)
         change.issue.parent?.let { announcer.touched(user, it.number) }
         return IssueResponse.from(change.issue)
+    }
+
+    /**
+     * The caller closed the issue: the notification about what they did to it goes out now instead
+     * of after a minute of quiet (D-126). Only the caller's own held changes; nothing to see, so no
+     * access check is needed.
+     */
+    @PostMapping("/{number}/notifications/flush")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun flushNotifications(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+    ) {
+        announcer.left(user, number)
     }
 
     /**

@@ -20,8 +20,9 @@ type PagePerson = PersonLike & { id: string; lastSeenAt: string | null };
 type Shown = PagePerson & { online: boolean };
 
 /**
- * Everyone who belongs on this page, as a row of avatars: the signed-in person, the people who have it open right
- * now first, then the others from whoever looked last, dimmed. Pointing at one (or giving it
+ * The people of this page who have looked at it, as a row of avatars: the signed-in person, the
+ * people who have it open right now first, then the others from whoever looked last, dimmed. Those
+ * who have never opened it are left out (the user's call, 2026-10-15). Pointing at one (or giving it
  * focus) brings it forward and says at once whether they are looking now or when they last did.
  * The signed-in person comes first.
  *
@@ -53,8 +54,10 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
   const people: Shown[] = [
     ...(me ? [{ ...me, lastSeenAt: null, online: true }] : []),
     ...viewers.map((viewer) => ({ ...viewer, lastSeenAt: null, online: true })),
-    // Already in the order they last looked, those who never did at the end.
-    ...(members.data ?? []).filter((person) => person.id !== userId && !online.has(person.id)).map((person) => ({ ...person, online: false })),
+    // Already in the order they last looked. Those who never did are not shown.
+    ...(members.data ?? [])
+      .filter((person) => person.id !== userId && !online.has(person.id) && person.lastSeenAt !== null)
+      .map((person) => ({ ...person, online: false })),
   ];
   if (pageKey === null || people.length === 0) return null;
   const shown = people.slice(0, MAX_SHOWN);
@@ -87,14 +90,12 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
           <TooltipContent sideOffset={12} className="flex flex-col items-center">
             <span className="font-medium">{personName(person)}</span>
             <span className="opacity-80">
-              {person.online ? (
+              {person.online || !person.lastSeenAt ? (
                 m.viewingNow
-              ) : person.lastSeenAt ? (
+              ) : (
                 <>
                   {m.lastSeen}: <TimeAgo iso={person.lastSeenAt} />
                 </>
-              ) : (
-                m.neverSeen
               )}
             </span>
           </TooltipContent>

@@ -167,6 +167,20 @@
 
 ## 작업 기록
 
+### 2026-10-15 — 티켓 알림을 모아서 한 통으로 (D-126)
+
+- 사용자 지시: 티켓을 고칠 때마다 알림이 바로 가서 초기 설정 중에는 4~5통이 한꺼번에 간다. 1분 동안 반응이 없거나 티켓을 닫으면 한 메시지로 보내라.
+- 한 일
+  - 백엔드: `notification/Notifications.kt` 의 `NotificationDispatcher` 가 (티켓 번호, 바꾼 사람)마다 메모리에 모으고 마지막 변경 뒤 1분(`flowbit.notifications.batch-delay`) 또는 첫 변경 뒤 10분(`batch-max-delay`)에 보낸다. `flush`, 꺼질 때 5초 동안 보내 보기. 합치는 규칙 `NotificationMerge`(같은 파일). `POST /api/v1/issues/{번호}/notifications/flush`(204, `IssueAnnouncer.left`). `application.yml` 에 두 설정.
+  - 프런트: `issue-leave-notifier.tsx`(티켓 창이 닫히거나 다른 티켓으로 바뀌면 1초 뒤 flush. 그 사이 마지막 본문 저장이 먼저 닿게), `api.ts` 의 `flushIssueNotifications`. 편집 권한이 있을 때만 그린다.
+  - 테스트: `notification/NotificationBatchingTest`(단위 5개: 합치기, 조용해진 뒤 보내기, 닫으면 바로·최대 시간, 꺼질 때), `NotificationFlushIntegrationTest`(만들고 세 번 고친 뒤 닫으면 웹훅 한 번, 다른 사람의 flush 로는 안 감). 기존 `NotificationsIntegrationTest` 는 `batch-delay=0s` 로 전처럼 바로 보낸다.
+  - 문서: 09 D-126, M7a "보내는 방식", 02 "알림".
+- 확인: `./gradlew check` 통과(테스트 193개). 프런트 `typecheck`·`lint`·`next build`. **화면과 실제 메일·푸시로는 확인하지 않았다.**
+- 알아둘 것
+  - 새 티켓 창에서 만들기만 하고 티켓을 열지 않으면 1분 뒤에 간다(그 사이 연 티켓에서 고친 것과 합쳐진다).
+  - 댓글과 `@` 태그도 같이 묶여서 태그된 사람이 최대 1분(계속 고치면 10분) 늦게 받는다. 바로 보내야 하면 댓글만 묶음에서 빼는 것을 사용자에게 물어볼 것.
+  - 서버를 여러 대 띄우면 묶음이 서버마다 따로다(지금은 한 대 전제).
+
 ### 2026-10-15 — 티켓 상세의 하위 티켓: 5개까지와 더 보기, 진행률
 
 - 사용자 지시: 하위 티켓은 5개 정도까지 보이고 아래에 더보기 버튼, 하위 티켓의 진행률도 표시.
