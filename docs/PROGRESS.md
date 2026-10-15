@@ -168,6 +168,19 @@
 
 ## 작업 기록
 
+### 2026-10-15 — 워크스페이스 관리자도 구성원인 프로젝트에만 (D-131)
+
+- 사용자 지적: 권한 없는 사용자(서비스 관리자)가 프로젝트 화면을 그대로 본다. 권한 없으면 요청 버튼만 보여야 한다. 관리 역할이 아닌데 설정 메뉴가 보인다. 서비스 관리자라도 권한 있는 프로젝트만.
+- 한 일: `ProjectService.effectiveRole` 에서 관리자 = 관리 역할을 없앴다(구성원 역할만). 티켓 목록의 `seesAllProjects` 는 늘 false, 프로젝트 구독 알림의 관리자 예외 삭제. 관리자 설정 > 구성원의 프로젝트 권한은 새 API `PUT/DELETE /api/v1/admin/members/{id}/projects/{projectId}`(`ProjectService.adminPutMember`·`adminRemoveMember`, 프런트 `setMemberProjectRole`). 프로젝트 탭의 "설정"은 관리 역할에게만, 설정 주소는 관리 역할이 아니면 개요로 redirect.
+- 테스트: `ProjectsIntegrationTest` 의 관리자 테스트를 새 규칙으로 다시 썼고(목록엔 보이나 404, 관리자 API 로 권한 지정), 아카이브 복원 테스트의 관리자 기대값을 403 으로.
+- 확인: `./gradlew check` 에서 이 한 테스트를 뺀 194개 통과, 고친 뒤 `ProjectsIntegrationTest` 통과. 프런트 `typecheck`·`lint`, 도커 이미지 안의 `next build`. 화면은 확인하지 않았다.
+
+### 2026-10-15 — Docker 이미지 빌드 속도
+
+- 사용자 요청: `script/push.sh` 가 228초 걸린다(빌드 로그 제공). 원인은 `amazoncorretto:25` 의 새 버전 때문에 백엔드 단계가 전부 다시 돈 것(dnf 59초, 의존성 52초, 컴파일 52초)과 캐시 없는 `next build` 80초.
+- 한 일 (`Dockerfile`): dnf 삭제(Gradle 을 wrapper jar 로 실행, `find` 대신 셸 반복문), Gradle·npm·Next.js 캐시 마운트, jar 를 층으로 풀기(`jarmode=tools extract --layers`, 실행은 그대로 `java -jar /app/backend/app.jar`), standalone `node_modules` 를 따로 COPY, `entrypoint.sh` 는 `COPY --chmod`. 02 "Docker 이미지".
+- 확인: 로컬 빌드 성공(푸시는 하지 않음), 캐시가 찬 뒤 108초(`next build` 30초), 이미지 안에서 `java -jar` 가 DB 연결 단계까지 뜨는 것과 파일 배치(`lib/` 124개, `server.js`, `node_modules`). **실제 `push.sh` 로 올리는 것과 서버 배포는 해 보지 않았다.** 첫 빌드는 캐시가 비어 있어 오래 걸린다.
+
 ### 2026-10-15 — 개요 구성원 카드의 "나" 자리, 사이드바는 직접 구성원인 프로젝트만
 
 - 사용자 지적(화면 캡처): 개요의 구성원 카드에서 "나" 표시가 이름과 떨어져 오른쪽에 떠 있다. 사이드바에 내가 구성원이 아닌 프로젝트가 보인다(전체 프로젝트에서만 보여야 한다).

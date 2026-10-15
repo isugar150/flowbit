@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SettingsSection } from "@/components/settings-section";
 import type { UserSummary } from "@/features/members/types";
 import { ArchiveProjectSection } from "@/features/projects/components/archive-project-section";
@@ -21,7 +21,9 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
     serverGet<ProjectMember[]>(`${path}/members`),
   ]);
   if (!members) notFound();
-  const canManage = project.myRole === "MANAGER";
+  // Only the project's managers have settings to look at (D-131); others go to the overview.
+  if (project.myRole !== "MANAGER") redirect(`/project/${project.id}`);
+  const canManage = true;
   // The list of people to add, and who is waiting to be let in, are only for those who can add.
   const [users, requests] = canManage
     ? await Promise.all([

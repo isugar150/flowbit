@@ -7,11 +7,10 @@ import {
 } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import { putProjectMember, removeProjectMember } from "@/features/projects/api";
 import type { ProjectRole } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
-import { memberProjectRoles, type MemberProjectRole } from "../api";
+import { memberProjectRoles, setMemberProjectRole, type MemberProjectRole } from "../api";
 
 const m = messages.members;
 const NONE = "NONE";
@@ -38,9 +37,7 @@ export function MemberProjectRoles({ memberId }: { memberId: string }) {
       projectId: string;
       role: ProjectRole | null;
     }): Promise<void> => {
-      if (role)
-        await putProjectMember({ id: projectId, userId: memberId, role });
-      else await removeProjectMember({ id: projectId, userId: memberId });
+      await setMemberProjectRole({ memberId, projectId, role });
     },
     // The picked role shows right away; a refused one goes back to what it was.
     onMutate: async ({ projectId, role }) => {

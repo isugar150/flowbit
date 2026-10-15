@@ -184,8 +184,8 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 
 | 단계 | 바탕 | 내용 |
 |---|---|---|
-| 백엔드 빌드 | `amazoncorretto:25` | `bootJar` (테스트는 빼고). Gradle wrapper 가 쓰는 `xargs` 때문에 `findutils` 를 깐다 |
-| 프런트 빌드 | `node:22-bookworm-slim` | `npm ci` → `next build` (standalone 출력) |
+| 백엔드 빌드 | `amazoncorretto:25` | `bootJar` (테스트는 빼고). Gradle 은 `gradlew` 스크립트가 아니라 wrapper jar 로 띄운다(`java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain`): 스크립트가 쓰는 `xargs` 를 깔려고 `dnf install findutils` 를 하던 것이 바탕 이미지가 바뀔 때마다 약 1분 걸렸다. 그래서 이 단계에서는 `find`·`xargs` 를 쓰지 않는다. 만든 jar 는 Spring Boot 의 `jarmode=tools extract --layers` 로 라이브러리·로더·애플리케이션 층으로 나눈다 |
+| 프런트 빌드 | `node:22-bookworm-slim` | `npm ci` → `next build` (standalone 출력). standalone 의 `node_modules` 는 따로 떼어 실행 이미지에서 다른 층으로 넣는다 |
 | 실행 | `debian:bookworm-slim` | 작은 Debian 에 **Amazon Corretto 25 와 Node.js 22 두 가지만** 더한다. 각각의 공식 이미지에서 복사한다(`/opt/corretto-25`, `/usr/local/bin/node`). 비루트 사용자 `flowbit`. Debian(glibc)인 것은 WebP 변환기 때문이다. **JDK 의 인증서 저장소(`cacerts`)를 따로 복사한다**(`/etc/pki/java/cacerts`): Corretto 이미지에서 `lib/security/cacerts` 는 시스템 파일로 가는 링크라 폴더만 가져오면 끊긴 링크가 되고, 밖으로 나가는 HTTPS(SSO, API 알림, FCM, LDAPS)가 전부 `trustAnchors parameter must be non-empty` 로 실패한다(2026-10-13 에 SSO 로그인에서 겪었다). 시스템 패키지는 `libjpeg62-turbo` 하나를 깐다: Corretto 의 JPEG 읽기(`libjavajpeg.so`)가 시스템 libjpeg 에 기대는데 JDK 폴더만 복사해서는 따라오지 않는다. 없으면 JPEG 을 올릴 때 `UnsatisfiedLinkError` 로 요청이 응답 없이 끊긴다(2026-10-13 에 로고 올리기에서 겪었다) |
 
 - **컨테이너 안에서 두 프로세스가 돈다**: `docker/entrypoint.sh` 가 백엔드(`java -jar`, 8080)와 프런트(`node server.js`, 3000)를 띄운다. 둘 중 하나가 죽으면 나머지도 내리고 컨테이너가 끝나므로 재시작 정책이 둘을 함께 다시 올린다. `docker stop` 의 종료 신호는 둘 다에게 넘긴다.
@@ -193,6 +193,7 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 - 프런트는 `BACKEND_URL=http://127.0.0.1:8080` 으로 빌드된다(`/api` rewrite 주소가 빌드 결과에 들어간다). 같은 컨테이너 안이라 바꿀 일이 없다.
 - 넣어 줘야 하는 환경 변수: `FLOWBIT_DB_HOST`, `FLOWBIT_DB_PORT`, `FLOWBIT_DB_NAME`, `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD`, 그리고 선택으로 `FLOWBIT_PUBLIC_URL`, `FLOWBIT_MAX_UPLOAD_SIZE`. 올린 파일은 `/var/lib/flowbit/uploads`(볼륨, **백업 대상**).
 - 루트의 `.dockerignore` 가 빌드에 보내는 것을 `backend/`, `frontend/`, `docker/entrypoint.sh` 로 줄인다.
+- **빌드 속도** (2026-10-15): BuildKit 캐시 마운트로 빌드 사이에 남겨 두는 것: Gradle 홈(`/root/.gradle`: 배포판·의존성)과 프로젝트의 `build/`·`.gradle/`(바뀐 것만 다시 컴파일), npm 캐시(`/root/.npm`), Next.js 의 `.next/cache`(Turbopack 빌드 캐시, 16.4 에서 기본으로 켜짐). 그래서 바탕 이미지(`amazoncorretto:25` 등)가 새로 나와도 처음부터 내려받지 않는다. 실행 이미지에서 백엔드는 `/app/backend/app.jar` + `lib/`(층별 COPY), 프런트는 `node_modules` 를 먼저 COPY 해서, 코드만 바뀐 푸시는 바뀐 층만 올린다. 캐시 마운트는 `docker builder prune` 으로 지워지고, `docker build --no-cache` 는 캐시 마운트도 쓰지 않는다. 잰 것: 바탕 이미지가 바뀐 빌드가 228초였다(dnf 59초, 의존성 52초, 컴파일 52초, `next build` 80초). 고친 뒤 캐시가 찬 상태에서 코드를 바꾼 빌드는 108초였고(그때 다른 작업이 함께 돌고 있었다) `next build` 는 30초였다.
 - `next.config.ts` 에 `output: "standalone"` 을 두었다. `next dev`, `next start` 에는 영향이 없다.
 - 이미지 크기는 약 1.1GB 로 표시된다(JDK 전체 약 330MB, Node 약 120MB). 더 줄이려면 `jlink` 로 필요한 모듈만 든 런타임을 만들 수 있으나 하지 않았다.
 - 확인함(2026-10-13): 빌드, 임시 PostgreSQL 18 에 붙여 실행, `GET /api/v1/health` 응답(시작 약 7초), 스키마 생성, `/setup` 화면과 정적 파일, `java -version`(Corretto 25), `node -v`(22), 비루트 실행, `docker stop` 으로 종료(약 9초).

@@ -366,14 +366,41 @@ data class MemberProjectRoleResponse(
 )
 
 /**
- * Everything under `/api/v1/admin` requires the ADMIN role (SecurityConfig). Changing a role goes
- * through the ordinary project member endpoints, which administrators may use on every project.
+ * Everything under `/api/v1/admin` requires the ADMIN role (SecurityConfig). An administrator is
+ * not a member of every project (D-131), so this screen has endpoints of its own for setting one
+ * person's role in any project.
  */
 @RestController
 @RequestMapping("/api/v1/admin/members")
 class AdminMemberProjectsController(
     private val projectService: ProjectService,
+    private val realtime: RealtimeHub,
 ) {
+    @PutMapping("/{memberId}/projects/{projectId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun putRole(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable memberId: UUID,
+        @PathVariable projectId: UUID,
+        @RequestBody body: PutProjectMemberRequest,
+    ) {
+        projectService.adminPutMember(projectId, memberId, body.role)
+        realtime.publish("project:$projectId", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
+    }
+
+    @DeleteMapping("/{memberId}/projects/{projectId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun removeRole(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable memberId: UUID,
+        @PathVariable projectId: UUID,
+    ) {
+        projectService.adminRemoveMember(projectId, memberId)
+        realtime.publish("project:$projectId", user.id)
+        realtime.publish(RealtimeHub.PROJECTS, user.id)
+    }
+
     @GetMapping("/{memberId}/projects")
     suspend fun projects(
         @PathVariable memberId: UUID,

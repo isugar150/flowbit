@@ -77,13 +77,25 @@ class ProjectsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `워크스페이스 관리자는 구성원이 아닌 프로젝트도 보고 관리할 수 있다`() {
+    fun `워크스페이스 관리자도 구성원이 아닌 프로젝트에는 들어갈 수 없고 관리자 화면에서만 권한을 정한다`() {
         createProject("PAY")
 
-        assertEquals(listOf(p("PAY")), admin.get("/api/v1/projects").jsonList().map { it["id"] })
-        assertEquals("MANAGER", admin.get("/api/v1/projects/${p("PAY")}").json()["myRole"])
-        assertEquals("새 이름", admin.patch("/api/v1/projects/${p("PAY")}", """{"name":"새 이름"}""").json()["name"])
-        assertEquals(200, admin.put("/api/v1/projects/${p("PAY")}/members/$outsiderId", """{"role":"VIEWER"}""").status)
+        // Listed like for anyone, but not entered: an administrator is not a member of every project (D-131).
+        val listed = admin.get("/api/v1/projects").jsonList().single()
+        assertEquals(p("PAY"), listed["id"])
+        assertNull(listed["myRole"])
+        assertEquals(false, listed["member"])
+        assertEquals(404, admin.get("/api/v1/projects/${p("PAY")}").status)
+        assertEquals(404, admin.patch("/api/v1/projects/${p("PAY")}", """{"name":"새 이름"}""").status)
+        assertEquals(404, admin.put("/api/v1/projects/${p("PAY")}/members/$outsiderId", """{"role":"VIEWER"}""").status)
+        assertNull(admin.get("/api/v1/projects/${p("PAY")}/access").json()["myRole"])
+
+        // The administrator screen sets anyone's role in any project.
+        assertEquals(204, admin.put("/api/v1/admin/members/$outsiderId/projects/${p("PAY")}", """{"role":"VIEWER"}""").status)
+        assertEquals("VIEWER", outsider.get("/api/v1/projects/${p("PAY")}").json()["myRole"])
+        assertEquals(204, admin.delete("/api/v1/admin/members/$outsiderId/projects/${p("PAY")}").status)
+        assertEquals(404, outsider.get("/api/v1/projects/${p("PAY")}").status)
+        assertEquals(403, outsider.put("/api/v1/admin/members/$outsiderId/projects/${p("PAY")}", """{"role":"MANAGER"}""").status)
     }
 
     @Test
@@ -219,8 +231,9 @@ class ProjectsIntegrationTest : IntegrationTest() {
         assertEquals(403, outsider.post("/api/v1/projects/${p("PAY")}/archive", "{}").status)
         assertEquals(204, owner.post("/api/v1/projects/${p("PAY")}/archive", "{}").status)
         assertEquals(403, outsider.post("/api/v1/projects/${p("PAY")}/restore", "{}").status)
-        // A workspace administrator manages every project, archived ones included.
-        assertEquals(200, admin.post("/api/v1/projects/${p("PAY")}/restore", "{}").status)
+        // A workspace administrator who is not one of its managers cannot either (D-131).
+        assertEquals(403, admin.post("/api/v1/projects/${p("PAY")}/restore", "{}").status)
+        assertEquals(200, owner.post("/api/v1/projects/${p("PAY")}/restore", "{}").status)
     }
 
     @Test

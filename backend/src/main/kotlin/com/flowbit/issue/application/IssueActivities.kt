@@ -257,8 +257,7 @@ class IssueActivityStore(
                        or exists (
                            select 1 from issues i join project_subscriptions ps on ps.project_id = i.project_id
                            where i.id = :issueId and ps.user_id = u.id
-                             and (u.role = 'ADMIN'
-                                  or exists (select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = u.id))
+                             and exists (select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = u.id)
                        ))
                 order by u.login_id
                 """.trimIndent(),

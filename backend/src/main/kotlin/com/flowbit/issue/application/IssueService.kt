@@ -740,7 +740,8 @@ class IssueService(
 
     private suspend fun detail(number: Int): IssueView? = queries.find(number)?.let { it.copy(content = richText.load(RichText.ContentTable.ISSUES, it.id)) }
 
-    private fun viewer(user: AuthenticatedUser) = Viewer(user.id, seesAllProjects = user.role == UserRole.ADMIN)
+    /** Everyone, administrators included, sees the issues of the projects they are a member of (D-131). */
+    private fun viewer(user: AuthenticatedUser) = Viewer(user.id, seesAllProjects = false)
 
     private suspend fun access(
         user: AuthenticatedUser,

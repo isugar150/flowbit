@@ -42,6 +42,21 @@ export type MemberProjectRole = {
   role: "MANAGER" | "EDITOR" | "VIEWER" | null;
 };
 
+/**
+ * Sets one person's role in a project from the administrator screen, without the administrator
+ * being a member of it (D-131). Null takes them out of the project.
+ */
+export function setMemberProjectRole(input: {
+  memberId: string;
+  projectId: string;
+  role: "MANAGER" | "EDITOR" | "VIEWER" | null;
+}): Promise<void> {
+  const path = `/api/v1/admin/members/${input.memberId}/projects/${input.projectId}`;
+  return input.role
+    ? apiFetch<void>(path, { method: "PUT", body: { role: input.role } })
+    : apiFetch<void>(path, { method: "DELETE" });
+}
+
 export function memberProjectRoles(
   memberId: string,
 ): Promise<MemberProjectRole[]> {

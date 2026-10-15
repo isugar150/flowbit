@@ -389,6 +389,35 @@ class ProjectService(
             .map { it to memberStore.roleOf(it.id, memberId) }
     }
 
+    /**
+     * For the administrator screen that sets one person's project permissions (`/api/v1/admin`
+     * only): adds them to any project in use, or changes their role, without being a member of it
+     * oneself. A project still keeps at least one manager.
+     */
+    @Transactional
+    suspend fun adminPutMember(
+        projectId: UUID,
+        memberId: UUID,
+        role: ProjectRole,
+    ) {
+        val project = repository.findById(projectId)?.takeIf { it.archivedAt == null } ?: throw notFound()
+        userService.findActive(memberId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
+        if (role != ProjectRole.MANAGER) requireAnotherManager(project.id, memberId)
+        memberStore.put(project.id, memberId, role, clock.instant())
+        memberStore.removeAccessRequest(project.id, memberId)
+    }
+
+    /** Takes the person out of a project, from the administrator screen. */
+    @Transactional
+    suspend fun adminRemoveMember(
+        projectId: UUID,
+        memberId: UUID,
+    ) {
+        val project = repository.findById(projectId)?.takeIf { it.archivedAt == null } ?: throw notFound()
+        requireAnotherManager(project.id, memberId)
+        memberStore.remove(project.id, memberId)
+    }
+
     /** Adds a member or changes their role. */
     @Transactional
     suspend fun putMember(
@@ -506,10 +535,15 @@ class ProjectService(
         archivedAt = row.archivedAt,
     )
 
+    /**
+     * What the person may do in a project: their role as a member, nothing more. A workspace
+     * administrator enters only the projects they were added to, like anyone else (D-131).
+     */
+    @Suppress("UNUSED_PARAMETER")
     private fun effectiveRole(
         memberRole: ProjectRole?,
         user: AuthenticatedUser,
-    ): ProjectRole? = if (user.isAdmin) ProjectRole.MANAGER else memberRole
+    ): ProjectRole? = memberRole
 
     private fun detailErrors(
         name: String,
@@ -531,9 +565,6 @@ class ProjectService(
     private fun notFound() = NotFoundException("PROJECT_NOT_FOUND", "프로젝트를 찾을 수 없습니다")
 
     private fun accessRequestNotFound() = NotFoundException("ACCESS_REQUEST_NOT_FOUND", "접근 요청을 찾을 수 없습니다")
-
-    private val AuthenticatedUser.isAdmin: Boolean
-        get() = role == UserRole.ADMIN
 }
 
 private val PROPERTY_FIELDS = listOf("status", "priority", "leadId", "startDate", "targetDate", "labels")
