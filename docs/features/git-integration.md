@@ -117,6 +117,86 @@
 
 **네트워크**: Git 서버가 Flowbit 에 닿아야 한다. 사내 Gitea·GitLab 은 같은 내부망이라 그대로 된다. **GitHub.com 을 쓰려면 Flowbit 의 웹훅 주소가 인터넷에서 열려 있어야 한다**(리버스 프록시에서 이 경로만 열어도 된다).
 
+## GitHub: GitHub App 으로 연결 (D-146)
+
+상태 (2026-10-15): **명세만 있다.** 사용자가 GitHub(github.com)는 조직 웹훅이 아니라 **GitHub App** 으로 붙이기로 정했다. 아래는 GitHub 공식 문서(docs.github.com)를 보고 정리한 등록·연동 방법이다. 이 절이 위의 "Git 서버에 등록하기" 표의 GitHub 칸과 4단계의 GitHub 부분을 대신한다(GitLab 은 그대로 웹훅).
+
+**왜 GitHub App 인가**: 사람 계정에 묶이지 않는 토큰(설치 토큰)을 쓰고, 권한을 저장소 읽기로 좁힐 수 있고, 조직이 고른 저장소에만 설치된다. Flowbit 이 인터넷에서 열려 있으면 웹훅으로 바로 받고, 열려 있지 않으면 같은 앱의 토큰으로 GitHub API 를 주기적으로 읽어 온다. **어느 쪽이든 GitHub 쪽 설정은 한 번이다.** 개인 OAuth 토큰은 그 사람이 나가면 멈추고, 비공개 저장소를 읽으려면 `repo`(쓰기 포함) 권한을 받아야 해서 쓰지 않는다.
+
+### 등록: 앱 만들기 (관리자 화면에서 버튼 하나, "매니페스트 흐름")
+
+GitHub 은 앱 설정을 JSON(매니페스트)으로 넘겨 앱을 만들게 해 준다. 관리자가 칸을 손으로 채우지 않아도 되고, 비공개 키를 내려받아 옮길 일도 없다. 모두 브라우저 이동이라 **Flowbit 이 사내망에만 있어도 된다.**
+
+1. 관리자가 **Git 연동 > 연결 추가 > GitHub** 에서 GitHub 조직 이름(`acme`)과 받는 방식(웹훅/가져오기)을 고르고 "GitHub 에서 앱 만들기"를 누른다.
+2. Flowbit 이 브라우저에서 `https://github.com/organizations/{조직}/settings/apps/new?state={일회용 값}` 로 `manifest` 필드를 POST 한다. 매니페스트:
+   ```json
+   {
+     "name": "Flowbit (회사 이름)",
+     "url": "{FLOWBIT_PUBLIC_URL 또는 브라우저가 연 주소}",
+     "hook_attributes": { "url": "{…}/api/v1/integrations/git/{id}/webhook", "active": true },
+     "redirect_url": "{…}/admin/git/github/created",
+     "setup_url": "{…}/admin/git/github/installed",
+     "public": false,
+     "default_permissions": { "contents": "read", "pull_requests": "read", "metadata": "read" },
+     "default_events": ["push", "pull_request"]
+   }
+   ```
+   가져오기 방식이면 `hook_attributes.active` 를 `false` 로 둔다(이벤트 구독도 비운다).
+3. GitHub 화면에서 관리자가 이름을 확인하고 **Create GitHub App** 을 누른다. **조직 소유자(owner) 권한이 필요하다.** 앱 이름은 GitHub 전체에서 유일하고 34자까지다.
+4. GitHub 이 `redirect_url?code=…&state=…` 로 돌려보낸다. Flowbit 은 `state` 를 확인하고 서버에서 `POST https://api.github.com/app-manifests/{code}/conversions` 를 부른다. 응답의 `id`(앱 ID), `slug`, `client_id`, `client_secret`, `webhook_secret`, `pem`(비공개 키)을 연결에 저장한다. **세 단계를 1시간 안에 끝내야 하고** `code` 는 한 번만 쓴다. 이 호출에 인증이 필요한지는 문서 예시에 헤더가 없어 "필요 없음"으로 보지만, 구현할 때 실제로 확인한다.
+
+손으로 만들 수도 있다(매니페스트가 막힌 조직용 안내): 조직 Settings > Developer settings > GitHub Apps > **New GitHub App** 에서 같은 값을 넣고(Homepage URL, Webhook **Active**·URL·Secret, Permissions 의 Contents·Pull requests **Read-only**, Subscribe to events 의 **Push**·**Pull request**, "Only on this account"), **Generate a private key** 로 받은 `.pem` 과 App ID 를 Flowbit 에 붙여 넣는다.
+
+### 설치: 저장소 고르기
+
+5. 앱을 만든 뒤 Flowbit 이 "조직에 설치" 버튼으로 `https://github.com/apps/{slug}/installations/new` 를 연다. 관리자가 **All repositories** 또는 **Only select repositories** 를 고르고 Install 을 누른다.
+6. GitHub 이 `setup_url?installation_id=…&setup_action=install` 로 돌려보낸다. Flowbit 은 `installation_id` 를 그대로 믿지 않고, 앱 JWT 로 `GET /app/installations` 를 불러 그 설치가 이 앱의 것인지, 대상 조직이 맞는지 확인한 뒤 저장한다.
+7. 저장소를 나중에 더하거나 빼는 것은 GitHub 의 앱 설치 설정에서 한다. 웹훅 방식이면 `installation_repositories` 이벤트로, 가져오기 방식이면 다음 주기의 저장소 목록으로 Flowbit 이 안다.
+
+### 인증 (서버가 GitHub API 를 부를 때)
+
+- **앱 JWT**: RS256 으로 서명. `iat` = 지금 − 60초(시계 차이), `exp` = 지금 + 최대 10분, `iss` = 앱의 client ID(앱 ID 도 된다). `Authorization: Bearer <JWT>`. 설치 토큰을 만들 때와 설치 목록을 볼 때만 쓴다.
+- **설치 토큰**: `POST /app/installations/{installation_id}/access_tokens` (JWT 필요). **1시간 뒤 만료**되므로 만료 몇 분 전에 다시 만든다(메모리에만 두고 DB 에 저장하지 않는다). 본문에 `repositories`(최대 500개)·`permissions` 를 넣어 더 좁힐 수 있다. 토큰 모양이 바뀌는 중(`ghs_…`)이라 길이를 가정하지 않는다.
+- JWT 는 블로킹 없이 만들 수 있다(JDK 의 `Signature`). 바깥 호출은 `WebClient` 에 시간 제한(03-backend-guide).
+- 비밀 값(`pem`, `client_secret`, `webhook_secret`)은 다른 연동 설정처럼 DB 평문(D-090)이고, 화면에는 "설정됨"만 보인다. 백업의 `GIT` 항목에 들어간다.
+
+### 받는 방식 A: 웹훅 (Flowbit 을 인터넷에 열 수 있을 때, 권장)
+
+- 지금의 웹훅 경로를 그대로 쓴다. 헤더 `X-GitHub-Event`(`push`, `pull_request`, `ping`, `installation`, `installation_repositories`), `X-GitHub-Delivery`(배달 GUID), `X-Hub-Signature-256: sha256=<HMAC-SHA256 hex>`(앱의 웹훅 비밀 값). 본문에 `installation.id` 가 있어 어느 설치의 이벤트인지 안다.
+- `ping` 은 앱을 만들 때 한 번 오고 200 으로 무시한다. `installation`(created·deleted·suspend·unsuspend)은 연결 상태를 바꾸는 데 쓴다. GitHub 의 이벤트 본문은 최대 25MB 다. Flowbit 의 한도는 5MB 라, 아주 큰 push 는 413 이 될 수 있다(그때는 한도를 올린다).
+- 본문 모양은 Gitea 와 같아 `ForgePayloads(branchPath = "tree")` 를 쓴다.
+
+### 받는 방식 B: 가져오기 (Flowbit 이 사내망에만 있을 때)
+
+Flowbit 이 `api.github.com` 으로 나가는 연결만 있으면 된다. 실시간이 아니라 **주기(기본 2분)만큼 늦다.** GitHub 은 가능하면 웹훅을 쓰라고 권하고, 가져올 때는 정해진 주기, 조건부 요청, 필요한 것만 읽기를 권한다.
+
+한 주기에 연결마다:
+
+1. `GET /installation/repositories` — 설치된 저장소 목록(ETag).
+2. 저장소마다 `GET /repos/{o}/{r}/pulls?state=all&sort=updated&direction=desc&per_page=50` — 지난번에 본 `updated_at` 보다 새것만 처리하고 오래된 것이 나오면 멈춘다. 목록에는 `merged_at`·`draft`·`head.ref`·`user.login`·`body` 가 있고 **`merged_by` 가 없어**, 새로 머지된 PR 만 `GET /repos/{o}/{r}/pulls/{번호}` 로 한 번 더 읽는다.
+3. 저장소마다 `GET /repos/{o}/{r}/branches?per_page=100` — 키가 든 새 브랜치를 찾는다. 그 브랜치와 기본 브랜치는 `GET /repos/{o}/{r}/commits?sha={브랜치}&since={지난 시각}` 으로 새 커밋을 읽는다.
+4. 읽은 것을 웹훅과 같은 `GitPush`·`GitPullRequest` 로 바꿔 `GitLinkService.apply` 에 넘긴다. 같은 것을 다시 읽어도 두 번 쌓이지 않는 지금의 규칙이 그대로 지켜 준다. 가져오기에서는 "올린 사람"을 알 수 없어 커밋 작성자(`author.login`)를 쓴다.
+5. 어디까지 봤는지(저장소별 PR `updated_at`, 브랜치별 마지막 커밋, ETag)는 새 표에 둔다(`git_sync_cursors`, 마이그레이션은 구현 때).
+
+**호출 한도**: 설치 토큰은 시간당 5,000회(저장소·사용자가 20을 넘으면 하나당 50회씩 늘어 최대 12,500회, Enterprise Cloud 는 15,000회). 저장소 50개면 한 주기에 150~200회지만, **`If-None-Match`(ETag)로 보낸 요청이 304 면 한도에 세지 않으므로** 바뀐 저장소만 실제로 센다. 한도에 걸리면 `retry-after`/`x-ratelimit-reset` 만큼 쉬고, 동시 요청은 저장소 몇 개씩만 한다. 관리자 화면에 마지막 동기화 시각과 남은 한도를 보인다.
+
+### 화면 (관리자 설정 > Git 연동, GitHub)
+
+- 연결 추가에서 종류 GitHub 를 고르면: 조직 이름, 받는 방식(웹훅/가져오기, Flowbit 주소가 없으면 가져오기만), "GitHub 에서 앱 만들기" 버튼.
+- 만든 뒤: 앱 이름·링크, 설치 상태("설치 안 됨 → 조직에 설치" 버튼 / 설치됨: 모든 저장소 또는 저장소 N개), 마지막 수신(웹훅) 또는 마지막 동기화와 남은 호출 수(가져오기), "지금 동기화" 버튼(가져오기).
+- 웹훅 비밀 값은 GitHub 이 앱에 넣어 두므로 관리자가 따로 옮길 일이 없다. "다시 만들기"는 GitHub 앱 설정과 함께 바꿔야 해서 GitHub 에는 두지 않는다(앱 설정 화면 링크로 안내).
+
+### 사람 맞추기
+
+GitHub 의 PR 이벤트·목록에는 이메일이 없고 GitHub 아이디만 있다. github.com 아이디는 회사의 Flowbit 아이디와 다른 경우가 많아, 지금 규칙(이메일 → 아이디)으로는 대부분 "아이디(Git)"로 남는다. 상태 변경·알림은 그대로 동작한다. 보완은 따로 정한다: 관리자가 구성원마다 GitHub 아이디를 적어 두거나, 같은 앱의 사용자 인증(OAuth, 앱의 Callback URL)으로 "내 설정 > GitHub 계정 연결"을 더한다.
+
+### 확인이 필요한 것 (GitHub App)
+
+- 실제 배포에서 Flowbit 의 웹훅 경로를 인터넷에 열지(받는 방식 A/B). 사용자: "배포하면 가능은 하다".
+- 매니페스트로 앱을 만드는 사람이 조직 소유자인지. 아니면 소유자에게 부탁해야 한다.
+- 가져오기 주기(기본 2분)가 괜찮은지.
+- 사람 맞추기를 관리자 입력으로 할지 개인 OAuth 연결로 할지.
+
 ## 받는 방식
 
 ```
@@ -186,7 +266,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 1. **연결 관리**: `V11`, 관리자 API, `/admin/git` 화면, 비밀 값 발급, 백업 항목.
 2. **받기와 연결 (Gitea 먼저)**: 웹훅 경로, 서명 확인, 키 인식, `issue_git_links`·`issue_git_commits` 저장, 마지막 수신 결과. 옆 패널 "Git" 묶음과 활동 줄.
 3. **상태 자동 변경**: `Actor` 리팩터링, 규칙 적용, 실시간 반영, 알림.
-4. **GitLab, GitHub**: 제공자 두 개를 더한다. 실제 페이로드 견본으로 테스트한다.
+4. **GitLab, GitHub**: 제공자 두 개를 더한다. 실제 페이로드 견본으로 테스트한다. **GitHub 는 GitHub App 으로 붙인다(D-146, 위의 "GitHub: GitHub App 으로 연결")**: 4a 매니페스트로 앱 만들기·설치·JWT·설치 토큰, 4b 웹훅 받기, 4c 가져오기.
 5. **브랜치 이름 복사**.
 
 ## 인수 기준
