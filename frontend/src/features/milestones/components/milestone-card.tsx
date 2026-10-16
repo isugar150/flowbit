@@ -6,9 +6,9 @@ import { hasOutline, type MilestoneOutline } from "../outline";
 const m = messages.milestones;
 const CRITERIA_SHOWN = 5;
 
-/** Where a milestone is read in full outside a ticket: its project's overview opens it (`?milestone=`). */
+/** A milestone's own address: its project's overview with the milestone's dialog over it (D-160). */
 export function milestoneHref(projectId: string, milestoneId: string): string {
-  return `/project/${encodeURIComponent(projectId)}?milestone=${encodeURIComponent(milestoneId)}`;
+  return `/project/${encodeURIComponent(projectId)}/milestone/${encodeURIComponent(milestoneId)}`;
 }
 
 /** The purpose line and the checklist of completion criteria, compact. Nothing when the document says neither. */

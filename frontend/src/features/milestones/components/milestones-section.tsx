@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CalendarIcon, ChevronRightIcon, DiamondIcon, EllipsisIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import {
@@ -15,35 +15,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { createMilestone, deleteMilestone, updateMilestone } from "../api";
+import { createMilestone, deleteMilestone } from "../api";
 import { milestoneOutline } from "../outline";
 import { isMilestoneDone, milestoneProgress, type Milestone } from "../types";
+import { milestoneHref } from "./milestone-card";
 
 const m = messages.milestones;
 const NAME_MAX_LENGTH = 80;
-
-// Opened on request, so the overview does not carry it (and the editor inside) until then.
-const loadDetail = () => import("./milestone-detail-dialog");
-const MilestoneDetailDialog = dynamic(() => loadDetail().then((module) => module.MilestoneDetailDialog), { ssr: false });
-const preloadDetail = () => void loadDetail();
 
 const iconButtonClass =
   "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:bg-muted max-md:size-9";
 
 /**
  * The project's milestones on its overview. Each line only shows: name, progress (share of its
- * issues that are done), issue count and target date; the whole line opens the milestone
- * (milestone-detail-dialog.tsx), where its issues are listed beside a document of notes and where
- * the name and date are changed. The "…" menu holds "편집" (the same dialog) and "삭제". Lines
+ * issues that are done), issue count and target date; the whole line is a link to the milestone's
+ * address (D-160), which opens its dialog (milestone-detail-dialog.tsx) over the overview: its
+ * issues beside a document of notes, and where the name and date are changed. The "…" menu holds "편집" (the same dialog) and "삭제". Lines
  * are not edited in place: a field in every line made the list hard to read and easy to change by
  * accident.
  */
 export function MilestonesSection({
   projectId,
-  milestones: saved,
+  milestones,
   canEdit,
 }: {
   projectId: string;
@@ -56,14 +52,7 @@ export function MilestonesSection({
   // After one is added the field starts over empty and stays, so several can be typed in a row.
   const [round, setRound] = useState(0);
   const create = useRefreshingMutation(createMilestone, () => setRound((current) => current + 1));
-  // A new name or date shows right away and is saved behind it.
-  const update = useOptimisticMutation(
-    saved,
-    (milestones, { id, changes }: Parameters<typeof updateMilestone>[0]) =>
-      milestones.map((milestone) => (milestone.id === id ? { ...milestone, ...changes } : milestone)),
-    updateMilestone,
-  );
-  const milestones = update.value;
+  const router = useRouter();
   const open = milestones.filter((milestone) => !isMilestoneDone(milestone));
   const done = milestones.filter(isMilestoneDone);
   const row = (milestone: Milestone) => (
@@ -72,22 +61,13 @@ export function MilestonesSection({
       milestone={milestone}
       canEdit={canEdit}
       busy={remove.isPending}
-      onOpen={() => setOpenId(milestone.id)}
+      href={milestoneHref(projectId, milestone.id)}
+      onOpen={() => router.push(milestoneHref(projectId, milestone.id))}
       onDelete={() => remove.mutate({ projectId, id: milestone.id })}
     />
   );
   const remove = useRefreshingMutation(deleteMilestone);
-  const error = create.error ?? update.error ?? remove.error;
-  // `?milestone=` (from the milestone beside a ticket, D-137, D-157) opens that milestone, also
-  // when it arrives while the overview is already open behind the ticket.
-  const asked = useSearchParams().get("milestone");
-  const [openId, setOpenId] = useState<string | null>(asked);
-  const [lastAsked, setLastAsked] = useState(asked);
-  if (asked !== lastAsked) {
-    setLastAsked(asked);
-    if (asked) setOpenId(asked);
-  }
-  const opened = milestones.find((milestone) => milestone.id === openId);
+  const error = create.error ?? remove.error;
 
   return (
     <section className="flex flex-col gap-2" aria-labelledby="milestones-title">
@@ -155,17 +135,6 @@ export function MilestonesSection({
           {done.map(row)}
         </ul>
       ) : null}
-      {opened ? (
-        <MilestoneDetailDialog
-          // A different milestone starts with its own document.
-          key={opened.id}
-          projectId={projectId}
-          milestone={opened}
-          canEdit={canEdit}
-          onChange={(changes) => update.mutate({ projectId, id: opened.id, changes })}
-          onClose={() => setOpenId(null)}
-        />
-      ) : null}
     </section>
   );
 }
@@ -174,12 +143,15 @@ function MilestoneRow({
   milestone,
   canEdit,
   busy,
+  href,
   onOpen,
   onDelete,
 }: {
   milestone: Milestone;
   canEdit: boolean;
   busy: boolean;
+  href: string;
+  /** "편집" in the menu: the same as following the link. */
   onOpen: () => void;
   onDelete: () => void;
 }) {
@@ -190,23 +162,20 @@ function MilestoneRow({
   return (
     <li
       data-presence-id={`milestone:${milestone.id}`}
-      className="relative flex items-center gap-3 border-t py-2 pr-2 pl-3 first:border-t-0 hover:bg-muted has-[button[data-open-milestone]:focus-visible]:bg-muted"
+      className="relative flex items-center gap-3 border-t py-2 pr-2 pl-3 first:border-t-0 hover:bg-muted has-[a[data-open-milestone]:focus-visible]:bg-muted"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <DiamondIcon className={cn("size-4 shrink-0", done ? "fill-primary text-primary" : "text-muted-foreground")} aria-hidden="true" />
           {/* The name stretches over the whole line, so any part of it opens the milestone. */}
-          <button
-            type="button"
+          <Link
+            href={href}
             data-open-milestone
             aria-label={m.detailOf(milestone.name)}
-            onClick={onOpen}
-            onPointerEnter={preloadDetail}
-            onFocus={preloadDetail}
             className="min-w-0 truncate text-left font-medium outline-none after:absolute after:inset-0"
           >
             {milestone.name}
-          </button>
+          </Link>
         </div>
         {purpose ? <p className="truncate pl-6 text-[0.8125rem] leading-5 text-muted-foreground">{purpose}</p> : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-6 text-[0.8125rem] leading-5 whitespace-nowrap text-muted-foreground">
@@ -234,7 +203,7 @@ function MilestoneRow({
       </div>
       {canEdit ? (
         <DropdownMenu>
-          {/* Above the stretched name button, so it gets its own clicks. */}
+          {/* Above the stretched name link, so it gets its own clicks. */}
           <DropdownMenuTrigger
             render={<button type="button" aria-label={m.actionsOf(milestone.name)} className={cn(iconButtonClass, "relative z-10")} />}
           >

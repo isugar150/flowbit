@@ -24,13 +24,15 @@ export async function generateMetadata({ params }: LayoutProps<"/project/[id]">)
  * The project's header and tabs, with the avatars of whoever else is looking at the same page. They read the project, so they sit inside <Suspense>: with
  * cacheComponents, request data read outside a boundary blocks every navigation between tabs.
  */
-export default function ProjectLayout({ children, params }: LayoutProps<"/project/[id]">) {
+export default function ProjectLayout({ children, milestone, params }: LayoutProps<"/project/[id]">) {
   return (
     <>
       <Suspense fallback={<ProjectNavSkeleton />}>
         <ProjectNav params={params} />
       </Suspense>
       {children}
+      {/* A milestone opened from the overview, as a dialog over it (D-160). */}
+      {milestone}
     </>
   );
 }

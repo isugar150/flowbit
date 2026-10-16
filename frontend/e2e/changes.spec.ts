@@ -376,7 +376,7 @@ test("milestone: a date picked in the opened milestone shows at once", async () 
   await api(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "첫 목표", targetDate: null });
   const page = await newPage();
   await page.goto(`/project/${project.id}`);
-  await page.getByRole("button", { name: "첫 목표 열기" }).click();
+  await page.getByRole("link", { name: "첫 목표 열기" }).click();
   const chip = page.getByRole("dialog").getByRole("button", { name: /^목표일:/ });
   await expect(chip).toBeVisible();
   await settled(page);

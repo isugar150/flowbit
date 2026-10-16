@@ -182,6 +182,14 @@
 
 ## 작업 기록
 
+### 2026-10-16 — 목표마다 주소 (D-160)
+
+- 사용자 요청: 목표도 티켓처럼 주소를 따로 두고, 그 주소로 바로 들어오면 프로젝트 개요 위에 목표 상세 창이 바로 뜨게.
+- 주소 `/project/{id}/milestone/{목표 id}`(`milestoneHref`). 프로젝트 안에서 열면 가로채기(`project/[id]/@milestone/(.)milestone/[milestoneId]`, 닫기는 뒤로 가기), 직접·프로젝트 밖에서는 `project/[id]/milestone/[milestoneId]/page.tsx`(개요 + 창, 닫으면 개요). 개요 본문은 `ProjectOverview`(`features/projects/components/project-overview.tsx`)로 옮겨 두 페이지가 함께 쓴다.
+- `MilestoneRoute`(서버: 프로젝트 권한, 목표를 찾고 없으면 `notFound`) → `MilestoneRouteDialog`(클라이언트: 이름·목표일 낙관적 갱신, 자기 주소나 `/issue/…` 가 아니면 숨음). `MilestonesSection` 은 열린 목표 상태와 `?milestone=` 처리를 없애고, 목표 줄의 이름을 링크로 바꿨다(`a[data-open-milestone]`). 개요의 목표 저장 오류 알림(`update.error`)은 이제 없다(창에는 오류 표시가 없다).
+- 도움말 "목표"에 주소와 티켓 옆 목표 패널(D-157)을 적었다. E2E 의 목표 줄 선택자를 버튼에서 링크로 바꿨다(`changes`·`features`·`flows.spec.ts`).
+- 검사: `npm run typecheck`, 바꾼 파일의 eslint 통과. **화면은 확인하지 않았다**(백엔드 8080 이 꺼져 있었다). E2E 는 돌리지 않았다. 볼 곳: 개요에서 목표를 열고 닫기(주소가 바뀌고 돌아오는지), 목표 주소 새로 고침, 티켓 옆 패널의 ↗(티켓 목록 위에서 열었을 때 개요 + 창이 뜨는지), 목표 창에서 티켓을 열고 닫으면 목표 창으로 돌아오는지, 없는 목표 id 와 권한 없는 프로젝트.
+
 ### 2026-10-16 — 티켓 옆 목표 패널: 넓게 보기, 읽기 전용, 바로가기 (D-157)
 
 - 사용자 요청: 필요할 때 목표 패널을 크게(티켓은 작게), 패널은 읽기 전용, 목표 제목 오른쪽에 목표 바로가기.

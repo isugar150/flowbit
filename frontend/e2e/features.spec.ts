@@ -134,7 +134,7 @@ test("the editor role opens a milestone; the view of it is the same without the 
   await expect(line).toContainText("12-24");
   await expect(line.getByRole("button", { name: "읽기 확인 메뉴" })).toHaveCount(0);
 
-  await line.getByRole("button", { name: "읽기 확인 열기" }).click();
+  await line.getByRole("link", { name: "읽기 확인 열기" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "읽기 확인", level: 2 }).last()).toBeVisible();
   await expect(dialog.getByRole("textbox", { name: "목표 이름" })).toHaveCount(0);

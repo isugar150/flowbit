@@ -105,12 +105,12 @@ test("milestones are added one after another, renamed from the menu and deleted"
   const field = page.getByRole("textbox", { name: "새 목표 이름" });
   await field.fill("알파");
   await field.press("Enter");
-  await expect(page.getByRole("button", { name: "알파 열기" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "알파 열기" })).toBeVisible();
   // The field starts over empty and stays, for the next one.
   await expect(field).toHaveValue("");
   await field.fill("베타");
   await field.press("Enter");
-  await expect(page.getByRole("button", { name: "베타 열기" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "베타 열기" })).toBeVisible();
   await field.press("Escape");
 
   // "편집" in the line's menu opens the milestone, where its name is changed.
@@ -120,15 +120,15 @@ test("milestones are added one after another, renamed from the menu and deleted"
   await name.fill("알파 2");
   await name.press("Enter");
   // The line behind the dialog has the new name at once (it is hidden from assistive tech meanwhile).
-  await expect(page.locator("button[data-open-milestone]").filter({ hasText: "알파 2" })).toHaveCount(1);
+  await expect(page.locator("a[data-open-milestone]").filter({ hasText: "알파 2" })).toHaveCount(1);
   await settled(page);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "알파 2 열기" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "알파 2 열기" })).toBeVisible();
 
   await page.getByRole("button", { name: "베타 메뉴" }).click();
   await page.getByRole("menuitem", { name: /삭제/ }).click();
-  await expect(page.getByRole("button", { name: "베타 열기" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "베타 열기" })).toHaveCount(0);
   const names = (await api<{ name: string }[]>(context, "GET", `/api/v1/projects/${project.id}/milestones`)).map((item) => item.name);
   expect(names).toEqual(["알파 2"]);
   await page.close();
