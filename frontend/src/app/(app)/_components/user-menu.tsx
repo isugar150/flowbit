@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
-import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
+import { ChevronsUpDownIcon, CircleHelpIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
 import { personName } from "@/components/person";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -107,6 +107,10 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
                 {m.adminSettings}
               </DropdownMenuItem>
             ) : null}
+            <DropdownMenuItem render={<Link href="/help" />}>
+              <CircleHelpIcon />
+              {m.help}
+            </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>

@@ -32,6 +32,7 @@
 
 - **Git 연동이 명세 끝까지 구현됐다** (D-141, D-145~D-147, 2026-10-15~16, [features/git-integration.md](features/git-integration.md)). Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(관리자 화면에서 매니페스트로 만들고 조직에 설치, 웹훅 또는 2분마다 API 가져오기). 관리자 설정 > "Git 연동" 탭(`/admin/git`, "사람 맞추기" 포함), 웹훅 `POST /api/v1/integrations/git/{id}/webhook`, 티켓 키 옆 "브랜치 이름 복사"(Git 이 쓰일 때만), API 알림의 Git 종류. 마이그레이션 `V11`~`V17`. 백엔드 `GitIntegrationTest` 17개·`GitHubIntegrationTest` 3개, 프런트 단위 테스트(`npm test`)와 E2E `git.spec.ts` 통과. **실제 Gitea·GitLab·GitHub 서버로는 아직 아무도 시험하지 않았다**(견본 페이로드와 가짜 GitHub 로 테스트했다). **개발 DB 에서 쓰려면 백엔드를 다시 띄워 `V11`~`V17` 을 적용해야 한다.** 프로젝트마다 저장소를 정하고 티켓에서 고를 수 있다(D-148).
 - **편집기에 Figma·Google(문서·스프레드시트·프레젠테이션)·Office·Outline 임베드가 생겼다** (D-139, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
+- **사용 방법을 모은 "도움말" 페이지(`/help`)가 생겼다** (D-154, 2026-10-16, [features/help.md](features/help.md)). 사용자 메뉴의 "관리자 설정" 아래(구성원은 "내 설정" 아래). 내용은 `frontend/src/features/help/content.ts` 이고 **구현된 기능만** 쓴다. 기능을 더하거나 바꾸면 이 파일의 해당 절도 함께 고친다.
 
 ## 다음 작업
 
@@ -180,6 +181,13 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-16 — 도움말 페이지 (D-154)
+
+- 사용자 지시(다른 세션을 거쳐): 사용 방법을 전부 정리한 도움말 페이지, 사용자 메뉴의 "관리자 설정" 바로 아래에 "도움말", 구현된 기능만, 일반 사용자용·관리자용 구분, 목차, 단축키.
+- 만든 것: `/help`(`app/(app)/help/page.tsx`), `features/help/content.ts`(절 데이터), `components/help-content.tsx`·`help-blocks.tsx`·`help-text.tsx`·`help-toc.tsx`, `messages.help`, `messages.userMenu.help`. 넓은 화면은 왼쪽 목차(지금 읽는 절 강조), 좁은 화면은 위에 칩 모양 목차. 관리하기 묶음은 관리자에게만. `/help#shortcuts` 처럼 절로 바로 연다.
+- 내용은 `docs/01-product.md` 의 계획이 아니라 명세의 "지금 구현된 범위"와 화면 코드·`ko.ts` 를 보고 썼다(트리아지·사이클·보드·한 글자 속성 단축키는 없어서 뺐다). 단축키는 코드에 있는 것만: `Ctrl/⌘+K`, `/`, `C`, `Ctrl/⌘+Enter`, `Esc`, 편집기의 `/`·`@`·서식, 투어의 화살표.
+- 확인: 타입 검사·eslint 통과. 백엔드가 꺼져 있어 실제 `/help` 는 보지 못했고, 같은 컴포넌트를 그린 임시 페이지(지웠다)로 사용자 메뉴의 위치(내 설정 → 관리자 설정 → 도움말), 관리자·구성원 보기, 목차 이동·강조, 라이트·다크, 375px 폭을 봤다.
 
 ### 2026-10-16 — 전체 티켓 도구 줄의 보기 전환 버튼 줄바꿈
 
