@@ -114,6 +114,8 @@ class GitLinkService(
                     )
             }
             record(run, issue, actor, events)
+            // Pushing to the issue's own branch makes the pusher one of its assignees (D-156).
+            if (onBranch && events.isNotEmpty()) assign(run, issue, actor)
             if (branchLinked) {
                 run.pickRepository(issue, push.repository)
                 moveTo(run, issue, IssueStatus.IN_PROGRESS, actor)
@@ -205,6 +207,16 @@ class GitLinkService(
         val change = issueService.changeStatusFromGit(issue.id, status, from, actor) ?: return
         run.changes += actor to change
         run.statusChanged += issue.number
+    }
+
+    /** Adds the Flowbit account behind [actor] to the issue's assignees, unless it is there already. */
+    private suspend fun assign(
+        run: Run,
+        issue: Issue,
+        actor: Actor,
+    ) {
+        val change = issueService.addAssigneeFromGit(issue.id, actor) ?: return
+        run.changes += actor to change
     }
 
     /** Whether the issue has an open (or draft) closing pull request besides [linkId], on any connection. */

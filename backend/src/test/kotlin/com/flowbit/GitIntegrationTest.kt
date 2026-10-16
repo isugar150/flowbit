@@ -310,6 +310,8 @@ class GitIntegrationTest : IntegrationTest() {
             listOf(
                 "GIT_BRANCH_LINKED" to jimin,
                 "GIT_COMMITS_PUSHED" to jimin,
+                // Pushing to the issue's branch made jimin an assignee (D-156).
+                "ASSIGNEE_CHANGED" to jimin,
                 "GIT_PR_LINKED" to jimin,
                 "GIT_PR_MERGED" to leesj,
                 "GIT_COMMITS_PUSHED" to null,
@@ -318,8 +320,36 @@ class GitIntegrationTest : IntegrationTest() {
         )
         @Suppress("UNCHECKED_CAST")
         val names = entries.map { (detailOf(it)["via"] as Map<String, Any?>)["name"] }
-        assertEquals(listOf("kimjm", "kimjm", "kimjm", "leesj", "parkhs"), names)
+        assertEquals(listOf("kimjm", "kimjm", "kimjm", "kimjm", "leesj", "parkhs"), names)
     }
+
+    @Test
+    fun `티켓 브랜치에 푸시한 사람은 담당자로 더해지고 이미 있는 담당자는 그대로다`() {
+        val jimin = admin.post("/api/v1/admin/members", """{"loginId":"jimin","password":"$PASSWORD","displayName":"김지민"}""").json()["id"]
+        execute("update users set email = 'kimjm@example.com' where login_id = 'jimin'")
+        val leesj = admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD","displayName":"이수진"}""").json()["id"]
+        execute("update users set email = 'leesj@example.com' where login_id = 'leesj'")
+        admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
+        val connection = connect(autoInProgress = false, autoDone = false)
+
+        // Nobody assigned: the pusher becomes the assignee.
+        deliver(connection, "push", push("fb-1-login"))
+        assertEquals(listOf(jimin), assigneeIds(1))
+        val change = activity(1).last()
+        assertEquals("ASSIGNEE_CHANGED", change["type"])
+        assertEquals(listOf("김지민"), detailOf(change)["added"])
+        // Someone else pushes to the same branch: added beside jimin.
+        deliver(connection, "push", push("fb-1-login", "이어서 수정", pusher = Triple("leesj", "leesj@example.com", "이수진")))
+        assertEquals(listOf(jimin, leesj), assigneeIds(1))
+        // Pushing again changes nothing; nor does someone without an account here.
+        deliver(connection, "push", push("fb-1-login", "한 번 더"))
+        deliver(connection, "push", push("fb-1-login", "남의 커밋", pusher = Triple("parkhs", "parkhs@example.com", "박현수")))
+        assertEquals(listOf(jimin, leesj), assigneeIds(1))
+        assertEquals(2, activityTypes(1).count { it == "ASSIGNEE_CHANGED" })
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun assigneeIds(number: Int): List<Any?> = (admin.get("/api/v1/issues/$number").json()["assignees"] as List<Map<String, Any?>>).map { it["id"] }
 
     // --- 상태 자동 변경 --------------------------------------------------------------------------
 

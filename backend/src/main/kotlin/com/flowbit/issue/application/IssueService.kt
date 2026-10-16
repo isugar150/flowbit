@@ -785,6 +785,33 @@ class IssueService(
     }
 
     /**
+     * Adds the person a Git server says worked on the issue to its assignees (D-156): someone
+     * who pushed to its branch. Nothing happens when they already are one, when the issue has as
+     * many as it may, or when they could not be given it by hand (a project they are not in).
+     */
+    suspend fun addAssigneeFromGit(
+        issueId: UUID,
+        actor: Actor,
+    ): IssueChange? {
+        val userId = actor.userId ?: return null
+        val issue = repository.findById(issueId) ?: return null
+        if (issue.deletedAt != null) return null
+        val before = queries.find(issue.number) ?: return null
+        val current = before.assignees.map { it.id }
+        if (userId in current || current.size >= MAX_ASSIGNEES) return null
+        val assignable = issue.projectId?.let { queries.isProjectMember(it, userId) } ?: queries.isActiveUser(userId)
+        if (!assignable) return null
+        issue.version += 1
+        issue.updatedAt = clock.instant()
+        repository.save(issue)
+        queries.replaceAssignees(issue.id, current + userId, issue.updatedAt)
+        val after = checkNotNull(detail(issue.number))
+        val events = activities.diff(before, after).map(actor::mark)
+        activities.record(issue.id, actor.userId, events, issue.updatedAt)
+        return IssueChange(after, events, activities.recipientIds(issue.id).filter { it != actor.userId })
+    }
+
+    /**
      * What to tell about Git entries that were just recorded: they go only to API notifications
      * that ask for them (IssueNotification.OPT_IN_TYPES), to the people who follow the issue.
      */
