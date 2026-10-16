@@ -33,6 +33,7 @@ import com.flowbit.media.api.UploadReader
 import com.flowbit.media.application.ImageStorage
 import com.flowbit.notification.IssueNotification
 import com.flowbit.notification.NotificationDispatcher
+import com.flowbit.notification.NotificationMerge
 import com.flowbit.realtime.RealtimeHub
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
@@ -378,11 +379,41 @@ class IssueAnnouncer(
         change: IssueChange,
     ) = changed(user.id, change) { issueService.actorName(user) }
 
-    /** A change someone made through a Git server (D-141): told like one made by hand. */
-    suspend fun changed(
-        actor: Actor,
+    /**
+     * What one call from a Git server did (D-141), in order. Each issue is told once and at once
+     * (D-155): its links, commits and status changes go in one notification, from whoever did the
+     * last of them.
+     */
+    suspend fun changedFromGit(changes: List<Pair<Actor, IssueChange>>) {
+        for (group in changes.groupBy { it.second.issue.number }.values) {
+            val (actor, change) = group.last()
+            val actorId = actor.userId ?: RealtimeHub.NOBODY
+            realtime.publish(RealtimeHub.ISSUES, actorId)
+            group.flatMap { it.second.projectIds }.distinct().forEach { realtime.publish("project:$it", actorId) }
+            touched(actorId, change.issue.number)
+            val notification =
+                group
+                    .map { (by, it) -> notificationOf(by.userId, it, by.name) }
+                    .reduce(NotificationMerge::merge)
+                    .let { it.copy(recipientIds = it.recipientIds.filter { id -> id != actor.userId }) }
+            if (notification.recipientIds.isNotEmpty()) notifications.dispatchNow(notification)
+        }
+    }
+
+    private fun notificationOf(
+        actorId: UUID?,
         change: IssueChange,
-    ) = changed(actor.userId, change) { actor.name }
+        actorName: String,
+    ) = IssueNotification(
+        issueKey = change.issue.key,
+        issueNumber = change.issue.number,
+        issueTitle = change.issue.title,
+        projectId = change.issue.project?.id,
+        actorId = actorId,
+        actorName = actorName,
+        events = change.events.map { IssueNotification.Event(it.type.name, it.detail) },
+        recipientIds = change.recipientIds,
+    )
 
     private suspend fun changed(
         actorId: UUID?,
@@ -408,18 +439,7 @@ class IssueAnnouncer(
         touched(actorId ?: RealtimeHub.NOBODY, change.issue.number)
         // Every channel only reaches the people who follow the issue or its project.
         if (change.events.isEmpty() || change.recipientIds.isEmpty()) return
-        notifications.dispatch(
-            IssueNotification(
-                issueKey = change.issue.key,
-                issueNumber = change.issue.number,
-                issueTitle = change.issue.title,
-                projectId = change.issue.project?.id,
-                actorId = actorId,
-                actorName = actorName(),
-                events = change.events.map { IssueNotification.Event(it.type.name, it.detail) },
-                recipientIds = change.recipientIds,
-            ),
-        )
+        notifications.dispatch(notificationOf(actorId, change, actorName()))
     }
 
     /** The person left the issue (closed it): what they did to it and is still held goes out now (D-126). */

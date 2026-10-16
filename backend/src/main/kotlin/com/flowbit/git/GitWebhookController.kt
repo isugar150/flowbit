@@ -111,7 +111,7 @@ class GitWebhookController(
         rateLimiter.check("git-webhook", connectionId.toString(), REQUESTS_PER_MINUTE, Duration.ofMinutes(1))
         val result = service.receive(connectionId, exchange.request.headers, read(exchange))
         // Committed by now: status changes are told like changes by hand; pages with new links read again.
-        result.changes.forEach { (actor, change) -> announcer.changed(actor, change) }
+        announcer.changedFromGit(result.changes)
         (result.touched - result.changes.map { it.second.issue.number }.toSet()).forEach { announcer.touched(RealtimeHub.NOBODY, it) }
         return result.receipt
     }

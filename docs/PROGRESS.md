@@ -39,7 +39,7 @@
 
 (이전 메모) M3 2단계(프리셋과 문서형 티켓 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
 
-**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-153). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
+**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-155). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
 
 그 밖의 일은 사용자가 지시하기 전에 임의로 시작하지 않는다. 지시를 받으면:
 
@@ -188,6 +188,12 @@
 - 한 일: `issues-view.tsx` 의 도구 줄을 한 줄로: 검색·필터·삭제된 티켓·완료·묶음·정렬은 가로 스크롤 영역(`overflow-x-auto`, 밀리는 것은 `milestone-strip.tsx` 와 같은 방식), 보기 전환은 그 오른쪽에 고정. `issue-views.tsx` 의 버튼에 `whitespace-nowrap`·`shrink-0`. 04 "디자인 원칙"에 규칙 한 줄.
 - 확인: 로그인 없이 같은 컴포넌트를 앱 껍데기와 같은 배치로 그린 임시 페이지(지웠다)에서 320~1800px 를 5px 마다 재서 모든 조작이 한 줄, 보기 전환이 다 보이고 페이지 가로 스크롤 없음. 1440·768·375px 캡처. `typecheck` 통과, 바꾼 두 파일 eslint 는 `issues-view.tsx` 223~241 행 `useMemo` 의 `react-hooks/preserve-manual-memoization` 6개만 남는데 HEAD 에도 있던 것이다. **실제 `/issues` 화면(로그인한 상태)은 보지 않았다.**
 - 알아둘 것: 1630px 보다 좁으면 정렬·묶음 칩이 스크롤 영역 끝에 가려질 수 있다(Windows 에서는 얇은 스크롤바가 보인다). 늘 보여야 한다면 Linear 처럼 완료·묶음·정렬을 "표시" 메뉴 하나로 묶는 것을 생각해 볼 수 있다(열린 질문 후보).
+
+### 2026-10-16 — Git 알림을 바로, 한 통으로 (D-155)
+
+- 사용자 지시: 시스템이 처리한 Git 변경은 1분 기다리지 말고 바로 보내되, 연결·푸시가 따로 두 번 오지 않고 한 번만.
+- 백엔드: `IssueAnnouncer.changedFromGit` 가 호출 한 번의 변경을 티켓마다 `NotificationMerge` 로 묶어 `NotificationDispatcher.dispatchNow`(같은 사람 것이 모여 있으면 함께)로 바로 보낸다. 웹훅(`GitWebhookController`)과 GitHub 가져오기(`GitHubSyncJob.announce`)가 이것을 쓴다.
+- 컴파일·ktlint 만 했다. 테스트는 돌리지 않았다. 백엔드를 다시 띄워야 적용된다.
 
 ### 2026-10-16 — 저장소가 늘 정해지게, "unknown(Git)" 문구 다듬기 (D-153)
 

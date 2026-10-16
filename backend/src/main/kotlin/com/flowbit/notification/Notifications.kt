@@ -148,6 +148,18 @@ class NotificationDispatcher(
         }
     }
 
+    /**
+     * Sends at once, with whatever the same actor did to the issue and is still held (D-155). For
+     * what a Git server did: nobody is setting the issue up field by field, so there is nothing to
+     * wait for, and one call from the server is already one notification.
+     */
+    fun dispatchNow(notification: IssueNotification) {
+        if (notification.events.isEmpty()) return
+        val held = synchronized(pending) { pending.remove(Key(notification.issueNumber, notification.actorId)) }
+        held?.timer?.cancel()
+        send(held?.let { NotificationMerge.merge(it.notification, notification) } ?: notification)
+    }
+
     /** Tells about a request to join a project, at once: someone is waiting for the answer. */
     fun announce(request: ProjectAccessRequestNotification) {
         if (request.recipientIds.isEmpty()) return

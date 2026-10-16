@@ -369,7 +369,7 @@ class GitHubSyncJob(
 
     /** What a round changed, told like a webhook's changes. */
     suspend fun announce(result: GitApplyResult) {
-        result.changes.forEach { (actor, change) -> announcer.changed(actor, change) }
+        announcer.changedFromGit(result.changes)
         (result.touched - result.changes.map { it.second.issue.number }.toSet()).forEach { announcer.touched(RealtimeHub.NOBODY, it) }
     }
 
