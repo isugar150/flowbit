@@ -491,27 +491,26 @@ class GitIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `관리자가 정한 Git 아이디로 사람을 맞춘다`() {
-        val jimin = admin.post("/api/v1/admin/members", """{"loginId":"jimin","password":"$PASSWORD","displayName":"김지민"}""").json()["id"]
-        val other = admin.post("/api/v1/admin/members", """{"loginId":"other","password":"$PASSWORD"}""").json()["id"]
-        val member = client().also { it.login("jimin", PASSWORD) }
-        assertEquals(403, member.get("/api/v1/admin/git/accounts").status)
-
-        assertEquals(422, admin.put("/api/v1/admin/git/accounts/$jimin", """{"username":"한글 아이디"}""").status)
-        val saved = admin.put("/api/v1/admin/git/accounts/$jimin", """{"username":"@Kim-GitHub"}""")
-        assertEquals("kim-github", saved.json()["username"])
-        assertEquals(409, admin.put("/api/v1/admin/git/accounts/$other", """{"username":"kim-github"}""").json()["status"])
-        val listed = admin.get("/api/v1/admin/git/accounts").jsonList().associate { it["loginId"] to it["username"] }
-        assertEquals(mapOf<Any?, Any?>("admin" to null, "jimin" to "kim-github", "other" to null), listed)
-
-        admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
+    fun `저장소가 여럿인 프로젝트의 티켓은 처음 연결된 브랜치의 저장소로 저장소가 정해진다`() {
+        remember("WEB", admin.post("/api/v1/projects", """{"name":"웹"}""").json()["id"])
+        admin.post("/api/v1/issues", """{"title":"웹 티켓","projectId":"${p("WEB")}"}""") // FB-1
+        admin.post("/api/v1/issues", """{"title":"이미 고른 티켓","projectId":"${p("WEB")}"}""") // FB-2
         val connection = connect(autoInProgress = false)
-        // The address is hidden and the name is not a login id here; the administrator's word decides.
-        deliver(connection, "push", push("fb-1-login", pusher = Triple("Kim-GitHub", "kim@users.noreply.github.com", "Jimin Kim")))
-        assertEquals(jimin, (activity(1).last()["actor"] as Map<*, *>)["id"])
+        val id = connection["id"] as String
+        admin.put(
+            "/api/v1/projects/${p("WEB")}/git/repositories",
+            """{"repositories":[{"connectionId":"$id","repository":"acme/web"},{"connectionId":"$id","repository":"acme/api"}]}""",
+        )
+        admin.put("/api/v1/issues/2/git-repository", """{"connectionId":"$id","repository":"acme/web"}""")
 
-        assertEquals(200, admin.put("/api/v1/admin/git/accounts/$jimin", """{"username":""}""").status)
-        assertEquals(0, count("select count(*) from git_user_accounts"))
+        // The first branch is in acme/api: that becomes FB-1's repository, and acme/web no longer reaches it.
+        deliver(connection, "push", push("feature/fb-1-login", repository = "acme/api"))
+        assertEquals("acme/api", (admin.get("/api/v1/issues/1").json()["gitRepository"] as Map<*, *>)["repository"])
+        assertEquals(emptyList<String>(), deliver(connection, "push", push("feature/fb-1-more", repository = "acme/web")).json()["linkedIssues"])
+
+        // A pick that exists is never changed by Git.
+        deliver(connection, "push", push("feature/fb-2-x", repository = "acme/web"))
+        assertEquals("acme/web", (admin.get("/api/v1/issues/2").json()["gitRepository"] as Map<*, *>)["repository"])
     }
 
     @Test

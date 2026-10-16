@@ -1,6 +1,6 @@
 # Git 연동 (Gitea · GitLab · GitHub)
 
-상태 (2026-10-16): **명세 전부를 구현했다**: Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(웹훅 또는 API 가져오기), 브랜치 이름 복사, API 알림의 Git 종류, 구성원 Git 아이디(D-145~D-147). 실제 Gitea·GitLab·GitHub 서버로는 아직 시험하지 않았다(견본과 가짜 GitHub 로 테스트했다). 처음 계획은 D-141. D-039 에서 "SaaS 전용"이라 빼 두었던 GitHub 연결을 설치형에 맞는 모양으로 들인다.
+상태 (2026-10-16): **명세 전부를 구현했다**: Gitea(Forgejo)·GitLab 은 웹훅, GitHub 는 GitHub App(웹훅 또는 API 가져오기), 브랜치 이름 복사, API 알림의 Git 종류(D-145~D-147). 관리자의 "사람 맞추기"는 D-152 에서 없앴다. 실제 Gitea·GitLab·GitHub 서버로는 아직 시험하지 않았다(견본과 가짜 GitHub 로 테스트했다). 처음 계획은 D-141. D-039 에서 "SaaS 전용"이라 빼 두었던 GitHub 연결을 설치형에 맞는 모양으로 들인다.
 
 브랜치 이름, PR 제목, 커밋 메시지에 티켓 키(`FB-12`)를 쓰면 Flowbit 이 그 티켓에 PR·브랜치·커밋을 연결하고, 작업 흐름에 따라 티켓 상태를 바꾼다. 개발자는 Flowbit 에서 따로 할 일이 없다.
 
@@ -25,6 +25,8 @@
 저장소 목록(표 `git_repositories`, `V17`)이 채워지는 곳: GitHub App 은 설치된 저장소를 GitHub API(`GET /installation/repositories`)로 읽어 통째로 바꾼다. 설치 확인 때, API 가져오기의 매 회차, 프로젝트 설정을 열 때(1분에 한 번까지), "목록 새로 고침"(`GET /api/v1/projects/{id}/git?refresh=true`) 때 읽는다. Gitea·GitLab 은 Flowbit 이 그 서버의 API 토큰이 없어 물어볼 수 없으므로, 이벤트를 보낸 저장소가 목록에 쌓인다(웹훅 연결이라도 첫 push 전에는 비어 있다). 응답의 `available` 은 이 목록과 티켓에 연결된 적 있는 저장소를 합친 것에서 프로젝트가 이미 고른 것을 뺀 것이다(전의 `suggestions`).
 
 **티켓 옆 패널 > Git > 저장소**: 프로젝트에 저장소가 둘 이상이면 티켓마다 하나를 고른다(편집 역할). 고른 저장소가 있으면 키 옆 메뉴에 "<저장소> 열기"가 생긴다(저장소가 하나뿐인 프로젝트는 그 저장소).
+
+**저장소는 저절로 정해진다** (사용자 지정, D-152): 아직 고른 저장소가 없는 티켓에 처음으로 브랜치나 PR 이 연결되면, 그 저장소가 프로젝트의 저장소 가운데 하나일 때 그것이 티켓의 저장소가 된다(예: `org/web` 에 `feature/fb-12-login` 브랜치를 만들면 FB-12 의 저장소는 `org/web`). 커밋만으로는 정하지 않는다. 이미 고른 저장소는 바꾸지 않으므로, 다른 저장소로 옮기려면 옆 패널에서 직접 바꾼다. 저장소가 하나뿐이거나 정하지 않은 프로젝트에서는 고를 일이 없어 저장하지 않는다.
 
 **어느 이벤트가 티켓에 닿는가** (위에서부터 먼저 맞는 것):
 
@@ -208,11 +210,9 @@ Flowbit 이 `api.github.com` 으로 나가는 연결만 있으면 된다. 실시
 
 **내 설정 > GitHub 계정** (D-150): 각자 GitHub 계정을 연결한다. 같은 GitHub App 의 사용자 인증(OAuth 웹 흐름)을 쓴다: "GitHub 계정 연결" → `<GitHub>/login/oauth/authorize?client_id=…&redirect_uri=<Flowbit>/settings/github/callback&state=…` → GitHub 이 돌려보낸 code 를 `POST <GitHub>/login/oauth/access_token`(`Accept: application/json`)으로 바꿔 `GET /user` 로 login·id 만 읽고, 사용자 토큰은 저장하지 않고 버린다. 표 `git_github_accounts`(`V16`). 같은 GitHub 계정을 두 사람이 연결할 수 없다(409 `GITHUB_ACCOUNT_TAKEN`). state 는 서버 메모리에 10분(단일 인스턴스). redirect URI 는 앱의 Callback URL 이어야 해서, 매니페스트에 `callback_urls` 로 넣는다. 그 전에 만든 앱은 GitHub 의 앱 설정에서 더해야 한다(관리자 화면이 주소를 보여 준다). 연결할 GitHub App 이 없으면 이 설정은 보이지 않는다. API: `GET /api/v1/me/git/github`(`{ available, login, linkedAt }`), `POST /api/v1/me/git/github/authorize?origin=`(`{ url }`, 앱이 없으면 409 `GITHUB_APP_MISSING`), `POST /api/v1/me/git/github/callback`(`{ code, state }`), `DELETE /api/v1/me/git/github`.
 
-**사람 찾기 순서**: 이메일 → (GitHub 이벤트일 때) 본인이 연결한 GitHub 계정(같은 GitHub 서버) → 관리자가 적은 Git 아이디 → Flowbit 아이디 → 모두 없으면 Git 이름만.
+**사람 찾기 순서** (D-152): 푸시한 사람(커밋 작성자·PR 을 만든 사람)의 이메일을 Flowbit 의 이메일과 아이디에 맞춰 본다 → (GitHub 이벤트일 때) 본인이 연결한 GitHub 계정(같은 GitHub 서버) → Git 사용자 이름을 Flowbit 아이디에 맞춰 본다 → 모두 없으면 Git 이름만 남는다.
 
-**관리자의 "사람 맞추기"는 남긴다**: GitLab·Gitea 를 쓰는 사람과 GitHub 계정을 연결하지 않은 사람을 위한 것이다. 목록에 본인이 연결한 GitHub 계정도 보인다.
-
-(아래는 D-147 때의 설명이다.) GitHub 의 PR 이벤트·목록에는 이메일이 없고 GitHub 아이디만 있다. github.com 아이디는 회사의 Flowbit 아이디와 다른 경우가 많아 **관리자가 Git 연동 탭의 "사람 맞추기"에서 구성원마다 Git 아이디를 적는다**(D-147, 표 `git_user_accounts`, 모든 종류에 쓰인다). 사람 찾기 순서는 이메일 → 적어 둔 Git 아이디 → Flowbit 아이디. 각자 OAuth 로 잇는 "내 설정 > GitHub 계정 연결"은 만들지 않았다(필요해지면 같은 앱의 사용자 인증으로 더한다).
+**관리자의 "사람 맞추기"는 없앴다** (사용자 지정, D-152): 관리자가 구성원마다 Git 아이디를 적던 것(D-147, 표 `git_user_accounts`)은 `V18` 에서 표째 지웠다. 이메일이나 아이디가 맞지 않는 사람은 Git 서버의 이메일이나 아이디를 Flowbit 과 같게 하거나, GitHub 라면 내 설정에서 GitHub 계정을 연결한다. GitHub 의 PR 이벤트·목록에는 이메일이 없어서, GitHub 에서는 연결한 GitHub 계정이나 같은 아이디가 아니면 PR 이 사람에게 이어지지 않는다(커밋에는 이메일이 있다).
 
 ### 확인이 필요한 것 (GitHub App)
 
@@ -270,8 +270,6 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 | POST | `/api/v1/admin/git/github/installations` | 관리자 | GitHub 연결 전부의 설치를 다시 읽고 목록을 돌려준다(설치 뒤 돌아오는 페이지가 부른다) |
 | POST | `/api/v1/admin/git/connections/{id}/github/installation` | 관리자 | 한 연결의 설치를 다시 읽는다 |
 | POST | `/api/v1/admin/git/connections/{id}/sync` | 관리자 | 가져오기를 지금 한 번 → `{ linkedIssues, statusChanged, skipped }` |
-| GET | `/api/v1/admin/git/accounts` | 관리자 | 활성 구성원과 그 Git 아이디(D-147) |
-| PUT | `/api/v1/admin/git/accounts/{userId}` | 관리자 | `{ username }`. 빈 값이면 지운다. 다른 사람이 쓰면 409 `GIT_USERNAME_TAKEN` |
 
 연결 요청·응답에서 `allProjects`, `projectIds` 는 빠졌다(D-149). 연결 요청에 `receiveMode`(`WEBHOOK`\|`POLL`, POLL 은 GitHub 만), `githubOrganization`(GitHub 만, 필수)이 더해졌고, 응답에 `receiveMode`, `github: { organization, appId, appSlug, appUrl, installUrl, settingsUrl, installationId, repositorySelection }`, `lastSyncedAt`, `syncError`, `rateLimitRemaining` 이 더해졌다.
 
@@ -317,7 +315,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 - 닫는 연결의 PR 이 머지되면 완료가 되고, 참고 연결과 머지 없이 닫힌 PR 은 상태를 바꾸지 않는다. 닫는 연결로 걸린 다른 PR 이 열려 있으면 완료가 되지 않는다
 - 자동 상태 변경을 끈 연결은 연결만 한다
 - 같은 배달이 다시 와도 연결·커밋·활동이 두 번 쌓이지 않는다
-- 사람 맞추기: 이메일, 그다음 관리자가 적은 Git 아이디, 그다음 Flowbit 아이디, 모두 없으면 Git 이름만. 상태 변경은 구독자에게 알림으로 가고 연결·커밋은 그 종류를 고른 API 알림에만 간다
+- 사람 맞추기: 이메일(Flowbit 의 이메일·아이디와), 그다음 본인이 연결한 GitHub 계정, 그다음 Git 사용자 이름을 Flowbit 아이디로, 모두 없으면 Git 이름만. 상태 변경은 구독자에게 알림으로 가고 연결·커밋은 그 종류를 고른 API 알림에만 간다
 - 화면(E2E): 연결을 추가하면 주소와 비밀 값이 보이고, 연결이 있는 티켓의 옆 패널에 PR 줄이 보인다 (`frontend/e2e/git.spec.ts`)
 - GitHub App(`GitHubIntegrationTest`, 가짜 GitHub): 매니페스트·code 교환·설치 읽기, 앱 JWT 서명, 웹훅 서명과 `ping`·설치 이벤트, 가져오기의 기준 잡기·ETag 304·브랜치·커밋·PR·머지
 
@@ -328,5 +326,4 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 - 커밋을 활동에 남길지, PR·브랜치만 남길지(커밋이 많은 팀은 활동이 길어진다).
 - 관리자가 Git 아이디를 적는 것으로 모자라면 "내 설정 > Git 계정"(개인 OAuth 연결)을 더할지.
 - GitHub.com 을 웹훅으로 받을 경우 외부에 열 주소와 리버스 프록시 구성(가져오기로 받으면 필요 없다).
-- 구성원 Git 아이디(`git_user_accounts`)는 백업에 넣지 않았다(사용자 id 가 설치마다 달라서). 넣을지.
 - 비밀 값이 DB 에 평문이다(다른 연동 설정과 같다, D-090).

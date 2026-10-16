@@ -220,13 +220,15 @@
 
 `V12`(D-146): `git_connections` 에 `receive_mode`(`WEBHOOK`\|`POLL`), GitHub App 의 `github_organization`, `github_app_id`, `github_app_slug`, `github_client_id`, `github_client_secret`, `github_private_key`(PEM, 평문 D-090), `github_installation_id`, `github_repository_selection`, `github_setup_state`(매니페스트 왕복용 일회용 값, 유일), 가져오기의 `last_synced_at`, `sync_error`, `rate_limit_remaining`. 새 표 `git_sync_cursors`(`connection_id` CASCADE, `repository`, `pulls_etag`, `pulls_updated_at`, `branches_etag`, `branch_heads`(브랜치 → 머리 커밋 JSON 을 담은 text), PK `(connection_id, repository)`).
 
-`V13`(D-147): `git_user_accounts`(`user_id` PK·CASCADE, `username` 소문자·유일): 관리자가 적은 구성원의 Git 아이디.
+`V13`(D-147): `git_user_accounts`(`user_id` PK·CASCADE, `username` 소문자·유일): 관리자가 적은 구성원의 Git 아이디. `V18`(D-152)에서 지웠다.
 
 `V14`(D-148): `project_git_repositories`(`project_id`·`connection_id` CASCADE, `repository` 소문자, PK 셋 모두): 프로젝트의 저장소. `issue_git_repositories`(`issue_id` PK·CASCADE, `connection_id` CASCADE, `repository` 소문자): 티켓에서 고른 저장소.
 
 `V16`(D-150): `git_github_accounts`(`user_id` PK·CASCADE, `connection_id` CASCADE, `github_login` 소문자, `github_user_id`, `linked_at`, 유일 `(connection_id, github_user_id)`): 각자 내 설정에서 연결한 GitHub 계정.
 
 `V17`(D-151): `git_repositories`(`connection_id` CASCADE, `repository` 소문자, `url`, `seen_at`, PK 둘): 연결마다 알고 있는 저장소. GitHub App 은 설치된 저장소로 통째로 바꾸고, Gitea·GitLab 은 이벤트를 보낸 저장소가 쌓인다.
+
+`V18`(D-152): `git_user_accounts` 를 지운다(관리자의 사람 맞추기를 없앴다). 티켓의 저장소(`issue_git_repositories`)는 처음 연결된 브랜치·PR 의 저장소로 저절로 채워질 수 있다.
 
 `V11` 은 `issue_activities.actor_id` 의 NOT NULL 도 뺀다. Git 이 한 일은 `detail.via = {"source":"git","name":"<Git 사용자 이름>"}` 를 달고, Flowbit 계정이 맞으면 `actor_id` 도 채운다.
 

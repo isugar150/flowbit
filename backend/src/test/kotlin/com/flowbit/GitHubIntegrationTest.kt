@@ -269,10 +269,6 @@ class GitHubIntegrationTest : IntegrationTest() {
             lee.post("/api/v1/me/git/github/callback", """{"code":"user-code","state":"${other.substringAfter("state=").substringBefore("&")}"}""").status,
         )
 
-        // The administrator sees it next to the Git user names they set.
-        val accounts = admin.get("/api/v1/admin/git/accounts").jsonList().associate { it["loginId"] to it["githubLogin"] }
-        assertEquals("kimjm", accounts["jimin"])
-
         // A push by GitHub user kimjm (a no-reply address, and not jimin's login id) is jimin's.
         admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
         deliver(connection, "push", sample("github-push.json"))

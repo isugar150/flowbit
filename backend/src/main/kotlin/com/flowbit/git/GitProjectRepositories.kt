@@ -172,6 +172,27 @@ class GitProjectRepositoryService(
             .groupBy({ it.first }, { it.second })
             .mapValues { it.value.toSet() }
 
+    /** Picks the issue's repository unless one is picked already (D-152). */
+    suspend fun pickIfUnset(
+        issueId: UUID,
+        ref: GitRepositoryRef,
+        now: java.time.Instant,
+    ) {
+        databaseClient
+            .sql(
+                """
+                insert into issue_git_repositories (issue_id, connection_id, repository, updated_at) values (:issue, :connection, :repository, :now)
+                on conflict (issue_id) do nothing
+                """.trimIndent(),
+            ).bind("issue", issueId)
+            .bind("connection", ref.connectionId)
+            .bind("repository", ref.repository)
+            .bind("now", now)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
     /** The repositories picked on these issues (D-148). */
     suspend fun issueRepositories(issueIds: Collection<UUID>): Map<UUID, GitRepositoryRef> {
         if (issueIds.isEmpty()) return emptyMap()

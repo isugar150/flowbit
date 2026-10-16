@@ -1,6 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
 import type {
-  GitAccount,
   GitConnection,
   GitConnectionInput,
   GitHubManifestForm,
@@ -54,10 +53,6 @@ export function syncGitConnection(id: string): Promise<GitReceiptResult> {
   return apiFetch<GitReceiptResult>(`${ADMIN}/${id}/sync`, { method: "POST" });
 }
 
-/** Says which Git user a member is; an empty name takes it away. */
-export function saveGitAccount({ userId, username }: { userId: string; username: string }): Promise<GitAccount> {
-  return apiFetch<GitAccount>(`/api/v1/admin/git/accounts/${userId}`, { method: "PUT", body: { username } });
-}
 
 /** Replaces the repositories a project's work happens in (D-148). Its managers only. */
 export function saveProjectGitRepositories({ projectId, repositories }: { projectId: string; repositories: GitRepositoryRef[] }): Promise<ProjectGitSettings> {

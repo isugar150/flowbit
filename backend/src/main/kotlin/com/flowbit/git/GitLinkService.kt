@@ -40,7 +40,6 @@ data class GitApplyResult(
 class GitLinkService(
     private val issueService: IssueService,
     private val userService: UserService,
-    private val accounts: GitAccountService,
     private val githubAccounts: GitHubAccountService,
     private val projectRepositoryService: GitProjectRepositoryService,
     private val keyMatcher: IssueKeyMatcher,
@@ -115,7 +114,10 @@ class GitLinkService(
                     )
             }
             record(run, issue, actor, events)
-            if (branchLinked) moveTo(run, issue, IssueStatus.IN_PROGRESS, actor)
+            if (branchLinked) {
+                run.pickRepository(issue, push.repository)
+                moveTo(run, issue, IssueStatus.IN_PROGRESS, actor)
+            }
             if (push.toDefaultBranch && commits.any { issue.number in keys.closingNumbers(it.message) }) moveTo(run, issue, IssueStatus.DONE, actor)
             run.linked[issue.number] = issue
         }
@@ -138,6 +140,7 @@ class GitLinkService(
         val reference = mapOf("repository" to pr.repository, "number" to pr.number, "title" to pr.title, "url" to pr.url)
         for (issue in issues) {
             val link = linkPullRequest(run.connection.id, issue.id, pr, issue.number in closing)
+            if (link.created) run.pickRepository(issue, pr.repository)
             if (link.created) {
                 record(
                     run,
@@ -374,6 +377,21 @@ class GitLinkService(
         var skipped = 0
         private val actors = mutableMapOf<GitPerson, Actor>()
 
+        /**
+         * Makes [repository] the issue's repository when nobody picked one yet and its project has
+         * several to pick from (D-152): the first branch or pull request tells where the work is.
+         * Never changes a pick that exists.
+         */
+        suspend fun pickRepository(
+            issue: Issue,
+            repository: String,
+        ) {
+            val repositories = issue.projectId?.let { projectRepositories?.get(it) } ?: return
+            if (repositories.size < 2) return
+            val ref = GitRepositoryRef(connection.id, repository.lowercase())
+            if (ref in repositories) projectRepositoryService.pickIfUnset(issue.id, ref, clock.instant())
+        }
+
         /** Projects that chose their repositories (D-148), read once per call. */
         private var projectRepositories: Map<UUID, Set<GitRepositoryRef>>? = null
 
@@ -410,15 +428,14 @@ class GitLinkService(
         suspend fun actorOf(person: GitPerson): Actor =
             actors.getOrPut(person) {
                 val via = mapOf("source" to "git", "name" to person.label)
-                // The e-mail address, then the GitHub account someone connected themselves (D-150), then the Git
-                // user name an administrator gave someone (D-147), then the login id.
+                // The e-mail address (against e-mail addresses and login ids), then the GitHub account someone
+                // connected themselves (D-150), then the Git user name as a login id (D-152).
                 val user =
                     person.email?.let { userService.findActiveByEmailOrLoginId(it, null) }
                         ?: person.username
                             ?.takeIf { connection.provider == GitProviderType.GITHUB }
                             ?.let { githubAccounts.userIdOf(connection, it) }
                             ?.let { userService.findActive(it) }
-                        ?: person.username?.let { accounts.userIdOf(it) }?.let { userService.findActive(it) }
                         ?: person.username?.let { userService.findActiveByEmailOrLoginId(null, it) }
                 if (user != null) Actor(user.id, user.displayName ?: user.loginId, via) else Actor(null, "${person.label}(Git)", via)
             }

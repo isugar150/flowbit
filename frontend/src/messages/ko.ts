@@ -783,15 +783,6 @@ export const ko = {
     saving: "저장하는 중",
     delete: "삭제",
     deleteConfirm: "한 번 더 누르면 연결과 이 연결로 티켓에 연결한 브랜치·PR·커밋이 삭제됩니다",
-    accounts: {
-      title: "사람 맞추기",
-      description:
-        "Git에서 한 일을 누가 했는지는 이메일, 본인이 내 설정에서 연결한 GitHub 계정, 여기 적은 Git 아이디, Flowbit 아이디 순서로 찾습니다. GitHub를 쓰는 사람은 각자 내 설정에서 GitHub 계정을 연결하면 되고, 여기는 GitLab·Gitea를 쓰는 사람과 GitHub 계정을 연결하지 않은 사람을 위한 곳입니다.",
-      githubLinked: (login: string) => `GitHub: ${login} (본인이 연결)`,
-      placeholder: "Git 아이디",
-      save: "저장",
-      saved: "저장함",
-    },
     myAccount: {
       title: "GitHub 계정",
       description: "내 GitHub 계정을 연결하면 GitHub에서 내가 올린 브랜치·PR·머지가 Flowbit에서 내가 한 일로 남습니다. Flowbit은 내 GitHub 아이디만 저장합니다.",

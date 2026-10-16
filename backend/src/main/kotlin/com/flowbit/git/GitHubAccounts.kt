@@ -53,7 +53,7 @@ data class GitHubAccountCallbackRequest(
  * Members connect their own GitHub account in their settings (D-150), through the GitHub App's
  * user authorization: GitHub asks them, sends the browser back with a code, and the code tells
  * who they are on GitHub. Only the login and id are kept; the user token is dropped at once.
- * GitHub events by that login are then theirs, before any Git user name an administrator set.
+ * GitHub events by that login are then theirs, when the e-mail address does not tell.
  */
 @Service
 class GitHubAccountService(
@@ -164,16 +164,6 @@ class GitHubAccountService(
             .map { row -> checkNotNull(row.get("user_id", UUID::class.java)) }
             .one()
             .awaitSingleOrNull()
-
-    /** Every connected GitHub account by member, for the administrator's list. */
-    suspend fun logins(): Map<UUID, String> =
-        databaseClient
-            .sql("select user_id, github_login from git_github_accounts")
-            .map { row -> checkNotNull(row.get("user_id", UUID::class.java)) to checkNotNull(row.get("github_login", String::class.java)) }
-            .all()
-            .collectList()
-            .awaitSingle()
-            .toMap()
 
     /** The first switched-on GitHub App that can authorize users: it has its client id and secret. */
     private suspend fun appToConnectThrough(): GitConnection? =

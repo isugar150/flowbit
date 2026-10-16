@@ -77,16 +77,6 @@ export type GitConnectionInput = {
   githubOrganization: string;
 };
 
-/** A member and the Git user they are (GET /api/v1/admin/git/accounts, D-147). */
-export type GitAccount = {
-  userId: string;
-  loginId: string;
-  displayName: string | null;
-  username: string | null;
-  /** The GitHub account they connected themselves (D-150); it counts first for GitHub. */
-  githubLogin: string | null;
-};
-
 /** GET /api/v1/me/git/github (D-150) */
 export type MyGitHubAccount = {
   /** Whether there is a GitHub App to connect through; without one the setting is not shown. */
