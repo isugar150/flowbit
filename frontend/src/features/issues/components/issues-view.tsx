@@ -441,68 +441,75 @@ export function IssuesView({
         </div>
       ) : (
         <div className="flex flex-col">
-          <div data-tour="issue-toolbar" className="flex flex-wrap items-center gap-2 px-4 pb-2">
-            <div className="relative">
-              <SearchIcon
-                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <input
-                type="search"
-                value={search}
-                placeholder={m.searchPlaceholder}
-                aria-label={m.searchLabel}
-                autoComplete="off"
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setSearch(value);
-                  replaceQuery((params) => {
-                    if (value) params.set(SEARCH_KEY, value);
-                    else params.delete(SEARCH_KEY);
-                  });
-                }}
-                className="h-7 w-44 rounded-full border bg-background pr-2.5 pl-7.5 text-[0.8125rem] leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-9"
-              />
-            </div>
-            {filterChips.map((chip) => (
-              <Fragment key={chip.key}>
-                {/* Labels come after the assignee, before the milestone. */}
-                {chip.key === "milestone" ? labelChip : null}
-                <ChipSelect
-                  label={chip.label}
-                  value={filters[chip.key]}
-                  options={chip.options}
-                  onChange={(value) => setFilter(chip.key, value)}
+          {/*
+            One line at every width: the view switch stays at the right end, and what does not fit
+            beside it scrolls sideways (as the milestone strip does) instead of wrapping onto lines
+            of its own. The padding inside the scroller keeps the focus rings from being cut off.
+          */}
+          <div data-tour="issue-toolbar" className="flex items-center gap-2 px-4 pb-2">
+            <div className="-m-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain p-1 [scrollbar-width:thin]">
+              <div className="relative shrink-0">
+                <SearchIcon
+                  className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
                 />
-              </Fragment>
-            ))}
-            {filterChips.some((chip) => chip.key === "milestone") ? null : labelChip}
-            {filtered ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground max-md:h-11"
-                onClick={() => {
-                  setSearch("");
-                  replaceQuery((params) => {
-                    for (const key of [...FILTER_KEYS, SEARCH_KEY]) params.delete(key);
-                  });
-                }}
-              >
-                <XIcon data-icon="inline-start" />
-                {m.clearFilter}
-              </Button>
-            ) : null}
-            <span className="flex-1" />
-            {deletedToggle}
-            {/* The chart and the calendar have an order of their own (by milestone, by day). */}
-            {view === "list" ? (
-              <>
-                <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />
-                <ChipSelect label={m.groupBy} value={grouping} options={groupOptions} onChange={setGrouping} />
-                <ChipSelect label={m.sort} value={sort} options={SORT_OPTIONS} onChange={setSort} />
-              </>
-            ) : null}
+                <input
+                  type="search"
+                  value={search}
+                  placeholder={m.searchPlaceholder}
+                  aria-label={m.searchLabel}
+                  autoComplete="off"
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSearch(value);
+                    replaceQuery((params) => {
+                      if (value) params.set(SEARCH_KEY, value);
+                      else params.delete(SEARCH_KEY);
+                    });
+                  }}
+                  className="h-7 w-44 rounded-full border bg-background pr-2.5 pl-7.5 text-[0.8125rem] leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-9"
+                />
+              </div>
+              {filterChips.map((chip) => (
+                <Fragment key={chip.key}>
+                  {/* Labels come after the assignee, before the milestone. */}
+                  {chip.key === "milestone" ? labelChip : null}
+                  <ChipSelect
+                    label={chip.label}
+                    value={filters[chip.key]}
+                    options={chip.options}
+                    onChange={(value) => setFilter(chip.key, value)}
+                  />
+                </Fragment>
+              ))}
+              {filterChips.some((chip) => chip.key === "milestone") ? null : labelChip}
+              {filtered ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground max-md:h-11"
+                  onClick={() => {
+                    setSearch("");
+                    replaceQuery((params) => {
+                      for (const key of [...FILTER_KEYS, SEARCH_KEY]) params.delete(key);
+                    });
+                  }}
+                >
+                  <XIcon data-icon="inline-start" />
+                  {m.clearFilter}
+                </Button>
+              ) : null}
+              <span className="flex-1" />
+              {deletedToggle}
+              {/* The chart and the calendar have an order of their own (by milestone, by day). */}
+              {view === "list" ? (
+                <>
+                  <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />
+                  <ChipSelect label={m.groupBy} value={grouping} options={groupOptions} onChange={setGrouping} />
+                  <ChipSelect label={m.sort} value={sort} options={SORT_OPTIONS} onChange={setSort} />
+                </>
+              ) : null}
+            </div>
             <IssueViewSwitch view={view} onChange={setView} />
           </div>
           {milestoneProjectId !== null && (projectId ?? filters.project) === milestoneProjectId && !deleted ? (

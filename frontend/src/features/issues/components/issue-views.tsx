@@ -88,7 +88,7 @@ export function IssueViewSwitch({ view, onChange }: { view: IssueViewMode; onCha
             title={m[item]}
             onClick={() => onChange(item)}
             className={cn(
-              "flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[0.8125rem] leading-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-8",
+              "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[0.8125rem] whitespace-nowrap leading-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-8",
               view === item ? "bg-secondary font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
