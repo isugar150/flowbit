@@ -378,18 +378,17 @@ class GitLinkService(
         private val actors = mutableMapOf<GitPerson, Actor>()
 
         /**
-         * Makes [repository] the issue's repository when nobody picked one yet and its project has
-         * several to pick from (D-152): the first branch or pull request tells where the work is.
-         * Never changes a pick that exists.
+         * Makes [repository] the issue's repository when nobody picked one yet (D-152, D-153): the
+         * first branch or pull request tells where the work is. In a project that chose its
+         * repositories only one of those counts. Never changes a pick that exists.
          */
         suspend fun pickRepository(
             issue: Issue,
             repository: String,
         ) {
-            val repositories = issue.projectId?.let { projectRepositories?.get(it) } ?: return
-            if (repositories.size < 2) return
+            val repositories = issue.projectId?.let { projectRepositories?.get(it) }
             val ref = GitRepositoryRef(connection.id, repository.lowercase())
-            if (ref in repositories) projectRepositoryService.pickIfUnset(issue.id, ref, clock.instant())
+            if (repositories == null || ref in repositories) projectRepositoryService.pickIfUnset(issue.id, ref, clock.instant())
         }
 
         /** Projects that chose their repositories (D-148), read once per call. */
@@ -427,7 +426,8 @@ class GitLinkService(
         /** The Flowbit account of a Git user. */
         suspend fun actorOf(person: GitPerson): Actor =
             actors.getOrPut(person) {
-                val via = mapOf("source" to "git", "name" to person.label)
+                // The server's name goes along, so the history can say "GitHub" when it names nobody (D-153).
+                val via = mapOf("source" to "git", "provider" to connection.provider.label, "name" to person.label)
                 // The e-mail address (against e-mail addresses and login ids), then the GitHub account someone
                 // connected themselves (D-150), then the Git user name as a login id (D-152).
                 val user =
@@ -437,7 +437,11 @@ class GitLinkService(
                             ?.let { githubAccounts.userIdOf(connection, it) }
                             ?.let { userService.findActive(it) }
                         ?: person.username?.let { userService.findActiveByEmailOrLoginId(null, it) }
-                if (user != null) Actor(user.id, user.displayName ?: user.loginId, via) else Actor(null, "${person.label}(Git)", via)
+                when {
+                    user != null -> Actor(user.id, user.displayName ?: user.loginId, via)
+                    person.label != null -> Actor(null, "${person.label}(${connection.provider.label})", via)
+                    else -> Actor(null, connection.provider.label, via)
+                }
             }
     }
 

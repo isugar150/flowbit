@@ -39,7 +39,7 @@
 
 (이전 메모) M3 2단계(프리셋과 문서형 티켓 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
 
-**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-152). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
+**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-153). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
 
 그 밖의 일은 사용자가 지시하기 전에 임의로 시작하지 않는다. 지시를 받으면:
 
@@ -180,6 +180,13 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-16 — 저장소가 늘 정해지게, "unknown(Git)" 문구 다듬기 (D-153)
+
+- 사용자 지적: 브랜치는 연결됐는데 저장소가 정해지지 않음(D-152 는 저장소가 둘 이상인 프로젝트에서만 정했다), "unknown(Git)님이 브랜치를 연결했습니다"가 어색함.
+- 백엔드: `GitLinkService.Run.pickRepository` 가 프로젝트에 저장소가 없거나 하나여도 정한다(정한 프로젝트에서는 그 가운데 하나일 때만). `IssueService.gitRepositoryOf` 는 저장소를 정하지 않은 프로젝트면 정해진 것을 그대로 돌려준다. `GitPerson.label` 은 아무도 없으면 null, `GitProviderType.label`("GitHub" 등)을 `detail.via.provider` 와 Actor 이름(`kimjm(GitHub)`, 없으면 `GitHub`)에 쓴다. 알림 제목은 아무도 없으면 "GitHub에서 티켓을 수정했습니다".
+- 프런트: 활동 줄(`issue-activity.tsx`)이 "GitHub에서 …"/이름 + "· GitHub" 로 말하고, 상태 변경의 "Git에서"를 뺐다. 옆 패널 Git(`issue-git-links.tsx`)에 고를 것이 없을 때도 정해진 저장소가 링크로 보인다.
+- 테스트의 `via`·`parkhs(Gitea)` 기대값을 고쳤지만 **돌리지 않았다**(컴파일·ktlint·타입 검사·eslint 만). 이미 저장소 없이 브랜치가 연결된 티켓은 다음 브랜치·PR 이 연결될 때 정해진다(지난 것을 다시 채우지는 않는다). 백엔드를 다시 띄워야 적용된다.
 
 ### 2026-10-16 — 티켓 저장소 저절로 정하기, 관리자 사람 맞추기 없애기 (D-152)
 

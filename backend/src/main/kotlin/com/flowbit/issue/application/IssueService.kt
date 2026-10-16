@@ -799,10 +799,14 @@ class IssueService(
         return IssueChange(view, events.map(actor::mark), activities.recipientIds(issue.id).filter { it != actor.userId })
     }
 
-    /** The repository picked on the issue, while it is still one of its project's (D-148). */
+    /**
+     * The repository picked on the issue (D-148), or the one its first branch or pull request came
+     * from (D-153). In a project that chose its repositories it counts while it is still one of them.
+     */
     private suspend fun gitRepositoryOf(issue: Issue): IssueGitRepositoryView? {
         val picked = extras.issueGitRepository(issue.id) ?: return null
         val options = issue.projectId?.let { extras.projectGitRepositories(it) }.orEmpty()
+        if (options.isEmpty()) return picked
         return picked.takeIf { choice -> options.any { it.connectionId == choice.connectionId && it.repository == choice.repository } }
     }
 

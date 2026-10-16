@@ -8,8 +8,17 @@ import org.springframework.data.repository.kotlin.CoroutineCrudRepository
 import java.time.Instant
 import java.util.UUID
 
-/** The kind of Git server a connection receives events from. Gitea covers Forgejo too. */
-enum class GitProviderType { GITEA, GITLAB, GITHUB }
+/**
+ * The kind of Git server a connection receives events from. Gitea covers Forgejo too. [label] is
+ * how the server is named to people.
+ */
+enum class GitProviderType(
+    val label: String,
+) {
+    GITEA("Gitea"),
+    GITLAB("GitLab"),
+    GITHUB("GitHub"),
+}
 
 /** How events reach Flowbit: the server calls the webhook, or Flowbit reads the GitHub API (GitHub only). */
 enum class GitReceiveMode { WEBHOOK, POLL }

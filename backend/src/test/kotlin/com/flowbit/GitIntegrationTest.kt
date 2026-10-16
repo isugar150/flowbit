@@ -340,7 +340,7 @@ class GitIntegrationTest : IntegrationTest() {
         assertEquals(listOf("IN_PROGRESS", "IN_PROGRESS", "DONE", "CANCELED", "BACKLOG"), statuses(5))
         val change = activity(1).last()
         assertEquals("STATUS_CHANGED", change["type"])
-        assertEquals(mapOf("source" to "git", "name" to "kimjm"), detailOf(change)["via"])
+        assertEquals(mapOf("source" to "git", "provider" to "Gitea", "name" to "kimjm"), detailOf(change)["via"])
         assertEquals("BACKLOG" to "IN_PROGRESS", detailOf(change)["from"] to detailOf(change)["to"])
         // Pushing the same branch again after it was moved back by hand does not move it again.
         admin.patch("/api/v1/issues/1", """{"status":"READY"}""")
@@ -453,7 +453,7 @@ class GitIntegrationTest : IntegrationTest() {
         val plain = received.filter { it.first == "/notify" }
         assertEquals(2, plain.size)
         val payload = mapper.readTree(plain.first().second)
-        assertEquals("parkhs(Git)", payload.get("actor").get("name").asString())
+        assertEquals("parkhs(Gitea)", payload.get("actor").get("name").asString())
         assertEquals(listOf("STATUS_CHANGED"), changeTypes(plain.first().second))
         assertEquals(
             "IN_PROGRESS",
@@ -464,7 +464,7 @@ class GitIntegrationTest : IntegrationTest() {
                 .get("to")
                 .asString(),
         )
-        assertTrue(payload.get("text").asString().contains("parkhs(Git) 님이 Git에서 티켓을 수정했습니다"))
+        assertTrue(payload.get("text").asString().contains("parkhs(Gitea) 님이 Git에서 티켓을 수정했습니다"))
         // The one that chose Git's kinds gets the whole change, the commit with the status.
         assertEquals(listOf("GIT_BRANCH_LINKED", "GIT_COMMITS_PUSHED", "STATUS_CHANGED"), changeTypes(received.first { it.first == "/git" }.second))
     }

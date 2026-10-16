@@ -406,8 +406,10 @@ export const ko = {
       milestone: "님이 목표를 바꿨습니다:",
       labels: "님이 라벨을 바꿨습니다:",
       changed: "님이 티켓을 수정했습니다",
-      gitName: (name: string) => `${name}(Git)`,
-      statusFromGit: "님이 Git에서 상태를 바꿨습니다:",
+      gitSource: "Git",
+      gitUnmatched: (provider: string) => `Flowbit 계정과 맞춰지지 않은 ${provider} 사용자`,
+      /** For a Git server's change that names nobody: "GitHub에서 브랜치를 연결했습니다". */
+      fromServer: (action: string) => action.replace(/^님이 /, "에서 "),
       gitBranchLinked: "님이 브랜치를 연결했습니다:",
       gitPrLinked: "님이 PR을 연결했습니다:",
       gitPrMerged: "님이 PR을 머지했습니다:",

@@ -1,4 +1,4 @@
-import { GitBranchIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from "lucide-react";
+import { FolderGit2Icon, GitBranchIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import type { GitPrState, IssueGitLink, IssueGitRepository } from "../types";
@@ -28,7 +28,8 @@ function PullRequestIcon({ state }: { state: GitPrState | null }) {
 
 /**
  * The "Git" group of an issue's side panel (docs/features/git-integration.md "화면"): which of its
- * project's repositories the work is in, when there are several to pick from (D-148), and the pull
+ * project's repositories the work is in, picked when there are several to pick from (D-148) and
+ * otherwise shown as the one its first branch or pull request came from (D-153), and the pull
  * requests and branches a Git server linked to it, each opening on the Git server in a new tab.
  * Nothing at all when there is neither, so an installation without Git never sees it.
  */
@@ -50,7 +51,21 @@ export function IssueGitLinks({
   return (
     <section className="flex flex-col gap-1">
       <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.heading}</h3>
-      {picking ? <IssueGitRepositoryPicker number={number} repository={repository} options={repositoryOptions} disabled={!canEdit} /> : null}
+      {picking ? (
+        <IssueGitRepositoryPicker number={number} repository={repository} options={repositoryOptions} disabled={!canEdit} />
+      ) : repository ? (
+        <a
+          href={repository.url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={m.openRepository(repository.repository)}
+          title={m.openRepository(repository.repository)}
+          className="flex min-h-8 items-center gap-2 rounded-md px-1 text-[0.8125rem] leading-5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-11"
+        >
+          <FolderGit2Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate">{repository.repository}</span>
+        </a>
+      ) : null}
       <ul className="flex flex-col">
         {links.map((link) => {
           const pullRequest = link.kind === "PULL_REQUEST";

@@ -196,8 +196,11 @@ export type IssueActivityType =
   | "GIT_PR_CLOSED"
   | "GIT_COMMITS_PUSHED";
 
-/** Set on an entry a Git server made: who it was on the Git server. */
-export type ActivityVia = { source: "git"; name: string };
+/**
+ * Set on an entry a Git server made: which kind of server (D-153; missing on older entries) and
+ * who it was there (null when the event named nobody, such as a branch read from the GitHub API).
+ */
+export type ActivityVia = { source: "git"; provider?: string; name?: string | null };
 
 export type IssueActivityItem = {
   id: string;

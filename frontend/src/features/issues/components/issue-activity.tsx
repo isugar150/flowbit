@@ -52,7 +52,7 @@ function describe(item: IssueActivityItem): { action: string; change?: string; h
       return { action: m.description };
     case "STATUS_CHANGED":
       return {
-        action: item.detail.via ? m.statusFromGit : m.status,
+        action: m.status,
         change: arrow(statusLabel(from as IssueStatus), statusLabel(to as IssueStatus)),
       };
     case "PRIORITY_CHANGED":
@@ -183,9 +183,15 @@ export function IssueActivity({
         {entriesOf(feed).map((entry) => {
           if (entry.comment) return <CommentItem key={entry.comment.id} comment={entry.comment} mentionables={mentionables} />;
           const item = entry.event;
-          const { action, change, href, commits } = describe(item);
-          // A Git user without an account here is named as the Git server knows them.
-          const actor = item.actor ?? { loginId: m.gitName(item.detail.via?.name ?? "Git"), displayName: null, avatarUrl: null };
+          const described = describe(item);
+          const { change, href, commits } = described;
+          // A Git server's change (D-153): a Git user without an account here is named as the server
+          // knows them, and when the event named nobody the server itself is ("GitHub에서 …").
+          const via = item.detail.via;
+          const source = via ? (via.provider ?? m.gitSource) : null;
+          const nobody = !item.actor && via != null && !via.name;
+          const actor = item.actor ?? { loginId: (nobody ? source : via?.name) ?? m.gitSource, displayName: null, avatarUrl: null };
+          const action = nobody ? m.fromServer(described.action) : described.action;
           return (
             <li key={item.id} className="flex items-start gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
               <span className="flex h-5 shrink-0 items-center">
@@ -193,7 +199,11 @@ export function IssueActivity({
               </span>
               <div className="min-w-0 flex-1 break-words">
                 <p>
-                  <span className="font-medium text-foreground">{personName(actor)}</span> {action}
+                  <span className="font-medium text-foreground" title={!item.actor && !nobody && source ? m.gitUnmatched(source) : undefined}>
+                    {personName(actor)}
+                  </span>
+                  {nobody ? "" : " "}
+                  {action}
                   {change ? (
                     <>
                       {" "}
@@ -204,6 +214,12 @@ export function IssueActivity({
                       ) : (
                         <span className="text-foreground">{change}</span>
                       )}
+                    </>
+                  ) : null}
+                  {source && !nobody ? (
+                    <>
+                      <span aria-hidden="true"> · </span>
+                      {source}
                     </>
                   ) : null}
                   <span aria-hidden="true"> · </span>

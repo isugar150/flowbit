@@ -48,11 +48,19 @@ class NotificationText(
         return NotificationMessage(
             title = "[${notification.issueKey}] ${notification.issueTitle}",
             lines = notification.events.mapNotNull(::line),
-            headline = "${notification.actorName} 님이 $did",
+            headline =
+                if (fromGit && notification.actorId == null && gitNamesNobody(notification)) {
+                    "${notification.actorName}에서 티켓을 수정했습니다"
+                } else {
+                    "${notification.actorName} 님이 $did"
+                },
             path = path,
             url = publicUrl.of(path),
         )
     }
+
+    /** A Git server's change that names nobody (D-153): the actor is the server itself, "GitHub". */
+    private fun gitNamesNobody(notification: IssueNotification): Boolean = notification.events.all { (it.detail["via"] as? Map<*, *>)?.get("name") == null }
 
     /** A request to join a project; the link opens the project's settings, where it is answered (D-128). */
     fun of(request: ProjectAccessRequestNotification): NotificationMessage {

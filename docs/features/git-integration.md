@@ -26,7 +26,7 @@
 
 **티켓 옆 패널 > Git > 저장소**: 프로젝트에 저장소가 둘 이상이면 티켓마다 하나를 고른다(편집 역할). 고른 저장소가 있으면 키 옆 메뉴에 "<저장소> 열기"가 생긴다(저장소가 하나뿐인 프로젝트는 그 저장소).
 
-**저장소는 저절로 정해진다** (사용자 지정, D-152): 아직 고른 저장소가 없는 티켓에 처음으로 브랜치나 PR 이 연결되면, 그 저장소가 프로젝트의 저장소 가운데 하나일 때 그것이 티켓의 저장소가 된다(예: `org/web` 에 `feature/fb-12-login` 브랜치를 만들면 FB-12 의 저장소는 `org/web`). 커밋만으로는 정하지 않는다. 이미 고른 저장소는 바꾸지 않으므로, 다른 저장소로 옮기려면 옆 패널에서 직접 바꾼다. 저장소가 하나뿐이거나 정하지 않은 프로젝트에서는 고를 일이 없어 저장하지 않는다.
+**저장소는 저절로 정해진다** (사용자 지정, D-152, D-153): 아직 고른 저장소가 없는 티켓에 처음으로 브랜치나 PR 이 연결되면 그 저장소가 티켓의 저장소가 된다(예: `org/web` 에 `feature/fb-12-login` 브랜치를 만들면 FB-12 의 저장소는 `org/web`). 저장소를 정한 프로젝트에서는 그 가운데 하나일 때만이다. 저장소를 정하지 않은 프로젝트·독립 티켓·저장소가 하나뿐인 프로젝트도 정해지며, 옆 패널 "Git" 에 그 저장소가 링크로 보인다(고를 것이 둘 이상일 때만 고르는 칸). 커밋만으로는 정하지 않는다. 이미 고른 저장소는 바꾸지 않으므로, 다른 저장소로 옮기려면 옆 패널에서 직접 바꾼다. 저장소를 정하지 않은 프로젝트에서 정해진 저장소는 보여 주기만 하고 받는 이벤트를 좁히지 않는다(아래 3번).
 
 **어느 이벤트가 티켓에 닿는가** (위에서부터 먼저 맞는 것):
 
@@ -211,6 +211,8 @@ Flowbit 이 `api.github.com` 으로 나가는 연결만 있으면 된다. 실시
 **내 설정 > GitHub 계정** (D-150): 각자 GitHub 계정을 연결한다. 같은 GitHub App 의 사용자 인증(OAuth 웹 흐름)을 쓴다: "GitHub 계정 연결" → `<GitHub>/login/oauth/authorize?client_id=…&redirect_uri=<Flowbit>/settings/github/callback&state=…` → GitHub 이 돌려보낸 code 를 `POST <GitHub>/login/oauth/access_token`(`Accept: application/json`)으로 바꿔 `GET /user` 로 login·id 만 읽고, 사용자 토큰은 저장하지 않고 버린다. 표 `git_github_accounts`(`V16`). 같은 GitHub 계정을 두 사람이 연결할 수 없다(409 `GITHUB_ACCOUNT_TAKEN`). state 는 서버 메모리에 10분(단일 인스턴스). redirect URI 는 앱의 Callback URL 이어야 해서, 매니페스트에 `callback_urls` 로 넣는다. 그 전에 만든 앱은 GitHub 의 앱 설정에서 더해야 한다(관리자 화면이 주소를 보여 준다). 연결할 GitHub App 이 없으면 이 설정은 보이지 않는다. API: `GET /api/v1/me/git/github`(`{ available, login, linkedAt }`), `POST /api/v1/me/git/github/authorize?origin=`(`{ url }`, 앱이 없으면 409 `GITHUB_APP_MISSING`), `POST /api/v1/me/git/github/callback`(`{ code, state }`), `DELETE /api/v1/me/git/github`.
 
 **사람 찾기 순서** (D-152): 푸시한 사람(커밋 작성자·PR 을 만든 사람)의 이메일을 Flowbit 의 이메일과 아이디에 맞춰 본다 → (GitHub 이벤트일 때) 본인이 연결한 GitHub 계정(같은 GitHub 서버) → Git 사용자 이름을 Flowbit 아이디에 맞춰 본다 → 모두 없으면 Git 이름만 남는다.
+
+**활동 줄의 이름** (D-153): Flowbit 계정과 맞으면 그 사람 이름, 맞지 않으면 Git 서버의 이름(`kimjm`, 마우스를 올리면 "Flowbit 계정과 맞춰지지 않은 GitHub 사용자")이고, 줄 끝에 시각과 함께 서버 종류(`· GitHub`)가 붙는다. 이벤트가 아무도 말하지 않으면(GitHub API 가져오기에서 커밋 없이 만든 브랜치처럼, API 가 누가 만들었는지 알려 주지 않는다) "GitHub에서 브랜치를 연결했습니다"로 쓴다. 상태 변경 줄의 "Git에서"는 서버 종류 표시로 대신했다. 그래서 `detail.via` 는 `{source:"git", provider:"GitHub", name}`(name 은 없으면 null)이다. 알림 제목은 `kimjm(GitHub) 님이 Git에서 티켓을 수정했습니다`, 아무도 말하지 않으면 `GitHub에서 티켓을 수정했습니다`.
 
 **관리자의 "사람 맞추기"는 없앴다** (사용자 지정, D-152): 관리자가 구성원마다 Git 아이디를 적던 것(D-147, 표 `git_user_accounts`)은 `V18` 에서 표째 지웠다. 이메일이나 아이디가 맞지 않는 사람은 Git 서버의 이메일이나 아이디를 Flowbit 과 같게 하거나, GitHub 라면 내 설정에서 GitHub 계정을 연결한다. GitHub 의 PR 이벤트·목록에는 이메일이 없어서, GitHub 에서는 연결한 GitHub 계정이나 같은 아이디가 아니면 PR 이 사람에게 이어지지 않는다(커밋에는 이메일이 있다).
 

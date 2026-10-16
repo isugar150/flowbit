@@ -11,9 +11,9 @@ data class GitPerson(
     /** The full name, when the server sends one. */
     val name: String?,
 ) {
-    /** What the history shows when no Flowbit account matches. */
-    val label: String
-        get() = username ?: name ?: email ?: "unknown"
+    /** What the history shows when no Flowbit account matches; null when the event names nobody. */
+    val label: String?
+        get() = username ?: name ?: email
 }
 
 data class GitCommit(
