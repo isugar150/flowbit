@@ -22,24 +22,36 @@ function Block({ block }: { block: HelpBlock }) {
         </p>
       );
     case "list":
-    case "steps": {
-      const List = block.kind === "list" ? "ul" : "ol";
       return (
-        <List
-          className={
-            block.kind === "list"
-              ? "flex list-disc flex-col gap-1.5 pl-5 marker:text-muted-foreground"
-              : "flex list-decimal flex-col gap-1.5 pl-5 marker:text-muted-foreground"
-          }
-        >
+        <ul className="flex flex-col gap-2">
           {block.items.map((item, index) => (
-            <li key={index} className="pl-1">
+            <li
+              key={index}
+              className="relative pl-4 before:absolute before:top-[0.5625rem] before:left-1 before:size-1 before:rounded-full before:bg-muted-foreground before:content-['']"
+            >
               <HelpText text={item} />
             </li>
           ))}
-        </List>
+        </ul>
       );
-    }
+    case "steps":
+      return (
+        <ol className="flex flex-col gap-3">
+          {block.items.map((item, index) => (
+            <li key={index} className="flex gap-3">
+              <span
+                className="flex size-5.5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium tabular-nums"
+                aria-hidden="true"
+              >
+                {index + 1}
+              </span>
+              <span className="min-w-0">
+                <HelpText text={item} />
+              </span>
+            </li>
+          ))}
+        </ol>
+      );
     case "note":
       return (
         <Alert>
@@ -88,7 +100,7 @@ function Block({ block }: { block: HelpBlock }) {
       );
     case "sub":
       return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 pt-2">
           <h4 className="font-semibold">{block.title}</h4>
           <HelpBlocks blocks={block.blocks} />
         </div>
@@ -101,14 +113,14 @@ function HelpTable({ head, children }: { head: readonly string[]; children: Reac
   return (
     <div className="overflow-x-auto rounded-lg border">
       <table className="w-full border-collapse text-[0.8125rem] leading-5">
-        <thead className="bg-muted">
+        <thead className="bg-muted/60">
           <tr>
             {head.map((title, column) => (
               <th
                 key={title}
                 scope="col"
                 className={cn(
-                  "px-3 py-2 text-left font-medium text-muted-foreground",
+                  "px-3 py-2 text-left text-xs font-medium text-muted-foreground",
                   head.length === 2 && column === 0 && "w-2/5",
                   head.length > 2 && "min-w-28",
                 )}

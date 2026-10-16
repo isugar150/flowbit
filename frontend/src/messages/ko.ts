@@ -1280,6 +1280,9 @@ export const ko = {
   },
   help: {
     title: "도움말",
+    heading: "Flowbit 사용 안내",
+    startHere: "처음이라면",
+    adminBadge: "관리자",
     intro: "Flowbit의 화면과 기능을 쓰는 방법입니다. 목차에서 필요한 내용으로 바로 갑니다.",
     tocLabel: "목차",
     keysHead: ["키", "동작"],

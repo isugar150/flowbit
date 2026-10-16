@@ -1,20 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HELP_GROUPS } from "@/features/help/content";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-
-export type TocGroup = { id: string; title: string; sections: { id: string; title: string }[] };
+import { SectionIcon } from "./section-icon";
 
 /**
  * The help page's table of contents. Beside the text on a wide screen, where it stays in place
- * and marks the section being read; above the text on a narrow one. Plain links, so it works
- * before the script arrives.
+ * and marks the section being read; chips above the text on a narrow one. Plain links, so it
+ * works before the script arrives.
  */
-export function HelpToc({ groups }: { groups: TocGroup[] }) {
+export function HelpToc({ isAdmin }: { isAdmin: boolean }) {
+  const groups = HELP_GROUPS.filter((group) => !group.adminOnly || isAdmin);
   const [current, setCurrent] = useState<string | null>(null);
-  const ids = groups.flatMap((group) => group.sections.map((section) => section.id));
-  const idList = ids.join(" ");
+  const idList = groups.flatMap((group) => group.sections.map((section) => section.id)).join(" ");
 
   useEffect(() => {
     const order = idList.split(" ");
@@ -44,30 +44,35 @@ export function HelpToc({ groups }: { groups: TocGroup[] }) {
   }, [idList]);
 
   return (
-    <nav aria-label={messages.help.tocLabel} className="flex flex-col gap-5 text-[0.8125rem] leading-5">
+    <nav aria-label={messages.help.tocLabel} className="flex flex-col gap-6 text-[0.8125rem] leading-5">
       {groups.map((group) => (
         <div key={group.id} className="flex flex-col gap-2 lg:gap-1">
           <a
             href={`#${group.id}`}
-            className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="rounded-md px-2 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {group.title}
           </a>
           <ul className="flex flex-wrap gap-1.5 lg:flex-col lg:flex-nowrap lg:gap-px">
-            {group.sections.map((section) => (
-              <li key={section.id}>
-                <a
-                  href={`#${section.id}`}
-                  aria-current={current === section.id ? "location" : undefined}
-                  className={cn(
-                    "flex items-center rounded-md px-2 py-1 text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-lg:h-9 max-lg:rounded-full max-lg:border max-lg:px-3 lg:min-h-7",
-                    current === section.id && "bg-accent font-medium text-foreground",
-                  )}
-                >
-                  {section.title}
-                </a>
-              </li>
-            ))}
+            {group.sections.map((section) => {
+              const here = current === section.id;
+              return (
+                <li key={section.id}>
+                  <a
+                    href={`#${section.id}`}
+                    aria-current={here ? "location" : undefined}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "max-lg:h-9 max-lg:rounded-full max-lg:border max-lg:px-3 lg:h-7 lg:px-2",
+                      here && "bg-accent font-medium text-foreground",
+                    )}
+                  >
+                    <SectionIcon icon={section.icon} size="sm" />
+                    <span className="truncate">{section.title}</span>
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}

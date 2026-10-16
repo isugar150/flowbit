@@ -28,7 +28,7 @@ export function HelpText({ text }: { text: string }) {
     }
     if (part.startsWith("[[")) return <KeyCombo key={index} combo={part.slice(2, -2)} />;
     return (
-      <code key={index} className="rounded-sm bg-muted px-1 py-0.5 text-[0.8125rem]">
+      <code key={index} className="rounded-md border bg-muted/60 px-1.5 py-px text-[0.92em] box-decoration-clone">
         {part.slice(1, -1)}
       </code>
     );

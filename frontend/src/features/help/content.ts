@@ -1,3 +1,33 @@
+import {
+  ActivityIcon,
+  BellIcon,
+  BookOpenIcon,
+  Building2Icon,
+  CalendarDaysIcon,
+  DatabaseBackupIcon,
+  DownloadIcon,
+  FileTextIcon,
+  FlagIcon,
+  GitBranchIcon,
+  GitMergeIcon,
+  KeyRoundIcon,
+  KeyboardIcon,
+  LayoutGridIcon,
+  ListIcon,
+  LogInIcon,
+  MessageSquareIcon,
+  PanelLeftIcon,
+  SearchIcon,
+  SendIcon,
+  ShieldIcon,
+  SquarePenIcon,
+  TicketIcon,
+  Trash2Icon,
+  UserIcon,
+  UsersIcon,
+  type LucideIcon,
+} from "lucide-react";
+
 /**
  * The help page's text (docs/features/help.md). Only what the app does today, in the names the
  * screens use (messages/ko.ts). When a feature changes, change its section here too.
@@ -15,7 +45,7 @@ export type HelpBlock =
   | { kind: "keys"; rows: { keys: string[]; action: string }[] }
   | { kind: "sub"; title: string; blocks: HelpBlock[] };
 
-export type HelpSection = { id: string; title: string; blocks: HelpBlock[] };
+export type HelpSection = { id: string; title: string; icon: LucideIcon; summary: string; blocks: HelpBlock[] };
 
 export type HelpGroup = { id: string; title: string; description: string; adminOnly: boolean; sections: HelpSection[] };
 
@@ -23,6 +53,8 @@ const using: HelpSection[] = [
   {
     id: "start",
     title: "Flowbit 한눈에",
+    icon: BookOpenIcon,
+    summary: "티켓·프로젝트·목표가 무엇이고 누가 무엇을 할 수 있는지",
     blocks: [
       {
         kind: "p",
@@ -57,6 +89,8 @@ const using: HelpSection[] = [
   {
     id: "login",
     title: "로그인과 처음 시작",
+    icon: LogInIcon,
+    summary: "로그인하는 방법과 처음 로그인했을 때의 둘러보기",
     blocks: [
       {
         kind: "list",
@@ -77,6 +111,8 @@ const using: HelpSection[] = [
   {
     id: "layout",
     title: "화면 구성",
+    icon: PanelLeftIcon,
+    summary: "사이드바의 메뉴와 각 화면으로 가는 길",
     blocks: [
       {
         kind: "p",
@@ -108,6 +144,8 @@ const using: HelpSection[] = [
   {
     id: "create-issue",
     title: "티켓 만들기",
+    icon: SquarePenIcon,
+    summary: "제목 하나로 티켓을 만들고 속성을 고르기",
     blocks: [
       {
         kind: "steps",
@@ -131,6 +169,8 @@ const using: HelpSection[] = [
   {
     id: "issue",
     title: "티켓 보기와 수정",
+    icon: TicketIcon,
+    summary: "티켓 창에서 본문·속성·하위 티켓·첨부를 다루기",
     blocks: [
       {
         kind: "p",
@@ -209,6 +249,8 @@ const using: HelpSection[] = [
   {
     id: "lists",
     title: "티켓 목록",
+    icon: ListIcon,
+    summary: "내 티켓·전체 티켓을 거르고, 정렬하고, 묶어 보기",
     blocks: [
       {
         kind: "table",
@@ -237,6 +279,8 @@ const using: HelpSection[] = [
   {
     id: "views",
     title: "목표 차트와 캘린더",
+    icon: CalendarDaysIcon,
+    summary: "목표별 타임라인과 월 달력으로 일정 보기",
     blocks: [
       {
         kind: "p",
@@ -255,6 +299,8 @@ const using: HelpSection[] = [
   {
     id: "search",
     title: "검색",
+    icon: SearchIcon,
+    summary: "티켓과 문서를 제목·본문·댓글·번호로 찾기",
     blocks: [
       {
         kind: "p",
@@ -276,6 +322,8 @@ const using: HelpSection[] = [
   {
     id: "editor",
     title: "문서 편집기",
+    icon: FileTextIcon,
+    summary: "/ 블록, @ 태그, 표·이미지·문서·임베드",
     blocks: [
       {
         kind: "p",
@@ -330,6 +378,8 @@ const using: HelpSection[] = [
   {
     id: "comments",
     title: "댓글과 활동",
+    icon: MessageSquareIcon,
+    summary: "댓글을 쓰고 변경 기록을 따라가기",
     blocks: [
       {
         kind: "list",
@@ -344,6 +394,8 @@ const using: HelpSection[] = [
   {
     id: "notifications",
     title: "구독과 알림",
+    icon: BellIcon,
+    summary: "누가 어떤 알림을 어떻게 받는지",
     blocks: [
       {
         kind: "p",
@@ -364,6 +416,8 @@ const using: HelpSection[] = [
   {
     id: "projects",
     title: "프로젝트",
+    icon: LayoutGridIcon,
+    summary: "프로젝트를 만들고 개요와 설정을 다루기",
     blocks: [
       {
         kind: "list",
@@ -407,6 +461,8 @@ const using: HelpSection[] = [
   {
     id: "milestones",
     title: "목표",
+    icon: FlagIcon,
+    summary: "프로젝트를 단계로 나누고 진행률 보기",
     blocks: [
       {
         kind: "list",
@@ -423,6 +479,8 @@ const using: HelpSection[] = [
   {
     id: "updates",
     title: "프로젝트 업데이트",
+    icon: ActivityIcon,
+    summary: "진행 상황과 건강도를 남기기",
     blocks: [
       {
         kind: "list",
@@ -437,6 +495,8 @@ const using: HelpSection[] = [
   {
     id: "git",
     title: "Git으로 일하기",
+    icon: GitBranchIcon,
+    summary: "브랜치·PR로 티켓을 연결하고 상태를 저절로 바꾸기",
     blocks: [
       {
         kind: "p",
@@ -544,6 +604,8 @@ const using: HelpSection[] = [
   {
     id: "settings",
     title: "내 설정",
+    icon: UserIcon,
+    summary: "프로필, 알림 받는 방법, 테마",
     blocks: [
       {
         kind: "p",
@@ -564,6 +626,8 @@ const using: HelpSection[] = [
   {
     id: "install",
     title: "앱으로 설치",
+    icon: DownloadIcon,
+    summary: "Flowbit을 앱처럼 설치해 쓰기",
     blocks: [
       {
         kind: "list",
@@ -579,6 +643,8 @@ const using: HelpSection[] = [
   {
     id: "shortcuts",
     title: "단축키",
+    icon: KeyboardIcon,
+    summary: "키보드로 더 빠르게",
     blocks: [
       {
         kind: "p",
@@ -649,6 +715,8 @@ const managing: HelpSection[] = [
   {
     id: "admin",
     title: "관리자 설정",
+    icon: ShieldIcon,
+    summary: "관리자 설정의 탭과 처음 설치",
     blocks: [
       {
         kind: "p",
@@ -666,6 +734,8 @@ const managing: HelpSection[] = [
   {
     id: "admin-workspace",
     title: "워크스페이스",
+    icon: Building2Icon,
+    summary: "워크스페이스 이름·로고·티켓 키",
     blocks: [
       {
         kind: "list",
@@ -679,6 +749,8 @@ const managing: HelpSection[] = [
   {
     id: "admin-members",
     title: "구성원",
+    icon: UsersIcon,
+    summary: "구성원 추가, 역할, 비밀번호 재설정, 비활성화",
     blocks: [
       {
         kind: "list",
@@ -694,6 +766,8 @@ const managing: HelpSection[] = [
   {
     id: "admin-auth",
     title: "로그인 연동",
+    icon: KeyRoundIcon,
+    summary: "LDAP과 SSO로 로그인하게 하기",
     blocks: [
       {
         kind: "list",
@@ -708,6 +782,8 @@ const managing: HelpSection[] = [
   {
     id: "admin-notifications",
     title: "알림",
+    icon: SendIcon,
+    summary: "메일·웹 푸시·API 알림 켜기",
     blocks: [
       {
         kind: "list",
@@ -722,6 +798,8 @@ const managing: HelpSection[] = [
   {
     id: "admin-backup",
     title: "백업 및 복원",
+    icon: DatabaseBackupIcon,
+    summary: "설정을 파일로 받고 되돌리기",
     blocks: [
       {
         kind: "list",
@@ -736,6 +814,8 @@ const managing: HelpSection[] = [
   {
     id: "admin-retention",
     title: "데이터 보관",
+    icon: Trash2Icon,
+    summary: "삭제한 데이터를 얼마나 보관할지",
     blocks: [
       {
         kind: "list",
@@ -749,6 +829,8 @@ const managing: HelpSection[] = [
   {
     id: "admin-git",
     title: "Git 연동",
+    icon: GitMergeIcon,
+    summary: "Gitea·GitLab·GitHub 연결하기",
     blocks: [
       {
         kind: "p",
@@ -805,8 +887,11 @@ export const HELP_GROUPS: HelpGroup[] = [
   {
     id: "managing",
     title: "관리하기",
-    description: "관리자 설정의 각 탭. 관리자에게만 보입니다",
+    description: "관리자 설정의 각 탭에서 하는 일. 이 묶음은 관리자에게만 보입니다",
     adminOnly: true,
     sections: managing,
   },
 ];
+
+/** The sections a newcomer looks for first, shown as cards at the top of the page. */
+export const HELP_START_HERE = ["create-issue", "lists", "search", "shortcuts"];
