@@ -56,7 +56,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
   const mentionables = mentionablesOf(members ?? []);
 
   return (
-    <div className="flex flex-1 flex-col gap-8 p-4 pt-1 sm:p-5 sm:pt-1 lg:flex-row lg:items-start lg:gap-6">
+    <div className="flex flex-1 flex-col gap-8 p-4 pt-1 sm:p-5 sm:pt-1 @3xl:flex-row @3xl:items-start @3xl:gap-6">
       {/* Presence on an issue is about this issue, not the list behind it. */}
       <RealtimeScope topics={[`issue:${issue.number}`]} presence={`issue:${issue.number}`} priority={1} />
       {/* Only someone who can change the issue has changes waiting to be announced. */}
@@ -88,7 +88,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
         <IssueSubIssues issue={issue} canEdit={canEdit} members={members ?? []} />
         {activity ? <IssueActivity number={issue.number} feed={activity} canComment={canEdit} mentionables={mentionables} /> : null}
       </article>
-      <aside className="flex w-full shrink-0 flex-col gap-6 px-2 lg:w-64 lg:pt-2">
+      <aside className="flex w-full shrink-0 flex-col gap-6 px-2 @3xl:w-64 @3xl:pt-2">
         <IssueProperties
           issue={issue}
           members={members ?? []}

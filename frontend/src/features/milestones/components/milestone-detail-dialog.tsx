@@ -147,26 +147,31 @@ export function useMilestoneNotes(projectId: string, milestoneId: string) {
 /**
  * What a milestone shows, in the overview's dialog or in the panel beside a ticket (D-138): name,
  * progress, target date, the document, and its tickets. `stacked` puts the tickets under the
- * document instead of beside it, for a narrow panel.
+ * document instead of beside it, for a narrow panel. Without `onChange` and `notes` nothing in it
+ * can be changed, whatever `canEdit` says (the panel beside a ticket, D-157).
  */
 export function MilestoneDetailBody({
   projectId,
   milestone,
-  canEdit,
+  canEdit: mayEdit,
   onChange,
   notes,
   stacked = false,
   issueLimit,
+  openHref,
 }: {
   projectId: string;
   milestone: Milestone;
   canEdit: boolean;
-  onChange: (changes: { name?: string; targetDate?: string | null }) => void;
-  notes: ReturnType<typeof useMilestoneNotes>;
+  onChange?: (changes: { name?: string; targetDate?: string | null }) => void;
+  notes?: ReturnType<typeof useMilestoneNotes>;
   stacked?: boolean;
   /** At most this many tickets are listed; the rest are counted on one line. */
   issueLimit?: number;
+  /** Where the milestone has its own place; a link to it stands right of the name. */
+  openHref?: string;
 }) {
+  const canEdit = mayEdit && onChange !== undefined && notes !== undefined;
   const router = useRouter();
   const percent = milestoneProgress(milestone);
   const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
@@ -215,7 +220,7 @@ export function MilestoneDetailBody({
   const commitName = (input: HTMLInputElement) => {
     const name = input.value.trim();
     if (!name) input.value = milestone.name;
-    else if (name !== milestone.name) onChange({ name });
+    else if (name !== milestone.name) onChange?.({ name });
   };
 
   return (
@@ -246,6 +251,16 @@ export function MilestoneDetailBody({
                 ) : (
                   <h2 className="min-w-0 truncate text-lg leading-7 font-semibold">{milestone.name}</h2>
                 )}
+                {openHref ? (
+                  <Link
+                    href={openHref}
+                    aria-label={m.openInProject(milestone.name)}
+                    title={m.openInProjectHint}
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <ArrowUpRightIcon className="size-4" aria-hidden="true" />
+                  </Link>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5">
                 <span className="flex items-center gap-2">
@@ -268,7 +283,7 @@ export function MilestoneDetailBody({
                     placeholder={m.noTargetDate}
                     value={milestone.targetDate}
                     disabled={!canEdit}
-                    onChange={(targetDate) => onChange({ targetDate })}
+                    onChange={(targetDate) => onChange?.({ targetDate })}
                   />
                 ) : (
                   <span className="text-muted-foreground">{m.noTarget}</span>
@@ -278,7 +293,7 @@ export function MilestoneDetailBody({
             <section className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.notesTitle}</h3>
-                <SaveStatus status={notes.status} />
+                {notes ? <SaveStatus status={notes.status} /> : null}
               </div>
               {canEdit || milestone.content ? (
                 <RichTextEditor
@@ -288,8 +303,8 @@ export function MilestoneDetailBody({
                   placeholder={m.notesPlaceholder}
                   ariaLabel={m.notesLabel}
                   className="min-h-48"
-                  onChange={notes.schedule}
-                  keepLocal={notes.isDirty}
+                  onChange={notes?.schedule}
+                  keepLocal={notes?.isDirty}
                 />
               ) : (
                 <p className="text-muted-foreground">{m.noNotes}</p>

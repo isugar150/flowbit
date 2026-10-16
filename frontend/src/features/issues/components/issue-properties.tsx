@@ -244,9 +244,9 @@ export function IssueProperties({
   const panelMilestoneId = milestone?.id ?? null;
   useEffect(() => {
     if (!showMilestone) return;
-    showMilestone(panelProjectId && panelMilestoneId ? { projectId: panelProjectId, milestoneId: panelMilestoneId, canEdit } : null);
+    showMilestone(panelProjectId && panelMilestoneId ? { projectId: panelProjectId, milestoneId: panelMilestoneId } : null);
     return () => showMilestone(null);
-  }, [showMilestone, panelProjectId, panelMilestoneId, canEdit]);
+  }, [showMilestone, panelProjectId, panelMilestoneId]);
 
   return (
     <div className="flex flex-col gap-3">

@@ -78,8 +78,15 @@ export function MilestonesSection({
   );
   const remove = useRefreshingMutation(deleteMilestone);
   const error = create.error ?? update.error ?? remove.error;
-  // `?milestone=` (from a ticket's milestone card, D-137) opens that milestone.
-  const [openId, setOpenId] = useState<string | null>(useSearchParams().get("milestone"));
+  // `?milestone=` (from the milestone beside a ticket, D-137, D-157) opens that milestone, also
+  // when it arrives while the overview is already open behind the ticket.
+  const asked = useSearchParams().get("milestone");
+  const [openId, setOpenId] = useState<string | null>(asked);
+  const [lastAsked, setLastAsked] = useState(asked);
+  if (asked !== lastAsked) {
+    setLastAsked(asked);
+    if (asked) setOpenId(asked);
+  }
   const opened = milestones.find((milestone) => milestone.id === openId);
 
   return (
