@@ -58,7 +58,8 @@ API: `GET /api/v1/projects/{id}/git`(들어갈 수 있는 사람) → `{ enabled
 | 연결 방식 | 종류 | 머지하면 |
 |---|---|---|
 | 브랜치 이름이나 PR 제목에 키 | 닫는 연결 | 티켓 완료 |
-| PR 본문·커밋 메시지에 `Fixes FB-12`, `Closes FB-12`, `Resolves FB-12` (활용형 `fix`·`fixed`·`close`·`closed`·`resolve`·`resolved` 포함, 대소문자 무시) | 닫는 연결 | 티켓 완료 |
+| PR 본문에 `Fixes FB-12`, `Closes FB-12`, `Resolves FB-12` (활용형 `fix`·`fixed`·`close`·`closed`·`resolve`·`resolved` 포함, 대소문자 무시) | 닫는 연결 | 티켓 완료 |
+| 커밋 메시지에 같은 닫는 말 | 커밋 연결 | 기본 브랜치에 push 된 커밋일 때만 티켓 완료(아래 "상태 자동 변경"). 다른 브랜치의 커밋은 PR 의 닫는 연결을 만들지 않는다 |
 | 그 밖에 본문·커밋 메시지에 키만 있거나 `Refs FB-12`, `Part of FB-12` | 참고 연결 | 상태를 바꾸지 않는다 |
 
 같은 PR 이 한 티켓에 두 방식으로 걸리면 닫는 연결이 이긴다.

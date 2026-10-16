@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { InfoIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 import type { HelpBlock } from "@/features/help/content";
 import { messages } from "@/messages";
 import { HelpText, KeyCombo } from "./help-text";
@@ -51,14 +52,16 @@ function Block({ block }: { block: HelpBlock }) {
     case "table":
       return (
         <HelpTable head={block.head}>
-          {block.rows.map(([name, value], index) => (
+          {block.rows.map(([name, ...values], index) => (
             <tr key={index} className="border-t">
               <th scope="row" className="px-3 py-2 text-left align-top font-medium">
                 <HelpText text={name} />
               </th>
-              <td className="px-3 py-2 align-top text-muted-foreground">
-                <HelpText text={value} />
-              </td>
+              {values.map((value, column) => (
+                <td key={column} className="px-3 py-2 align-top text-muted-foreground">
+                  <HelpText text={value} />
+                </td>
+              ))}
             </tr>
           ))}
         </HelpTable>
@@ -93,18 +96,26 @@ function Block({ block }: { block: HelpBlock }) {
   }
 }
 
-function HelpTable({ head, children }: { head: readonly [string, string]; children: React.ReactNode }) {
+function HelpTable({ head, children }: { head: readonly string[]; children: React.ReactNode }) {
+  // Two columns are a name and its meaning: the name gets a fixed share. Wider tables size by content.
   return (
     <div className="overflow-x-auto rounded-lg border">
       <table className="w-full border-collapse text-[0.8125rem] leading-5">
         <thead className="bg-muted">
           <tr>
-            <th scope="col" className="w-2/5 px-3 py-2 text-left font-medium text-muted-foreground">
-              {head[0]}
-            </th>
-            <th scope="col" className="px-3 py-2 text-left font-medium text-muted-foreground">
-              {head[1]}
-            </th>
+            {head.map((title, column) => (
+              <th
+                key={title}
+                scope="col"
+                className={cn(
+                  "px-3 py-2 text-left font-medium text-muted-foreground",
+                  head.length === 2 && column === 0 && "w-2/5",
+                  head.length > 2 && "min-w-28",
+                )}
+              >
+                {title}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>{children}</tbody>
