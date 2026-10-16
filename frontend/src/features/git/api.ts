@@ -1,5 +1,7 @@
 import { apiFetch } from "@/lib/api/client";
 import type {
+  GitBranchCreated,
+  GitBranchTarget,
   GitConnection,
   GitConnectionInput,
   GitHubManifestForm,
@@ -79,6 +81,26 @@ export function finishMyGitHub(code: string, state: string): Promise<MyGitHubAcc
 
 export function unlinkMyGitHub(): Promise<void> {
   return apiFetch<void>("/api/v1/me/git/github", { method: "DELETE" });
+}
+
+/** Where the issue's branch can be made (D-159). Needs the right to edit the issue. */
+export function gitBranchTargets(number: number): Promise<GitBranchTarget[]> {
+  return apiFetch<GitBranchTarget[]>(`/api/v1/issues/${number}/git/branch-targets`);
+}
+
+/** Makes the branch on GitHub and links it to the issue at once. */
+export function createGitBranch({
+  number,
+  connectionId,
+  repository,
+  branch,
+}: {
+  number: number;
+  connectionId: string;
+  repository: string;
+  branch: string;
+}): Promise<GitBranchCreated> {
+  return apiFetch<GitBranchCreated>(`/api/v1/issues/${number}/git/branches`, { method: "POST", body: { connectionId, repository, branch } });
 }
 
 /** Reads the GitHub Apps' repository lists from GitHub again (D-151). */

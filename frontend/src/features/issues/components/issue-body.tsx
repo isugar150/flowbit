@@ -53,7 +53,13 @@ export function IssueBody({
     <>
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-3">
-          <IssueKeyMenu issueKey={issue.key} branch={branch} repository={repository} />
+          <IssueKeyMenu
+            number={issue.number}
+            issueKey={issue.key}
+            branch={branch}
+            repository={repository}
+            canCreateBranch={canEdit && !issue.deletedAt}
+          />
           <SaveStatus status={status} />
         </div>
         {canEdit ? (

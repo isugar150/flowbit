@@ -5,6 +5,7 @@ import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ConflictException
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.common.web.PublicUrl
+import com.flowbit.issue.domain.IssueStatus
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -27,12 +28,15 @@ data class GitConnectionRequest(
     val enabled: Boolean = true,
     val provider: GitProviderType? = null,
     val baseUrl: String = "",
-    val autoInProgress: Boolean = true,
-    val autoDone: Boolean = true,
+    /** Stage → status or null (D-158). Stages left out keep their defaults. */
+    val statusRules: Map<GitStage, IssueStatus?>? = null,
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
     val githubOrganization: String? = null,
+    /** The two switches from before [statusRules], still taken when it is missing. */
+    val autoInProgress: Boolean? = null,
+    val autoDone: Boolean? = null,
 ) {
-    fun toInput() = GitConnectionInput(name, enabled, provider, baseUrl, autoInProgress, autoDone, receiveMode, githubOrganization)
+    fun toInput() = GitConnectionInput(name, enabled, provider, baseUrl, statusRules, receiveMode, githubOrganization, autoInProgress, autoDone)
 }
 
 /** The GitHub App of a connection, and where to go on GitHub for it (D-146). */
@@ -79,8 +83,9 @@ data class GitConnectionResponse(
     val enabled: Boolean,
     val provider: GitProviderType,
     val baseUrl: String,
-    val autoInProgress: Boolean,
-    val autoDone: Boolean,
+    /** Every stage with the status it moves an issue to, null for none (D-158). */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val statusRules: Map<GitStage, IssueStatus?>,
     /** Always true: a connection is made with a secret. The secret itself is only in [secret]. */
     val secretSet: Boolean,
     /** What the Git server calls. A path alone when FLOWBIT_PUBLIC_URL is not set. */
@@ -213,8 +218,7 @@ class GitConnectionController(
             enabled = connection.enabled,
             provider = connection.provider,
             baseUrl = connection.baseUrl,
-            autoInProgress = connection.autoInProgress,
-            autoDone = connection.autoDone,
+            statusRules = connection.rules().all(),
             secretSet = connection.secret.isNotEmpty(),
             webhookUrl = publicUrl.of(webhookPath(connection.id)),
             lastReceivedAt = connection.lastReceivedAt,

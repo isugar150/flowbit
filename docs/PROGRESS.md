@@ -40,7 +40,7 @@
 
 (이전 메모) M3 2단계(프리셋과 문서형 티켓 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
 
-**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-156). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
+**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-159). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
 
 그 밖의 일은 사용자가 지시하기 전에 임의로 시작하지 않는다. 지시를 받으면:
 
@@ -205,6 +205,15 @@
 - 한 일: `issues-view.tsx` 의 도구 줄을 한 줄로: 검색·필터·삭제된 티켓·완료·묶음·정렬은 가로 스크롤 영역(`overflow-x-auto`, 밀리는 것은 `milestone-strip.tsx` 와 같은 방식), 보기 전환은 그 오른쪽에 고정. `issue-views.tsx` 의 버튼에 `whitespace-nowrap`·`shrink-0`. 04 "디자인 원칙"에 규칙 한 줄.
 - 확인: 로그인 없이 같은 컴포넌트를 앱 껍데기와 같은 배치로 그린 임시 페이지(지웠다)에서 320~1800px 를 5px 마다 재서 모든 조작이 한 줄, 보기 전환이 다 보이고 페이지 가로 스크롤 없음. 1440·768·375px 캡처. `typecheck` 통과, 바꾼 두 파일 eslint 는 `issues-view.tsx` 223~241 행 `useMemo` 의 `react-hooks/preserve-manual-memoization` 6개만 남는데 HEAD 에도 있던 것이다. **실제 `/issues` 화면(로그인한 상태)은 보지 않았다.**
 - 알아둘 것: 1630px 보다 좁으면 정렬·묶음 칩이 스크롤 영역 끝에 가려질 수 있다(Windows 에서는 얇은 스크롤바가 보인다). 늘 보여야 한다면 Linear 처럼 완료·묶음·정렬을 "표시" 메뉴 하나로 묶는 것을 생각해 볼 수 있다(열린 질문 후보).
+
+### 2026-10-16 — PR 단계별 상태, 티켓에서 브랜치 만들기, 브랜치 이름 복사 고침 (D-158, D-159)
+
+- 사용자 지시: PR 단계별 상태 매핑, 티켓에서 바로 브랜치 만들기, 키 메뉴의 "브랜치 이름 복사"가 반응이 없음.
+- 복사: http 로 연 화면에는 `navigator.clipboard` 가 없어 아무 일도 없었다. `lib/copy-text.ts`(안 되면 `execCommand("copy")`, 그것도 안 되면 "복사하지 못했습니다")를 키 메뉴와 관리자 웹훅 주소 복사에 썼다.
+- 단계별 상태(D-158): `V19__git_status_rules.sql`(`status_rules` JSON, 전의 `auto_in_progress`·`auto_done` 을 옮기고 지움), `git/GitStatusRules.kt`(`GitStage`, 기본값, 앞으로만 `movableFrom`), `GitLinkService` 의 push·PR 처리, API `statusRules`(옛 `autoInProgress`·`autoDone` 도 받음), 연결 폼의 단계별 select, 도움말의 Git 절.
+- 브랜치 만들기(D-159): `git/GitBranches.kt`(`GET /api/v1/issues/{n}/git/branch-targets`, `POST …/git/branches`), `GitHubClient.post`, 매니페스트 Contents 쓰기, `GitLinkService.apply(by=)` 로 만든 사람으로 연결. 프런트 `issue-branch-dialog.tsx` 와 키 메뉴의 "브랜치 만들기…"(편집 권한).
+- **이미 만든 GitHub 앱은 Contents 권한이 read 라 브랜치 만들기가 409 로 막힌다.** GitHub 의 앱 설정 > Permissions & events 에서 Contents 를 Read and write 로 바꾸고 조직에서 승인해야 한다.
+- 테스트: `GitIntegrationTest` 에 단계별 상태 테스트, `GitHubIntegrationTest` 에 브랜치 만들기 테스트(가짜 GitHub 에 refs API)를 더했다. **돌리지 않았다**(컴파일·ktlint·타입 검사·eslint 만). 화면도 브라우저로 확인하지 않았다(백엔드를 다시 띄워야 `V19` 와 새 API 가 생긴다).
 
 ### 2026-10-16 — 푸시한 사람을 담당자에 더하기 (D-156)
 

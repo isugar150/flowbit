@@ -9,10 +9,20 @@ import { CheckSetting, FieldSection, SegmentedSetting, SelectSetting, TextSettin
 import { SettingsActions } from "@/components/settings-card";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage, fieldErrorsOf } from "@/lib/api/error-message";
+import { copyText } from "@/lib/copy-text";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createGitConnection, deleteGitConnection, regenerateGitSecret, updateGitConnection } from "../api";
-import { GIT_PROVIDERS, type GitConnection, type GitConnectionInput } from "../types";
+import { statusLabel } from "@/features/issues/meta";
+import {
+  GIT_PROVIDERS,
+  GIT_STAGE_TARGETS,
+  GIT_STAGES,
+  type GitConnection,
+  type GitConnectionInput,
+  type GitStage,
+  type GitStageTarget,
+} from "../types";
 import { GitHubAppDetails } from "./github-app-details";
 
 const m = messages.git;
@@ -22,28 +32,30 @@ const EMPTY: GitConnectionInput = {
   enabled: true,
   provider: GIT_PROVIDERS[0],
   baseUrl: "",
-  autoInProgress: true,
-  autoDone: true,
+  // The defaults the server has too (D-158).
+  statusRules: { BRANCH: "IN_PROGRESS", PR_DRAFT: "IN_PROGRESS", PR_OPEN: "IN_PROGRESS", PR_MERGED: "DONE", PR_CLOSED: null, CLOSING_COMMIT: "DONE" },
   receiveMode: "WEBHOOK",
   githubOrganization: "",
 };
 
 function inputOf(connection: GitConnection): GitConnectionInput {
-  const { name, enabled, provider, baseUrl, autoInProgress, autoDone, receiveMode } = connection;
+  const { name, enabled, provider, baseUrl, statusRules, receiveMode } = connection;
   return {
     name,
     enabled,
     provider,
     // github.com is the default; only a GitHub Enterprise Server address is worth showing.
     baseUrl: provider === "GITHUB" && baseUrl === GITHUB_COM ? "" : baseUrl,
-    autoInProgress,
-    autoDone,
+    statusRules,
     receiveMode,
     githubOrganization: connection.github?.organization ?? "",
   };
 }
 
 const GITHUB_COM = "https://github.com";
+
+/** The select's value for "leave the status alone". */
+const NO_CHANGE = "";
 
 /**
  * The Git servers whose webhooks reach Flowbit (docs/features/git-integration.md "관리자 설정").
@@ -230,8 +242,8 @@ function CopyField({ id, label, value, hint }: { id: string; label: string; valu
         type="button"
         variant="outline"
         className={hint ? "mb-6 h-9 max-md:h-11" : "h-9 max-md:h-11"}
-        onClick={() => {
-          void navigator.clipboard?.writeText(value).then(() => setCopied(true));
+        onClick={(event) => {
+          void copyText(value, event.currentTarget.closest("[role=dialog]")).then(setCopied);
         }}
         onBlur={() => setCopied(false)}
       >
@@ -328,23 +340,23 @@ function ConnectionForm({
       </FieldSection>
 
 
-      <FieldSection title={m.sections.status}>
-        <CheckSetting
-          id={`${prefix}-autoInProgress`}
-          wide
-          label={m.autoInProgress}
-          hint={m.autoInProgressHint}
-          checked={form.autoInProgress}
-          onChange={(v) => set("autoInProgress", v)}
-        />
-        <CheckSetting
-          id={`${prefix}-autoDone`}
-          wide
-          label={m.autoDone}
-          hint={m.autoDoneHint}
-          checked={form.autoDone}
-          onChange={(v) => set("autoDone", v)}
-        />
+      <FieldSection title={m.sections.status} description={m.stages.description}>
+        {GIT_STAGES.map((stage: GitStage) => (
+          <SelectSetting<string>
+            key={stage}
+            id={`${prefix}-stage-${stage}`}
+            label={m.stages.names[stage]}
+            hint={m.stages.hints[stage]}
+            value={form.statusRules[stage] ?? NO_CHANGE}
+            options={[
+              { value: NO_CHANGE, label: m.stages.noChange },
+              ...GIT_STAGE_TARGETS.map((status) => ({ value: status, label: statusLabel(status) })),
+            ]}
+            onChange={(value) =>
+              set("statusRules", { ...form.statusRules, [stage]: value === NO_CHANGE ? null : (value as GitStageTarget) })
+            }
+          />
+        ))}
       </FieldSection>
 
       <SettingsActions>

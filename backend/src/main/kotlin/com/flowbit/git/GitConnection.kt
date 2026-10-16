@@ -35,10 +35,8 @@ class GitConnection(
     /** Signs every call from the Git server. Shown only when it is made. */
     var secret: String,
     var enabled: Boolean,
-    /** Pushing a branch or opening a pull request moves the issue to "in progress". */
-    var autoInProgress: Boolean,
-    /** Merging a pull request that closes the issue moves it to "done". */
-    var autoDone: Boolean,
+    /** Raw JSON: the status each stage moves an issue to (GitStatusRules, D-158). */
+    var statusRules: String,
     var lastReceivedAt: Instant? = null,
     var lastEvent: String? = null,
     /** Raw JSON: `{"linkedIssues": [...], "statusChanged": [...], "skipped": 0}`. */
@@ -66,6 +64,8 @@ class GitConnection(
     var rateLimitRemaining: Int? = null,
 ) {
     /** A GitHub connection whose app exists and is installed: one Flowbit can call the API for. */
+    fun rules(): GitStatusRules = GitStatusRules.parse(statusRules)
+
     fun githubReady(): Boolean = provider == GitProviderType.GITHUB && githubAppId != null && githubPrivateKey != null && githubInstallationId != null
 
     companion object {

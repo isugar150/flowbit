@@ -784,6 +784,12 @@ class IssueService(
         return IssueChange(after, events, activities.recipientIds(issue.id).filter { it != actor.userId })
     }
 
+    /** The issue, once [user] may edit it: for making its branch on a Git server (D-159). */
+    suspend fun editableForGit(
+        user: AuthenticatedUser,
+        number: Int,
+    ): Issue = editable(access(user, number)).issue
+
     /**
      * Adds the person a Git server says worked on the issue to its assignees (D-156): someone
      * who pushed to its branch. Nothing happens when they already are one, when the issue has as

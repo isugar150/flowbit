@@ -7,6 +7,16 @@ export type GitProvider = "GITEA" | "GITLAB" | "GITHUB";
  */
 export const GIT_PROVIDERS: GitProvider[] = ["GITHUB", "GITLAB", "GITEA"];
 
+/** Where a closing pull request (or a branch) has got to, each with the status it moves an issue to (D-158). */
+export type GitStage = "BRANCH" | "PR_DRAFT" | "PR_OPEN" | "PR_MERGED" | "PR_CLOSED" | "CLOSING_COMMIT";
+
+export const GIT_STAGES: GitStage[] = ["BRANCH", "PR_DRAFT", "PR_OPEN", "PR_MERGED", "PR_CLOSED", "CLOSING_COMMIT"];
+
+/** What Git may move an issue to; null leaves it alone. */
+export type GitStageTarget = "READY" | "IN_PROGRESS" | "DONE" | "CANCELED" | null;
+
+export const GIT_STAGE_TARGETS: Exclude<GitStageTarget, null>[] = ["READY", "IN_PROGRESS", "DONE", "CANCELED"];
+
 /** WEBHOOK: the server calls Flowbit. POLL: Flowbit reads the GitHub API every few minutes (GitHub only). */
 export type GitReceiveMode = "WEBHOOK" | "POLL";
 
@@ -43,8 +53,7 @@ export type GitConnection = {
   enabled: boolean;
   provider: GitProvider;
   baseUrl: string;
-  autoInProgress: boolean;
-  autoDone: boolean;
+  statusRules: Record<GitStage, GitStageTarget>;
   secretSet: boolean;
   /** What the Git server calls; a path alone (starting with "/") when FLOWBIT_PUBLIC_URL is not set. */
   webhookUrl: string;
@@ -70,8 +79,7 @@ export type GitConnectionInput = {
   enabled: boolean;
   provider: GitProvider;
   baseUrl: string;
-  autoInProgress: boolean;
-  autoDone: boolean;
+  statusRules: Record<GitStage, GitStageTarget>;
   receiveMode: GitReceiveMode;
   /** GitHub only: the organization the app is made for. */
   githubOrganization: string;
@@ -84,6 +92,20 @@ export type MyGitHubAccount = {
   login: string | null;
   linkedAt: string | null;
 };
+
+/** GET /api/v1/issues/{number}/git/branch-targets (D-159): where the issue's branch can be made, and how. */
+export type GitBranchTarget = {
+  connectionId: string;
+  connectionName: string;
+  provider: GitProvider;
+  repository: string;
+  url: string;
+  /** API: Flowbit makes it (GitHub). PAGE: GitLab's new-branch page, filled in. COPY: copy the name, open Gitea's branches. */
+  mode: "API" | "PAGE" | "COPY";
+  current: boolean;
+};
+
+export type GitBranchCreated = { repository: string; branch: string; url: string; existed: boolean };
 
 /** What the browser posts to GitHub to make the app. */
 export type GitHubManifestForm = { action: string; manifest: string };

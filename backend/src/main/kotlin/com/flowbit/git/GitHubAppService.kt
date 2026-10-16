@@ -90,7 +90,8 @@ class GitHubAppService(
                 "callback_urls" to listOf("$base$GITHUB_ACCOUNT_CALLBACK"),
                 "setup_on_update" to true,
                 "public" to false,
-                "default_permissions" to mapOf("contents" to "read", "pull_requests" to "read", "metadata" to "read"),
+                // Contents write lets people make a ticket's branch from Flowbit (D-159).
+                "default_permissions" to mapOf("contents" to "write", "pull_requests" to "read", "metadata" to "read"),
                 "default_events" to if (webhook) listOf("push", "pull_request") else emptyList(),
             ).toMap()
         val web = connection.baseUrl.trimEnd('/')

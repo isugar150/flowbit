@@ -15,6 +15,8 @@
 | 티켓 키 인식 → 티켓에 PR·브랜치·커밋 연결, 옆 패널의 "Git" 묶음, 활동 기록 | 포함 |
 | 상태 자동 변경: 작업 시작 → 진행 중, PR 머지 → 완료 | 포함 |
 | 티켓에서 "브랜치 이름 복사" | 포함 |
+| 티켓에서 "브랜치 만들기" (D-159) | 포함 (GitHub 는 Flowbit 이 만든다, GitLab·Gitea 는 그 서버 화면으로) |
+| PR 단계별로 옮길 상태 정하기 (D-158) | 포함 (연결마다) |
 
 범위 밖(필요해지면 따로 명세): 개인 Git 계정 연결(이메일이 다른 사람 맞추기, 내 이름으로 댓글), Flowbit 이 Git 서버에 쓰기(PR 에 티켓 링크 댓글 — API 토큰 필요), CI 결과 표시, Git 이슈 가져오기·양방향 동기화, 저장소 목록 불러오기, 배포 추적.
 
@@ -66,7 +68,20 @@ API: `GET /api/v1/projects/{id}/git`(들어갈 수 있는 사람) → `{ enabled
 
 ## 상태 자동 변경
 
-연결마다 "작업을 시작하면 진행 중으로", "머지하면 완료로"를 따로 켜고 끈다(기본 둘 다 켬).
+**단계별 상태** (사용자 지정, D-158): 연결마다 아래 단계가 티켓을 어느 상태로 옮길지 정한다. 고를 수 있는 것은 "바꾸지 않음", 준비됨, 진행 중, 완료, 취소(백로그는 시작 상태라 없다). 전의 두 스위치("작업을 시작하면 진행 중으로", "머지하면 완료로")를 대신한다(`V19`, 표 `git_connections.status_rules`). PR 단계는 닫는 연결인 PR 에만 쓰인다.
+
+| 단계 (`GitStage`) | 언제 | 기본 |
+|---|---|---|
+| `BRANCH` | 키가 든 브랜치를 처음 올림, 또는 Flowbit 에서 만듦 | 진행 중 |
+| `PR_DRAFT` | 초안 PR 열림(초안으로 되돌림 포함) | 진행 중 |
+| `PR_OPEN` | PR 이 리뷰 준비로 열림: 바로 열기, 초안 → 준비, 닫힌 PR 다시 열기 | 진행 중 |
+| `PR_MERGED` | PR 머지. 그 티켓에 닫는 연결로 걸린 **다른 열린 PR 이 없을 때** | 완료 |
+| `PR_CLOSED` | 머지하지 않고 닫음. 다른 열린 닫는 PR 이 없을 때 | 바꾸지 않음 |
+| `CLOSING_COMMIT` | 기본 브랜치에 바로 push, 커밋 메시지에 닫는 말 | 완료 |
+
+**옮기는 규칙**: 앞으로만 옮긴다. 순서는 백로그 → 준비됨 → 진행 중 → 완료·취소이고, 지금 상태가 목표보다 앞일 때만 바꾼다. 완료·취소된 티켓은 어떤 단계도 건드리지 않는다. "리뷰 요청됨·승인됨" 단계(GitHub 의 review_requested, pull_request_review)는 이벤트를 더 받아야 해서 아직 없다. 상태가 고정 5개라 "리뷰 중" 상태도 없다.
+
+(아래 표는 기본값일 때의 동작이다.)
 
 | Git 에서 일어난 일 | 티켓 상태 | 조건 |
 |---|---|---|
@@ -112,7 +127,15 @@ API: `GET /api/v1/projects/{id}/git`(들어갈 수 있는 사람) → `{ enabled
 
 **알림**: Git 이 바꾼 **상태**는 손으로 바꾼 것처럼 구독자에게 알림으로 간다. **D-126 의 1분 모아 보내기는 하지 않고 바로 보낸다**(사용자 지정, D-155): Git 서버 호출 한 번(웹훅 한 번, API 가져오기 한 회차)에서 한 티켓에 생긴 연결·커밋·상태 변경은 **한 통**으로 묶여, 그 가운데 마지막 일을 한 사람 이름으로 간다. 같은 사람이 손으로 한 변경이 모여 있으면 그것도 함께 나간다. 다른 호출(예: 브랜치를 만든 회차와 커밋을 올린 다음 회차)은 따로 간다. PR·브랜치 연결과 커밋은 활동 기록과 화면에만 남고 메일·웹 푸시는 보내지 않는다(커밋마다 알림이 오면 너무 많다). API 알림(웹훅)의 "보낼 변경"에서 Git 종류(`GIT_BRANCH_LINKED`, `GIT_PR_LINKED`, `GIT_PR_MERGED`, `GIT_PR_CLOSED`, `GIT_COMMITS_PUSHED`)를 **직접 고른** API 알림에만 그것도 보낸다. 아무것도 고르지 않은 API 알림("모든 변경")에는 가지 않는다. Git 이 쓰이지 않으면 이 선택지를 보이지 않는다.
 
-**브랜치 이름 복사**: 티켓 상세 위의 키 옆 메뉴에 "브랜치 이름 복사". 형식은 `<내 아이디>/fb-12-<제목 슬러그>`. 슬러그는 제목에서 영문·숫자만 남겨 `-` 로 잇고(한글 제목이면 비어서 `kimjm/fb-12`), 전체 60자까지.
+**브랜치 이름 복사**: http 로 연 설치(보안 컨텍스트가 아니어서 `navigator.clipboard` 가 없다)에서도 되도록, 안 되면 숨긴 입력란을 골라 `document.execCommand("copy")` 로 복사한다(`lib/copy-text.ts`). 그것도 안 되면 "복사하지 못했습니다"를 보인다.
+
+**브랜치 만들기** (사용자 지정, D-159): 키 옆 메뉴의 "브랜치 만들기…"(티켓 편집 권한). 창에서 저장소와 이름(처음엔 복사할 이름)을 고른다. 저장소는 프로젝트가 정한 저장소, 정하지 않았으면 연결들이 아는 저장소 전부이고, 티켓의 저장소가 맨 앞이다. 이름에는 티켓 키가 있어야 하고(400 `NO_KEY`), Git 이 받지 않는 글자(공백, `~^:?*[\`, `..` 등)는 400 `INVALID`.
+- **GitHub**: Flowbit 이 GitHub App 으로 만든다. `GET /repos/{저장소}` 의 기본 브랜치 → `GET /repos/{저장소}/git/ref/heads/{기본}` 의 커밋 → `POST /repos/{저장소}/git/refs`. 이미 있으면(422) 연결만 한다. 만들면 **곧바로** 그 사람이 push 한 것처럼 연결한다: 브랜치 활동, 티켓의 저장소(정한 프로젝트면 그 저장소로 바꾼다), 담당자 추가(D-156), `BRANCH` 단계 상태. 나중에 오는 push·가져오기는 이미 연결된 브랜치라 겹치지 않는다. 앱에 **Contents 쓰기** 권한이 필요하다. 새로 만드는 앱은 매니페스트에 넣었고, 그 전에 만든 앱은 GitHub 의 앱 설정 > Permissions 에서 Contents 를 Read and write 로 바꾸고 조직 소유자가 승인해야 한다. 권한이 없으면 409 `GITHUB_NO_WRITE`.
+- **GitLab**: Flowbit 에 토큰이 없어서 `<저장소>/-/branches/new?branch_name=<이름>` 을 새 탭으로 연다(이름이 채워진다).
+- **Gitea**: 새 브랜치 화면을 미리 채울 수 없어서, 이름을 복사하고 `<저장소>/branches` 를 연다.
+- GitLab·Gitea 는 그 서버에서 만든 뒤 첫 push 가 웹훅으로 오면 평소처럼 연결된다.
+
+**브랜치 이름 복사** (형식): 티켓 상세 위의 키 옆 메뉴에 "브랜치 이름 복사". 형식은 `<내 아이디>/fb-12-<제목 슬러그>`. 슬러그는 제목에서 영문·숫자만 남겨 `-` 로 잇고(한글 제목이면 비어서 `kimjm/fb-12`), 전체 60자까지.
 
 **관리자 설정 "Git 연동" 탭** (`/admin/git`)
 
@@ -122,7 +145,7 @@ API: `GET /api/v1/projects/{id}/git`(들어갈 수 있는 사람) → `{ enabled
 | 종류 | Gitea(Forgejo 포함), GitLab, GitHub |
 | 서버 주소 | `https://git.example.com`. GitHub 는 `https://github.com` 이 기본. 표시와 등록 안내에만 쓴다 |
 | ~~허용 프로젝트~~ | 없앴다(D-149). 프로젝트 설정의 "Git 저장소"에서 정한다 |
-| 자동 상태 변경 | "작업을 시작하면 진행 중으로", "머지하면 완료로" 각각 |
+| 단계별 상태 (D-158) | 단계마다 "바꾸지 않음"·준비됨·진행 중·완료·취소 (위 "상태 자동 변경") |
 | 웹훅 주소 | `{FLOWBIT_PUBLIC_URL}/api/v1/integrations/git/{연결 id}/webhook`. 복사 버튼. `FLOWBIT_PUBLIC_URL` 이 없으면 경고를 보인다(Git 서버가 부를 주소를 알 수 없다) |
 | 비밀 값 | Flowbit 이 무작위로 만든다(32바이트). **만들 때와 "다시 만들기"를 누를 때만** 보인다. 그 뒤로는 "설정됨" |
 | 마지막 수신 | 시각, 이벤트 종류, 결과(연결한 티켓 수 또는 오류). 처음 등록했을 때 잘 되는지 보는 용도 |
@@ -266,7 +289,9 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 |---|---|---|---|
 | POST | `/api/v1/integrations/git/{id}/webhook` | 없음 (서명) | 위 "받는 방식" |
 | GET, POST | `/api/v1/admin/git/connections` | 관리자 | 목록(비밀 값 대신 `secretSet`, `webhookUrl`), 추가(201, 응답에 한 번만 `secret`) |
-| PUT, DELETE | `/api/v1/admin/git/connections/{id}` | 관리자 | `{ name, enabled, provider, baseUrl, allProjects, projectIds, autoInProgress, autoDone }` |
+| PUT, DELETE | `/api/v1/admin/git/connections/{id}` | 관리자 | `{ name, enabled, provider, baseUrl, statusRules, receiveMode, githubOrganization }`. `statusRules` 는 `{ "BRANCH": "IN_PROGRESS", …, "PR_CLOSED": null }`(빠진 단계는 기본값, 백로그는 400 `INVALID`). 전의 `autoInProgress`·`autoDone` 도 `statusRules` 가 없을 때 받는다(옛 백업) |
+| GET | `/api/v1/issues/{number}/git/branch-targets` | 티켓 편집 | 브랜치를 만들 수 있는 저장소 `[{ connectionId, connectionName, provider, repository, url, mode: API\|PAGE\|COPY, current }]` (D-159) |
+| POST | `/api/v1/issues/{number}/git/branches` | 티켓 편집 | `{ connectionId, repository, branch }` → GitHub 에 만들고 연결 `{ repository, branch, url, existed }`. GitHub 가 아니면 400 `UNSUPPORTED`, 권한이 없으면 409 `GITHUB_NO_WRITE`, GitHub 오류는 502 | |
 | POST | `/api/v1/admin/git/connections/{id}/secret` | 관리자 | 비밀 값 다시 만들기 → `{ secret }`. 예전 값은 바로 무효 |
 | GET | `/api/v1/issues/{번호}` | 기존 | 응답에 `git: [{ kind, repository, branch, prNumber, title, url, prState, closes }]` 를 더한다 |
 | GET | `/api/v1/git/status` | 로그인 | `{ enabled }`: 켜진 연결(GitHub 는 설치까지 끝난 것)이 있는지. 없으면 브랜치 이름 복사와 API 알림의 Git 종류를 보이지 않는다 |

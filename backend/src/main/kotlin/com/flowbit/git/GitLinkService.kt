@@ -7,7 +7,6 @@ import com.flowbit.issue.application.IssueChange
 import com.flowbit.issue.application.IssueEvent
 import com.flowbit.issue.application.IssueService
 import com.flowbit.issue.domain.Issue
-import com.flowbit.issue.domain.IssueStatus
 import com.flowbit.user.application.UserService
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -49,8 +48,10 @@ class GitLinkService(
     suspend fun apply(
         connection: GitConnection,
         events: List<GitEvent>,
+        /** Who did it, when Flowbit knows better than the event: someone making a branch here (D-159). */
+        by: Actor? = null,
     ): GitApplyResult {
-        val run = Run(connection, keyMatcher.keys())
+        val run = Run(connection, keyMatcher.keys(), by)
         for (event in events) {
             when (event) {
                 is GitPush -> push(run, event)
@@ -118,9 +119,9 @@ class GitLinkService(
             if (onBranch && events.isNotEmpty()) assign(run, issue, actor)
             if (branchLinked) {
                 run.pickRepository(issue, push.repository)
-                moveTo(run, issue, IssueStatus.IN_PROGRESS, actor)
+                moveTo(run, issue, GitStage.BRANCH, actor)
             }
-            if (push.toDefaultBranch && commits.any { issue.number in keys.closingNumbers(it.message) }) moveTo(run, issue, IssueStatus.DONE, actor)
+            if (push.toDefaultBranch && commits.any { issue.number in keys.closingNumbers(it.message) }) moveTo(run, issue, GitStage.CLOSING_COMMIT, actor)
             run.linked[issue.number] = issue
         }
     }
@@ -164,12 +165,20 @@ class GitLinkService(
                 }
             if (ended != null) record(run, issue, run.actorOf(pr.actor), listOf(IssueEvent(ended, reference)))
             if (link.closes) {
-                val open = pr.state == GitPrState.OPEN || pr.state == GitPrState.DRAFT
-                if (open && (link.created || pr.action == "reopened")) {
-                    moveTo(run, issue, IssueStatus.IN_PROGRESS, run.actorOf(if (link.created) pr.author else pr.actor))
-                }
-                if (ended == IssueActivityType.GIT_PR_MERGED && !otherOpenClosingPullRequest(issue.id, link.id)) {
-                    moveTo(run, issue, IssueStatus.DONE, run.actorOf(pr.actor))
+                // The stage the pull request has just reached (D-158); nothing when its state did not change.
+                val changed = link.created || pr.state != link.previousState
+                val stage =
+                    when {
+                        !changed -> null
+                        pr.state == GitPrState.DRAFT -> GitStage.PR_DRAFT
+                        pr.state == GitPrState.OPEN -> GitStage.PR_OPEN
+                        pr.state == GitPrState.MERGED -> GitStage.PR_MERGED
+                        else -> GitStage.PR_CLOSED
+                    }
+                // Merged or closed, the issue waits for another closing pull request that is still open.
+                val ending = stage == GitStage.PR_MERGED || stage == GitStage.PR_CLOSED
+                if (stage != null && !(ending && otherOpenClosingPullRequest(issue.id, link.id))) {
+                    moveTo(run, issue, stage, run.actorOf(if (link.created) pr.author else pr.actor))
                 }
             }
             run.linked[issue.number] = issue
@@ -188,23 +197,17 @@ class GitLinkService(
     }
 
     /**
-     * Moves the issue on when the connection does that: to "in progress" only from the backlog or
-     * ready, to "done" from anything not finished or canceled.
+     * Moves the issue to the status the connection gives [stage] (D-158), only forward: never
+     * back, and never an issue that is finished or canceled.
      */
     private suspend fun moveTo(
         run: Run,
         issue: Issue,
-        status: IssueStatus,
+        stage: GitStage,
         actor: Actor,
     ) {
-        val (enabled, from) =
-            when (status) {
-                IssueStatus.IN_PROGRESS -> run.connection.autoInProgress to NOT_STARTED
-                IssueStatus.DONE -> run.connection.autoDone to NOT_FINISHED
-                else -> return
-            }
-        if (!enabled) return
-        val change = issueService.changeStatusFromGit(issue.id, status, from, actor) ?: return
+        val status = run.rules.target(stage) ?: return
+        val change = issueService.changeStatusFromGit(issue.id, status, GitStatusRules.movableFrom(status), actor) ?: return
         run.changes += actor to change
         run.statusChanged += issue.number
     }
@@ -381,7 +384,11 @@ class GitLinkService(
     private inner class Run(
         val connection: GitConnection,
         val keys: IssueKeys,
+        val by: Actor? = null,
     ) {
+        /** What each stage moves an issue to (D-158). */
+        val rules = connection.rules()
+
         /** By number: the same issue may come up in several events. */
         val linked = linkedMapOf<Int, Issue>()
         val statusChanged = linkedSetOf<Int>()
@@ -437,7 +444,7 @@ class GitLinkService(
 
         /** The Flowbit account of a Git user. */
         suspend fun actorOf(person: GitPerson): Actor =
-            actors.getOrPut(person) {
+            by ?: actors.getOrPut(person) {
                 // The server's name goes along, so the history can say "GitHub" when it names nobody (D-153).
                 val via = mapOf("source" to "git", "provider" to connection.provider.label, "name" to person.label)
                 // The e-mail address (against e-mail addresses and login ids), then the GitHub account someone
@@ -471,9 +478,6 @@ class GitLinkService(
     ) = if (value == null) bindNull(name, String::class.java) else bind(name, value)
 
     private companion object {
-        val NOT_STARTED = setOf(IssueStatus.BACKLOG, IssueStatus.READY)
-        val NOT_FINISHED = setOf(IssueStatus.BACKLOG, IssueStatus.READY, IssueStatus.IN_PROGRESS)
-
         /** Issues one event may link (docs/features/git-integration.md). */
         const val MAX_ISSUES = 20
 

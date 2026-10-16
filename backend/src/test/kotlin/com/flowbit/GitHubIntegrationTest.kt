@@ -90,6 +90,7 @@ class GitHubIntegrationTest : IntegrationTest() {
         assertEquals("https://flowbit.example.com/admin/git/github/installed", manifest.get("setup_url").asString())
         assertEquals("https://flowbit.example.com/settings/github/callback", manifest.get("callback_urls").get(0).asString())
         assertEquals("read", manifest.get("default_permissions").get("pull_requests").asString())
+        assertEquals("write", manifest.get("default_permissions").get("contents").asString())
         assertEquals(listOf("push", "pull_request"), (0 until manifest.get("default_events").size()).map { manifest.get("default_events").get(it).asString() })
 
         assertEquals(422, admin.post("/api/v1/admin/git/github/created", """{"code":"good-code","state":"wrong"}""").status)
@@ -285,6 +286,35 @@ class GitHubIntegrationTest : IntegrationTest() {
     private val mapper: JsonMapper = JsonMapper.builder().build()
     private val http: HttpClient = HttpClient.newHttpClient()
 
+    @Test
+    fun `티켓에서 GitHub 저장소에 브랜치를 만들면 바로 연결되고 만든 사람이 담당자가 된다`() {
+        admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
+        installedConnection()
+
+        val target = admin.get("/api/v1/issues/1/git/branch-targets").jsonList().single()
+        assertEquals("acme/web" to "API", target["repository"] to target["mode"])
+        val request = { branch: String -> """{"connectionId":"${target["connectionId"]}","repository":"acme/web","branch":"$branch"}""" }
+
+        assertEquals("NO_KEY", fieldError(admin.post("/api/v1/issues/1/git/branches", request("admin/login")).json()))
+        assertEquals("INVALID", fieldError(admin.post("/api/v1/issues/1/git/branches", request("admin/fb-1 login")).json()))
+        val created = admin.post("/api/v1/issues/1/git/branches", request("admin/fb-1-login")).json()
+        assertEquals("https://github.com/acme/web/tree/admin/fb-1-login", created["url"])
+        assertEquals(false, created["existed"])
+        assertEquals("a".repeat(40), GitHub.branches["admin/fb-1-login"])
+        assertEquals("admin/fb-1-login", gitOf(1).single()["branch"])
+        assertEquals("IN_PROGRESS", status(1))
+        @Suppress("UNCHECKED_CAST")
+        val assignees = admin.get("/api/v1/issues/1").json()["assignees"] as List<Map<String, Any?>>
+        assertEquals(listOf("admin"), assignees.map { it["loginId"] })
+        // Made again: GitHub has it already, and it stays linked once.
+        assertEquals(true, admin.post("/api/v1/issues/1/git/branches", request("admin/fb-1-login")).json()["existed"])
+        assertEquals(1, gitOf(1).size)
+
+        GitHub.noWrite = true
+        val refused = admin.post("/api/v1/issues/1/git/branches", request("admin/fb-1-again"))
+        assertEquals(409 to "GITHUB_NO_WRITE", refused.status to refused.json()["code"])
+    }
+
     private fun githubJson(
         organization: String = "acme",
         mode: String = "WEBHOOK",
@@ -371,6 +401,9 @@ class GitHubIntegrationTest : IntegrationTest() {
 
         @Volatile var failRepositories = false
 
+        /** The app was made before it asked for Contents write (D-159). */
+        @Volatile var noWrite = false
+
         @Volatile var jwtChecks = 0
 
         @Volatile var badJwts = 0
@@ -387,6 +420,7 @@ class GitHubIntegrationTest : IntegrationTest() {
             installed = false
             installationId = 555
             failRepositories = false
+            noWrite = false
             jwtChecks = 0
             badJwts = 0
             lastRedirectUri = null
@@ -408,7 +442,7 @@ class GitHubIntegrationTest : IntegrationTest() {
         private fun handle(exchange: HttpExchange) {
             val path = exchange.requestURI.path.removePrefix("/api/v3")
             val authorization = exchange.requestHeaders.getFirst("Authorization").orEmpty()
-            exchange.requestBody.readAllBytes()
+            val body = exchange.requestBody.readAllBytes()
             when {
                 path.startsWith("/app-manifests/") -> {
                     val code = path.removePrefix("/app-manifests/").removeSuffix("/conversions")
@@ -453,6 +487,21 @@ class GitHubIntegrationTest : IntegrationTest() {
                         200,
                         """{"total_count":1,"repositories":[{"full_name":"acme/web","default_branch":"main","html_url":"https://github.com/acme/web"}]}""",
                     )
+                }
+                path == "/repos/acme/web" ->
+                    answer(
+                        exchange,
+                        200,
+                        """{"full_name":"acme/web","default_branch":"main","html_url":"https://github.com/acme/web"}""",
+                    )
+                path == "/repos/acme/web/git/ref/heads/main" -> answer(exchange, 200, """{"ref":"refs/heads/main","object":{"sha":"${"a".repeat(40)}"}}""")
+                path == "/repos/acme/web/git/refs" && exchange.requestMethod == "POST" -> {
+                    if (noWrite) return answer(exchange, 403, """{"message":"Resource not accessible by integration"}""")
+                    val ref = mapper.readTree(body)
+                    val name = ref.get("ref").asString().removePrefix("refs/heads/")
+                    if (branches.containsKey(name)) return answer(exchange, 422, """{"message":"Reference already exists"}""")
+                    branches[name] = ref.get("sha").asString()
+                    answer(exchange, 201, """{"ref":"refs/heads/$name"}""")
                 }
                 path == "/repos/acme/web/pulls" -> listAnswer(exchange, mapper.writeValueAsString(pulls.sortedByDescending { it.get("updated_at").asString() }))
                 path.startsWith("/repos/acme/web/pulls/") -> {

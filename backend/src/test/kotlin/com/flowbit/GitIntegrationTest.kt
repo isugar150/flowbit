@@ -60,8 +60,17 @@ class GitIntegrationTest : IntegrationTest() {
         assertEquals("https://git.example.com", connection["baseUrl"])
         assertEquals(true, connection["secretSet"])
         assertEquals("/api/v1/integrations/git/$id/webhook", connection["webhookUrl"])
-        assertEquals(true, connection["autoInProgress"])
-        assertEquals(true, connection["autoDone"])
+        assertEquals(
+            mapOf(
+                "BRANCH" to "IN_PROGRESS",
+                "PR_DRAFT" to "IN_PROGRESS",
+                "PR_OPEN" to "IN_PROGRESS",
+                "PR_MERGED" to "DONE",
+                "PR_CLOSED" to null,
+                "CLOSING_COMMIT" to "DONE",
+            ),
+            connection["statusRules"],
+        )
         assertNull(connection["lastReceivedAt"])
 
         val listed = admin.get("/api/v1/admin/git/connections").jsonList().single()
@@ -71,7 +80,9 @@ class GitIntegrationTest : IntegrationTest() {
         val updated = admin.put("/api/v1/admin/git/connections/$id", connectionJson(name = "사내 Gitea", autoDone = false))
         assertEquals(200, updated.status)
         assertEquals("사내 Gitea", updated.json()["name"])
-        assertEquals(false, updated.json()["autoDone"])
+        // The old switch still works: "merging finishes it" off clears both finishing stages.
+        val rules = updated.json()["statusRules"] as Map<*, *>
+        assertEquals(listOf(null, null, "IN_PROGRESS"), listOf(rules["PR_MERGED"], rules["CLOSING_COMMIT"], rules["PR_OPEN"]))
         assertFalse("secret" in updated.json())
 
         val renewed = admin.post("/api/v1/admin/git/connections/$id/secret")
@@ -352,6 +363,32 @@ class GitIntegrationTest : IntegrationTest() {
     private fun assigneeIds(number: Int): List<Any?> = (admin.get("/api/v1/issues/$number").json()["assignees"] as List<Map<String, Any?>>).map { it["id"] }
 
     // --- 상태 자동 변경 --------------------------------------------------------------------------
+
+    @Test
+    fun `연결마다 PR 단계별로 옮길 상태를 정하고 앞으로만 옮긴다`() {
+        createIssues("BACKLOG")
+        val body =
+            """{"name":"Gitea","provider":"GITEA","baseUrl":"https://git.example.com",""" +
+                """"statusRules":{"BRANCH":null,"PR_DRAFT":null,"PR_OPEN":"IN_PROGRESS","PR_CLOSED":"CANCELED"}}"""
+        val connection = admin.post("/api/v1/admin/git/connections", body).json()
+        assertEquals("DONE", (connection["statusRules"] as Map<*, *>)["PR_MERGED"])
+
+        deliver(connection, "push", push("kimjm/fb-1-login"))
+        deliver(connection, "pull_request", pullRequest(title = "[WIP] FB-1 로그인"))
+        assertEquals("BACKLOG", statuses(1).single())
+        // Ready for review: the open stage.
+        deliver(connection, "pull_request", pullRequest(action = "edited", title = "FB-1 로그인"))
+        assertEquals("IN_PROGRESS", statuses(1).single())
+        deliver(connection, "pull_request", pullRequest(action = "closed", state = "closed", title = "FB-1 로그인"))
+        assertEquals("CANCELED", statuses(1).single())
+        // Canceled stays canceled, whatever comes after.
+        deliver(connection, "pull_request", pullRequest(action = "reopened", title = "FB-1 로그인"))
+        assertEquals("CANCELED", statuses(1).single())
+
+        val backlog = admin.post("/api/v1/admin/git/connections", body.replace("\"CANCELED\"", "\"BACKLOG\""))
+        assertEquals(400, backlog.status)
+        assertEquals("INVALID", fieldErrors(backlog.json())["statusRules"])
+    }
 
     @Test
     fun `브랜치를 올리거나 PR 을 열면 백로그·준비됨 티켓이 진행 중이 되고 완료·취소 티켓은 바뀌지 않는다`() {

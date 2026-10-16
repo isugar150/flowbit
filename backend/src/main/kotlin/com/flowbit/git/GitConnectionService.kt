@@ -7,6 +7,7 @@ import com.flowbit.common.error.FieldError
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.web.ClientInfo
+import com.flowbit.issue.domain.IssueStatus
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
@@ -27,13 +28,18 @@ data class GitConnectionInput(
     val provider: GitProviderType?,
     /** Blank for GitHub means https://github.com. */
     val baseUrl: String,
-    val autoInProgress: Boolean = true,
-    val autoDone: Boolean = true,
+    /** What each stage moves an issue to (D-158); stages left out keep their defaults. */
+    val statusRules: Map<GitStage, IssueStatus?>? = null,
     /** POLL only for GitHub, when Flowbit cannot be reached from the internet (D-146). */
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
     /** The GitHub organization the app is made for and installed on; GitHub only. */
     val githubOrganization: String? = null,
-)
+    /** The switches connections had before [statusRules]; used only when it is missing (old backups). */
+    val autoInProgress: Boolean? = null,
+    val autoDone: Boolean? = null,
+) {
+    fun rules(): GitStatusRules = statusRules?.let(::GitStatusRules) ?: GitStatusRules.of(autoInProgress ?: true, autoDone ?: true)
+}
 
 /** A connection as a backup carries it: with its id (the webhook address holds it) and its secret. */
 data class GitConnectionBackup(
@@ -43,8 +49,10 @@ data class GitConnectionBackup(
     val provider: GitProviderType,
     val baseUrl: String,
     val secret: String,
-    val autoInProgress: Boolean = true,
-    val autoDone: Boolean = true,
+    /** Missing in backups made before D-158, which have the two switches below. */
+    val statusRules: Map<GitStage, IssueStatus?>? = null,
+    val autoInProgress: Boolean? = null,
+    val autoDone: Boolean? = null,
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
     // A GitHub App and where it is installed, with its keys (D-146).
     val githubOrganization: String? = null,
@@ -99,8 +107,7 @@ class GitConnectionService(
                 baseUrl = checked.baseUrl,
                 secret = newSecret(),
                 enabled = checked.enabled,
-                autoInProgress = checked.autoInProgress,
-                autoDone = checked.autoDone,
+                statusRules = checked.rules().toJson(),
                 createdAt = now,
                 updatedAt = now,
                 receiveMode = checked.receiveMode,
@@ -132,8 +139,7 @@ class GitConnectionService(
             enabled = checked.enabled
             provider = checkNotNull(checked.provider)
             baseUrl = checked.baseUrl
-            autoInProgress = checked.autoInProgress
-            autoDone = checked.autoDone
+            statusRules = checked.rules().toJson()
             receiveMode = checked.receiveMode
             githubOrganization = checked.githubOrganization
             updatedAt = clock.instant()
@@ -206,8 +212,7 @@ class GitConnectionService(
                 provider = connection.provider,
                 baseUrl = connection.baseUrl,
                 secret = connection.secret,
-                autoInProgress = connection.autoInProgress,
-                autoDone = connection.autoDone,
+                statusRules = connection.rules().all(),
                 receiveMode = connection.receiveMode,
                 githubOrganization = connection.githubOrganization,
                 githubAppId = connection.githubAppId,
@@ -247,8 +252,7 @@ class GitConnectionService(
                     baseUrl = checked.baseUrl,
                     secret = backup.secret,
                     enabled = checked.enabled,
-                    autoInProgress = checked.autoInProgress,
-                    autoDone = checked.autoDone,
+                    statusRules = checked.rules().toJson(),
                     lastReceivedAt = stored?.lastReceivedAt,
                     lastEvent = stored?.lastEvent,
                     lastResult = stored?.lastResult,
@@ -272,7 +276,8 @@ class GitConnectionService(
         }
     }
 
-    private fun GitConnectionBackup.toInput() = GitConnectionInput(name, enabled, provider, baseUrl, autoInProgress, autoDone, receiveMode, githubOrganization)
+    private fun GitConnectionBackup.toInput() =
+        GitConnectionInput(name, enabled, provider, baseUrl, statusRules, receiveMode, githubOrganization, autoInProgress, autoDone)
 
     // --- rules ----------------------------------------------------------------------------------
 
@@ -307,6 +312,13 @@ class GitConnectionService(
             }
         } else if (input.receiveMode == GitReceiveMode.POLL) {
             errors += FieldError("receiveMode", "UNSUPPORTED", "API 로 가져오기는 GitHub 에서만 됩니다")
+        }
+        if (input.statusRules
+                .orEmpty()
+                .values
+                .any { it != null && it !in GitStatusRules.TARGETS }
+        ) {
+            errors += FieldError("statusRules", "INVALID", "Git 이 바꿀 수 있는 상태는 준비됨·진행 중·완료·취소입니다")
         }
         if (errors.isNotEmpty()) throw ValidationException(errors)
         return input.copy(

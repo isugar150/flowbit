@@ -169,6 +169,22 @@ class GitHubClient(
         return response
     }
 
+    /** A POST with the installation's token. The answer comes back whatever its status, for the caller to read. */
+    suspend fun post(
+        connection: GitConnection,
+        path: String,
+        body: Any,
+    ): GitHubResponse {
+        val response =
+            send(HttpMethod.POST, "${apiUrl(connection.baseUrl)}$path", "Bearer ${installationToken(connection)}", null, jsonMapper.writeValueAsString(body))
+        response.rateLimitRemaining?.let { remaining[connection.id] = it }
+        if (response.status == 401) tokens.remove(connection.id)
+        return response
+    }
+
+    /** GitHub's own words for a refusal, or null. */
+    fun messageOf(response: GitHubResponse): String? = response.body?.let { text(it, "message") }
+
     /** Forgets the installation token, for a connection that changed or went away. */
     fun forget(connectionId: UUID) {
         tokens.remove(connectionId)
