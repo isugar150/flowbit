@@ -14,13 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FormAlert } from "@/features/auth/components/form-alert";
+import { ProjectStatusIcon, projectStatusLabel } from "@/features/projects/meta";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { createMilestone, deleteMilestone } from "../api";
 import { milestoneOutline } from "../outline";
-import { isMilestoneDone, milestoneProgress, type Milestone } from "../types";
+import { isMilestoneClosed, milestoneProgress, type Milestone } from "../types";
 import { milestoneHref } from "./milestone-card";
 
 const m = messages.milestones;
@@ -30,10 +31,10 @@ const iconButtonClass =
   "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:bg-muted max-md:size-9";
 
 /**
- * The project's milestones on its overview. Each line only shows: name, progress (share of its
- * issues that are done), issue count and target date; the whole line is a link to the milestone's
+ * The project's milestones on its overview. Each line only shows: name, status, progress (share of
+ * its issues that are done), issue count and target date; the whole line is a link to the milestone's
  * address (D-160), which opens its dialog (milestone-detail-dialog.tsx) over the overview: its
- * issues beside a document of notes, and where the name and date are changed. The "…" menu holds "편집" (the same dialog) and "삭제". Lines
+ * issues beside a document of notes, and where the name, status and date are changed. The "…" menu holds "편집" (the same dialog) and "삭제". Lines
  * are not edited in place: a field in every line made the list hard to read and easy to change by
  * accident.
  */
@@ -47,14 +48,14 @@ export function MilestonesSection({
   canEdit: boolean;
 }) {
   const [adding, setAdding] = useState(false);
-  // Done milestones (every ticket done, D-136) are folded away below the open ones.
+  // Completed and canceled milestones (by their status, D-161) are folded away below the others.
   const [showDone, setShowDone] = useState(false);
   // After one is added the field starts over empty and stays, so several can be typed in a row.
   const [round, setRound] = useState(0);
   const create = useRefreshingMutation(createMilestone, () => setRound((current) => current + 1));
   const router = useRouter();
-  const open = milestones.filter((milestone) => !isMilestoneDone(milestone));
-  const done = milestones.filter(isMilestoneDone);
+  const open = milestones.filter((milestone) => !isMilestoneClosed(milestone));
+  const done = milestones.filter(isMilestoneClosed);
   const row = (milestone: Milestone) => (
     <MilestoneRow
       key={milestone.id}
@@ -156,7 +157,7 @@ function MilestoneRow({
   onDelete: () => void;
 }) {
   const percent = milestoneProgress(milestone);
-  const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
+  const done = milestone.status === "COMPLETED";
   const purpose = milestoneOutline(milestone.content).purpose;
 
   return (
@@ -179,6 +180,10 @@ function MilestoneRow({
         </div>
         {purpose ? <p className="truncate pl-6 text-[0.8125rem] leading-5 text-muted-foreground">{purpose}</p> : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-6 text-[0.8125rem] leading-5 whitespace-nowrap text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <ProjectStatusIcon status={milestone.status} className="size-3.5" />
+            {projectStatusLabel(milestone.status)}
+          </span>
           <span className="flex items-center gap-2">
             <span
               role="progressbar"

@@ -168,6 +168,7 @@
 | `project_id` | `uuid` FK → `projects` (함께 삭제) | |
 | `name` | `text` | 1~80자 |
 | `target_date` | `date` null | 목표일 |
+| `status` | `text` | `BACKLOG`\|`PLANNED`\|`IN_PROGRESS`\|`COMPLETED`\|`CANCELED`, 기본 `PLANNED`(`V21`, D-161). `COMPLETED`·`CANCELED` 는 목록에서 접힌다 |
 | `created_at`, `updated_at` | `timestamptz` | |
 
 `milestones.content`(`V2__milestone_content.sql`, D-113): `jsonb` null. 목표의 "정리" 문서(편집기 JSON, `RichText` 가 검증). 엔티티(`Milestone`)에는 싣지 않고 `RichText.store`/목록 조회의 SQL 로 읽고 쓴다(프로젝트·티켓의 `content` 와 같다).

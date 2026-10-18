@@ -19,7 +19,7 @@
 - **목록의 프로젝트 칸** (D-123): 전체 티켓·내 티켓 목록은 768px 부터 프로젝트 칸을 보이고, 연결하지 않은 티켓은 흐린 글씨로 "프로젝트 없음"이라고 쓴다.
 - **프로젝트 개요의 티켓 요약** (D-123): 설명 아래 "티켓" 구역에 진행 막대(`n건 중 m건 완료`, 취소는 세지 않는다)와 상태별 건수가 있다. 상태를 누르면 그 상태로 거른 프로젝트의 티켓 목록이 열린다(`project-issue-summary.tsx`).
 - **프로젝트 개요에 내 역할을 따로 쓰지 않는다** (2026-10-13, 사용자 지정): 구성원 카드에서 내 줄에 "나" 표시가 붙는다.
-- **완료된 목표와 목표 줄** (2026-10-15, D-136): 티켓이 있고 모두 완료면 완료된 목표다. 고르기·필터에서 빠지고 개요 목록에서는 접힌다. `/issues?project=` 위에 목표 줄, 목표별 묶음 머리줄에 진행률. 전체 프로젝트 표에 현재 목표를 쓰지 않는다.
+- **완료된 목표와 목표 줄** (2026-10-15, D-136 → **D-161**): ~~티켓이 있고 모두 완료면 완료된 목표다.~~ 목표에 **상태**(백로그·계획됨·진행 중·완료·취소)가 있고 사람이 정한다(2026-10-19, 사용자 지정). **완료·취소인 목표**는 고르기·필터에서 빠지고 개요 목록과 목표 줄에서는 "완료·취소된 목표 N개" 아래로 접힌다. `/issues?project=` 위에 목표 줄, 목표별 묶음 머리줄에 진행률. 전체 프로젝트 표에 현재 목표를 쓰지 않는다.
 - **프로젝트에 "티켓" 탭이 없다** (2026-10-15, 사용자 지정, D-135): 프로젝트의 티켓은 전체 티켓을 그 프로젝트로 거른 목록(`/issues?project=`)이다. 개요의 "모두 보기"·상태별 건수, 목표 상세의 목록 링크가 그리로 간다. 예전 주소 `/project/{id}/issues` 는 같은 필터로 넘겨 준다. 아래 글에서 "프로젝트의 티켓(목록)"은 이 거른 목록을 말한다.
 - **프로젝트의 "한 줄 요약"이 없다** (2026-10-15, 사용자 지정, D-134): 개요의 요약 입력칸과 새 프로젝트 창의 "한 줄 요약" 칸을 없앴다. 프로젝트를 설명하는 것은 개요의 설명 문서 하나다. `projects.description` 컬럼과 API 필드는 남아 있지만 화면은 쓰지 않는다.
 - **개요 본문에 구성원 수·만든 날짜 줄을 두지 않는다** (2026-10-15, 사용자 지정): 오른쪽 "속성" 카드의 "구성원"·"만든 날" 줄과 겹쳐서 한 줄 요약 아래의 것을 없앴다. 두 값은 속성 카드에만 있다.
@@ -143,9 +143,9 @@
 
 | 메서드와 경로 | 설명 |
 |---|---|
-| `GET /api/v1/projects/{id}/milestones` | `[{ id, name, targetDate, issueCount, doneCount, createdAt }]`. `issueCount` 는 취소를 뺀 수 |
-| `POST /api/v1/projects/{id}/milestones` | `{ name, targetDate? }` → 201. 편집 역할부터 |
-| `PATCH /api/v1/projects/{id}/milestones/{id}` | `{ name?, targetDate? }`. `targetDate: null` 로 지운다 |
+| `GET /api/v1/projects/{id}/milestones` | `[{ id, name, targetDate, status, issueCount, doneCount, createdAt, content }]`. `issueCount` 는 취소를 뺀 수. `status` 는 프로젝트 상태와 같은 값(D-161) |
+| `POST /api/v1/projects/{id}/milestones` | `{ name, targetDate?, status? }` → 201(`status` 기본 `PLANNED`). 편집 역할부터 |
+| `PATCH /api/v1/projects/{id}/milestones/{id}` | `{ name?, targetDate?, status?, content? }`. `targetDate: null` 로 지운다. 모르는 `status` 는 422 |
 | `DELETE /api/v1/projects/{id}/milestones/{id}` | → 204. 티켓은 마일스톤 없음이 된다 |
 
 티켓 API 에는 `milestoneId`(만들기, `PATCH`, `null` 로 지움)와 응답의 `milestone: { id, name } | null` 이 더해졌다. 오류: 404 `MILESTONE_NOT_FOUND`, 422 `VALIDATION_FAILED`(이름 비었음·너무 김).

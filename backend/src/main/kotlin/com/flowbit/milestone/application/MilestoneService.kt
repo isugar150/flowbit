@@ -10,6 +10,7 @@ import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.milestone.domain.Milestone
 import com.flowbit.milestone.domain.MilestoneRepository
+import com.flowbit.milestone.domain.MilestoneStatus
 import com.flowbit.project.application.ProjectAccess
 import com.flowbit.project.application.ProjectService
 import kotlinx.coroutines.reactor.awaitSingle
@@ -28,6 +29,7 @@ data class MilestoneView(
     val id: UUID,
     val name: String,
     val targetDate: LocalDate?,
+    val status: MilestoneStatus,
     /** Issues in the milestone, not counting canceled ones: they are no longer part of the work. */
     val issueCount: Int,
     val doneCount: Int,
@@ -40,7 +42,7 @@ data class MilestoneView(
 
 /**
  * Milestones of a project. Anyone who may read the project sees them; anyone who may edit it
- * creates, renames, dates and deletes them. Every call goes through ProjectService.access.
+ * creates, renames, dates, sets the status of and deletes them. Every call goes through ProjectService.access.
  */
 @Service
 class MilestoneService(
@@ -63,15 +65,16 @@ class MilestoneService(
         projectId: String,
         rawName: String,
         targetDate: LocalDate?,
+        status: MilestoneStatus = MilestoneStatus.PLANNED,
     ): MilestoneView {
         val project = editable(projectService.access(user, projectId)).project
         val now = clock.instant()
-        val milestone = Milestone(UuidV7.generate(now), project.id, validName(rawName), targetDate, now, now)
+        val milestone = Milestone(UuidV7.generate(now), project.id, validName(rawName), targetDate, status, now, now)
         entityTemplate.insert(milestone).awaitSingle()
         return views(project.id).single { it.id == milestone.id }
     }
 
-    /** Changes the fields present in `changes`: `name`, `targetDate` and `content` (null clears either of the last two). */
+    /** Changes the fields present in `changes`: `name`, `targetDate`, `status` and `content` (null clears the date or the document). */
     @Transactional
     suspend fun update(
         user: AuthenticatedUser,
@@ -89,6 +92,11 @@ class MilestoneService(
                         throw ValidationException("targetDate", "INVALID", "값이 올바르지 않습니다")
                     }
                 }
+        }
+        if ("status" in changes) {
+            milestone.status =
+                (changes["status"] as? String)?.let { value -> MilestoneStatus.entries.firstOrNull { it.name == value } }
+                    ?: throw ValidationException("status", "INVALID", "값이 올바르지 않습니다")
         }
         val document = if ("content" in changes) changes["content"]?.let { richText.parse(it) } else null
         milestone.updatedAt = clock.instant()
@@ -120,7 +128,7 @@ class MilestoneService(
         databaseClient
             .sql(
                 """
-                select m.id, m.name, m.target_date, m.created_at, m.content::text as content,
+                select m.id, m.name, m.target_date, m.status, m.created_at, m.content::text as content,
                        count(i.id) filter (where i.status <> 'CANCELED') as issue_count,
                        count(i.id) filter (where i.status = 'DONE') as done_count
                 from milestones m
@@ -135,6 +143,7 @@ class MilestoneService(
                     id = checkNotNull(row.get("id", UUID::class.java)),
                     name = checkNotNull(row.get("name", String::class.java)),
                     targetDate = row.get("target_date", LocalDate::class.java),
+                    status = MilestoneStatus.valueOf(checkNotNull(row.get("status", String::class.java))),
                     issueCount = checkNotNull(row.get("issue_count", Long::class.javaObjectType)).toInt(),
                     doneCount = checkNotNull(row.get("done_count", Long::class.javaObjectType)).toInt(),
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),

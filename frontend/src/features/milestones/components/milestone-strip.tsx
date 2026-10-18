@@ -4,10 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowRightIcon, CircleCheckIcon, DiamondIcon } from "lucide-react";
 import { useThisYear, useToday } from "@/components/dates";
+import { ProjectStatusIcon } from "@/features/projects/meta";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { hasOutline, milestoneOutline } from "../outline";
-import { isMilestoneDone, milestoneProgress, milestoneSummary, shortDate, type Milestone } from "../types";
+import { isMilestoneClosed, milestoneProgress, milestoneSummary, shortDate, type Milestone } from "../types";
 import { OutlineView, milestoneHref } from "./milestone-card";
 
 const m = messages.milestones;
@@ -29,9 +30,10 @@ export function MilestoneStrip({
   selected: string | null;
   onSelect: (id: string | null) => void;
 }) {
-  const done = milestones.filter(isMilestoneDone);
-  const open = milestones.filter((milestone) => !isMilestoneDone(milestone));
-  // A done milestone that is the filter stays in view.
+  // Completed and canceled ones are folded away (D-161).
+  const done = milestones.filter(isMilestoneClosed);
+  const open = milestones.filter((milestone) => !isMilestoneClosed(milestone));
+  // A closed milestone that is the filter stays in view.
   const [showDone, setShowDone] = useState(() => done.some((milestone) => milestone.id === selected));
   // Overdue and "this year" depend on the clock, which only the browser may read while rendering.
   const now = useToday();
@@ -39,7 +41,7 @@ export function MilestoneStrip({
   if (milestones.length === 0) return null;
 
   const chip = (milestone: Milestone) => {
-    const isDone = isMilestoneDone(milestone);
+    const isDone = isMilestoneClosed(milestone);
     const pressed = milestone.id === selected;
     const percent = milestoneProgress(milestone);
     const overdue = !isDone && milestone.targetDate !== null && now !== null && milestone.targetDate < now;
@@ -58,7 +60,7 @@ export function MilestoneStrip({
         )}
       >
         {isDone ? (
-          <CircleCheckIcon className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+          <ProjectStatusIcon status={milestone.status} className="size-3.5" />
         ) : (
           <DiamondIcon className="size-3.5 shrink-0 text-warning" aria-hidden="true" />
         )}

@@ -182,6 +182,13 @@
 
 ## 작업 기록
 
+### 2026-10-19 — 목표 상태, 완료·취소 목표 숨기기 (D-161)
+
+- 사용자 요청: 목표에 상태값이 필요하고, 완료 상태면 목록에서 숨기기. 원래 목표는 "티켓이 모두 완료면 완료"로 계산만 했다(D-136). 그 규칙을 상태로 바꿨다.
+- 백엔드: 마이그레이션 `V21__milestone_status.sql`(`milestones.status`, 기존 목표는 티켓으로 정함), `MilestoneStatus`(프로젝트 상태와 같은 값), `MilestoneView.status`, 만들 때 `status`(기본 `PLANNED`), `PATCH` 의 `status`. 전체 프로젝트의 `current_milestone` 도 상태로 고른다. **개발 DB 에는 백엔드를 다시 띄울 때 `V21` 이 적용된다.**
+- 프런트: `isMilestoneDone` → `isMilestoneClosed`(완료·취소). 목표 상세 창에 "상태" 칩(`projectStatusOptions` 를 그대로 씀, 읽기 전용이면 아이콘과 이름), 개요의 목표 줄에 상태, 접는 단추 문구는 "완료·취소된 목표 N개"·"완료·취소 N개". 온보딩 투어의 예시 목표에도 `status`.
+- 검사: 백엔드 `compileKotlin`·`ktlintMainSourceSetCheck`(`FLOWBIT_BUILD_DIR=build-milestone`), 프런트 `typecheck`·바꾼 파일의 eslint 통과. 테스트는 돌리지 않았다. **화면은 확인하지 않았다**(백엔드 8080 이 꺼져 있었다). 목표 통합 테스트에 `status` 검사가 없다(다음에 테스트를 쓸 때 더한다).
+
 ### 2026-10-16 — 목표마다 주소 (D-160)
 
 - 사용자 요청: 목표도 티켓처럼 주소를 따로 두고, 그 주소로 바로 들어오면 프로젝트 개요 위에 목표 상세 창이 바로 뜨게.

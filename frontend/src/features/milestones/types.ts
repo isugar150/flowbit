@@ -1,4 +1,8 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
+import type { ProjectStatus } from "@/features/projects/types";
+
+/** Where a milestone stands, set by hand (D-161): the same values, names and marks as a project's status. */
+export type MilestoneStatus = ProjectStatus;
 
 /** A stage of a project, with how far along its issues are (GET /api/v1/projects/{id}/milestones). */
 export type Milestone = {
@@ -6,6 +10,7 @@ export type Milestone = {
   name: string;
   /** YYYY-MM-DD */
   targetDate: string | null;
+  status: MilestoneStatus;
   /** Issues in the milestone, canceled ones not counted. */
   issueCount: number;
   doneCount: number;
@@ -15,12 +20,11 @@ export type Milestone = {
 };
 
 /**
- * A milestone is done when it has tickets and every one of them is done, canceled ones not counted
- * (D-136). Nothing is stored: putting a new ticket in it opens it again.
+ * A completed or canceled milestone is closed (D-161): it is folded away in the lists and left out
+ * of the choices. Its tickets do not decide it; the status is set by hand.
  */
-export function isMilestoneDone(milestone: Partial<Pick<Milestone, "issueCount" | "doneCount">>): boolean {
-  const count = milestone.issueCount ?? 0;
-  return count > 0 && milestone.doneCount === count;
+export function isMilestoneClosed(milestone: Partial<Pick<Milestone, "status">>): boolean {
+  return milestone.status === "COMPLETED" || milestone.status === "CANCELED";
 }
 
 /** "6/10 · 60% · 10-31": how far a milestone is, for a group heading or a chip's title. */

@@ -342,12 +342,10 @@ class ProjectMemberStore(
                            (select count(*) from issues i where i.project_id = p.id and i.deleted_at is null and i.status <> 'CANCELED') as issue_count,
                            (select count(*) from issues i where i.project_id = p.id and i.deleted_at is null and i.status = 'DONE') as done_count,
                            (
-                               -- Finished means it has issues and all of them are done (or canceled).
+                               -- The first milestone not yet closed by its status (D-161).
                                select ms.name from milestones ms
                                where ms.project_id = p.id
-                                 and (not exists (select 1 from issues i where i.milestone_id = ms.id and i.deleted_at is null and i.status <> 'CANCELED')
-                                      or exists (select 1 from issues i where i.milestone_id = ms.id and i.deleted_at is null
-                                                 and i.status not in ('DONE', 'CANCELED')))
+                                 and ms.status not in ('COMPLETED', 'CANCELED')
                                order by ms.target_date nulls last, ms.created_at
                                limit 1
                            ) as current_milestone,

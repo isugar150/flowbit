@@ -3,6 +3,7 @@ package com.flowbit.milestone.api
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.milestone.application.MilestoneService
 import com.flowbit.milestone.application.MilestoneView
+import com.flowbit.milestone.domain.MilestoneStatus
 import com.flowbit.realtime.RealtimeHub
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -21,6 +22,7 @@ import java.util.UUID
 data class CreateMilestoneRequest(
     val name: String,
     val targetDate: LocalDate? = null,
+    val status: MilestoneStatus = MilestoneStatus.PLANNED,
 )
 
 /**
@@ -46,7 +48,7 @@ class MilestoneController(
         @PathVariable projectId: String,
         @RequestBody body: CreateMilestoneRequest,
     ): MilestoneView {
-        val milestone = milestoneService.create(user, projectId, body.name, body.targetDate)
+        val milestone = milestoneService.create(user, projectId, body.name, body.targetDate, body.status)
         announce(projectId, user)
         return milestone
     }

@@ -15,12 +15,25 @@ class Milestone(
     val projectId: UUID,
     var name: String,
     var targetDate: LocalDate?,
+    var status: MilestoneStatus,
     val createdAt: Instant,
     var updatedAt: Instant,
 ) {
     companion object {
         const val NAME_MAX_LENGTH = 80
     }
+}
+
+/**
+ * Where a milestone stands, set by hand (D-161): the same values as a project's status. Completed
+ * and canceled milestones are the closed ones, folded away in the lists.
+ */
+enum class MilestoneStatus {
+    BACKLOG,
+    PLANNED,
+    IN_PROGRESS,
+    COMPLETED,
+    CANCELED,
 }
 
 interface MilestoneRepository : CoroutineCrudRepository<Milestone, UUID> {

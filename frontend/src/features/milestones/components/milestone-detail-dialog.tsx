@@ -26,7 +26,8 @@ import { useRemoteValue } from "@/lib/use-remote-value";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateMilestone } from "../api";
-import { milestoneProgress, type Milestone } from "../types";
+import { ProjectStatusIcon, projectStatusLabel, projectStatusOptions } from "@/features/projects/meta";
+import { milestoneProgress, type Milestone, type MilestoneStatus } from "../types";
 
 const statusOptions = STATUSES.map((status) => ({
   value: status,
@@ -92,6 +93,9 @@ function upTo(rows: ListRow[], limit: number): ListRow[] {
 /** The name field is saved on blur, so while it has focus the person's typing wins. */
 const isFocused = (input: HTMLInputElement) => document.activeElement === input;
 
+/** What the dialog and the panel may change: the name, the status (D-161) and the target date. */
+export type MilestoneChanges = { name?: string; status?: MilestoneStatus; targetDate?: string | null };
+
 /**
  * One milestone opened from the project overview. On the left, what it is and a document where
  * the people working on it write down where things stand; on the right, the issues in it. People
@@ -108,8 +112,8 @@ export function MilestoneDetailDialog({
   projectId: string;
   milestone: Milestone;
   canEdit: boolean;
-  /** A new name or target date; shown at once by whoever holds the list. */
-  onChange: (changes: { name?: string; targetDate?: string | null }) => void;
+  /** A new name, status or target date; shown at once by whoever holds the milestone. */
+  onChange: (changes: MilestoneChanges) => void;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -163,7 +167,7 @@ export function MilestoneDetailBody({
   projectId: string;
   milestone: Milestone;
   canEdit: boolean;
-  onChange?: (changes: { name?: string; targetDate?: string | null }) => void;
+  onChange?: (changes: MilestoneChanges) => void;
   notes?: ReturnType<typeof useMilestoneNotes>;
   stacked?: boolean;
   /** At most this many tickets are listed; the rest are counted on one line. */
@@ -174,7 +178,7 @@ export function MilestoneDetailBody({
   const canEdit = mayEdit && onChange !== undefined && notes !== undefined;
   const router = useRouter();
   const percent = milestoneProgress(milestone);
-  const done = milestone.issueCount > 0 && milestone.doneCount === milestone.issueCount;
+  const done = milestone.status === "COMPLETED";
   const nameInput = useRemoteValue<HTMLInputElement>(milestone.name, isFocused);
   // Read each time the milestone is opened: issues move in and out of it elsewhere.
   const issuesKey = ["milestone-issues", projectId, milestone.id];
@@ -263,6 +267,19 @@ export function MilestoneDetailBody({
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5">
+                {canEdit ? (
+                  <ChipSelect
+                    label={m.status}
+                    value={milestone.status}
+                    options={projectStatusOptions}
+                    onChange={(status) => onChange?.({ status })}
+                  />
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <ProjectStatusIcon status={milestone.status} />
+                    {projectStatusLabel(milestone.status)}
+                  </span>
+                )}
                 <span className="flex items-center gap-2">
                   <span
                     role="progressbar"

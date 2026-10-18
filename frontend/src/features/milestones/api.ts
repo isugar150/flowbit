@@ -1,6 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import type { RichDoc } from "@/components/editor/rich-text-editor";
-import type { Milestone } from "./types";
+import type { Milestone, MilestoneStatus } from "./types";
 
 export function createMilestone(input: { projectId: string; name: string; targetDate?: string | null }): Promise<Milestone> {
   return apiFetch<Milestone>(`/api/v1/projects/${input.projectId}/milestones`, {
@@ -13,7 +13,7 @@ export function createMilestone(input: { projectId: string; name: string; target
 export function updateMilestone(input: {
   projectId: string;
   id: string;
-  changes: Partial<{ name: string; targetDate: string | null; content: RichDoc | null }>;
+  changes: Partial<{ name: string; targetDate: string | null; status: MilestoneStatus; content: RichDoc | null }>;
 }): Promise<Milestone> {
   return apiFetch<Milestone>(`/api/v1/projects/${input.projectId}/milestones/${input.id}`, {
     method: "PATCH",
