@@ -194,7 +194,8 @@ export type IssueActivityType =
   | "GIT_PR_LINKED"
   | "GIT_PR_MERGED"
   | "GIT_PR_CLOSED"
-  | "GIT_COMMITS_PUSHED";
+  | "GIT_COMMITS_PUSHED"
+  | "GIT_UNLINKED";
 
 /**
  * Set on an entry a Git server made: which kind of server (D-153; missing on older entries) and

@@ -89,7 +89,8 @@ class GitLinkService(
         val actor = run.actorOf(push.pusher)
         for (issue in issues) {
             val events = mutableListOf<IssueEvent>()
-            val onBranch = issue.number in branchNumbers
+            // A branch someone took off the issue stays off (D-161); its commits only count when they name the issue.
+            val onBranch = issue.number in branchNumbers && !branchUnlinked(run.connection.id, issue.id, push.repository, branch)
             val branchLinked = onBranch && linkBranch(run.connection.id, issue.id, push.repository, branch, push.branchUrl.orEmpty())
             if (branchLinked) {
                 events += IssueEvent(IssueActivityType.GIT_BRANCH_LINKED, mapOf("repository" to push.repository, "branch" to branch, "url" to push.branchUrl))
@@ -143,6 +144,8 @@ class GitLinkService(
         val reference = mapOf("repository" to pr.repository, "number" to pr.number, "title" to pr.title, "url" to pr.url)
         for (issue in issues) {
             val link = linkPullRequest(run.connection.id, issue.id, pr, issue.number in closing)
+            // Taken off the issue by someone (D-161): left alone, whatever happens to it.
+            if (link.unlinked) continue
             if (link.created) run.pickRepository(issue, pr.repository)
             if (link.created) {
                 record(
@@ -233,6 +236,7 @@ class GitLinkService(
                 select exists(
                     select 1 from issue_git_links
                     where issue_id = :issueId and kind = 'PULL_REQUEST' and closes and pr_state in ('OPEN', 'DRAFT') and id <> :linkId
+                      and unlinked_at is null
                 )
                 """.trimIndent(),
             ).bind("issueId", issueId)
@@ -242,6 +246,67 @@ class GitLinkService(
             .awaitSingle()
 
     // --- storing --------------------------------------------------------------------------------
+
+    /** Whether someone took this branch off the issue (D-161). */
+    private suspend fun branchUnlinked(
+        connectionId: UUID,
+        issueId: UUID,
+        repository: String,
+        branch: String,
+    ): Boolean =
+        databaseClient
+            .sql(
+                """
+                select exists(
+                    select 1 from issue_git_links
+                    where issue_id = :issueId and connection_id = :connectionId and repository = :repository
+                      and kind = 'BRANCH' and branch = :branch and unlinked_at is not null
+                )
+                """.trimIndent(),
+            ).bind("issueId", issueId)
+            .bind("connectionId", connectionId)
+            .bind("repository", repository)
+            .bind("branch", branch)
+            .map { row -> checkNotNull(row.get(0, Boolean::class.javaObjectType)) }
+            .one()
+            .awaitSingle()
+
+    /**
+     * Takes a branch or pull request off the issue (D-161), with the other links of the same
+     * branch: a pull request and the branch it comes from go together, or the one would show again
+     * in place of the other. The rows stay, marked, so that Git cannot link them again. Returns
+     * what was taken off; empty when [linkId] is not one of the issue's links.
+     */
+    suspend fun unlink(
+        issueId: UUID,
+        linkId: UUID,
+    ): List<Map<String, Any?>> =
+        databaseClient
+            .sql(
+                """
+                update issue_git_links l set unlinked_at = :now
+                from issue_git_links target
+                where target.id = :linkId and target.issue_id = :issueId and target.unlinked_at is null
+                  and l.issue_id = target.issue_id and l.unlinked_at is null
+                  and (l.id = target.id or (target.branch is not null and l.connection_id = target.connection_id
+                       and l.repository = target.repository and l.branch = target.branch))
+                returning l.kind, l.repository, l.branch, l.pr_number, l.title, l.url
+                """.trimIndent(),
+            ).bind("now", clock.instant())
+            .bind("linkId", linkId)
+            .bind("issueId", issueId)
+            .map { row ->
+                mapOf(
+                    "kind" to row.get("kind", String::class.java),
+                    "repository" to row.get("repository", String::class.java),
+                    "branch" to row.get("branch", String::class.java),
+                    "number" to row.get("pr_number", Int::class.javaObjectType),
+                    "title" to row.get("title", String::class.java),
+                    "url" to row.get("url", String::class.java),
+                )
+            }.all()
+            .collectList()
+            .awaitSingle()
 
     /** True when the branch was not linked to the issue before. */
     private suspend fun linkBranch(
@@ -278,6 +343,8 @@ class GitLinkService(
         /** The state stored before this event; null for a new link. */
         val previousState: GitPrState?,
         val closes: Boolean,
+        /** Someone took it off the issue (D-161). */
+        val unlinked: Boolean = false,
     )
 
     /**
@@ -320,7 +387,7 @@ class GitLinkService(
             databaseClient
                 .sql(
                     """
-                    select id, pr_state, closes from issue_git_links
+                    select id, pr_state, closes, unlinked_at is not null as unlinked from issue_git_links
                     where issue_id = :issueId and connection_id = :connectionId and repository = :repository
                       and kind = 'PULL_REQUEST' and pr_number = :number
                     for update
@@ -334,10 +401,11 @@ class GitLinkService(
                         checkNotNull(row.get("id", UUID::class.java)),
                         row.get("pr_state", String::class.java)?.let(GitPrState::valueOf),
                         checkNotNull(row.get("closes", Boolean::class.javaObjectType)),
-                    )
+                    ) to checkNotNull(row.get("unlinked", Boolean::class.javaObjectType))
                 }.one()
                 .awaitSingleOrNull() ?: return PullRequestLink(null, created = false, previousState = pr.state, closes = closes)
-        val (id, previousState, wasClosing) = stored
+        val (id, previousState, wasClosing) = stored.first
+        if (stored.second) return PullRequestLink(id, created = false, previousState = previousState, closes = wasClosing, unlinked = true)
         databaseClient
             .sql("update issue_git_links set title = :title, url = :url, pr_state = :state, closes = :closes, updated_at = :now where id = :id")
             .bind("title", pr.title.take(TITLE_MAX_LENGTH))

@@ -83,6 +83,11 @@ export function unlinkMyGitHub(): Promise<void> {
   return apiFetch<void>("/api/v1/me/git/github", { method: "DELETE" });
 }
 
+/** Takes a branch or pull request off the issue; Git does not link it again (D-161). */
+export function unlinkGit({ number, linkId }: { number: number; linkId: string }): Promise<void> {
+  return apiFetch<void>(`/api/v1/issues/${number}/git/links/${encodeURIComponent(linkId)}`, { method: "DELETE" });
+}
+
 /** Where the issue's branch can be made (D-159). Needs the right to edit the issue. */
 export function gitBranchTargets(number: number): Promise<GitBranchTarget[]> {
   return apiFetch<GitBranchTarget[]>(`/api/v1/issues/${number}/git/branch-targets`);

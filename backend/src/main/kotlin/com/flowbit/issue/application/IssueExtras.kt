@@ -42,6 +42,8 @@ data class DocumentSummary(
 
 /** A branch or pull request a Git server linked the issue to (docs/features/git-integration.md). */
 data class IssueGitLinkView(
+    /** For taking it off the issue (D-161). */
+    val id: UUID,
     val kind: String,
     val repository: String,
     val branch: String?,
@@ -270,14 +272,15 @@ class IssueExtrasStore(
             databaseClient
                 .sql(
                     """
-                    select connection_id, kind, repository, branch, pr_number, title, url, pr_state, closes
-                    from issue_git_links where issue_id = :id
+                    select id, connection_id, kind, repository, branch, pr_number, title, url, pr_state, closes
+                    from issue_git_links where issue_id = :id and unlinked_at is null
                     order by kind desc, created_at desc, id
                     """.trimIndent(),
                 ).bind("id", issueId)
                 .map { row ->
                     checkNotNull(row.get("connection_id", UUID::class.java)) to
                         IssueGitLinkView(
+                            id = checkNotNull(row.get("id", UUID::class.java)),
                             kind = checkNotNull(row.get("kind", String::class.java)),
                             repository = checkNotNull(row.get("repository", String::class.java)),
                             branch = row.get("branch", String::class.java),

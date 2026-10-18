@@ -419,6 +419,8 @@ export const ko = {
       gitPrLinked: "님이 PR을 연결했습니다:",
       gitPrMerged: "님이 PR을 머지했습니다:",
       gitPrClosed: "님이 PR을 닫았습니다:",
+      gitBranchUnlinked: "님이 브랜치 연결을 해제했습니다:",
+      gitPrUnlinked: "님이 PR 연결을 해제했습니다:",
       gitCommitsPushed: (count: number) => `님이 커밋 ${count}개를 올렸습니다`,
       gitReference: "(참고)",
       gitCommitsShow: "커밋 보기",
@@ -925,6 +927,8 @@ export const ko = {
         `${repository} #${number} ${title} (${state}, Git 서버에서 열기)`,
       branchLabel: (branch: string) => `브랜치 ${branch} (Git 서버에서 열기)`,
       reference: "참고",
+      unlink: (label: string) => `${label} 연결 해제`,
+      unlinkConfirm: "해제",
     },
   },
   retention: {

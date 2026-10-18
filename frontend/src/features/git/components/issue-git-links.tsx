@@ -1,6 +1,13 @@
-import { FolderGit2Icon, GitBranchIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { FolderGit2Icon, GitBranchIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon, UnlinkIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { apiErrorMessage } from "@/lib/api/error-message";
+import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
+import { unlinkGit } from "../api";
 import type { GitPrState, IssueGitLink, IssueGitRepository } from "../types";
 import { IssueGitRepositoryPicker } from "./issue-git-repository";
 
@@ -24,6 +31,37 @@ function PullRequestIcon({ state }: { state: GitPrState | null }) {
     default:
       return <GitPullRequestIcon aria-hidden className={cn(className, "text-warning")} />;
   }
+}
+
+/**
+ * Takes a link off the issue (D-161), on a second press: the first turns the button into a
+ * "해제" that does it, and leaving the button puts it back.
+ */
+function UnlinkButton({ number, link, label }: { number: number; link: IssueGitLink; label: string }) {
+  const [armed, setArmed] = useState(false);
+  const unlink = useRefreshingMutation(unlinkGit);
+  return (
+    <>
+      <Button
+        type="button"
+        variant={armed ? "destructive" : "ghost"}
+        size={armed ? "sm" : "icon-sm"}
+        aria-label={armed ? m.unlinkConfirm : m.unlink(label)}
+        title={armed ? undefined : m.unlink(label)}
+        disabled={unlink.isPending}
+        className={cn("shrink-0 max-md:h-11", !armed && "text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:size-11 max-md:opacity-100")}
+        onBlur={() => setArmed(false)}
+        onClick={() => (armed ? unlink.mutate({ number, linkId: link.id }) : setArmed(true))}
+      >
+        {armed ? m.unlinkConfirm : <UnlinkIcon />}
+      </Button>
+      {unlink.isError ? (
+        <p role="alert" className="basis-full text-xs leading-4 text-destructive">
+          {apiErrorMessage(unlink.error)}
+        </p>
+      ) : null}
+    </>
+  );
 }
 
 /**
@@ -73,14 +111,14 @@ export function IssueGitLinks({
             ? m.pullRequestLabel(repositoryName(link.repository), link.prNumber ?? 0, link.title ?? "", link.prState ? m.states[link.prState] : "")
             : m.branchLabel(link.branch ?? "");
           return (
-            <li key={`${link.kind}-${link.repository}-${link.prNumber ?? link.branch}`}>
+            <li key={link.id} className="group flex flex-wrap items-center gap-1">
               <a
                 href={link.url}
                 target="_blank"
                 rel="noreferrer"
                 aria-label={label}
                 title={label}
-                className="flex min-h-8 items-center gap-2 rounded-md px-1 text-[0.8125rem] leading-5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-11"
+                className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-1 text-[0.8125rem] leading-5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-11"
               >
                 {pullRequest ? <PullRequestIcon state={link.prState} /> : <GitBranchIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />}
                 {pullRequest ? (
@@ -95,6 +133,7 @@ export function IssueGitLinks({
                   <span className="min-w-0 flex-1 truncate font-mono text-xs">{link.branch}</span>
                 )}
               </a>
+              {canEdit ? <UnlinkButton number={number} link={link} label={label} /> : null}
             </li>
           );
         })}

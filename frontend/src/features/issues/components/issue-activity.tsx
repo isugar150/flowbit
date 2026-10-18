@@ -98,6 +98,11 @@ function describe(item: IssueActivityItem): { action: string; change?: string; h
       return { action: m.gitPrMerged, change: pullRequestName(item.detail, false), href: url };
     case "GIT_PR_CLOSED":
       return { action: m.gitPrClosed, change: pullRequestName(item.detail, false), href: url };
+    case "GIT_UNLINKED":
+      // Someone took a branch or pull request off the issue (D-161).
+      return item.detail.kind === "PULL_REQUEST"
+        ? { action: m.gitPrUnlinked, change: pullRequestName(item.detail, true), href: url }
+        : { action: m.gitBranchUnlinked, change: text(item.detail.branch), href: url };
     case "GIT_COMMITS_PUSHED":
       return { action: m.gitCommitsPushed(Number(item.detail.count) || 0), commits: commitsOf(item.detail.commits) };
     default:

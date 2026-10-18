@@ -58,7 +58,8 @@ export function IssueBody({
             issueKey={issue.key}
             branch={branch}
             repository={repository}
-            canCreateBranch={canEdit && !issue.deletedAt}
+            // An issue on its own has no repositories to pick from (D-162).
+            canCreateBranch={canEdit && !issue.deletedAt && issue.project !== null}
           />
           <SaveStatus status={status} />
         </div>

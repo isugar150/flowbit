@@ -17,6 +17,7 @@
 | 티켓에서 "브랜치 이름 복사" | 포함 |
 | 티켓에서 "브랜치 만들기" (D-159) | 포함 (GitHub 는 Flowbit 이 만든다, GitLab·Gitea 는 그 서버 화면으로) |
 | PR 단계별로 옮길 상태 정하기 (D-158) | 포함 (연결마다) |
+| 티켓에서 연결된 브랜치·PR 해제 (D-161) | 포함 |
 
 범위 밖(필요해지면 따로 명세): 개인 Git 계정 연결(이메일이 다른 사람 맞추기, 내 이름으로 댓글), Flowbit 이 Git 서버에 쓰기(PR 에 티켓 링크 댓글 — API 토큰 필요), CI 결과 표시, Git 이슈 가져오기·양방향 동기화, 저장소 목록 불러오기, 배포 추적.
 
@@ -129,11 +130,13 @@ API: `GET /api/v1/projects/{id}/git`(들어갈 수 있는 사람) → `{ enabled
 
 **브랜치 이름 복사**: http 로 연 설치(보안 컨텍스트가 아니어서 `navigator.clipboard` 가 없다)에서도 되도록, 안 되면 숨긴 입력란을 골라 `document.execCommand("copy")` 로 복사한다(`lib/copy-text.ts`). 그것도 안 되면 "복사하지 못했습니다"를 보인다.
 
-**브랜치 만들기** (사용자 지정, D-159): 키 옆 메뉴의 "브랜치 만들기…"(티켓 편집 권한). 창에서 저장소와 이름(처음엔 복사할 이름)을 고른다. 저장소는 프로젝트가 정한 저장소, 정하지 않았으면 연결들이 아는 저장소 전부이고, 티켓의 저장소가 맨 앞이다. 이름에는 티켓 키가 있어야 하고(400 `NO_KEY`), Git 이 받지 않는 글자(공백, `~^:?*[\`, `..` 등)는 400 `INVALID`.
-- **GitHub**: Flowbit 이 GitHub App 으로 만든다. `GET /repos/{저장소}` 의 기본 브랜치 → `GET /repos/{저장소}/git/ref/heads/{기본}` 의 커밋 → `POST /repos/{저장소}/git/refs`. 이미 있으면(422) 연결만 한다. 만들면 **곧바로** 그 사람이 push 한 것처럼 연결한다: 브랜치 활동, 티켓의 저장소(정한 프로젝트면 그 저장소로 바꾼다), 담당자 추가(D-156), `BRANCH` 단계 상태. 나중에 오는 push·가져오기는 이미 연결된 브랜치라 겹치지 않는다. 앱에 **Contents 쓰기** 권한이 필요하다. 새로 만드는 앱은 매니페스트에 넣었고, 그 전에 만든 앱은 GitHub 의 앱 설정 > Permissions 에서 Contents 를 Read and write 로 바꾸고 조직 소유자가 승인해야 한다. 권한이 없으면 409 `GITHUB_NO_WRITE`.
+**브랜치 만들기** (사용자 지정, D-159): 키 옆 메뉴의 "브랜치 만들기…"(티켓 편집 권한). **프로젝트에 연결된 티켓에만** 보인다(사용자 지정, D-162): 독립 티켓은 어느 저장소의 일인지 정할 곳이 없어 연결들의 저장소 전부가 나오던 것을 없앴다(`branch-targets` 도 빈 목록). 창에서 저장소와 이름(처음엔 복사할 이름)을 고른다. 저장소는 프로젝트가 정한 저장소, 정하지 않았으면 연결들이 아는 저장소 전부이고, 티켓의 저장소가 맨 앞이다. 이름에는 티켓 키가 있어야 하고(400 `NO_KEY`), Git 이 받지 않는 글자(공백, `~^:?*[\`, `..` 등)는 400 `INVALID`.
+- **GitHub**: Flowbit 이 GitHub App 으로 만든다. `GET /repos/{저장소}` 의 기본 브랜치 → `GET /repos/{저장소}/git/ref/heads/{기본}` 의 커밋 → `POST /repos/{저장소}/git/refs`. 이미 있으면(422) 연결만 한다. 만들면 **곧바로** 그 사람이 push 한 것처럼 연결한다: 브랜치 활동, 티켓의 저장소(정한 프로젝트면 그 저장소로 바꾼다), 담당자 추가(D-156), `BRANCH` 단계 상태. 나중에 오는 push·가져오기는 이미 연결된 브랜치라 겹치지 않는다. 앱에 **Contents 쓰기** 권한이 필요하다. 새로 만드는 앱은 매니페스트에 넣었고, 그 전에 만든 앱은 GitHub 의 앱 설정 > Permissions 에서 Contents 를 Read and write 로 바꾸고 조직 소유자가 승인해야 한다. 권한이 없으면 409 `GITHUB_NO_WRITE`. 설치 토큰은 만들 때의 권한을 1시간 동안 그대로 가지므로, 거절(403·404)되면 토큰을 버리고 새 토큰으로 한 번 더 시도한다(조직이 새 권한을 승인한 직후에도 백엔드를 다시 띄울 필요가 없다). 권한 변경은 앱 설정에서 바꾼 뒤 **조직 소유자가 조직 설정 > GitHub Apps > 앱 > Configure 의 "Review request" 에서 승인**해야 효력이 있다.
 - **GitLab**: Flowbit 에 토큰이 없어서 `<저장소>/-/branches/new?branch_name=<이름>` 을 새 탭으로 연다(이름이 채워진다).
 - **Gitea**: 새 브랜치 화면을 미리 채울 수 없어서, 이름을 복사하고 `<저장소>/branches` 를 연다.
 - GitLab·Gitea 는 그 서버에서 만든 뒤 첫 push 가 웹훅으로 오면 평소처럼 연결된다.
+
+**연결 해제** (사용자 지정, D-161): 옆 패널 "Git" 의 브랜치·PR 줄마다 해제 버튼(편집 권한, 한 번 더 눌러 확인). PR 을 해제하면 그 PR 의 브랜치 연결도, 브랜치를 해제하면 그 브랜치의 PR 연결도 함께 해제된다(하나만 빼면 다른 것이 그 자리에 다시 보인다). 행은 지우지 않고 `issue_git_links.unlinked_at`(`V22`)을 채워 둔다: 화면에 보이지 않고, 같은 브랜치에 다시 push 하거나 같은 PR 의 이벤트가 와도 **다시 연결되지 않고** 상태·담당자도 바꾸지 않는다(그 브랜치의 커밋도 메시지에 키가 있을 때만 붙는다). 이미 남은 커밋 활동은 그대로다. 활동에는 "○○ 님이 브랜치(PR) 연결을 해제했습니다"가 남는다(`GIT_UNLINKED`, 알림은 보내지 않는다). 다시 잇는 화면은 없다.
 
 **브랜치 이름 복사** (형식): 티켓 상세 위의 키 옆 메뉴에 "브랜치 이름 복사". 형식은 `<내 아이디>/fb-12-<제목 슬러그>`. 슬러그는 제목에서 영문·숫자만 남겨 `-` 로 잇고(한글 제목이면 비어서 `kimjm/fb-12`), 전체 60자까지.
 
@@ -290,6 +293,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
 | POST | `/api/v1/integrations/git/{id}/webhook` | 없음 (서명) | 위 "받는 방식" |
 | GET, POST | `/api/v1/admin/git/connections` | 관리자 | 목록(비밀 값 대신 `secretSet`, `webhookUrl`), 추가(201, 응답에 한 번만 `secret`) |
 | PUT, DELETE | `/api/v1/admin/git/connections/{id}` | 관리자 | `{ name, enabled, provider, baseUrl, statusRules, receiveMode, githubOrganization }`. `statusRules` 는 `{ "BRANCH": "IN_PROGRESS", …, "PR_CLOSED": null }`(빠진 단계는 기본값, 백로그는 400 `INVALID`). 전의 `autoInProgress`·`autoDone` 도 `statusRules` 가 없을 때 받는다(옛 백업) |
+| DELETE | `/api/v1/issues/{number}/git/links/{linkId}` | 티켓 편집 | 브랜치·PR 연결 해제(같은 브랜치의 연결과 함께) → 204. 없으면 404 `GIT_LINK_NOT_FOUND` (D-161). 응답의 `git[].id` 가 `linkId` |
 | GET | `/api/v1/issues/{number}/git/branch-targets` | 티켓 편집 | 브랜치를 만들 수 있는 저장소 `[{ connectionId, connectionName, provider, repository, url, mode: API\|PAGE\|COPY, current }]` (D-159) |
 | POST | `/api/v1/issues/{number}/git/branches` | 티켓 편집 | `{ connectionId, repository, branch }` → GitHub 에 만들고 연결 `{ repository, branch, url, existed }`. GitHub 가 아니면 400 `UNSUPPORTED`, 권한이 없으면 409 `GITHUB_NO_WRITE`, GitHub 오류는 502 | |
 | POST | `/api/v1/admin/git/connections/{id}/secret` | 관리자 | 비밀 값 다시 만들기 → `{ secret }`. 예전 값은 바로 무효 |

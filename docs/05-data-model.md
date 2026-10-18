@@ -231,6 +231,8 @@
 
 `V18`(D-152): `git_user_accounts` 를 지운다(관리자의 사람 맞추기를 없앴다). 티켓의 저장소(`issue_git_repositories`)는 처음 연결된 브랜치·PR 의 저장소로 저절로 채워질 수 있다.
 
+`V22`(D-161): `issue_git_links.unlinked_at`(timestamptz, null 이면 연결됨): 사람이 티켓에서 해제한 브랜치·PR. 지우지 않고 남겨 Git 이 다시 연결하지 않게 한다. 화면·상태 규칙은 이 값이 null 인 것만 본다.
+
 `V11` 은 `issue_activities.actor_id` 의 NOT NULL 도 뺀다. Git 이 한 일은 `detail.via = {"source":"git","name":"<Git 사용자 이름>"}` 를 달고, Flowbit 계정이 맞으면 `actor_id` 도 채운다.
 
 ### 검색 함수 `hangul_initials(text)` (`V10`, D-133)

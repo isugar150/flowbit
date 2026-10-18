@@ -288,7 +288,8 @@ class GitHubIntegrationTest : IntegrationTest() {
 
     @Test
     fun `티켓에서 GitHub 저장소에 브랜치를 만들면 바로 연결되고 만든 사람이 담당자가 된다`() {
-        admin.post("/api/v1/issues", """{"title":"로그인 오류"}""")
+        val projectId = admin.post("/api/v1/projects", """{"name":"웹"}""").json()["id"]
+        admin.post("/api/v1/issues", """{"title":"로그인 오류","projectId":"$projectId"}""")
         installedConnection()
 
         val target = admin.get("/api/v1/issues/1/git/branch-targets").jsonList().single()
@@ -310,10 +311,24 @@ class GitHubIntegrationTest : IntegrationTest() {
         assertEquals(true, admin.post("/api/v1/issues/1/git/branches", request("admin/fb-1-login")).json()["existed"])
         assertEquals(1, gitOf(1).size)
 
+        // Taken off the ticket: gone from it, and the next push does not bring it back.
+        val linkId = gitOf(1).single()["id"]
+        assertEquals(204, admin.delete("/api/v1/issues/1/git/links/$linkId").status)
+        assertEquals(emptyList<Any?>(), gitOf(1))
+        assertEquals("GIT_UNLINKED", activityTypes(1).last())
+
         GitHub.noWrite = true
         val refused = admin.post("/api/v1/issues/1/git/branches", request("admin/fb-1-again"))
         assertEquals(409 to "GITHUB_NO_WRITE", refused.status to refused.json()["code"])
+
+        // An issue on its own has nowhere to put a branch (D-162).
+        admin.post("/api/v1/issues", """{"title":"독립 티켓"}""")
+        assertEquals(emptyList<Any?>(), admin.get("/api/v1/issues/2/git/branch-targets").jsonList())
     }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun activityTypes(number: Int): List<Any?> =
+        (admin.get("/api/v1/issues/$number/activity").json()["items"] as List<Map<String, Any?>>).map { it["type"] }
 
     private fun githubJson(
         organization: String = "acme",

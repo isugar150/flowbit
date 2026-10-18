@@ -133,6 +133,8 @@ export type ProjectGitSettings = {
 
 /** A branch or pull request an issue is linked to (GET /api/v1/issues/{number}, `git`). */
 export type IssueGitLink = {
+  /** For taking it off the issue (D-161). */
+  id: string;
   kind: "BRANCH" | "PULL_REQUEST";
   /** org/web */
   repository: string;

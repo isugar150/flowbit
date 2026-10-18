@@ -40,6 +40,9 @@ enum class IssueActivityType {
     /** A pull request was closed without being merged. */
     GIT_PR_CLOSED,
 
+    /** Someone took a branch or pull request off the issue (D-161). */
+    GIT_UNLINKED,
+
     /** Commits naming the issue, or pushed to its branch, reached the Git server. */
     GIT_COMMITS_PUSHED,
 

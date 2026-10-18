@@ -40,7 +40,7 @@
 
 (이전 메모) M3 2단계(프리셋과 문서형 티켓 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
 
-**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-159). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
+**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-162). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
 
 그 밖의 일은 사용자가 지시하기 전에 임의로 시작하지 않는다. 지시를 받으면:
 
@@ -181,6 +181,16 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-19 — Git 연결 해제, 독립 티켓의 브랜치 만들기 숨김, GitHub 권한 토큰 다시 받기 (D-161, D-162)
+
+- 사용자 지시: 티켓에서 연동된 브랜치 해제, 프로젝트를 정하지 않은 티켓에서는 Git 저장소 고르는 부분을 보이지 않게, Contents 를 Read and write 로 바꿨는데도 "쓰기 권한이 없습니다"가 뜸.
+- 해제(D-161): `V22__git_link_unlink.sql`(`issue_git_links.unlinked_at`), `GitLinkService.unlink`·`branchUnlinked`(해제한 브랜치·PR 은 다시 연결하지 않음), `DELETE /api/v1/issues/{n}/git/links/{id}`, 활동 `GIT_UNLINKED`, 옆 패널 Git 의 해제 버튼(`issue-git-links.tsx`, 두 번 눌러 확인), `git[].id`.
+- 독립 티켓(D-162): 키 메뉴의 "브랜치 만들기…"를 프로젝트가 있는 티켓에만, `branch-targets` 는 빈 목록.
+- 권한: 앱 설정에서 바꾼 뒤 조직 소유자가 "Review request" 로 승인해야 하고, 설치 토큰이 1시간 동안 옛 권한을 가지므로 403·404 면 새 토큰으로 한 번 더 시도하게 했다.
+- 마이그레이션 번호: 목표 상태가 `V21` 을 먼저 커밋해서 이것은 `V22` 다(Flyway 순서).
+- 테스트: `GitHubIntegrationTest` 의 브랜치 만들기 테스트에 해제·독립 티켓을 더했다. **돌리지 않았다**(컴파일·ktlint·타입 검사·eslint 만). 브라우저로도 보지 않았다. 백엔드를 다시 띄워야 적용된다.
+- 활동 이모지(사용자 요청 2번)는 따로 세션으로 제안해 두었다(시작 전).
 
 ### 2026-10-19 — 목표 상태, 완료·취소 목표 숨기기 (D-163)
 

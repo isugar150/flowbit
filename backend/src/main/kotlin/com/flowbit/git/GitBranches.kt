@@ -7,15 +7,20 @@ import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.issue.api.IssueAnnouncer
 import com.flowbit.issue.application.Actor
+import com.flowbit.issue.application.IssueActivityType
+import com.flowbit.issue.application.IssueEvent
 import com.flowbit.issue.application.IssueService
+import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.stereotype.Service
 import org.springframework.transaction.reactive.TransactionalOperator
 import org.springframework.transaction.reactive.executeAndAwait
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.net.URLEncoder
 import java.util.UUID
@@ -76,13 +81,15 @@ class GitBranchService(
 ) {
     /**
      * Where the issue's branch can go: its project's repositories when it chose some, otherwise
-     * every repository the connections know. The issue's own repository first.
+     * every repository the connections know. The issue's own repository first. Nothing for an
+     * issue on its own (D-162): which repository it belongs to is a project's to say.
      */
     suspend fun targets(
         user: AuthenticatedUser,
         number: Int,
     ): List<GitBranchTarget> {
         val issue = issueService.editableForGit(user, number)
+        if (issue.projectId == null) return emptyList()
         val usable = connections.list().filter { it.enabled && (it.provider != GitProviderType.GITHUB || it.githubReady()) }.associateBy { it.id }
         val known = catalog.list(usable.keys).associateBy { GitRepositoryRef(it.connectionId, it.repository) }
         val chosen = issue.projectId?.let { projectRepositories.all()[it] }
@@ -154,6 +161,27 @@ class GitBranchService(
         return GitBranchCreated(repository, branch, "$htmlUrl/tree/$branch", existed)
     }
 
+    /**
+     * Takes a branch or pull request off the issue (D-161): it stops showing, and Git can no longer
+     * link it or move the issue through it. Needs the right to edit the issue. Recorded once, as
+     * the pull request when one goes.
+     */
+    suspend fun unlink(
+        user: AuthenticatedUser,
+        number: Int,
+        linkId: UUID,
+    ) {
+        val issue = issueService.editableForGit(user, number)
+        val actor = Actor(user.id, issueService.actorName(user))
+        transactionalOperator.executeAndAwait {
+            val removed = links.unlink(issue.id, linkId)
+            if (removed.isEmpty()) throw NotFoundException("GIT_LINK_NOT_FOUND", "연결된 브랜치나 PR 을 찾을 수 없습니다")
+            val shown = removed.firstOrNull { it["kind"] == "PULL_REQUEST" } ?: removed.first()
+            issueService.recordFromGit(issue.id, actor, listOf(IssueEvent(IssueActivityType.GIT_UNLINKED, shown)))
+        }
+        announcer.touched(user.id, number)
+    }
+
     /** The default branch, the repository's page, and whether the branch was there already. */
     private suspend fun makeOnGitHub(
         connection: GitConnection,
@@ -166,14 +194,22 @@ class GitBranchService(
             val htmlUrl = repo.let { text(it, "html_url") } ?: "${connection.baseUrl.trimEnd('/')}/$repository"
             val head = client.get(connection, "/repos/$repository/git/ref/heads/${encode(defaultBranch)}").body
             val sha = head?.path("object")?.let { text(it, "sha") } ?: throw GitHubException("기본 브랜치의 커밋을 알 수 없습니다")
-            val made = client.post(connection, "/repos/$repository/git/refs", mapOf("ref" to "refs/heads/$branch", "sha" to sha))
+            val ref = mapOf("ref" to "refs/heads/$branch", "sha" to sha)
+            // An installation token keeps the permissions it was made with for its hour; after the
+            // organization accepts Contents write, a refusal is tried once more with a new one.
+            val made =
+                client.post(connection, "/repos/$repository/git/refs", ref).let { first ->
+                    if (first.status != 403 && first.status != 404) return@let first
+                    client.forget(connection.id)
+                    client.post(connection, "/repos/$repository/git/refs", ref)
+                }
             return when {
                 made.status == 201 -> Triple(defaultBranch, htmlUrl, false)
                 made.status == 422 && client.messageOf(made).orEmpty().contains("already exists", ignoreCase = true) -> Triple(defaultBranch, htmlUrl, true)
                 made.status == 403 || made.status == 404 ->
                     throw ConflictException(
                         "GITHUB_NO_WRITE",
-                        "GitHub 앱에 저장소 쓰기 권한이 없습니다. 관리자가 GitHub 의 앱 설정 > Permissions 에서 Contents 를 'Read and write' 로 바꾸고, 조직에서 새 권한을 승인해야 합니다",
+                        "GitHub 앱에 저장소 쓰기 권한이 없습니다. 앱 설정 > Permissions 에서 Contents 를 'Read and write' 로 바꾼 뒤, 조직 소유자가 조직 설정 > GitHub Apps > 이 앱 > Configure 에서 'Review request' 를 눌러 새 권한을 승인해야 합니다",
                     )
                 else -> throw GitHubException("브랜치를 만들지 못했습니다 (HTTP ${made.status}${client.messageOf(made)?.let { ": $it" }.orEmpty()})")
             }
@@ -220,4 +256,12 @@ class GitBranchController(
         @PathVariable number: Int,
         @RequestBody request: GitBranchRequest,
     ): GitBranchCreated = service.create(user, number, request)
+
+    @DeleteMapping("/api/v1/issues/{number}/git/links/{linkId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun unlink(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+        @PathVariable linkId: UUID,
+    ) = service.unlink(user, number, linkId)
 }
