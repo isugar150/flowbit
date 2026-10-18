@@ -25,7 +25,7 @@ class Milestone(
 }
 
 /**
- * Where a milestone stands, set by hand (D-161): the same values as a project's status. Completed
+ * Where a milestone stands, set by hand (D-163): the same values as a project's status. Completed
  * and canceled milestones are the closed ones, folded away in the lists.
  */
 enum class MilestoneStatus {

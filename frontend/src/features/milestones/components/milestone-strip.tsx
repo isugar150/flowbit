@@ -30,7 +30,7 @@ export function MilestoneStrip({
   selected: string | null;
   onSelect: (id: string | null) => void;
 }) {
-  // Completed and canceled ones are folded away (D-161).
+  // Completed and canceled ones are folded away (D-163).
   const done = milestones.filter(isMilestoneClosed);
   const open = milestones.filter((milestone) => !isMilestoneClosed(milestone));
   // A closed milestone that is the filter stays in view.

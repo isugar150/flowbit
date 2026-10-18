@@ -56,7 +56,7 @@ export function assigneeOptions(members: ProjectMember[]): ChipOption<string>[] 
 
 /** The project's milestones, plus "none". */
 /**
- * The milestones to choose from. Completed and canceled ones are left out (D-161), except `keep`:
+ * The milestones to choose from. Completed and canceled ones are left out (D-163), except `keep`:
  * the one already chosen, which must still show.
  */
 export function milestoneOptions(

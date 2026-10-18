@@ -1,4 +1,4 @@
--- A milestone's own status (D-161), the same values as a project's. Completed and canceled ones are
+-- A milestone's own status (D-163), the same values as a project's. Completed and canceled ones are
 -- folded away in the lists. Until now a milestone counted as finished when it had issues and all of
 -- them were done (D-136); those start as COMPLETED, ones with work begun as IN_PROGRESS.
 ALTER TABLE milestones

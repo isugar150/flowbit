@@ -1,7 +1,7 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
 import type { ProjectStatus } from "@/features/projects/types";
 
-/** Where a milestone stands, set by hand (D-161): the same values, names and marks as a project's status. */
+/** Where a milestone stands, set by hand (D-163): the same values, names and marks as a project's status. */
 export type MilestoneStatus = ProjectStatus;
 
 /** A stage of a project, with how far along its issues are (GET /api/v1/projects/{id}/milestones). */
@@ -20,7 +20,7 @@ export type Milestone = {
 };
 
 /**
- * A completed or canceled milestone is closed (D-161): it is folded away in the lists and left out
+ * A completed or canceled milestone is closed (D-163): it is folded away in the lists and left out
  * of the choices. Its tickets do not decide it; the status is set by hand.
  */
 export function isMilestoneClosed(milestone: Partial<Pick<Milestone, "status">>): boolean {

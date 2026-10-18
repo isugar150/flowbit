@@ -48,7 +48,7 @@ export function MilestonesSection({
   canEdit: boolean;
 }) {
   const [adding, setAdding] = useState(false);
-  // Completed and canceled milestones (by their status, D-161) are folded away below the others.
+  // Completed and canceled milestones (by their status, D-163) are folded away below the others.
   const [showDone, setShowDone] = useState(false);
   // After one is added the field starts over empty and stays, so several can be typed in a row.
   const [round, setRound] = useState(0);

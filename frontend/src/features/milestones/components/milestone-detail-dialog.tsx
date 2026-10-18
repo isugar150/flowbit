@@ -93,7 +93,7 @@ function upTo(rows: ListRow[], limit: number): ListRow[] {
 /** The name field is saved on blur, so while it has focus the person's typing wins. */
 const isFocused = (input: HTMLInputElement) => document.activeElement === input;
 
-/** What the dialog and the panel may change: the name, the status (D-161) and the target date. */
+/** What the dialog and the panel may change: the name, the status (D-163) and the target date. */
 export type MilestoneChanges = { name?: string; status?: MilestoneStatus; targetDate?: string | null };
 
 /**
