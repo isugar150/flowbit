@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
+import { DocumentOutline } from "@/components/editor/document-outline";
 import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
@@ -87,14 +88,18 @@ export function DocumentEditor({ document, mentionables }: { document: IssueDocu
           // Each block can be commented on, by anyone who sees the document (D-165).
           blockIds
           overlay={({ editor, container }) => (
-            <BlockComments
-              editor={editor}
-              container={container}
-              target={target}
-              threads={feed.data?.threads ?? []}
-              canComment={feed.data?.canComment ?? false}
-              mentionables={mentionables}
-            />
+            <>
+              <BlockComments
+                editor={editor}
+                container={container}
+                target={target}
+                threads={feed.data?.threads ?? []}
+                canComment={feed.data?.canComment ?? false}
+                mentionables={mentionables}
+              />
+              {/* The headings, beside the text, to jump to them (D-170). */}
+              <DocumentOutline editor={editor} container={container} />
+            </>
           )}
           documents={document.children}
           // "/문서" makes a document inside this one. Only a project's documents nest, five levels deep.
