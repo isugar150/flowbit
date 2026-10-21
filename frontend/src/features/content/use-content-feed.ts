@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { contentFeedKey, getContentFeed } from "./api";
-import type { ContentTarget } from "./types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { contentFeedKey, getContentFeed, setContentSubscribed } from "./api";
+import type { ContentFeed, ContentTarget } from "./types";
 
 /**
  * The threads on the blocks of a page and, but for an issue, its activity and comments (D-165).
@@ -19,6 +19,31 @@ export function useContentFeed(target: ContentTarget, watch?: unknown) {
     void refetch({ cancelRefetch: false });
   }, [watch, refetch]);
   return query;
+}
+
+/**
+ * Follows a document or stops following it. The button changes at once; the list of who follows
+ * is read again afterwards, and the old state comes back if the server refuses.
+ */
+export function useContentSubscription(target: ContentTarget) {
+  const queryClient = useQueryClient();
+  const { type, id } = target;
+  return useMutation({
+    mutationFn: (subscribed: boolean) => setContentSubscribed({ target: { type, id }, subscribed }),
+    onMutate: async (subscribed) => {
+      const key = contentFeedKey({ type, id });
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ContentFeed>(key);
+      queryClient.setQueryData<ContentFeed>(key, (feed) =>
+        feed?.subscription ? { ...feed, subscription: { ...feed.subscription, subscribed } } : feed,
+      );
+      return { previous };
+    },
+    onError: (_error, _subscribed, context) => {
+      if (context?.previous) queryClient.setQueryData(contentFeedKey({ type, id }), context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: contentFeedKey({ type, id }) }),
+  });
 }
 
 /** Reads the page's feed again: after something was added to it, changed or taken away. */

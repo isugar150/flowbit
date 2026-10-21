@@ -239,6 +239,39 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
         assertTrue(milestoneTypes.containsAll(listOf("NAME_CHANGED", "STATUS_CHANGED", "TARGET_DATE_CHANGED")))
     }
 
+    @Suppress("UNCHECKED_CAST")
+    private fun followers(feed: Map<String, Any?>): List<Any?> =
+        ((feed["subscription"] as Map<String, Any?>)["subscribers"] as List<Map<String, Any?>>).map { it["loginId"] }
+
+    @Test
+    fun `문서는 만든 사람과 태그된 사람이 구독하고 누구나 구독을 켜고 끌 수 있고 다른 쪽에는 문서 구독이 없다`() {
+        val documentId = editor.post("/api/v1/projects/${p("PAY")}/documents", """{"title":"설계"}""").json()["id"] as String
+        val path = "/api/v1/content/document/$documentId"
+
+        // The one who made the document follows it from the start.
+        assertEquals(listOf<Any?>("editor"), followers(feed(viewer, "document", documentId).json()))
+
+        // Anyone who sees the document, the view-only role included, follows it and stops.
+        val followed = viewer.put("$path/subscription", "{}")
+        assertEquals(200, followed.status)
+        assertEquals(true, followed.json()["subscribed"])
+        assertEquals(listOf<Any?>("editor", "viewer"), followers(feed(editor, "document", documentId).json()))
+        assertEquals(false, viewer.delete("$path/subscription").json()["subscribed"])
+
+        // Tagged in a comment: follows from then on, and can stop again.
+        val tag = """{"type":"mention","attrs":{"id":"$viewerId","label":"viewer"}}"""
+        val tagging = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[$tag]}]}}"""
+        assertEquals(201, editor.post("$path/comments", tagging).status)
+        assertEquals(listOf<Any?>("editor", "viewer"), followers(feed(editor, "document", documentId).json()))
+        viewer.delete("$path/subscription")
+        assertEquals(listOf<Any?>("editor"), followers(feed(editor, "document", documentId).json()))
+
+        // Someone who cannot open the project cannot follow; a project or a milestone is not followed this way.
+        assertEquals(404, outsider.put("$path/subscription", "{}").status)
+        assertEquals(404, viewer.put("/api/v1/content/project/${p("PAY")}/subscription", "{}").status)
+        assertEquals(null, feed(viewer, "project", p("PAY")).json()["subscription"])
+    }
+
     @Test
     fun `일반 댓글은 보기 역할도 쓰고 이모지와 파일을 붙일 수 있고 삭제된 문서에는 쓸 수 없다`() {
         val document = editor.post("/api/v1/projects/${p("PAY")}/documents", """{"title":"설계"}""").json()

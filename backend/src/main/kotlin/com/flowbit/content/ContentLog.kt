@@ -79,41 +79,55 @@ class ContentLog(
     }
 
     /**
-     * Tells the people who follow the page about [events], and [also] whoever else should hear (the
-     * ones tagged, the ones in a thread). Never fails the request that made the change. Changes
-     * nobody follows, such as who joined a project, are only kept in the activity.
+     * Tells the people who follow the page about what happened to it, and the people in [tagged]
+     * about a comment (D-166): a comment goes to the ones tagged in it and to nobody else, whoever
+     * follows the page. Never fails the request that made the change. Changes nobody follows, such
+     * as who joined a project, are only kept in the activity.
      */
     suspend fun announce(
         target: ContentTarget,
         actorId: UUID,
         events: List<ContentEvent>,
-        also: Collection<UUID> = emptyList(),
-        includeFollowers: Boolean = true,
+        tagged: Collection<UUID> = emptyList(),
     ) {
         val told = events.filter { it.type !in ContentEventType.SILENT }
         if (told.isEmpty()) return
         try {
             val context = directory.describe(target) ?: return
-            val recipients = ((if (includeFollowers) directory.followers(context) else emptyList()) + also).distinct().filter { it != actorId }
-            if (recipients.isEmpty()) return
-            notifications.dispatch(
-                ContentNotification(
-                    targetType = target.type.name,
-                    targetId = target.id,
-                    title = context.title,
-                    path = context.path,
-                    projectId = context.projectId,
-                    actorId = actorId,
-                    actorName = directory.displayName(actorId),
-                    events = told.map { IssueNotification.Event(it.type, it.detail) },
-                    recipientIds = recipients,
-                ),
-            )
+            val (talk, activity) = told.partition { it.type in ContentEventType.TALK }
+            if (activity.isNotEmpty()) {
+                tell(context, actorId, activity, directory.followers(context).filter { it != actorId }, held = true)
+            }
+            if (talk.isNotEmpty()) tell(context, actorId, talk, tagged.distinct().filter { it != actorId }, held = false)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             log.warn("Could not tell about a change to {} {}", target.type, target.id, e)
         }
+    }
+
+    /** [held]: what one person does to a page is gathered into one message; a comment that tags someone goes at once. */
+    private suspend fun tell(
+        context: ContentContext,
+        actorId: UUID,
+        events: List<ContentEvent>,
+        recipients: List<UUID>,
+        held: Boolean,
+    ) {
+        if (recipients.isEmpty()) return
+        val notification =
+            ContentNotification(
+                targetType = context.target.type.name,
+                targetId = context.target.id,
+                title = context.title,
+                path = context.path,
+                projectId = context.projectId,
+                actorId = actorId,
+                actorName = directory.displayName(actorId),
+                events = events.map { IssueNotification.Event(it.type, it.detail) },
+                recipientIds = recipients,
+            )
+        if (held) notifications.dispatch(notification) else notifications.dispatchTalk(notification)
     }
 
     /** True when the page's latest entry is the same kind of edit by the same person, made recently. */

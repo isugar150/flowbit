@@ -4,6 +4,8 @@
 
 **모든 사람에게 보내는 알림은 없다(D-102, 2026-10-13).** 세 통로 모두 그 티켓이나 그 티켓의 프로젝트를 구독한 사람에게만 간다.
 
+**댓글은 태그된 사람에게만, 구독자는 바뀐 것만 받는다(D-166, 2026-10-21).** 아래 "받는 사람"의 구독자는 티켓·프로젝트·문서의 *바뀐 것*(활동 기록에 남는 변경)을 받고, **댓글과 본문의 태그 알림은 `@` 로 태그된 사람에게만 바로 간다**(모으지 않는다). 태그된 사람은 그 티켓(문서)의 구독자가 되고 끊을 수 있다.
+
 M7(수신함과 트리아지)의 일부를 먼저 만든 것이다. 앱 안의 수신함은 아직 없다.
 
 ## 범위
@@ -19,10 +21,10 @@ M7(수신함과 트리아지)의 일부를 먼저 만든 것이다. 앱 안의 �
   - 프로젝트 구독자 = 그 티켓이 연결된 프로젝트의 개요에서 "구독"을 누른 사람(D-102, [M3 명세](M3-projects-and-issues.md) "프로젝트 구독"). 지금도 그 프로젝트에 들어갈 수 있어야 한다(구성원이거나 워크스페이스 관리자). 프로젝트에 연결되지 않은 티켓에는 프로젝트 구독자가 없다.
   - 티켓 구독을 취소해도 그 프로젝트를 구독하고 있으면 계속 받는다.
   - 받는 사람이 한 명도 없는 변경은 어디로도 나가지 않는다.
-- 알리는 변경 = 티켓 활동 기록에 남는 것 전부(`IssueActivityType`)와 **댓글**(`COMMENT_ADDED`: 머리말 `○○ 님이 댓글을 남겼습니다`, 줄은 댓글 앞 300자와 `언급: 이름, …`), **본문의 태그**(`MENTIONED`: `본문에서 언급: 이름, …`). 댓글의 `event` 는 `issue.commented`.
-- **프로젝트·문서·목표의 변경과 댓글**(D-165): 티켓이 아닌 알림이 하나 더 있다(`ContentNotification`). 받는 사람 = 그 프로젝트의 구독자(티켓에 딸린 문서는 그 티켓의 구독자 + 프로젝트 구독자)와 `@` 로 태그된 사람, 블록 댓글이면 그 스레드에 참여한 사람. 티켓처럼 모아서 한 통으로 간다(같은 사람이 같은 대상에 한 일). 머리말은 `○○ 님이 프로젝트를(문서를, 목표를) 수정했습니다` 또는 `댓글을 남겼습니다`, 제목은 `[프로젝트 이름] 문서 제목` 꼴이고 링크 글자는 "열기". 구성원 변경·아이콘·보관과 복원은 알리지 않는다. API 알림의 `event` 는 `project|document|milestone` + `.updated|.commented`, 변경 종류는 `NAME_CHANGED`·`CONTENT_EDITED`·`STATUS_CHANGED`·`PRIORITY_CHANGED`·`LEAD_CHANGED`·`DATES_CHANGED`·`TARGET_DATE_CHANGED`·`LABELS_CHANGED`·`UPDATE_POSTED`·`MILESTONE_ADDED`·`MILESTONE_REMOVED`·`DOCUMENT_ADDED`·`DOCUMENT_REMOVED`·`DOCUMENT_RESTORED`·`COMMENT_ADDED`·`THREAD_COMMENT`("보낼 변경"에서 고를 수 있다). 표준 JSON 의 `issue` 는 `null` 이고 `target: { type, id, title, url, projectId }` 가 붙는다. 자리표시자는 `{{target.type}}` `{{target.id}}` `{{target.title}}` `{{target.url}}`. 티켓 본문의 블록 댓글은 티켓의 `COMMENT_ADDED`(`issue.commented`)로 가고 `detail.quote` 가 블록의 글이다.
+- 알리는 변경 = 티켓 활동 기록에 남는 것 전부(`IssueActivityType`, 받는 사람은 위의 구독자)와 **댓글**(**태그된 사람에게만**, D-166. `COMMENT_ADDED`: 머리말 `○○ 님이 댓글을 남겼습니다`, 줄은 댓글 앞 300자와 `언급: 이름, …`), **본문의 태그**(`MENTIONED`: `본문에서 언급: 이름, …`, 이것도 태그된 사람에게만). 댓글의 `event` 는 `issue.commented`.
+- **프로젝트·문서·목표의 변경과 댓글**(D-165): 티켓이 아닌 알림이 하나 더 있다(`ContentNotification`). 받는 사람(D-166으로 바뀜) = 바뀐 것은 그 쪽의 구독자(문서는 **그 문서의 구독자**, 프로젝트 개요·목표는 프로젝트 구독자), 댓글(블록 댓글·일반 댓글)은 `@` 로 태그된 사람뿐이다. 스레드 참여자·프로젝트 구독자에게 댓글이 가던 것은 없어졌다. 티켓처럼 모아서 한 통으로 간다(같은 사람이 같은 대상에 한 일). 머리말은 `○○ 님이 프로젝트를(문서를, 목표를) 수정했습니다` 또는 `댓글을 남겼습니다`, 제목은 `[프로젝트 이름] 문서 제목` 꼴이고 링크 글자는 "열기". 구성원 변경·아이콘·보관과 복원은 알리지 않는다. API 알림의 `event` 는 `project|document|milestone` + `.updated|.commented`, 변경 종류는 `NAME_CHANGED`·`CONTENT_EDITED`·`STATUS_CHANGED`·`PRIORITY_CHANGED`·`LEAD_CHANGED`·`DATES_CHANGED`·`TARGET_DATE_CHANGED`·`LABELS_CHANGED`·`UPDATE_POSTED`·`MILESTONE_ADDED`·`MILESTONE_REMOVED`·`DOCUMENT_ADDED`·`DOCUMENT_REMOVED`·`DOCUMENT_RESTORED`·`COMMENT_ADDED`·`THREAD_COMMENT`("보낼 변경"에서 고를 수 있다). 표준 JSON 의 `issue` 는 `null` 이고 `target: { type, id, title, url, projectId }` 가 붙는다. 자리표시자는 `{{target.type}}` `{{target.id}}` `{{target.title}}` `{{target.url}}`. 티켓 본문의 블록 댓글은 티켓의 `COMMENT_ADDED`(`issue.commented`)로 가고 `detail.quote` 가 블록의 글이다.
 - **프로젝트 접근 요청**(D-128): 티켓 변경이 아닌 알림이 하나 있다. 들어갈 수 없는 프로젝트에 누군가 접근을 요청하면 그 프로젝트의 관리 역할(없으면 워크스페이스 관리자)에게 세 통로로 바로 간다(모으지 않는다). 메일의 링크 글자는 "설정 열기". API 알림의 `event` 는 `project.access_requested`, 변경 종류 `ACCESS_REQUESTED`("보낼 변경"에서 고를 수 있다), 표준 JSON 의 `issue` 는 `null` 이고 `project: { id, name, url }` 가 붙는다. 자리표시자 `{{issue.*}}` 는 빈 값, `{{project.name}}` `{{project.url}}` 이 있다. 통로는 `NotificationChannel.sendAccessRequest` 를 구현한다.
-- 태그된 사람에게만 따로 가는 알림은 없다. 태그되면 구독자가 되고, 구독자에게 가는 알림이 그 사람이 등록한 수단 전부(메일 주소와 수신 켬, 켜 둔 브라우저, API 알림)로 간다. 댓글을 고쳐 새로 태그한 경우에만 그 사람들에게만 간다.
+- 태그된 사람에게 가는 알림도 그 사람이 등록한 수단 전부(메일 주소와 수신 켬, 켜 둔 브라우저, API 알림)로 간다. 태그되면 그 티켓·문서의 구독자가 되어 앞으로 바뀐 것도 받는다(끊을 수 있다). 댓글을 고쳐 새로 태그한 경우에는 새로 태그된 사람들에게만 간다.
 
 범위 밖: 앱 안의 수신함, 구독과 무관하게 전체 변경을 한 곳(메신저 채널 등)으로 보내기(D-102 로 없앰), 사람마다 알림 종류 고르기, 여러 티켓을 묶은 메일(다이제스트. 한 티켓의 연속 변경은 D-126 으로 묶는다), 이메일 주소 확인(인증 메일), 프로젝트별 웹훅, 보낸 기록 목록, 재시작 뒤 이어 보내기.
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Person, personName } from "@/components/person";
 import { FormAlert } from "@/features/auth/components/form-alert";
@@ -111,48 +111,47 @@ export function ProjectMembersPanel({
         })}
       </ul>
       {canManage ? (
-        candidates.length > 0 ? (
-          <form
-            className="flex flex-wrap items-end gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (newUserId) run(() => put.mutate({ id: projectId, userId: newUserId, role: newRole }));
-            }}
-          >
-            <Field className="min-w-48 flex-1 sm:max-w-72">
-              <FieldLabel htmlFor="add-member-user">{m.addMemberLabel}</FieldLabel>
-              <NativeSelect
-                id="add-member-user"
-                className="max-md:h-11"
-                value={newUserId}
-                onChange={(event) => setNewUserId(event.target.value)}
-              >
-                <NativeSelectOption value="">{m.addMemberPlaceholder}</NativeSelectOption>
-                {candidates.map((user) => (
-                  <NativeSelectOption key={user.id} value={user.id}>
-                    {user.displayName ? `${user.displayName} (${user.loginId})` : user.loginId}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field className="w-24">
-              <FieldLabel htmlFor="add-member-role">{m.addMemberRoleLabel}</FieldLabel>
-              <NativeSelect
-                id="add-member-role"
-                className="max-md:h-11"
-                value={newRole}
-                onChange={(event) => setNewRole(event.target.value as ProjectRole)}
-              >
-                <RoleOptions />
-              </NativeSelect>
-            </Field>
-            <Button type="submit" variant="outline" className="max-md:h-11" disabled={busy || !newUserId}>
-              {m.addMember}
-            </Button>
-          </form>
-        ) : (
-          <FieldDescription>{m.noOneToAdd}</FieldDescription>
-        )
+        // Always there, also when everyone is in the project already: then it only says so (the user's call, 2026-10-21).
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (newUserId) run(() => put.mutate({ id: projectId, userId: newUserId, role: newRole }));
+          }}
+        >
+          <Field className="min-w-48 flex-1 sm:max-w-72">
+            <FieldLabel htmlFor="add-member-user">{m.addMemberLabel}</FieldLabel>
+            <NativeSelect
+              id="add-member-user"
+              className="max-md:h-11"
+              value={newUserId}
+              disabled={candidates.length === 0}
+              onChange={(event) => setNewUserId(event.target.value)}
+            >
+              <NativeSelectOption value="">{candidates.length > 0 ? m.addMemberPlaceholder : m.noOneToAdd}</NativeSelectOption>
+              {candidates.map((user) => (
+                <NativeSelectOption key={user.id} value={user.id}>
+                  {user.displayName ? `${user.displayName} (${user.loginId})` : user.loginId}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field className="w-24">
+            <FieldLabel htmlFor="add-member-role">{m.addMemberRoleLabel}</FieldLabel>
+            <NativeSelect
+              id="add-member-role"
+              className="max-md:h-11"
+              value={newRole}
+              disabled={candidates.length === 0}
+              onChange={(event) => setNewRole(event.target.value as ProjectRole)}
+            >
+              <RoleOptions />
+            </NativeSelect>
+          </Field>
+          <Button type="submit" variant="outline" className="max-md:h-11" disabled={busy || !newUserId}>
+            {m.addMember}
+          </Button>
+        </form>
       ) : null}
     </div>
   );

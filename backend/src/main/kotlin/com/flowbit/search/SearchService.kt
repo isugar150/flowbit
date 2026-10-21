@@ -46,17 +46,40 @@ data class DocumentHit(
     val snippet: String?,
 )
 
+/** A project, found by its name or by what is written in its overview (D-166). */
+data class ProjectHit(
+    val id: UUID,
+    val name: String,
+    val updatedAt: Instant,
+    val snippet: String?,
+)
+
+/** A milestone, found by its name or by what is written in it (D-166). */
+data class MilestoneHit(
+    val id: UUID,
+    val name: String,
+    val project: SearchProject,
+    val updatedAt: Instant,
+    val snippet: String?,
+)
+
 data class SearchResult(
     val issues: List<IssueHit>,
     val documents: List<DocumentHit>,
+    val projects: List<ProjectHit>,
+    val milestones: List<MilestoneHit>,
     val issuesMore: Boolean,
     val documentsMore: Boolean,
+    val projectsMore: Boolean,
+    val milestonesMore: Boolean,
 )
 
 /**
- * Finds the issues and documents a person may see (docs/features/search.md, D-133). Every word of
- * the query must appear; a query of Korean initial consonants only is matched against the
- * initials of titles. No index: plain ILIKE, sized for one organisation's installation.
+ * Finds the issues, documents, projects and milestones a person may see (docs/features/search.md,
+ * D-133, D-166). Every word of the query must appear; a query of Korean initial consonants only is
+ * matched against the initials of titles. What is written in the editors is searched too: the body
+ * of an issue, a document, a project's overview and a milestone. No index: plain ILIKE, sized for
+ * one organisation's installation.
  */
 @Service
 class SearchService(
@@ -70,7 +93,18 @@ class SearchService(
     ): SearchResult {
         val query = rawQuery?.trim().orEmpty()
         if (query.length > MAX_QUERY_LENGTH) throw ValidationException("q", "TOO_LONG", "검색어는 ${MAX_QUERY_LENGTH}자 이하여야 합니다")
-        if (query.isEmpty()) return SearchResult(emptyList(), emptyList(), issuesMore = false, documentsMore = false)
+        if (query.isEmpty()) {
+            return SearchResult(
+                emptyList(),
+                emptyList(),
+                emptyList(),
+                emptyList(),
+                issuesMore = false,
+                documentsMore = false,
+                projectsMore = false,
+                milestonesMore = false,
+            )
+        }
         val size = limit.coerceIn(1, MAX_LIMIT)
         val workspaceKey = instanceService.workspace().workspaceKey
         val terms = query.split(WHITESPACE).filter { it.isNotEmpty() }.take(MAX_TERMS)
@@ -78,7 +112,18 @@ class SearchService(
         val number = numberOf(query, workspaceKey)
         val issues = issues(userId, terms, initials, number, workspaceKey, size + 1)
         val documents = documents(userId, terms, initials, workspaceKey, size + 1)
-        return SearchResult(issues.take(size), documents.take(size), issues.size > size, documents.size > size)
+        val projects = projects(userId, terms, initials, size + 1)
+        val milestones = milestones(userId, terms, initials, size + 1)
+        return SearchResult(
+            issues.take(size),
+            documents.take(size),
+            projects.take(size),
+            milestones.take(size),
+            issuesMore = issues.size > size,
+            documentsMore = documents.size > size,
+            projectsMore = projects.size > size,
+            milestonesMore = milestones.size > size,
+        )
     }
 
     private suspend fun issues(
@@ -167,7 +212,11 @@ class SearchService(
     ): List<DocumentHit> {
         val termConditions =
             terms.indices.joinToString(" and ") { index ->
-                if (initials) "replace(hangul_initials(d.title), ' ', '') like :t$index" else "(d.title ilike :t$index or b.body ilike :t$index)"
+                if (initials) {
+                    "replace(hangul_initials(d.title), ' ', '') like :t$index"
+                } else {
+                    "(d.title ilike :t$index or b.body ilike :t$index or b.flat ilike :t$index)"
+                }
             }
         val titleHit = if (initials) "true" else terms.indices.joinToString(" and ") { "d.title ilike :t$it" }
         val sql =
@@ -177,13 +226,11 @@ class SearchService(
                 union all
                 select child.id from documents child join live on child.parent_id = live.id where child.deleted_at is null
             )
-            select d.id, d.title, d.updated_at, b.body, ($titleHit) as title_hit,
+            select d.id, d.title, d.updated_at, b.body, b.flat, ($titleHit) as title_hit,
                    i.number as issue_number, i.title as issue_title, p.id as project_id, p.name as project_name
             from documents d
             join live on live.id = d.id
-            cross join lateral (
-                select coalesce(string_agg(v #>> '{}', ' '), '') as body from jsonb_path_query(d.content, 'strict $.**.text') v
-            ) b
+            cross join lateral (${textOf("d")}) b
             left join issues i on i.id = d.issue_id
             left join projects ip on ip.id = i.project_id
             left join projects p on p.id = d.project_id
@@ -211,12 +258,117 @@ class SearchService(
                         row.get("project_id", UUID::class.java)?.let {
                             SearchProject(it, checkNotNull(row.get("project_name", String::class.java)))
                         },
-                    snippet = if (initials) null else snippetOf(row.get("body", String::class.java).orEmpty(), terms),
+                    snippet = if (initials) null else snippetOfText(row, terms),
                 )
             }.all()
             .collectList()
             .awaitSingle()
     }
+
+    /** The projects the person is a member of, found by name or by what is written in the overview. */
+    private suspend fun projects(
+        userId: UUID,
+        terms: List<String>,
+        initials: Boolean,
+        limit: Int,
+    ): List<ProjectHit> {
+        val termConditions =
+            terms.indices.joinToString(" and ") { index ->
+                if (initials) {
+                    "replace(hangul_initials(p.name), ' ', '') like :t$index"
+                } else {
+                    "(p.name ilike :t$index or b.body ilike :t$index or b.flat ilike :t$index)"
+                }
+            }
+        val nameHit = if (initials) "true" else terms.indices.joinToString(" and ") { "p.name ilike :t$it" }
+        val sql =
+            """
+            select p.id, p.name, p.updated_at, b.body, b.flat, ($nameHit) as title_hit
+            from projects p
+            cross join lateral (${textOf("p")}) b
+            where p.archived_at is null
+              and exists (select 1 from project_members pm where pm.project_id = p.id and pm.user_id = :viewerId)
+              and $termConditions
+            order by title_hit desc, p.updated_at desc
+            limit $limit
+            """.trimIndent()
+        return bind(databaseClient.sql(sql), userId, terms, initials)
+            .map { row ->
+                ProjectHit(
+                    id = checkNotNull(row.get("id", UUID::class.java)),
+                    name = checkNotNull(row.get("name", String::class.java)),
+                    updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
+                    snippet = if (initials) null else snippetOfText(row, terms),
+                )
+            }.all()
+            .collectList()
+            .awaitSingle()
+    }
+
+    /** The milestones of the projects the person is a member of, found by name or by what is written in them. */
+    private suspend fun milestones(
+        userId: UUID,
+        terms: List<String>,
+        initials: Boolean,
+        limit: Int,
+    ): List<MilestoneHit> {
+        val termConditions =
+            terms.indices.joinToString(" and ") { index ->
+                if (initials) {
+                    "replace(hangul_initials(m.name), ' ', '') like :t$index"
+                } else {
+                    "(m.name ilike :t$index or b.body ilike :t$index or b.flat ilike :t$index)"
+                }
+            }
+        val nameHit = if (initials) "true" else terms.indices.joinToString(" and ") { "m.name ilike :t$it" }
+        val sql =
+            """
+            select m.id, m.name, m.updated_at, b.body, b.flat, ($nameHit) as title_hit, p.id as project_id, p.name as project_name
+            from milestones m
+            join projects p on p.id = m.project_id
+            cross join lateral (${textOf("m")}) b
+            where p.archived_at is null
+              and exists (select 1 from project_members pm where pm.project_id = p.id and pm.user_id = :viewerId)
+              and $termConditions
+            order by title_hit desc, m.updated_at desc
+            limit $limit
+            """.trimIndent()
+        return bind(databaseClient.sql(sql), userId, terms, initials)
+            .map { row ->
+                MilestoneHit(
+                    id = checkNotNull(row.get("id", UUID::class.java)),
+                    name = checkNotNull(row.get("name", String::class.java)),
+                    project =
+                        SearchProject(
+                            checkNotNull(row.get("project_id", UUID::class.java)),
+                            checkNotNull(row.get("project_name", String::class.java)),
+                        ),
+                    updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
+                    snippet = if (initials) null else snippetOfText(row, terms),
+                )
+            }.all()
+            .collectList()
+            .awaitSingle()
+    }
+
+    private fun bind(
+        spec: DatabaseClient.GenericExecuteSpec,
+        userId: UUID,
+        terms: List<String>,
+        initials: Boolean,
+    ): DatabaseClient.GenericExecuteSpec {
+        var bound = spec.bind("viewerId", userId)
+        terms.forEachIndexed { index, term -> bound = bound.bind("t$index", pattern(term, initials)) }
+        return bound
+    }
+
+    /** A piece of the text of the row, from the text with spaces between blocks, or else the one without (words split by bold, a link, a tag). */
+    private fun snippetOfText(
+        row: io.r2dbc.spi.Readable,
+        terms: List<String>,
+    ): String? =
+        snippetOf(row.get("body", String::class.java).orEmpty(), terms)
+            ?: snippetOf(row.get("flat", String::class.java).orEmpty(), terms)
 
     /** `FB-12`, `fb-12`, `12` or `#12`: the issue with that number. */
     private fun numberOf(
@@ -247,6 +399,17 @@ class SearchService(
         private const val VISIBLE_ISSUE =
             """(i.project_id is null or (p.archived_at is null and exists(
                    select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = :viewerId)))"""
+
+        /**
+         * The words written in the editor of `alias.content`, two ways: `body` has a space between the
+         * pieces of text (so that the end of one paragraph and the start of the next are not one word),
+         * `flat` has none (so that a word split by bold, a link or a tag is still one word).
+         */
+        private fun textOf(alias: String): String =
+            """
+            select coalesce(string_agg(t, ' '), '') as body, coalesce(string_agg(t, ''), '') as flat
+            from (select v #>> '{}' as t from jsonb_path_query($alias.content, 'strict ${'$'}.**.text') v) s
+            """.trimIndent()
 
         /** A short piece of [text] around the first word found, on one line; null when no word is in it. */
         fun snippetOf(

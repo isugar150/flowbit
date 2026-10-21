@@ -38,6 +38,8 @@
 
 - **편집기의 블록마다 댓글을 달 수 있고, 프로젝트 개요·문서·목표에 티켓 같은 활동이 생겼다** (D-165, 2026-10-21, [features/content-comments.md](features/content-comments.md)). 사용자가 네 번의 질문으로 정한 것을 명세에 그대로 옮겼다. 마이그레이션 `V24`(기존 본문의 최상위 블록에 번호를 붙이고 `content_*` 표를 만든다). **백엔드를 다시 띄워야 적용된다. 컴파일·ktlint·타입 검사·eslint 만 했고 테스트는 돌리지 않았다. 새 백엔드로는 화면을 보지 못했다.**
 
+- **댓글은 태그된 사람에게만, 구독자는 바뀐 것만 알린다. 문서는 문서마다 구독한다. 검색은 프로젝트 개요·목표·문서의 본문도 찾는다. 문서 화면에 보는 사람과 "더보기"가 생겼다** (D-166, 2026-10-21, [features/content-comments.md](features/content-comments.md) "구독과 알림"·[features/search.md](features/search.md)). 마이그레이션 `V25`. D-102 의 "티켓 구독자는 댓글도 받는다"와 D-165 의 "프로젝트 구독자·스레드 참여자도 댓글을 받는다"를 바꾼 것이다. **백엔드를 다시 띄워야 적용된다. 컴파일·ktlint·타입 검사·eslint 만 했고 테스트는 돌리지 않았다. 새 백엔드로는 화면을 보지 못했다.**
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
@@ -185,6 +187,17 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-21 — 댓글 알림 규칙, 문서 구독, 본문 검색, 문서 화면의 보는 사람·더보기, 구성원 추가 칸 (D-166)
+
+- 사용자 요청 네 가지: ① 검색에서 페이지(문서) 내용·에디터에 쓴 내용도 찾기 ② 페이지 활동에 구독 버튼, 댓글은 구독자가 아니라 태그한 사람에게만·구독자는 활동만, 태그되면 강제 구독(끊을 수는 있게) ③ 프로젝트 설정에서 구성원을 추가하는 기능이 사라짐 ④ 문서 화면 오른쪽 위에 본 사람, 문서 삭제는 "더보기"로. 모호한 부분 네 가지를 물어 정했다(검색 범위=프로젝트 개요·목표까지 / 문서마다 따로 구독 / 규칙은 티켓까지 모두 / ③의 증상 — "모든 구성원이 이미…" 문구가 나오는데, 모두 추가돼 있어도 추가 칸은 똑같이 보여 달라).
+- 백엔드: `V25__document_subscriptions.sql`(표와 만든 사람 채우기). `ContentSubscriptions.kt`(`DocumentSubscriptionStore`·`ContentSubscriptionService`), `PUT/DELETE /api/v1/content/document/{id}/subscription`, 피드의 `subscription`. `IssueExtras.addDocument` 가 만든 사람을 구독시킨다. `ContentLog.announce` 가 이벤트를 나눠 댓글(`TALK`)은 `tagged` 에게 `dispatchTalk` 으로 바로, 나머지는 `ContentDirectory.followers`(문서=문서 구독자)에게 모아서. 블록 댓글의 스레드 참여자 알림을 없앴고(`ContentThreads`), 문서에서 태그된 사람은 구독시킨다. 티켓: `IssueChange.taggedIds`, `IssueAnnouncer.commented` 가 댓글·본문 태그(`COMMENT_ADDED`·`MENTIONED`)는 태그된 사람에게 바로, 나머지는 구독자에게 모아서. `PagePresence` 가 `document:{id}` 를 받는다. `SearchService` 에 프로젝트·목표 검색, 문서 검색에서 서식으로 나뉜 낱말을 위해 `flat` 글(공백 없이 이은 글)도 비교한다.
+- 프런트: 문서 활동 머리글에 구독 버튼·구독자 아바타(`ContentActivity`, `useContentSubscription`), `document-menu.tsx`(오른쪽 위 …, 문서 삭제는 메뉴 안에서 한 번 더 눌러 확인)와 `PresenceAvatars page="document:"` 를 문서 페이지의 `PageHeader` 에, `DocumentEditor` 에서 삭제 버튼을 뺌. 검색 창·검색 페이지에 "프로젝트"·"목표" 묶음과 탭. `ProjectMembersPanel` 의 추가 줄을 늘 보이게(`candidates` 가 비면 사람 칸을 비활성으로 두고 "모든 구성원이 이미…").
+- 테스트 코드(돌리지 않음, 컴파일만): `ContentCommentsIntegrationTest`(문서 구독: 만든 사람·켜고 끄기·태그 구독·다른 쪽 404), `NotificationsIntegrationTest`(태그 없는 댓글은 구독자에게 메일이 안 가고 상태 변경은 간다), 새 `SearchIntegrationTest`(본문 검색·서식으로 나뉜 낱말·초성·구성원이 아니면 안 나옴).
+- 도움말·문서: 검색, 문서, 사람 태그, 댓글과 활동, 구독과 알림, 프로젝트 설정 소절. 명세 `content-comments.md`·`search.md`·`M7a-notification-channels.md`·`M3-projects-and-issues.md`·`02-architecture.md`.
+- 알아둘 것: ③ 구성원 추가는 코드가 그대로 있었다(`project-members-panel.tsx` 는 `16b769e` 이후 안 바뀜). 모든 사람이 이미 구성원이어서 칸 대신 문구만 나온 것이 원인이다. 프로젝트 개요·목표에는 문서 같은 따로 구독이 없어서 프로젝트 구독을 쓰고, 거기서 태그돼도 프로젝트 전체를 구독시키지 않는다(제안, content-comments.md).
+- 볼 곳: 새 백엔드에서 ① 문서에서 사람을 태그하면 그 사람이 구독자가 되고 댓글 알림(메일·푸시)이 가는지, 구독만 한 사람에게는 댓글 알림이 안 가고 본문 수정 알림만 가는지 ② 티켓에서도 같은지(구독자는 상태 변경만, 댓글은 태그된 사람만) ③ 문서 화면의 보는 사람 아바타(두 계정으로)와 더보기 ④ `V25` 가 적용되고 기존 문서의 만든 사람이 구독자로 보이는지 ⑤ 검색: 문서·프로젝트 개요·목표에 쓴 글, 굵게 나뉜 낱말, 표 안의 글. 이 SQL(`jsonb_path_query` 로 글 꺼내기)은 실제 PostgreSQL 로 돌려 보지 못했다.
+- 열린 질문: 문서·프로젝트·목표의 댓글(블록·일반)을 검색 대상에 넣을지, 프로젝트 개요·목표에도 따로 구독을 둘지, 댓글만 쓰고 태그 안 한 사람의 문서 구독.
 
 ### 2026-10-21 — 아바타 겹침을 3분의 1로, 목표 창에서 활동을 오른쪽으로
 

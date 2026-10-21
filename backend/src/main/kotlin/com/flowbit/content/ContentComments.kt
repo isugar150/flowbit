@@ -385,6 +385,7 @@ class ContentCommentService(
     private val store: ContentCommentStore,
     private val log: ContentLog,
     private val directory: ContentDirectory,
+    private val subscriptions: DocumentSubscriptionStore,
     private val richText: RichText,
     private val fileStorage: FileStorage,
     private val clock: Clock,
@@ -424,6 +425,7 @@ class ContentCommentService(
         val tagged = taggedPeople(context, document.mentions, user.id)
         val text = document.plainText.ifBlank { files.joinToString(", ") { it.fileName } }.take(PREVIEW_LENGTH)
         val names = tagged.map { directory.displayName(it) }
+        followTagged(target, tagged)
         log.announce(target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, mapOf("text" to text, "mentions" to names))), tagged)
         return ContentCommentResult(shown(user, context, id), context)
     }
@@ -452,7 +454,8 @@ class ContentCommentService(
         val tagged = taggedPeople(context, document.mentions - richText.mentionsIn(existing.content), user.id)
         if (tagged.isNotEmpty()) {
             val detail = mapOf("text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to tagged.map { directory.displayName(it) })
-            log.announce(existing.target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, detail)), tagged, includeFollowers = false)
+            followTagged(existing.target, tagged)
+            log.announce(existing.target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, detail)), tagged)
         }
         return ContentCommentResult(shown(user, context, commentId), context)
     }
@@ -599,6 +602,14 @@ class ContentCommentService(
         mentions: Collection<UUID>,
         actorId: UUID,
     ): List<UUID> = mentions.filter { it != actorId && directory.canReach(context, it) }
+
+    /** Being tagged in a comment on a document makes the person follow it; they can stop (D-166). */
+    private suspend fun followTagged(
+        target: ContentTarget,
+        tagged: Collection<UUID>,
+    ) {
+        if (target.type == ContentTargetType.DOCUMENT) tagged.forEach { subscriptions.subscribe(target.id, it) }
+    }
 
     private fun requireEmoji(emoji: String) {
         if (emoji !in IssueService.REACTIONS) throw ValidationException("emoji", "INVALID", "쓸 수 없는 이모지입니다")

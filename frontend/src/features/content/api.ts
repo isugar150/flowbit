@@ -2,7 +2,7 @@ import type { RichDoc } from "@/components/editor/rich-text-editor";
 import type { CommentApi } from "@/features/issues/comment-api";
 import type { Attachment, IssueComment, Reaction } from "@/features/issues/types";
 import { apiFetch, fileForm } from "@/lib/api/client";
-import type { ContentFeed, ContentTarget, ContentThread } from "./types";
+import type { ContentFeed, ContentSubscription, ContentTarget, ContentThread } from "./types";
 
 const base = (target: ContentTarget) => `/api/v1/content/${target.type}/${encodeURIComponent(target.id)}`;
 
@@ -10,6 +10,11 @@ export const contentFeedKey = (target: ContentTarget) => ["content-feed", target
 
 export function getContentFeed(target: ContentTarget): Promise<ContentFeed> {
   return apiFetch<ContentFeed>(`${base(target)}/feed`);
+}
+
+/** Follows a document, or stops following it (D-166). Open to everyone who can see it. */
+export function setContentSubscribed(input: { target: ContentTarget; subscribed: boolean }): Promise<ContentSubscription> {
+  return apiFetch<ContentSubscription>(`${base(input.target)}/subscription`, { method: input.subscribed ? "PUT" : "DELETE" });
 }
 
 /** Opens a thread on a block with its first comment. */

@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestPart
@@ -121,13 +122,29 @@ data class ContentCommentResponse(
     }
 }
 
-/** What a page shows under its text: the threads on its blocks and, but for an issue (which has its own), the activity and comments. */
+/** Who follows a document and whether the reader does (D-166). */
+data class ContentSubscriptionResponse(
+    val subscribers: List<IssuePersonResponse>,
+    val subscribed: Boolean,
+) {
+    companion object {
+        fun from(subscription: ContentSubscription) =
+            ContentSubscriptionResponse(subscription.subscribers.map(IssuePersonResponse::from), subscription.subscribed)
+    }
+}
+
+/**
+ * What a page shows under its text: the threads on its blocks and, but for an issue (which has its
+ * own), the activity and comments. A document also says who follows it; the other pages leave
+ * `subscription` out.
+ */
 data class ContentFeedResponse(
     val canComment: Boolean,
     val readOnly: Boolean,
     val threads: List<ThreadResponse>,
     val items: List<ContentActivityItemResponse>,
     val comments: List<ContentCommentResponse>,
+    val subscription: ContentSubscriptionResponse? = null,
 )
 
 data class ThreadRequest(
@@ -150,6 +167,7 @@ data class ContentFeed(
     val threads: List<ThreadView>,
     val items: List<ContentActivityView>,
     val comments: List<ContentCommentView>,
+    val subscription: ContentSubscription? = null,
 )
 
 /** Reads a page's threads, activity and comments for the person looking. */
@@ -159,6 +177,7 @@ class ContentFeedService(
     private val log: ContentLog,
     private val comments: ContentCommentService,
     private val store: ContentCommentStore,
+    private val subscriptions: ContentSubscriptionService,
 ) {
     suspend fun feed(
         user: AuthenticatedUser,
@@ -168,7 +187,7 @@ class ContentFeedService(
         if (!target.type.hasActivity) return ContentFeed(found.context, found.threads, emptyList(), emptyList())
         val emoji = store.activityReactions(target, user.id)
         val items = log.list(target).map { it.copy(reactions = emoji[it.id].orEmpty()) }
-        return ContentFeed(found.context, found.threads, items, comments.list(user, found.context))
+        return ContentFeed(found.context, found.threads, items, comments.list(user, found.context), subscriptions.of(user, found.context))
     }
 }
 
@@ -183,6 +202,7 @@ class ContentController(
     private val feeds: ContentFeedService,
     private val threads: ContentThreadService,
     private val comments: ContentCommentService,
+    private val subscriptions: ContentSubscriptionService,
     private val realtime: RealtimeHub,
     private val uploadReader: UploadReader,
 ) {
@@ -199,7 +219,35 @@ class ContentController(
             threads = feed.threads.map(ThreadResponse::from),
             items = feed.items.map { ContentActivityItemResponse(it.id, it.type, it.detail, IssuePersonResponse.from(it.actor), it.createdAt, it.reactions) },
             comments = feed.comments.map(ContentCommentResponse::from),
+            subscription = feed.subscription?.let(ContentSubscriptionResponse::from),
         )
+    }
+
+    // --- following a document -------------------------------------------------------------------
+
+    @PutMapping("/content/{type}/{id}/subscription")
+    suspend fun follow(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable type: String,
+        @PathVariable id: UUID,
+    ): ContentSubscriptionResponse = subscribe(user, type, id, true)
+
+    @DeleteMapping("/content/{type}/{id}/subscription")
+    suspend fun unfollow(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable type: String,
+        @PathVariable id: UUID,
+    ): ContentSubscriptionResponse = subscribe(user, type, id, false)
+
+    private suspend fun subscribe(
+        user: AuthenticatedUser,
+        type: String,
+        id: UUID,
+        subscribed: Boolean,
+    ): ContentSubscriptionResponse {
+        val (context, subscription) = subscriptions.set(user, target(type, id), subscribed)
+        publish(user, context)
+        return ContentSubscriptionResponse.from(subscription)
     }
 
     // --- threads --------------------------------------------------------------------------------

@@ -31,10 +31,31 @@ export interface DocumentHit {
   snippet: string | null;
 }
 
+/** A project found by its name or by what is written in its overview (D-166). */
+export interface ProjectHit {
+  id: string;
+  name: string;
+  updatedAt: string;
+  snippet: string | null;
+}
+
+/** A milestone found by its name or by what is written in it (D-166). */
+export interface MilestoneHit {
+  id: string;
+  name: string;
+  project: SearchProject;
+  updatedAt: string;
+  snippet: string | null;
+}
+
 /** GET /api/v1/search (docs/features/search.md). */
 export interface SearchResult {
   issues: IssueHit[];
   documents: DocumentHit[];
+  projects: ProjectHit[];
+  milestones: MilestoneHit[];
   issuesMore: boolean;
   documentsMore: boolean;
+  projectsMore: boolean;
+  milestonesMore: boolean;
 }

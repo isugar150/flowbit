@@ -90,11 +90,18 @@ data class Actor(
 data class IssueChange(
     val issue: IssueView,
     val events: List<IssueEvent>,
-    /** Subscribers of the issue and of its project, other than the person who made the change. */
+    /** Subscribers of the issue and of its project, other than the person who made the change. They are told what happened to the issue. */
     val recipientIds: List<UUID>,
     /** The projects whose lists the change shows in: the one it is linked to, and the one it left. */
     val projectIds: List<UUID> = listOfNotNull(issue.project?.id),
-)
+    /** The people tagged by a comment or by the body in this change. A comment, and a tag in the body, is told to them alone (D-166). */
+    val taggedIds: List<UUID> = emptyList(),
+) {
+    companion object {
+        /** What is said on an issue rather than done to it: told to the people tagged, not to the subscribers. */
+        val TALK = setOf(IssueActivityType.COMMENT_ADDED, IssueActivityType.MENTIONED)
+    }
+}
 
 /** The history of issues and who is subscribed to them (`issue_activities`, `issue_subscriptions`). */
 @Component

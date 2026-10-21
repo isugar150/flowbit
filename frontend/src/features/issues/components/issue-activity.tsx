@@ -152,7 +152,7 @@ const MAX_SUBSCRIBER_AVATARS = 5;
  * names its own person: the name, and the login id under it when the name is a display name.
  * Followers past the first few are behind "+N", whose hint lists them.
  */
-function SubscriberAvatars({ people }: { people: IssuePerson[] }) {
+export function SubscriberAvatars({ people }: { people: IssuePerson[] }) {
   const shown = people.slice(0, MAX_SUBSCRIBER_AVATARS);
   const hidden = people.slice(MAX_SUBSCRIBER_AVATARS);
   return (

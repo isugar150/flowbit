@@ -253,6 +253,15 @@ class IssueExtrasStore(
             .fetch()
             .rowsUpdated()
             .awaitSingle()
+        // Whoever makes a document follows it from the start (D-166).
+        databaseClient
+            .sql("insert into document_subscriptions (document_id, user_id, created_at) values (:id, :userId, :now)")
+            .bind("id", id)
+            .bind("userId", userId)
+            .bind("now", now)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
         return DocumentSummary(id, issueId, projectId, parentId, title, now)
     }
 

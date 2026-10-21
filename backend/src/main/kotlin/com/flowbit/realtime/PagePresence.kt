@@ -2,6 +2,9 @@ package com.flowbit.realtime
 
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.NotFoundException
+import com.flowbit.content.ContentAccess
+import com.flowbit.content.ContentTarget
+import com.flowbit.content.ContentTargetType
 import com.flowbit.issue.application.IssueService
 import com.flowbit.media.application.ImageStorage
 import com.flowbit.project.application.ProjectService
@@ -29,13 +32,14 @@ data class PagePerson(
 )
 
 /**
- * The pages a realtime connection can be on (`project:<id>`, `issue:<number>`): who may be there,
- * who belongs there, and when each of them last looked.
+ * The pages a realtime connection can be on (`project:<id>`, `issue:<number>`, `document:<id>`):
+ * who may be there, who belongs there, and when each of them last looked.
  */
 @Component
 class PagePresence(
     private val projectService: ProjectService,
     private val issueService: IssueService,
+    private val contentAccess: ContentAccess,
     private val databaseClient: DatabaseClient,
     private val clock: Clock,
 ) {
@@ -127,6 +131,11 @@ class PagePresence(
             val number = key.removePrefix("issue:").takeIf { ISSUE_NUMBER.matches(it) }?.toInt() ?: throw notFound()
             return issueService.projectIdOf(user, number)
         }
+        if (key.startsWith("document:")) {
+            // A document belongs with the people of its project; one on an issue, of the issue's project (D-166).
+            val id = key.removePrefix("document:").takeIf { DOCUMENT_ID.matches(it) }?.let(UUID::fromString) ?: throw notFound()
+            return contentAccess.resolve(user, ContentTarget(ContentTargetType.DOCUMENT, id)).projectId
+        }
         if (!key.startsWith("project:")) throw notFound()
         return projectService.access(user, key.removePrefix("project:")).project.id
     }
@@ -135,6 +144,7 @@ class PagePresence(
 
     private companion object {
         val ISSUE_NUMBER = Regex("^\\d{1,9}$")
+        val DOCUMENT_ID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
         const val MAX_PEOPLE = 200
     }
 }

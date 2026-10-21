@@ -20,7 +20,7 @@
 | (마일스톤 밖) | 관리자 설정의 데이터 보관: 삭제한 티켓·문서·댓글을 항목별로 정한 기간 뒤 영구 삭제 (사용자 지정, D-132) | 구현됨 | [features/admin-retention.md](features/admin-retention.md) |
 | (마일스톤 밖) | 온보딩 투어: 처음 로그인하면 뜨는 둘러보기, 예시 티켓으로 연습, 건너뛰기, 내 설정에서 다시 보기 (사용자 지정, D-120) | 구현됨 | [features/onboarding-tour.md](features/onboarding-tour.md) |
 | (마일스톤 밖) | Git 연동: Gitea·GitLab·GitHub 웹훅으로 티켓에 PR·브랜치·커밋 연결, 상태 자동 변경 (사용자 요청, D-141) | 구현됨 (Gitea·GitLab 웹훅, GitHub App, D-145~D-162) | [features/git-integration.md](features/git-integration.md) |
-| (마일스톤 밖) | 블록 댓글과 활동: 프로젝트 개요·문서·티켓 본문·목표의 블록마다 댓글(답글·해결), 프로젝트 개요·문서·목표에 티켓 같은 활동 (사용자 요청, D-165) | 구현됨 (새 백엔드·화면 확인 남음) | [features/content-comments.md](features/content-comments.md) |
+| (마일스톤 밖) | 블록 댓글과 활동: 프로젝트 개요·문서·티켓 본문·목표의 블록마다 댓글(답글·해결), 프로젝트 개요·문서·목표에 티켓 같은 활동 (사용자 요청, D-165. 알림·구독 규칙, 문서 구독, 본문 검색은 D-166) | 구현됨 (새 백엔드·화면 확인 남음) | [features/content-comments.md](features/content-comments.md) |
 | M8 | 프로젝트 | 초안 | 미작성 |
 | M9 | 검색과 저장한 뷰 | 초안 | 미작성 |
 | M10 | 모바일 경험 다듬기 | 초안 | 미작성 |

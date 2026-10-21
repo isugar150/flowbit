@@ -82,6 +82,9 @@ object ContentEventType {
     const val COMMENT_ADDED = "COMMENT_ADDED"
     const val THREAD_COMMENT = "THREAD_COMMENT"
 
+    /** Told at once and only to the people tagged in the comment; the people who follow the page are told of what happens to it, not of what is said (D-166). */
+    val TALK = setOf(COMMENT_ADDED, THREAD_COMMENT)
+
     /** Kept in the activity but never told: changes the people who follow a project do not need a message for. */
     val SILENT = setOf(MEMBER_ADDED, MEMBER_REMOVED, MEMBER_ROLE_CHANGED, ICON_CHANGED, ARCHIVED, RESTORED)
 

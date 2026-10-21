@@ -322,6 +322,7 @@ class ContentThreadService(
     private val log: ContentLog,
     private val issueQueries: IssueQueries,
     private val issueActivities: IssueActivityStore,
+    private val subscriptions: DocumentSubscriptionStore,
     private val notifications: NotificationDispatcher,
     private val clock: Clock,
 ) {
@@ -348,7 +349,7 @@ class ContentThreadService(
         val now = clock.instant()
         val threadId = store.create(target, blockId, quote, user.id, now)
         store.addComment(threadId, user.id, document, now)
-        announce(user, context, quote, document, threadId)
+        announce(user, context, quote, document)
         return ThreadResult(thread(user, context, threadId), context)
     }
 
@@ -362,7 +363,7 @@ class ContentThreadService(
         val context = writable(user, existing.target)
         val document = commentDocument(rawContent)
         store.addComment(threadId, user.id, document, clock.instant())
-        announce(user, context, existing.quote, document, threadId)
+        announce(user, context, existing.quote, document)
         return ThreadResult(thread(user, context, threadId), context)
     }
 
@@ -380,7 +381,7 @@ class ContentThreadService(
         store.updateComment(commentId, document, clock.instant())
         // Only the people newly tagged by the change are told.
         val tagged = taggedPeople(context, document.mentions - richText.mentionsIn(comment.content), user.id)
-        if (tagged.isNotEmpty()) announceTo(user, context, existing.quote, document, tagged, includeFollowers = false)
+        if (tagged.isNotEmpty()) announceTo(user, context, existing.quote, document, tagged)
         return ThreadResult(thread(user, context, comment.threadId), context)
     }
 
@@ -452,24 +453,13 @@ class ContentThreadService(
         return document
     }
 
-    /** Who hears about a comment: the people who follow the page, the ones tagged, and the others in the thread. */
+    /** Who hears about a comment: the people tagged in it, and nobody else (D-166). */
     private suspend fun announce(
         user: AuthenticatedUser,
         context: ContentContext,
         quote: String,
         document: RichTextDocument,
-        threadId: UUID,
-    ) {
-        val participants =
-            store
-                .find(threadId)
-                ?.comments
-                ?.map { it.author.id }
-                .orEmpty()
-                .filter { it != user.id }
-        val tagged = taggedPeople(context, document.mentions, user.id)
-        announceTo(user, context, quote, document, (participants + tagged).distinct(), includeFollowers = true, tagged = tagged)
-    }
+    ) = announceTo(user, context, quote, document, taggedPeople(context, document.mentions, user.id))
 
     private suspend fun taggedPeople(
         context: ContentContext,
@@ -482,20 +472,17 @@ class ContentThreadService(
         context: ContentContext,
         quote: String,
         document: RichTextDocument,
-        also: List<UUID>,
-        includeFollowers: Boolean,
-        tagged: List<UUID> = also,
+        tagged: List<UUID>,
     ) {
         val names = tagged.map { directory.displayName(it) }
         val detail = mapOf("quote" to quote, "text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to names)
         if (context.issueId != null && context.target.type == ContentTargetType.ISSUE) {
-            // A comment on a ticket's body is a comment on the ticket: the people in it follow the ticket, and its followers are told.
+            // A comment on a ticket's body is a comment on the ticket: the people in it follow the ticket, and the ones tagged are told.
             issueActivities.subscribe(context.issueId, user.id)
             tagged.forEach { issueActivities.subscribe(context.issueId, it) }
+            if (tagged.isEmpty()) return
             val issue = issueQueries.find(checkNotNull(context.issueNumber)) ?: return
-            val recipients = ((if (includeFollowers) issueActivities.recipientIds(context.issueId) else emptyList()) + also).distinct().filter { it != user.id }
-            if (recipients.isEmpty()) return
-            notifications.dispatch(
+            notifications.dispatchTalk(
                 IssueNotification(
                     issueKey = issue.key,
                     issueNumber = issue.number,
@@ -504,12 +491,14 @@ class ContentThreadService(
                     actorId = user.id,
                     actorName = directory.displayName(user.id),
                     events = listOf(IssueNotification.Event("COMMENT_ADDED", detail)),
-                    recipientIds = recipients,
+                    recipientIds = tagged,
                 ),
             )
             return
         }
-        log.announce(context.target, user.id, listOf(ContentEvent(ContentEventType.THREAD_COMMENT, detail)), also, includeFollowers)
+        // Being tagged in a comment on a document makes the person follow it; they can stop (D-166).
+        if (context.target.type == ContentTargetType.DOCUMENT) tagged.forEach { subscriptions.subscribe(context.target.id, it) }
+        log.announce(context.target, user.id, listOf(ContentEvent(ContentEventType.THREAD_COMMENT, detail)), tagged)
     }
 
     private fun threadNotFound() = NotFoundException("THREAD_NOT_FOUND", "댓글을 찾을 수 없습니다")

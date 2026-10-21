@@ -137,6 +137,30 @@ class NotificationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `태그하지 않은 댓글은 구독자에게 메일이 가지 않고 구독자는 티켓이 바뀔 때만 받는다`() {
+        saveSmtp()
+        kim.patch("/api/v1/me/notifications", """{"email":"kim@example.com","notifyEmail":true}""")
+        // kim follows the issue as its author.
+        kim.post("/api/v1/issues", """{"title":"배포 일정"}""")
+        val plain = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"내일 오전으로 옮깁니다"}]}]}}"""
+
+        assertEquals(201, admin.post("/api/v1/issues/1/comments", plain).status)
+        Thread.sleep(1_000)
+        assertEquals(0, mail.receivedMessages.size)
+
+        admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
+        assertTrue(mail.waitForIncomingEmail(10_000, 1))
+        assertEquals(
+            "kim@example.com",
+            mail.receivedMessages
+                .single()
+                .allRecipients
+                .single()
+                .toString(),
+        )
+    }
+
+    @Test
     fun `메일이 꺼져 있으면 보내지 않고 테스트 메일은 저장하지 않은 설정으로 보낸다`() {
         val test = admin.post("/api/v1/admin/notifications/smtp/test", smtpJson(enabled = false, testTo = "someone@example.com"))
         val refused = admin.post("/api/v1/admin/notifications/smtp/test", smtpJson(port = 1, testTo = "someone@example.com"))

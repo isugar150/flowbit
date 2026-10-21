@@ -10,7 +10,7 @@ const m = messages.search;
 export const metadata: Metadata = { title: m.title };
 
 /**
- * Every issue and document matching a query (docs/features/search.md). The header is static; only
+ * Every issue, document, project and milestone matching a query (docs/features/search.md). The header is static; only
  * the part that reads the address waits, inside Suspense, so the page can show at once.
  */
 export default function SearchPage({ searchParams }: PageProps<"/search">) {
@@ -27,6 +27,7 @@ export default function SearchPage({ searchParams }: PageProps<"/search">) {
 async function SearchBody({ searchParams }: Pick<PageProps<"/search">, "searchParams">) {
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
-  const tab: SearchTab = params.type === "issues" || params.type === "documents" ? params.type : "all";
+  const tab: SearchTab =
+    params.type === "issues" || params.type === "documents" || params.type === "projects" || params.type === "milestones" ? params.type : "all";
   return <SearchResults key={q} initialQuery={q} initialTab={tab} />;
 }

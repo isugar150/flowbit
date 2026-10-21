@@ -69,7 +69,10 @@ data class ContentNotification(
     val actorName: String,
     /** ContentEventType names, with the same details the activity list shows. */
     val events: List<IssueNotification.Event>,
-    /** The people who follow the project (or the issue the document is on) and whoever is tagged or in the thread, without the actor. */
+    /**
+     * For a change, the people who follow the page (the document, or the project for a project or a
+     * milestone); for a comment, the people tagged in it (D-166). Without the actor.
+     */
     val recipientIds: List<UUID>,
 )
 
@@ -183,6 +186,20 @@ class NotificationDispatcher(
                 }
             pending[key] = Pending(merged, since, generation, timer)
         }
+    }
+
+    /**
+     * Sends a comment at once, to the people tagged in it (D-166). It is not held and not merged
+     * with what else the same person did: another change's followers must not read the comment,
+     * and one person tagged in a comment must not read the next one they were not tagged in.
+     */
+    fun dispatchTalk(notification: IssueNotification) {
+        send(notification)
+    }
+
+    fun dispatchTalk(notification: ContentNotification) {
+        if (notification.recipientIds.isEmpty()) return
+        sendContent(notification)
     }
 
     /**

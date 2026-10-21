@@ -144,10 +144,13 @@ class ContentDirectory(
     }
 
     /**
-     * Who is told about the page: the people who follow its project (and may still enter it); for an
-     * issue's own document, the people who follow the issue or its project. Active people only.
+     * Who is told about what happens to the page: the people who follow the document itself (and may
+     * still open it, D-166); for a project or a milestone, the people who follow the project (and may
+     * still enter it); for an issue, the people who follow it or its project. Active people only.
+     * Comments are not told to followers, only to the people tagged in them.
      */
     suspend fun followers(context: ContentContext): List<UUID> {
+        if (context.target.type == ContentTargetType.DOCUMENT) return documentFollowers(context)
         context.issueId?.let { return issueActivities.recipientIds(it) }
         val projectId = context.projectId ?: return emptyList()
         return databaseClient
@@ -161,6 +164,32 @@ class ContentDirectory(
                 order by u.login_id
                 """.trimIndent(),
             ).bind("projectId", projectId)
+            .map { row -> checkNotNull(row.get("id", UUID::class.java)) }
+            .all()
+            .collectList()
+            .awaitSingle()
+    }
+
+    /** The active people who follow the document and are still members of its project (anyone active when it has none). */
+    private suspend fun documentFollowers(context: ContentContext): List<UUID> {
+        val projectId = context.projectId
+        val reach =
+            if (projectId != null) {
+                "and exists (select 1 from project_members pm where pm.project_id = :projectId and pm.user_id = u.id)"
+            } else {
+                ""
+            }
+        val spec =
+            databaseClient
+                .sql(
+                    """
+                    select u.id
+                    from document_subscriptions s join users u on u.id = s.user_id
+                    where s.document_id = :documentId and u.status = 'ACTIVE' $reach
+                    order by u.login_id
+                    """.trimIndent(),
+                ).bind("documentId", context.target.id)
+        return (if (projectId != null) spec.bind("projectId", projectId) else spec)
             .map { row -> checkNotNull(row.get("id", UUID::class.java)) }
             .all()
             .collectList()

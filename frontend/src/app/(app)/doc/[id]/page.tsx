@@ -4,8 +4,10 @@ import { FileTextIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import type { UserSummary } from "@/features/members/types";
 import { DocumentEditor } from "@/features/issues/components/document-editor";
+import { DocumentMenu } from "@/features/issues/components/document-menu";
 import type { IssueDetail, IssueDocument } from "@/features/issues/types";
 import { mentionablesOf, usersAsMembers, type ProjectMember } from "@/features/projects/types";
+import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
@@ -52,6 +54,13 @@ export default async function DocumentPage({ params }: PageProps<"/doc/[id]">) {
           })),
           { label: document.title || messages.issues.documents.untitled, icon: <FileTextIcon /> },
         ]}
+        // Who has the document open, then what is done to the whole of it.
+        actions={
+          <>
+            <PresenceAvatars page="document:" />
+            <DocumentMenu document={document} />
+          </>
+        }
       />
       <DocumentEditor document={document} mentionables={mentionablesOf(members ?? [])} />
     </>

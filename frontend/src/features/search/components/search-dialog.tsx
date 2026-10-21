@@ -15,7 +15,16 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { SEARCH_MAX_LENGTH, search } from "../api";
 import { wordsOf } from "../highlight";
-import { DocumentHitContent, IssueHitContent, documentHref, issueHref } from "./hit-content";
+import {
+  DocumentHitContent,
+  IssueHitContent,
+  MilestoneHitContent,
+  ProjectHitContent,
+  documentHref,
+  issueHref,
+  milestoneHref,
+  projectHref,
+} from "./hit-content";
 
 const m = messages.search;
 
@@ -88,6 +97,9 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
 
 type Item = { id: string; href: string };
 
+/** One kind of result in the list: a heading and its lines. */
+type Group = { kind: string; label: string; entries: { id: string; href: string; node: React.ReactNode }[] };
+
 /** The input and the results; mounted only while the dialog is open, so each opening starts empty. */
 function SearchPanel({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -104,10 +116,32 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   });
   const data = debounced ? result.data : undefined;
   const words = wordsOf(debounced);
-  const items: Item[] = [
-    ...(data?.issues ?? []).map((hit) => ({ id: `${listId}-i-${hit.id}`, href: issueHref(hit) })),
-    ...(data?.documents ?? []).map((hit) => ({ id: `${listId}-d-${hit.id}`, href: documentHref(hit) })),
-  ];
+  // Tickets, then documents, then projects and milestones; the arrow keys walk through them in this order.
+  const groups: Group[] = data
+    ? [
+        {
+          kind: "i",
+          label: m.issues,
+          entries: data.issues.map((hit) => ({ id: hit.id, href: issueHref(hit), node: <IssueHitContent hit={hit} words={words} /> })),
+        },
+        {
+          kind: "d",
+          label: m.documents,
+          entries: data.documents.map((hit) => ({ id: hit.id, href: documentHref(hit), node: <DocumentHitContent hit={hit} words={words} /> })),
+        },
+        {
+          kind: "p",
+          label: m.projects,
+          entries: data.projects.map((hit) => ({ id: hit.id, href: projectHref(hit), node: <ProjectHitContent hit={hit} words={words} /> })),
+        },
+        {
+          kind: "m",
+          label: m.milestones,
+          entries: data.milestones.map((hit) => ({ id: hit.id, href: milestoneHref(hit), node: <MilestoneHitContent hit={hit} words={words} /> })),
+        },
+      ].filter((group) => group.entries.length > 0)
+    : [];
+  const items: Item[] = groups.flatMap((group) => group.entries.map((entry) => ({ id: `${listId}-${group.kind}-${entry.id}`, href: entry.href })));
   const current = items.length > 0 ? Math.min(active, items.length - 1) : -1;
 
   const activeId = items[current]?.id;
@@ -174,48 +208,31 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           <p className="px-2.5 py-6 text-center text-[0.8125rem] leading-5 text-muted-foreground">{m.noResults(debounced)}</p>
         ) : data ? (
           <>
-            {data.issues.length > 0 ? (
-              <div role="group" aria-label={m.issues}>
-                <p className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">{m.issues}</p>
-                {data.issues.map((hit, position) => {
-                  const mine = position;
-                  return (
-                    <div
-                      key={hit.id}
-                      id={items[mine].id}
-                      role="option"
-                      aria-selected={mine === current}
-                      className={optionClass(mine === current)}
-                      onMouseMove={() => setActive(mine)}
-                      onClick={() => go(issueHref(hit))}
-                    >
-                      <IssueHitContent hit={hit} words={words} />
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-            {data.documents.length > 0 ? (
-              <div role="group" aria-label={m.documents} className={data.issues.length > 0 ? "mt-2" : undefined}>
-                <p className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">{m.documents}</p>
-                {data.documents.map((hit, position) => {
-                  const mine = data.issues.length + position;
-                  return (
-                    <div
-                      key={hit.id}
-                      id={items[mine].id}
-                      role="option"
-                      aria-selected={mine === current}
-                      className={optionClass(mine === current)}
-                      onMouseMove={() => setActive(mine)}
-                      onClick={() => go(documentHref(hit))}
-                    >
-                      <DocumentHitContent hit={hit} words={words} />
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
+            {groups.map((group, groupIndex) => {
+              // Where the group's first line is among all the lines of the list.
+              const first = groups.slice(0, groupIndex).reduce((count, other) => count + other.entries.length, 0);
+              return (
+                <div key={group.kind} role="group" aria-label={group.label} className={groupIndex > 0 ? "mt-2" : undefined}>
+                  <p className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">{group.label}</p>
+                  {group.entries.map((entry, position) => {
+                    const mine = first + position;
+                    return (
+                      <div
+                        key={entry.id}
+                        id={items[mine].id}
+                        role="option"
+                        aria-selected={mine === current}
+                        className={optionClass(mine === current)}
+                        onMouseMove={() => setActive(mine)}
+                        onClick={() => go(entry.href)}
+                      >
+                        {entry.node}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </>
         ) : null}
       </div>
@@ -241,7 +258,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           onClick={onClose}
           className="rounded-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          {data && (data.issuesMore || data.documentsMore) ? m.seeAllMore : m.seeAll}
+          {data && (data.issuesMore || data.documentsMore || data.projectsMore || data.milestonesMore) ? m.seeAllMore : m.seeAll}
         </Link>
       </div>
     </>

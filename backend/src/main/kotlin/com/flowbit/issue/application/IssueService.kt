@@ -329,8 +329,8 @@ class IssueService(
         // The author and the assignees follow the issue from the start.
         activities.subscribe(issue.id, user.id)
         assigneeIds.forEach { activities.subscribe(issue.id, it) }
-        val mentioned = mentionEvents(tag(issue, document?.mentions.orEmpty(), user))
-        return IssueChange(checkNotNull(detail(issue.number)), events + mentioned, recipients(issue.id, user))
+        val tagged = tag(issue, document?.mentions.orEmpty(), user)
+        return IssueChange(checkNotNull(detail(issue.number)), events + mentionEvents(tagged), recipients(issue.id, user), taggedIds = tagged.map { it.first })
     }
 
     @Transactional
@@ -402,11 +402,18 @@ class IssueService(
         val after = checkNotNull(detail(number))
         val recorded = activities.diff(before, after)
         activities.record(issue.id, user.id, recorded, issue.updatedAt)
-        val events = recorded + mentionEvents(tag(issue, newMentions.orEmpty(), user))
+        val tagged = tag(issue, newMentions.orEmpty(), user)
+        val events = recorded + mentionEvents(tagged)
         // Whoever is given the issue follows it from then on.
         after.assignees.filter { person -> before.assignees.none { it.id == person.id } }.forEach { activities.subscribe(issue.id, it.id) }
         if (issue.projectId != oldProjectId || issue.milestoneId != oldMilestoneId) moveSubIssuesAlong(user, issue, 0)
-        return IssueChange(after, events, recipients(issue.id, user), listOfNotNull(before.project?.id, after.project?.id).distinct())
+        return IssueChange(
+            after,
+            events,
+            recipients(issue.id, user),
+            listOfNotNull(before.project?.id, after.project?.id).distinct(),
+            tagged.map { it.first },
+        )
     }
 
     /**
@@ -474,7 +481,13 @@ class IssueService(
         activities.subscribe(issue.id, user.id)
         val tagged = tag(issue, document.mentions, user)
         val comment = checkNotNull(comments.find(id)).withRights(user, access).withExtras(user)
-        val change = IssueChange(checkNotNull(queries.find(number)), listOf(commentEvent(document, tagged, files)), recipients(issue.id, user))
+        val change =
+            IssueChange(
+                checkNotNull(queries.find(number)),
+                listOf(commentEvent(document, tagged, files)),
+                recipients(issue.id, user),
+                taggedIds = tagged.map { it.first },
+            )
         return CommentResult(comment, change)
     }
 
@@ -505,7 +518,10 @@ class IssueService(
         val tagged = tag(access.issue, document.mentions - richText.mentionsIn(existing.content), user)
         val comment = checkNotNull(comments.find(commentId)).withRights(user, access).withExtras(user)
         val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged, comment.attachments))
-        return CommentResult(comment, IssueChange(checkNotNull(queries.find(access.issue.number)), events, tagged.map { it.first }))
+        return CommentResult(
+            comment,
+            IssueChange(checkNotNull(queries.find(access.issue.number)), events, emptyList(), taggedIds = tagged.map { it.first }),
+        )
     }
 
     /**

@@ -67,6 +67,12 @@ export type ContentActivityItem = {
   reactions: Reaction[];
 };
 
+/** Who follows a document, and whether the reader does (D-166). */
+export type ContentSubscription = {
+  subscribers: IssuePerson[];
+  subscribed: boolean;
+};
+
 /** GET /api/v1/content/{type}/{id}/feed */
 export type ContentFeed = {
   /** Whether anything can still be added: not on a deleted issue or document. */
@@ -77,4 +83,6 @@ export type ContentFeed = {
   items: ContentActivityItem[];
   /** The general comments; empty for an issue. */
   comments: IssueComment[];
+  /** Only a document is followed on its own; a project, a milestone and an issue leave it out. */
+  subscription?: ContentSubscription;
 };

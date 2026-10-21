@@ -14,6 +14,7 @@ import com.flowbit.issue.application.IssueActivityFeed
 import com.flowbit.issue.application.IssueActivityType
 import com.flowbit.issue.application.IssueChange
 import com.flowbit.issue.application.IssueDetail
+import com.flowbit.issue.application.IssueEvent
 import com.flowbit.issue.application.IssueGitLinkView
 import com.flowbit.issue.application.IssueGitRepositoryView
 import com.flowbit.issue.application.IssueLabel
@@ -415,6 +416,8 @@ class IssueAnnouncer(
         actorId: UUID?,
         change: IssueChange,
         actorName: String,
+        events: List<IssueEvent> = change.events,
+        recipientIds: List<UUID> = change.recipientIds,
     ) = IssueNotification(
         issueKey = change.issue.key,
         issueNumber = change.issue.number,
@@ -422,8 +425,8 @@ class IssueAnnouncer(
         projectId = change.issue.project?.id,
         actorId = actorId,
         actorName = actorName,
-        events = change.events.map { IssueNotification.Event(it.type.name, it.detail) },
-        recipientIds = change.recipientIds,
+        events = events.map { IssueNotification.Event(it.type.name, it.detail) },
+        recipientIds = recipientIds,
     )
 
     private suspend fun changed(
@@ -448,9 +451,15 @@ class IssueAnnouncer(
         actorName: suspend () -> String,
     ) {
         touched(actorId ?: RealtimeHub.NOBODY, change.issue.number)
-        // Every channel only reaches the people who follow the issue or its project.
-        if (change.events.isEmpty() || change.recipientIds.isEmpty()) return
-        notifications.dispatch(notificationOf(actorId, change, actorName()))
+        // What was done to the issue goes to the people who follow it or its project; what was said (a comment,
+        // a tag in the body) goes at once to the people tagged and to nobody else (D-166).
+        val (talk, done) = change.events.partition { it.type in IssueChange.TALK }
+        val toFollowers = done.isNotEmpty() && change.recipientIds.isNotEmpty()
+        val toTagged = talk.isNotEmpty() && change.taggedIds.isNotEmpty()
+        if (!toFollowers && !toTagged) return
+        val name = actorName()
+        if (toFollowers) notifications.dispatch(notificationOf(actorId, change, name, done))
+        if (toTagged) notifications.dispatchTalk(notificationOf(actorId, change, name, talk, change.taggedIds))
     }
 
     /** The person left the issue (closed it): what they did to it and is still held goes out now (D-126). */
