@@ -133,7 +133,7 @@ frontend/
 - 단축키는 입력란에 포커스가 있을 때 동작하지 않게 하고, 한글 입력 상태에서도 같은 키로 동작하게 `event.code` 로 판단한다.
 - 한글 조합 중의 `Enter` 는 무시한다(`event.nativeEvent.isComposing`).
 - 단축키가 있는 액션은 메뉴와 툴팁에 `Kbd` 컴포넌트로 키를 표시한다.
-- 마우스를 올렸을 때 보일 설명은 브라우저 기본 `title` 이 아니라 `components/ui/tooltip.tsx` 의 `Tooltip`(커스텀)으로 띄운다 (2026-10-21, 사용자 지정). 이모지 알약(누른 사람들)·이모지 추가 버튼·활동의 구독자 아바타가 이 방식이다. 버튼이 열기 버튼이기도 하면 `<TooltipTrigger render={<PopoverTrigger render={…} />}>` 로 겹친다. 읽기 전용으로 만들 버튼은 `disabled` 를 쓰지 않는다(눌러도 되지 않는 것과 포인터 이벤트가 없어 툴팁이 안 뜨는 것은 다르다): `aria-disabled` 와 클릭 무시를 쓴다. 여러 사람의 아바타 줄(화면 오른쪽 위의 "보는 사람" `PresenceAvatars`, 활동의 구독자 `SubscriberAvatars`)은 절반쯤 겹치고 `avatar-fan`(globals.css)으로 올린 사람을 앞으로 내고 나머지를 양옆으로 벌린다: `AvatarGroup` 에 `avatar-fan -space-x-3`(24px 아바타), 흐리게 할 때는 아바타 전체가 아니라 안쪽(`*:opacity-40`)만(아래 아바타가 비치지 않게). 이전부터 `title` 을 쓰던 곳(`PersonMark`, 댓글의 수정·삭제 버튼 등)은 아직 그대로다.
+- 마우스를 올렸을 때 보일 설명은 브라우저 기본 `title` 이 아니라 `components/ui/tooltip.tsx` 의 `Tooltip`(커스텀)으로 띄운다 (2026-10-21, 사용자 지정). 이모지 알약(누른 사람들)·이모지 추가 버튼·활동의 구독자 아바타가 이 방식이다. 버튼이 열기 버튼이기도 하면 `<TooltipTrigger render={<PopoverTrigger render={…} />}>` 로 겹친다. 읽기 전용으로 만들 버튼은 `disabled` 를 쓰지 않는다(눌러도 되지 않는 것과 포인터 이벤트가 없어 툴팁이 안 뜨는 것은 다르다): `aria-disabled` 와 클릭 무시를 쓴다. 여러 사람의 아바타 줄(화면 오른쪽 위의 "보는 사람" `PresenceAvatars`, 활동의 구독자 `SubscriberAvatars`)은 24px 아바타가 8px, 즉 3분의 1쯤 겹치고(처음엔 절반이었는데 글자가 가려져 안 보였다. 사용자 지시 2026-10-21) `avatar-fan`(globals.css)으로 올린 사람을 앞으로 내고 나머지를 양옆으로 11px(= 겹침 8 + 커지는 3) 벌린다: `AvatarGroup` 에 `avatar-fan -space-x-2`, 흐리게 할 때는 아바타 전체가 아니라 안쪽(`*:opacity-40`)만(아래 아바타가 비치지 않게). 이전부터 `title` 을 쓰던 곳(`PersonMark`, 댓글의 수정·삭제 버튼 등)은 아직 그대로다.
 
 ## 백엔드 호출
 

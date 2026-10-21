@@ -147,7 +147,7 @@ export function timelineOf<E extends { createdAt: string }, C extends { createdA
 const MAX_SUBSCRIBER_AVATARS = 5;
 
 /**
- * Who follows the issue: one avatar each, overlapping by about half. The one under the pointer (or
+ * Who follows the issue: one avatar each, overlapping by about a third. The one under the pointer (or
  * with focus) comes forward and the others part around it (`avatar-fan`, globals.css), and it
  * names its own person: the name, and the login id under it when the name is a display name.
  * Followers past the first few are behind "+N", whose hint lists them.
@@ -156,7 +156,7 @@ function SubscriberAvatars({ people }: { people: IssuePerson[] }) {
   const shown = people.slice(0, MAX_SUBSCRIBER_AVATARS);
   const hidden = people.slice(MAX_SUBSCRIBER_AVATARS);
   return (
-    <span role="group" aria-label={m.subscribers(people.map(personName).join(", "))} className="avatar-fan flex items-center -space-x-3">
+    <span role="group" aria-label={m.subscribers(people.map(personName).join(", "))} className="avatar-fan flex items-center -space-x-2">
       {shown.map((person) => (
         <Tooltip key={person.id}>
           <TooltipTrigger

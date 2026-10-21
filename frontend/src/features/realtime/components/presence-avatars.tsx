@@ -66,10 +66,10 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
   const hidden = people.slice(MAX_SHOWN);
 
   return (
-    // Overlapping by half, as in Notion (the user's call, 2026-10-21; on 2026-10-13 it was side by side
+    // Overlapping by a third (the user's call, 2026-10-21: half hid too much of each; on 2026-10-13 it was side by side
     // because overlapped they could not be told apart): pointing at one brings it forward and the
     // others part around it (`avatar-fan`, globals.css), which is what tells them apart.
-    <AvatarGroup role="group" className="avatar-fan -space-x-3" aria-label={viewers.length > 0 ? m.viewersLabel(viewers.map(personName).join(", ")) : m.peopleLabel}>
+    <AvatarGroup role="group" className="avatar-fan -space-x-2" aria-label={viewers.length > 0 ? m.viewersLabel(viewers.map(personName).join(", ")) : m.peopleLabel}>
       {shown.map((person) => (
         <Tooltip key={person.id}>
           <TooltipTrigger

@@ -135,7 +135,7 @@ export function MilestoneDetailDialog({
       }}
     >
       {/* Hung from the top rather than centred, so it does not jump as the document grows. */}
-      <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl lg:max-w-5xl">
+      <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl lg:max-w-[min(84rem,calc(100vw-3rem))]">
         <DialogTitle className="sr-only">{milestone.name}</DialogTitle>
         <DialogDescription className="sr-only">{m.detailDescription}</DialogDescription>
         {/* The scroll box is inside, not the dialog itself, so the editor's menus are not clipped. */}
@@ -351,101 +351,103 @@ export function MilestoneDetailBody({
                 <p className="text-muted-foreground">{m.noNotes}</p>
               )}
             </section>
-            {/* What changed on the milestone and what was said about it, as on an issue. */}
-            <ContentActivity target={target} watch={milestone} mentionables={mentionables} />
           </div>
+          {/* Beside the document (below it, in a narrow panel): the milestone's issues, then what changed on it and what was said about it. */}
           <aside
-            aria-labelledby="milestone-issues-title"
+            aria-label={m.sideLabel}
             className={cn(
-              "flex w-full shrink-0 flex-col gap-2 border-t p-5",
+              "flex w-full shrink-0 flex-col gap-6 border-t p-5",
               !stacked && "lg:w-96 lg:border-t-0 lg:border-l lg:pt-6",
             )}
           >
-            <div className={cn("flex items-center justify-between gap-2", !stacked && "lg:pr-8")}>
-              <h3 id="milestone-issues-title" className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">
-                {m.issuesTitle}
-                {issues.data ? <span className="ml-1.5 font-normal tabular-nums">{issues.data.length}</span> : null}
-              </h3>
-              <Link
-                href={`/issues?project=${projectId}&milestone=${milestone.id}`}
-                className="flex items-center gap-1 rounded-sm text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {m.openInList}
-                <ArrowUpRightIcon className="size-3.5" aria-hidden="true" />
-              </Link>
-            </div>
-            {issues.isPending ? (
-              <div className="flex flex-col gap-2" aria-busy="true">
-                <span className="sr-only">{m.issuesLoading}</span>
-                <Skeleton className="h-8" />
-                <Skeleton className="h-8" />
-                <Skeleton className="h-8" />
+            <section aria-labelledby="milestone-issues-title" className="flex flex-col gap-2">
+              <div className={cn("flex items-center justify-between gap-2", !stacked && "lg:pr-8")}>
+                <h3 id="milestone-issues-title" className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">
+                  {m.issuesTitle}
+                  {issues.data ? <span className="ml-1.5 font-normal tabular-nums">{issues.data.length}</span> : null}
+                </h3>
+                <Link
+                  href={`/issues?project=${projectId}&milestone=${milestone.id}`}
+                  className="flex items-center gap-1 rounded-sm text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  {m.openInList}
+                  <ArrowUpRightIcon className="size-3.5" aria-hidden="true" />
+                </Link>
               </div>
-            ) : issues.isError ? (
-              <p role="alert" className="text-[0.8125rem] leading-5 text-destructive">
-                {m.issuesFailed}
-              </p>
-            ) : issues.data.length === 0 ? (
-              <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.noIssues}</p>
-            ) : (
-              <ul className="-mx-2 flex flex-col">
-                {rows.map((row) =>
-                  row.kind === "hidden" ? (
-                    // Only says how many are left out; it does nothing when pressed.
-                    <li key={`hidden-${row.under}`} className="flex h-8 items-center gap-2 px-2 max-md:h-10">
-                      <SubIssueIndent depth={row.depth} />
-                      <span className="text-xs leading-4 text-muted-foreground tabular-nums">{m.hiddenSubIssues(row.count)}</span>
-                    </li>
-                  ) : row.kind === "context" ? (
-                    // The parent is in another milestone (or none); it only gives its sub-issues their place.
-                    <li key={`parent-${row.parent.number}`} className="flex h-9 items-center gap-2 rounded-md bg-muted/60 px-2 max-md:h-11">
-                      <SubIssueIndent depth={row.depth} />
-                      <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.parent.key}</span>
-                      <Link
-                        href={`/issue/${row.parent.key}`}
-                        title={messages.issues.subIssues.parentContext}
-                        className="min-w-0 flex-1 truncate rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-                      >
-                        {row.parent.title}
-                      </Link>
-                    </li>
-                  ) : (
-                    <li key={row.issue.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted max-md:h-11">
-                      <SubIssueIndent depth={row.depth} />
-                      {canEdit ? (
-                        <ChipSelect
-                          iconOnly
-                          label={messages.issues.statusOf(row.issue.key)}
-                          value={row.issue.status}
-                          options={statusOptions}
-                          onChange={(status) => changeStatus(row.issue.number, status)}
-                        />
-                      ) : (
-                        <span className="flex size-7 items-center justify-center">
-                          <StatusMark status={row.issue.status} />
+              {issues.isPending ? (
+                <div className="flex flex-col gap-2" aria-busy="true">
+                  <span className="sr-only">{m.issuesLoading}</span>
+                  <Skeleton className="h-8" />
+                  <Skeleton className="h-8" />
+                  <Skeleton className="h-8" />
+                </div>
+              ) : issues.isError ? (
+                <p role="alert" className="text-[0.8125rem] leading-5 text-destructive">
+                  {m.issuesFailed}
+                </p>
+              ) : issues.data.length === 0 ? (
+                <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.noIssues}</p>
+              ) : (
+                <ul className="-mx-2 flex flex-col">
+                  {rows.map((row) =>
+                    row.kind === "hidden" ? (
+                      // Only says how many are left out; it does nothing when pressed.
+                      <li key={`hidden-${row.under}`} className="flex h-8 items-center gap-2 px-2 max-md:h-10">
+                        <SubIssueIndent depth={row.depth} />
+                        <span className="text-xs leading-4 text-muted-foreground tabular-nums">{m.hiddenSubIssues(row.count)}</span>
+                      </li>
+                    ) : row.kind === "context" ? (
+                      // The parent is in another milestone (or none); it only gives its sub-issues their place.
+                      <li key={`parent-${row.parent.number}`} className="flex h-9 items-center gap-2 rounded-md bg-muted/60 px-2 max-md:h-11">
+                        <SubIssueIndent depth={row.depth} />
+                        <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.parent.key}</span>
+                        <Link
+                          href={`/issue/${row.parent.key}`}
+                          title={messages.issues.subIssues.parentContext}
+                          className="min-w-0 flex-1 truncate rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                        >
+                          {row.parent.title}
+                        </Link>
+                      </li>
+                    ) : (
+                      <li key={row.issue.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted max-md:h-11">
+                        <SubIssueIndent depth={row.depth} />
+                        {canEdit ? (
+                          <ChipSelect
+                            iconOnly
+                            label={messages.issues.statusOf(row.issue.key)}
+                            value={row.issue.status}
+                            options={statusOptions}
+                            onChange={(status) => changeStatus(row.issue.number, status)}
+                          />
+                        ) : (
+                          <span className="flex size-7 items-center justify-center">
+                            <StatusMark status={row.issue.status} />
+                          </span>
+                        )}
+                        {/* The key and the title are one link as tall as the line, so the whole middle of it opens the issue. */}
+                        <Link
+                          href={`/issue/${row.issue.key}`}
+                          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        >
+                          <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.issue.key}</span>
+                          <span className="min-w-0 truncate font-medium">{row.issue.title}</span>
+                        </Link>
+                        {/* The same columns on every line, with or without a value, so they line up. */}
+                        <span className="w-14 shrink-0 text-right text-xs leading-4 text-muted-foreground tabular-nums">
+                          {row.issue.dueDate ? <DueDate value={row.issue.dueDate} /> : null}
                         </span>
-                      )}
-                      {/* The key and the title are one link as tall as the line, so the whole middle of it opens the issue. */}
-                      <Link
-                        href={`/issue/${row.issue.key}`}
-                        className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                      >
-                        <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">{row.issue.key}</span>
-                        <span className="min-w-0 truncate font-medium">{row.issue.title}</span>
-                      </Link>
-                      {/* The same columns on every line, with or without a value, so they line up. */}
-                      <span className="w-14 shrink-0 text-right text-xs leading-4 text-muted-foreground tabular-nums">
-                        {row.issue.dueDate ? <DueDate value={row.issue.dueDate} /> : null}
-                      </span>
-                      <PriorityMark priority={row.issue.priority} />
-                      <span className="flex w-8 shrink-0 justify-center">
-                        {row.issue.assignees.length > 0 ? <PeopleMarks people={row.issue.assignees} max={2} /> : null}
-                      </span>
-                    </li>
-                  ),
-                )}
-              </ul>
-            )}
+                        <PriorityMark priority={row.issue.priority} />
+                        <span className="flex w-8 shrink-0 justify-center">
+                          {row.issue.assignees.length > 0 ? <PeopleMarks people={row.issue.assignees} max={2} /> : null}
+                        </span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              )}
+            </section>
+            <ContentActivity target={target} watch={milestone} mentionables={mentionables} />
           </aside>
         </div>
   );

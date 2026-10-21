@@ -336,6 +336,7 @@ export const ko = {
     noIssues: "이 목표에 등록된 티켓이 없습니다. 티켓의 '목표' 속성에서 이 목표를 고르면 여기에 모입니다.",
     openInList: "목록에서 보기",
     detailOf: (name: string) => `${name} 열기`,
+    sideLabel: "목표의 티켓과 활동",
     detailDescription: "목표의 진행 상황과 정리한 내용",
     noTarget: "목표일 없음",
     notesTitle: "정리",
