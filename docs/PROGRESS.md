@@ -20,8 +20,8 @@
 - **관리자 설정에 "백업 및 복원"이 있다** (D-112, 2026-10-13, [features/admin-backup.md](features/admin-backup.md)). 워크스페이스·로그인 연동·알림 설정과 구성원을 파일로 받고 되돌린다. 티켓·프로젝트·올린 파일은 들어가지 않는다.
 - 백엔드 테스트는 2026-10-13 기준 170개가 통과한다(`FLOWBIT_BUILD_DIR=<세션마다 다른 폴더> ./gradlew check`). 위의 "96개"는 그 전 숫자다.
 - **`V2__milestone_content.sql` 이 생겼다** (2026-10-13, D-113: `milestones.content`). 아래 줄의 "하나다"는 그 전 이야기이고, 규칙(새 변경은 새 파일)은 그대로다.
-- **마이그레이션은 `V1__schema.sql` 하나다** (D-104, 2026-10-13). 운영 배포를 앞두고 `V1`~`V6` 을 한 번 합쳤다. **이 파일은 이제 고치지 않는다. 스키마 변경은 `V2__….sql` 부터 새 파일로 추가한다.** 이 문서의 예전 작업 기록에 나오는 `V2`~`V9` 는 합치기 전 파일 번호다.
-- 개발 DB(`flowbit`)는 합치기 전 마이그레이션이 적용돼 있어 **지우고 다시 만들어야 백엔드가 뜬다**(Flyway 체크섬 불일치). 사용자가 직접 지우기로 했다. 에이전트는 지우지 않는다.
+- **마이그레이션은 `V1__schema.sql` 하나다** (D-104, 2026-10-13; **2026-10-21 에 `V1`~`V26` 을 한 번 더 합쳤다, D-168**). 첫 배포를 앞두고 합친 것이고, **이 파일은 이제 고치지 않는다. 스키마 변경은 `V2__….sql` 부터 새 파일로 추가한다.** 이 문서의 예전 작업 기록에 나오는 `V2`~`V26` 는 합치기 전 파일 번호다.
+- 개발 DB(`flowbit`)는 합치기 전 마이그레이션이 적용돼 있어 **지우고 다시 만들어야 백엔드가 뜬다**(Flyway 가 이력 불일치로 시작을 막는다). 사용자가 직접 지우기로 했다(D-168). 에이전트는 지우지 않는다.
 - **티켓의 담당자를 여러 명 둘 수 있다** (D-125, 2026-10-15). 표 `issue_assignees`, 마이그레이션 `V6__issue_assignees.sql`(기존 `issues.assignee_id` 를 옮기고 컬럼을 지운다). API 는 `assignees`(응답)·`assigneeIds`(요청). **개발 DB 에는 백엔드를 다시 띄울 때 `V6` 이 적용된다.**
 - **들어갈 수 없는 프로젝트에 접근을 요청할 수 있다** (D-128, 2026-10-15). 마이그레이션 `V7__project_access_requests.sql`.
 - **처음 로그인하면 온보딩 투어가 뜬다** (D-120, 2026-10-13, [features/onboarding-tour.md](features/onboarding-tour.md)). 예시 티켓으로 연습하고, 건너뛸 수 있고, 내 설정에서 다시 본다. 마이그레이션 `V4__user_tour.sql`. E2E 는 이제 32개다(위의 "30개"는 그 전 숫자).
@@ -41,6 +41,8 @@
 - **댓글은 태그된 사람에게만, 구독자는 바뀐 것만 알린다. 문서는 문서마다 구독한다. 검색은 프로젝트 개요·목표·문서의 본문도 찾는다. 문서 화면에 보는 사람과 "더보기"가 생겼다** (D-166, 2026-10-21, [features/content-comments.md](features/content-comments.md) "구독과 알림"·[features/search.md](features/search.md)). 마이그레이션 `V25`. D-102 의 "티켓 구독자는 댓글도 받는다"와 D-165 의 "프로젝트 구독자·스레드 참여자도 댓글을 받는다"를 바꾼 것이다. **백엔드를 다시 띄워야 적용된다. 컴파일·ktlint·타입 검사·eslint 만 했고 테스트는 돌리지 않았다. 새 백엔드로는 화면을 보지 못했다.**
 
 - **활동이 최신순이고 댓글에 답글을 달 수 있다. 올린 파일을 로컬 폴더나 Amazon S3 에 둘 수 있다** (D-167, 2026-10-21, [features/content-comments.md](features/content-comments.md) "답글과 활동의 순서"·[02-architecture.md](02-architecture.md) "파일 저장소"). 마이그레이션 `V26`(답글). S3 는 `FLOWBIT_S3_BUCKET` 등 환경 변수만 넣으면 모든 파일이 올라가고 기본은 로컬(현행)이다. **백엔드를 다시 띄워야 적용된다. 컴파일·ktlint·타입 검사·eslint 만 했고 테스트는 돌리지 않았다. S3 는 실제 AWS 로도 MinIO 로도 시험하지 못했다.**
+
+- **첫 배포 준비를 마쳤다** (D-168, 2026-10-21, [10-install.md](10-install.md)). ① 마이그레이션 `V1`~`V26` 을 `V1__schema.sql` 하나로 합쳤다(예전 26개를 차례로 적용한 DB 와 카탈로그가 같음을 확인). **지금 있는 DB 는 지우고 새로 시작해야 한다.** ② 설치 가이드 `docs/10-install.md` 와 `README.md` 를 다시 썼다. ③ 배포 전 검수에서 틀린 것을 고치고, 큰 파일을 나눴다(동작은 그대로). **확인**: 백엔드 `ktlintCheck` + 테스트 252개 통과(S3Mock 으로 S3 저장소 포함), 프런트 `lint`·`typecheck`·단위 테스트·`next build`, 운영 이미지를 빈 DB 에 띄워 기동·헬스체크·스모크(초기 설정·로그인·티켓·첨부·아바타, 로컬 저장과 S3 저장 둘 다)와 E2E(아래 작업 기록). **시험하지 못한 것: 실제 AWS S3, HTTPS 뒤의 쿠키·프록시 동작, 실제 SMTP·Firebase·GitHub 서버, 사용자의 개발 DB, 마지막에 바꾼 `entrypoint.sh` 의 JVM 옵션(힙 60%·OOM 시 종료)이 든 이미지의 기동(빌드만 했다), E2E 를 한 번에 전부 통과시킨 실행(아래).**
 
 ## 다음 작업
 
@@ -186,9 +188,23 @@
 - 사용성 점검(2026-10-13)에서 나온, 사용자가 정해야 하는 것: (①③④⑤⑥⑦ 은 D-123 으로 했다. 남은 것은 ②) ② 상태 이름 "백로그·준비됨"을 접수·처리에 맞는 말로 바꿀지 ③ "만든 사람"을 "요청자"로, 내 티켓의 첫 탭을 무엇으로 할지 ④ 사이드바에 항상 보이는 "새 티켓" 버튼(지금은 전체 프로젝트·프로젝트 개요 화면에 버튼이 없다. 거기서 `C` 키가 되는지는 보지 않았다) ⑤ 로그인 뒤 첫 화면이 전체 프로젝트인 것 ⑥ 전체 티켓 목록에서 프로젝트 칸이 좁은 폭(1024px 미만)에서 사라지고, 연결하지 않은 티켓은 빈칸인 것 ⑦ 프로젝트 개요에 그 프로젝트의 티켓 요약이 없는 것(목표의 `티켓 n/m` 뿐).
 - 데이터 보관(D-132): 아카이브된 프로젝트도 기간이 지나면 영구 삭제할지(그러면 그 안의 티켓도 함께 지울지 정해야 한다), 이 설정을 백업 파일에 넣을지, 편집기에 넣은 이미지 파일(어느 문서에서도 쓰지 않게 된 것)을 정리할지, 화면에 마지막 정리 시각과 개수를 보여 줄지.
 - Git 연동(D-141, D-145~D-147): "리뷰 중" 상태가 필요한지, 커밋을 활동에 남길지(지금은 남긴다), 가져오기 주기(2분), GitHub 를 웹훅으로 받을 때 외부에 열 주소. 명세의 "확인이 필요한 것".
+- 프로젝트로 거른 전체 티켓 목록(`/issues?project=…`, 프로젝트의 옛 "티켓" 주소가 넘어오는 곳)에서 `C`·"새 티켓"으로 만든 티켓에는 프로젝트가 붙지 않아 방금 만든 티켓이 그 목록에 안 보인다(D-135 이후). 거른 프로젝트를 기본값으로 할지 정해야 한다. 새 티켓 창의 `members`·`milestones` 가 "창을 연 프로젝트" 기준이라 `defaultProjectId` 만 바꾸면 담당자·목표 선택지가 틀어지니 함께 고쳐야 한다.
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-21 — 첫 배포 준비: 마이그레이션 하나로, 설치 가이드, 검수·모듈화·최적화 (D-168)
+
+- 사용자 요청: SQL 을 하나로 합치고(지금 DB 는 모두 지움), 설치법을 정리하고, 프로그램을 검수해 모듈화·최적화.
+- 마이그레이션: `V1`~`V26` → `V1__schema.sql` 하나(856줄). 빈 DB 에서 할 일이 없는 데이터 이동과 만들었다 지운 것은 뺐다. 실제 PostgreSQL 두 곳(옛 26개 차례로 / 합친 파일)의 열·제약·인덱스·함수·시드를 비교해 같음을 확인했다. 옛 DB 는 Flyway 가 시작을 막으므로 지우고 새로 만든다.
+- 설치: `docs/10-install.md`(새 문서), `README.md` 를 다시 썼다. `docs/README.md`·`02`·`03`·`05` 도 맞췄다.
+- 검수에서 고친 것: 오래된 Git 테스트 기대값(422, 알림 4건), `SearchIntegrationTest` 의 도우미 이름 충돌, 답글 메일 테스트(티켓 만들기 메일까지 센 것). 나누다 `ContentController.kt` 를 지워 버려 테스트 10개가 깨진 것을 테스트가 잡았고 git 에서 되살렸다. `createProjectDocument` 에 `@Transactional`.
+- 모듈화(동작 그대로): 백엔드 `IssueService` → `IssueLookup`·`IssueTagging`·`IssueCommentService`·`IssueDocumentService`·`IssueGitService`·`IssueModels`, `IssueController` → `IssueDtos`·`IssueAnnouncer`·`IssueDocumentControllers`·`IssueCommentControllers`, 콘텐츠 → `ContentCommentStore/Service`·`ContentThreadStore/Service`·`ContentDtos`·`ContentFeedService`, 알림 → `NotificationDispatcher`·`NotificationMerge`. 프런트 `issue-activity` → `activity-event`·`activity-timeline`·`subscriber-avatars`, 손으로 쓴 `useMemo` 하나 제거.
+- 단단히 한 것: Dockerfile `HEALTHCHECK`, `entrypoint.sh` 의 JVM 옵션(`MaxRAMPercentage=60`, `ExitOnOutOfMemoryError`), `push.sh` 의 `--platform linux/amd64`, `.dockerignore`(`backend/build-*`), S3 호출 시간 제한, `next.config.ts` 보안 헤더.
+- 확인: 백엔드 `ktlintCheck` + 테스트 252개 통과, 프런트 `lint`·`tsc`·단위 4개·`next build`. 운영 이미지 스모크는 위 상태 줄 참고.
+- E2E(운영 이미지 3100, 빈 DB): 전체 35개 중 31개 통과. 실패 4개는 원인을 찾아 모두 **시험 쪽** 문제였고 고친 뒤 단독으로 통과를 봤다(전체를 다시 한 번에 돌리지는 않았다): ① `settled()` 가 Windows 의 Edge·Chrome 에서 끝났다고 보고되지 않는 링크 미리 읽기 요청을 기다리며 30초 실패 — 오늘 작업과 무관(10월 19일 커밋 빌드에서도 같음). 미리 읽기 요청을 세지 않게 `e2e/support.ts` 를 고쳤다 ② `features.spec.ts` 목표 창: 댓글 칸이 생겨 `.ProseMirror` 가 둘(D-165), 목표의 "상태" 칩이 생겨 티켓 창을 못 고름(D-163), "정리 있음" 표시는 10월 15일에 없어짐 ③ `features.spec.ts` 프로젝트 설정은 관리 역할만 열린다(D-131) ④ `flows.spec.ts` 의 `C` 새 티켓은 `/project/{id}/issues` 가 전체 티켓 목록으로 넘어가게 된 뒤(D-135) 프로젝트가 안 붙는다. 투어 2개는 전체 실행 때 로그인 횟수 제한(429)에 걸리고 단독으로는 통과(예전부터 알려진 것).
+- 알아둘 것: E2E 를 위해 `BACKEND_URL=http://localhost:8081` 로 `next build` 한 것이 `frontend/.next` 에 남아 있다. **`next start` 로 띄울 일이 있으면 `BACKEND_URL` 없이 `npx next build` 를 다시 한다**(개발 서버는 영향 없음). 사용자의 개발 서버·DB·`script/.env` 는 건드리지 않았다.
+- 커밋하지 않았다(사용자가 직접 커밋한다).
 
 ### 2026-10-21 — 활동 최신순, 댓글 답글, 파일 저장소 로컬/S3 (D-167)
 

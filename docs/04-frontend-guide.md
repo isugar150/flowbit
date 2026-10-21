@@ -188,7 +188,7 @@ frontend/
 ## 테스트와 검사
 
 - 작업을 끝내기 전에 `npm run lint`, `npm run typecheck` 가 통과해야 한다.
-- **E2E (Playwright)**: `frontend/e2e/`, `npm run test:e2e`. 서버를 스스로 띄우지 않는다. 개발 데이터를 건드리지 않도록 **빈 DB 를 쓰는 별도 백엔드(8081)와 그쪽을 보는 프로덕션 빌드(3100)** 를 먼저 띄운다([PROGRESS.md](PROGRESS.md) "화면을 직접 확인하는 방법"). 주소는 `E2E_BASE_URL`(기본 `http://localhost:3100`), 브라우저는 `E2E_BROWSER_CHANNEL`(기본 `msedge`: 시스템 브라우저를 쓴다)로 바꾼다. 테스트는 빈 DB 에 자기 계정과 프로젝트를 만들고, 돌릴 때마다 새 프로젝트를 더한다.
+- **E2E (Playwright)**: `frontend/e2e/`, `npm run test:e2e`. 서버를 스스로 띄우지 않는다. 개발 데이터를 건드리지 않도록 **빈 DB 를 쓰는 별도 백엔드(8081)와 그쪽을 보는 프로덕션 빌드(3100)** 를 먼저 띄운다([PROGRESS.md](PROGRESS.md) "화면을 직접 확인하는 방법"). 주소는 `E2E_BASE_URL`(기본 `http://localhost:3100`), 브라우저는 `E2E_BROWSER_CHANNEL`(기본 `msedge`: 시스템 브라우저를 쓴다)로 바꾼다. 테스트는 빈 DB 에 자기 계정과 프로젝트를 만들고, 돌릴 때마다 새 프로젝트를 더한다. 운영 이미지(`docker build`)를 3100 에 띄워서도 돌릴 수 있다(백엔드가 이미지 안에 있으므로 `BACKEND_URL` 을 따로 줄 필요가 없다). `settled()` 는 Next.js 의 링크 미리 읽기(`Next-Router-Prefetch` 요청)를 세지 않는다: Windows 의 Edge·Chrome 에서는 그 요청이 끝났다고 보고되지 않아 `settled()` 가 30초를 기다리다 실패했다(2026-10-21).
   - `changes.spec.ts`: **변경하는 동안 화면에 무엇이 보였는지**를 본다. `recordFrames`(`e2e/support.ts`)가 그려진 프레임마다 값을 기록하고, 네트워크를 일부러 늦춰(`slowDown`) 잠깐 보였다 사라지는 상태도 잡는다. 기대값은 "예전 값 → 새 값" 두 줄이다. 값을 고르는 컨트롤을 새로 만들면 여기에 한 건 더한다.
   - `flows.spec.ts`: 만들기·수정·삭제·보기 권한·다른 사람의 변경이 실시간으로 오는 것까지, 화면에서 하는 일이 끝까지 되는지.
   - `features.spec.ts`: 목표의 상세(티켓 목록, 정리, 그 위에 티켓 열기), 프로젝트 아카이브와 복원, 다른 사람에게 보이는 하이라이트(올리기만 하면 안 뜨고 누르거나 입력하면 뜬다).

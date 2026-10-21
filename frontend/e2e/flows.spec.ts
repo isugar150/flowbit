@@ -64,7 +64,9 @@ test.afterAll(async () => {
 test("a new issue is made with C and Ctrl+Enter, and is in the list when the dialog closes", async () => {
   await newIssue("먼저 있던 티켓");
   const page = await newPage();
-  await page.goto(`/project/${project.id}/issues`);
+  // The list of all issues: the project's own address sends you to it filtered by the project (D-135), and a ticket made
+  // there does not take the filter's project, so it would not show in that list.
+  await page.goto("/issues");
   // The one button for it is in the sidebar; on a list it opens that list's dialog.
   await expect(page.getByRole("button", { name: /새 티켓/ })).toBeVisible();
   // The button is in the page as the server sent it; the shortcut works once the scripts have run.
@@ -73,11 +75,13 @@ test("a new issue is made with C and Ctrl+Enter, and is in the list when the dia
 
   await page.keyboard.press("c");
   const dialog = page.getByRole("dialog");
-  await dialog.getByRole("textbox", { name: /제목/ }).fill("단축키로 만든 티켓");
+  // The ticket is made without a project, so earlier runs' tickets of this name are in the list too.
+  const title = `단축키로 만든 티켓 ${run}`;
+  await dialog.getByRole("textbox", { name: /제목/ }).fill(title);
   await page.keyboard.press("Control+Enter");
 
   await expect(dialog).toBeHidden();
-  await expect(page.locator("li[data-presence-id^='issue-row:']").filter({ hasText: "단축키로 만든 티켓" })).toBeVisible();
+  await expect(page.locator("li[data-presence-id^='issue-row:']").filter({ hasText: title })).toBeVisible();
   noReloads();
   await page.close();
 });

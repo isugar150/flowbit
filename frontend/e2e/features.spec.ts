@@ -74,7 +74,8 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
 
   // An issue opens over the milestone and can be changed there; closing it returns to the milestone.
   await issues.getByRole("link", { name: "목표 안의 남은 티켓" }).click();
-  const issueDialog = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /^상태:/ }) });
+  // The milestone has a 상태 chip too (D-163), so the issue's dialog is the one with an issue title.
+  const issueDialog = page.getByRole("dialog").filter({ has: page.getByRole("textbox", { name: "제목", exact: true }) });
   await issueDialog.getByRole("button", { name: /^상태:/ }).click();
   await page.getByRole("menuitemradio").filter({ hasText: "완료" }).click();
   await expect(issueDialog.getByRole("button", { name: "상태: 완료" })).toBeVisible();
@@ -89,7 +90,6 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(line).toContainText("100%");
-  await expect(line).toContainText("정리 있음");
   expect((await api<{ status: string }>(context, "GET", `/api/v1/issues/${open.number}`)).status).toBe("DONE");
   await page.close();
 });

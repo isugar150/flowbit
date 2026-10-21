@@ -1,4 +1,4 @@
-import { expect, type BrowserContext, type Page, type Route } from "@playwright/test";
+import { expect, type BrowserContext, type Page, type Request, type Route } from "@playwright/test";
 
 /** The account these tests make on an empty database. It exists nowhere else. */
 export const ADMIN = { loginId: "e2e-admin", password: "e2e-password-1234" };
@@ -95,15 +95,23 @@ export async function frames(page: Page, name: string): Promise<string[]> {
 
 const inFlight = new WeakMap<Page, { count: number; quietSince: number }>();
 
-/** Counts the page's open requests from here on, for `settled`. Call it before the first change. */
+/**
+ * Counts the page's open requests from here on, for `settled`. Call it before the first change. Next.js's link
+ * prefetches (the `Next-Router-Prefetch` header) are left out: they run in the background, and some browsers never
+ * report them as finished, which would keep `settled` waiting for something that is not part of the change.
+ */
 export function trackRequests(page: Page) {
   if (inFlight.has(page)) return;
   const state = { count: 0, quietSince: Date.now() };
   inFlight.set(page, state);
-  page.on("request", () => {
+  const counted = new WeakSet<Request>();
+  page.on("request", (request) => {
+    if (request.headers()["next-router-prefetch"]) return;
+    counted.add(request);
     state.count += 1;
   });
-  const done = () => {
+  const done = (request: Request) => {
+    if (!counted.has(request)) return;
     state.count = Math.max(0, state.count - 1);
     state.quietSince = Date.now();
   };
