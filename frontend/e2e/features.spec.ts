@@ -67,7 +67,8 @@ test("a milestone line opens the milestone: its issues on the right, notes on th
   await expect(issues.getByRole("listitem").nth(1).locator("span[aria-hidden='true']").first()).toHaveCSS("width", "20px");
   await expect(issues).not.toContainText("목표 밖의 티켓");
 
-  await dialog.locator(".ProseMirror").click();
+  // The comment box under the notes is an editor too, so the notes are asked for by name.
+  await dialog.getByRole("textbox", { name: "목표 정리" }).click();
   await page.keyboard.type("QA 는 다음 주에 끝난다");
   await expect(dialog.getByText("저장됨")).toBeVisible();
 
@@ -189,8 +190,10 @@ test("only those who manage a project can archive or restore it", async ({ brows
   const editor = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
   await logIn(editor, EDITOR);
   const page = await newPage(editor);
+  // Settings are for the managers only (D-131): an editor is sent to the overview, which has no settings tab.
   await page.goto(`/project/${theirs.id}/settings`);
-  await expect(page.getByRole("textbox", { name: "이름" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/project/${theirs.id}$`));
+  await expect(page.getByRole("link", { name: "설정" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "프로젝트 아카이브" })).toHaveCount(0);
 
   await api(context, "POST", `/api/v1/projects/${theirs.id}/archive`);

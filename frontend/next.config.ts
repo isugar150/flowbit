@@ -27,6 +27,22 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // What every page says to the browser. Nobody else may put Flowbit in a frame (it embeds other sites, never the other
+  // way round), nothing is sniffed into another type, and the address of a page does not leak to other sites. The proxy in
+  // front adds Strict-Transport-Security when there is HTTPS (docs/10-install.md).
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
   // The browser only ever talks to this server; /api is handed to the backend so that
   // cookies are same-origin and no CORS setup is needed (docs/02-architecture.md).
   async rewrites() {

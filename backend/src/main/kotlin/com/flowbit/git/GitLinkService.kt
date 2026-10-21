@@ -5,7 +5,7 @@ import com.flowbit.issue.application.Actor
 import com.flowbit.issue.application.IssueActivityType
 import com.flowbit.issue.application.IssueChange
 import com.flowbit.issue.application.IssueEvent
-import com.flowbit.issue.application.IssueService
+import com.flowbit.issue.application.IssueGitService
 import com.flowbit.issue.domain.Issue
 import com.flowbit.user.application.UserService
 import kotlinx.coroutines.reactor.awaitSingle
@@ -37,7 +37,7 @@ data class GitApplyResult(
  */
 @Service
 class GitLinkService(
-    private val issueService: IssueService,
+    private val issueGit: IssueGitService,
     private val userService: UserService,
     private val githubAccounts: GitHubAccountService,
     private val projectRepositoryService: GitProjectRepositoryService,
@@ -195,8 +195,8 @@ class GitLinkService(
         actor: Actor,
         events: List<IssueEvent>,
     ) {
-        issueService.recordFromGit(issue.id, actor, events)
-        issueService.gitNotice(issue.id, actor, events)?.let { run.changes += actor to it }
+        issueGit.recordFromGit(issue.id, actor, events)
+        issueGit.gitNotice(issue.id, actor, events)?.let { run.changes += actor to it }
     }
 
     /**
@@ -210,7 +210,7 @@ class GitLinkService(
         actor: Actor,
     ) {
         val status = run.rules.target(stage) ?: return
-        val change = issueService.changeStatusFromGit(issue.id, status, GitStatusRules.movableFrom(status), actor) ?: return
+        val change = issueGit.changeStatusFromGit(issue.id, status, GitStatusRules.movableFrom(status), actor) ?: return
         run.changes += actor to change
         run.statusChanged += issue.number
     }
@@ -221,7 +221,7 @@ class GitLinkService(
         issue: Issue,
         actor: Actor,
     ) {
-        val change = issueService.addAssigneeFromGit(issue.id, actor) ?: return
+        val change = issueGit.addAssigneeFromGit(issue.id, actor) ?: return
         run.changes += actor to change
     }
 
@@ -493,7 +493,7 @@ class GitLinkService(
         ): List<Issue> {
             val chosen = projectRepositories ?: projectRepositoryService.all().also { projectRepositories = it }
             val from = GitRepositoryRef(connection.id, repository.lowercase())
-            val candidates = issueService.gitTargets(numbers.distinct())
+            val candidates = issueGit.gitTargets(numbers.distinct())
             val picked = projectRepositoryService.issueRepositories(candidates.map { it.id })
             val found =
                 candidates.filter { issue ->

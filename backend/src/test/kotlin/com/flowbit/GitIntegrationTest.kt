@@ -386,7 +386,8 @@ class GitIntegrationTest : IntegrationTest() {
         assertEquals("CANCELED", statuses(1).single())
 
         val backlog = admin.post("/api/v1/admin/git/connections", body.replace("\"CANCELED\"", "\"BACKLOG\""))
-        assertEquals(400, backlog.status)
+        // An invalid value is a validation error like any other: 422.
+        assertEquals(422, backlog.status)
         assertEquals("INVALID", fieldErrors(backlog.json())["statusRules"])
     }
 
@@ -497,19 +498,25 @@ class GitIntegrationTest : IntegrationTest() {
         received.clear()
 
         // A link and commits only: the API notification that chose them gets them, once per follower; nothing else does.
+        // Each call of the Git server is one notification of its own, sent at once (D-155): the link, then the commits,
+        // each to the two followers.
         deliver(connection, "pull_request", pullRequest(number = 50, title = "정리", body = "Refs FB-1", branch = "chore"))
         deliver(connection, "push", push("main", "FB-1 언급"))
-        dispatcher.flush(1, null)
-        awaitTrue { received.size == 2 }
+        awaitTrue { received.size == 4 }
         Thread.sleep(300)
-        assertEquals(listOf("/git", "/git"), received.map { it.first })
-        assertEquals(listOf("GIT_PR_LINKED", "GIT_COMMITS_PUSHED"), changeTypes(received.first().second))
+        assertEquals(listOf("/git", "/git", "/git", "/git"), received.map { it.first })
+        assertEquals(
+            listOf("GIT_COMMITS_PUSHED", "GIT_COMMITS_PUSHED", "GIT_PR_LINKED", "GIT_PR_LINKED"),
+            received.map { changeTypes(it.second).single() }.sorted(),
+        )
         assertTrue(
-            mapper
-                .readTree(received.first().second)
-                .get("text")
-                .asString()
-                .contains("PR 연결: web#50 정리"),
+            received.any {
+                mapper
+                    .readTree(it.second)
+                    .get("text")
+                    .asString()
+                    .contains("PR 연결: web#50 정리")
+            },
         )
         received.clear()
 

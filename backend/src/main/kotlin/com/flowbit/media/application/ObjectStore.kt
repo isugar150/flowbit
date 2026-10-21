@@ -22,6 +22,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.time.Duration
 
 /** The two kinds of thing kept: attached files as they came in, and processed images. */
 enum class StorageArea(
@@ -201,6 +202,8 @@ class S3ObjectStore(
     companion object {
         /** Region for stores that are not AWS and do not care: the SDK wants one. */
         private const val DEFAULT_REGION = "us-east-1"
+        private val API_CALL_TIMEOUT = Duration.ofSeconds(60)
+        private val API_ATTEMPT_TIMEOUT = Duration.ofSeconds(20)
 
         fun create(s3: StorageProperties.S3): S3ObjectStore {
             val builder = S3Client.builder()
@@ -221,6 +224,9 @@ class S3ObjectStore(
                     .lowercase()
                     .let { if (it.isEmpty()) s3.endpoint.isNotBlank() else it == "true" }
             builder.serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(pathStyle).build())
+            // Without limits a store that is reached but never answers holds a thread of Dispatchers.IO for minutes (the SDK's
+            // default is to wait on the socket for 30 seconds, three times). A file is at most FLOWBIT_MAX_UPLOAD_SIZE.
+            builder.overrideConfiguration { it.apiCallTimeout(API_CALL_TIMEOUT).apiCallAttemptTimeout(API_ATTEMPT_TIMEOUT) }
             return S3ObjectStore(builder.build(), s3.bucket, s3.prefix)
         }
     }

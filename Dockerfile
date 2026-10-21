@@ -85,6 +85,10 @@ ENV FLOWBIT_STORAGE_PATH=/var/lib/flowbit/uploads \
     NEXT_TELEMETRY_DISABLED=1
 VOLUME /var/lib/flowbit/uploads
 EXPOSE 3000
+# Through the frontend to the backend to the database: one request checks all three (the first start waits for the
+# database migration, so it gets a long start period). `docker ps` then says healthy or unhealthy.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 USER flowbit
 WORKDIR /app
 ENTRYPOINT ["/app/entrypoint.sh"]

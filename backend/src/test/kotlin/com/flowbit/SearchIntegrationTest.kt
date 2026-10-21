@@ -25,7 +25,7 @@ class SearchIntegrationTest : IntegrationTest() {
 
     private fun doc(vararg inline: String) = """{"type":"doc","content":[{"type":"paragraph","content":[${inline.joinToString(",")}]}]}"""
 
-    private fun text(
+    private fun piece(
         value: String,
         bold: Boolean = false,
     ) = """{"type":"text","text":"$value"${if (bold) ""","marks":[{"type":"bold"}]""" else ""}}"""
@@ -44,12 +44,12 @@ class SearchIntegrationTest : IntegrationTest() {
 
     @Test
     fun `프로젝트 개요와 목표와 문서에 쓴 본문을 찾고 낱말이 서식으로 나뉘어도 찾는다`() {
-        admin.patch("/api/v1/projects/$projectId", """{"content":${doc(text("정산 마감은 매월 말일입니다"))}}""")
+        admin.patch("/api/v1/projects/$projectId", """{"content":${doc(piece("정산 마감은 매월 말일입니다"))}}""")
         val milestone = admin.post("/api/v1/projects/$projectId/milestones", """{"name":"1차 출시"}""").json()["id"]
-        admin.patch("/api/v1/projects/$projectId/milestones/$milestone", """{"content":${doc(text("정산 화면부터 연다"))}}""")
+        admin.patch("/api/v1/projects/$projectId/milestones/$milestone", """{"content":${doc(piece("정산 화면부터 연다"))}}""")
         val document = admin.post("/api/v1/projects/$projectId/documents", """{"title":"정책 모음"}""").json()["id"]
         // The word is cut in two by a bold piece.
-        admin.patch("/api/v1/documents/$document", """{"content":${doc(text("환불"), text("정책", bold = true), text("은 열흘"))}}""")
+        admin.patch("/api/v1/documents/$document", """{"content":${doc(piece("환불"), piece("정책", bold = true), piece("은 열흘"))}}""")
 
         val settlement = found(admin, "정산")
         assertEquals(listOf<Any?>("결제 개편"), names(settlement, "projects", "name"))
@@ -62,9 +62,9 @@ class SearchIntegrationTest : IntegrationTest() {
 
     @Test
     fun `프로젝트 구성원이 아니면 프로젝트와 목표와 문서가 나오지 않는다`() {
-        admin.patch("/api/v1/projects/$projectId", """{"content":${doc(text("정산 마감은 매월 말일입니다"))}}""")
+        admin.patch("/api/v1/projects/$projectId", """{"content":${doc(piece("정산 마감은 매월 말일입니다"))}}""")
         val milestone = admin.post("/api/v1/projects/$projectId/milestones", """{"name":"정산 개편"}""").json()["id"]
-        admin.patch("/api/v1/projects/$projectId/milestones/$milestone", """{"content":${doc(text("정산"))}}""")
+        admin.patch("/api/v1/projects/$projectId/milestones/$milestone", """{"content":${doc(piece("정산"))}}""")
 
         val result = found(outsider, "정산")
 

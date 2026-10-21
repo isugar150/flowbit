@@ -4,8 +4,11 @@
 # restart policy brings both back together.
 set -u
 
-# The backend: only reached from inside the container, by the frontend.
-SERVER_PORT=8080 java -XX:MaxRAMPercentage=75 -jar /app/backend/app.jar &
+# The backend: only reached from inside the container, by the frontend. The heap may use 60% of the memory the
+# container has (its limit, else the machine's): the rest is for the JVM's own memory (class metadata, threads, direct
+# buffers) and the Node.js frontend that shares the container (about 150MB). When the heap does run out the JVM
+# exits instead of limping on, which ends the container and lets the restart policy bring it back clean.
+SERVER_PORT=8080 java -XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError -jar /app/backend/app.jar &
 BACKEND_PID=$!
 
 # The frontend: the port the container exposes. HOSTNAME is the address Next.js listens on

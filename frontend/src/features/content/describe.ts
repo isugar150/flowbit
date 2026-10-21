@@ -1,4 +1,4 @@
-import type { Described } from "@/features/issues/components/issue-activity";
+import type { Described } from "@/features/issues/components/activity-event";
 import { priorityLabel } from "@/features/issues/meta";
 import type { IssuePriority } from "@/features/issues/types";
 import { healthLabel, projectStatusLabel } from "@/features/projects/meta";

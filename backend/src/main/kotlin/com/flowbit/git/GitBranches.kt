@@ -9,7 +9,8 @@ import com.flowbit.issue.api.IssueAnnouncer
 import com.flowbit.issue.application.Actor
 import com.flowbit.issue.application.IssueActivityType
 import com.flowbit.issue.application.IssueEvent
-import com.flowbit.issue.application.IssueService
+import com.flowbit.issue.application.IssueGitService
+import com.flowbit.issue.application.IssueLookup
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.stereotype.Service
@@ -72,7 +73,8 @@ class GitBranchService(
     private val connections: GitConnectionService,
     private val catalog: GitRepositoryCatalog,
     private val projectRepositories: GitProjectRepositoryService,
-    private val issueService: IssueService,
+    private val issueGit: IssueGitService,
+    private val issueLookup: IssueLookup,
     private val links: GitLinkService,
     private val keyMatcher: IssueKeyMatcher,
     private val client: GitHubClient,
@@ -88,7 +90,7 @@ class GitBranchService(
         user: AuthenticatedUser,
         number: Int,
     ): List<GitBranchTarget> {
-        val issue = issueService.editableForGit(user, number)
+        val issue = issueGit.editableForGit(user, number)
         if (issue.projectId == null) return emptyList()
         val usable = connections.list().filter { it.enabled && (it.provider != GitProviderType.GITHUB || it.githubReady()) }.associateBy { it.id }
         val known = catalog.list(usable.keys).associateBy { GitRepositoryRef(it.connectionId, it.repository) }
@@ -140,11 +142,11 @@ class GitBranchService(
         val (defaultBranch, htmlUrl, existed) = makeOnGitHub(connection, repository, branch)
         // In a project that chose its repositories, the one the branch is in becomes the issue's, so
         // that its events reach it (D-148). Elsewhere linking the branch fills in an empty one.
-        val projectId = issueService.editableForGit(user, number).projectId
+        val projectId = issueGit.editableForGit(user, number).projectId
         if (!target.current && projectId != null && projectRepositories.all()[projectId] != null) {
-            issueService.setGitRepository(user, number, connection.id, repository)
+            issueGit.setGitRepository(user, number, connection.id, repository)
         }
-        val actor = Actor(user.id, issueService.actorName(user), mapOf("source" to "git", "provider" to connection.provider.label, "name" to user.loginId))
+        val actor = Actor(user.id, issueLookup.actorName(user), mapOf("source" to "git", "provider" to connection.provider.label, "name" to user.loginId))
         val push =
             GitPush(
                 repository = repository,
@@ -171,13 +173,13 @@ class GitBranchService(
         number: Int,
         linkId: UUID,
     ) {
-        val issue = issueService.editableForGit(user, number)
-        val actor = Actor(user.id, issueService.actorName(user))
+        val issue = issueGit.editableForGit(user, number)
+        val actor = Actor(user.id, issueLookup.actorName(user))
         transactionalOperator.executeAndAwait {
             val removed = links.unlink(issue.id, linkId)
             if (removed.isEmpty()) throw NotFoundException("GIT_LINK_NOT_FOUND", "연결된 브랜치나 PR 을 찾을 수 없습니다")
             val shown = removed.firstOrNull { it["kind"] == "PULL_REQUEST" } ?: removed.first()
-            issueService.recordFromGit(issue.id, actor, listOf(IssueEvent(IssueActivityType.GIT_UNLINKED, shown)))
+            issueGit.recordFromGit(issue.id, actor, listOf(IssueEvent(IssueActivityType.GIT_UNLINKED, shown)))
         }
         announcer.touched(user.id, number)
     }

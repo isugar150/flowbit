@@ -16,6 +16,7 @@
 | [07-skills-guide.md](07-skills-guide.md) | `agent-skills/` 의 스킬을 어떤 작업에 쓰는지 | 작업 종류가 정해졌을 때 |
 | [08-roadmap.md](08-roadmap.md) | 마일스톤 순서와 완료 기준 | 다음 할 일을 고를 때 |
 | [09-decisions.md](09-decisions.md) | 결정 기록(ADR)과 미결정 사항 | 왜 이렇게 했는지 궁금할 때, 결정을 바꿀 때 |
+| [10-install.md](10-install.md) | **설치 가이드**: DB 준비, 이미지 올리기, 서버 설치, 환경 변수, S3, HTTPS, 운영과 문제 해결 | 서버에 설치·업데이트·백업할 때 |
 | [features/](features/) | 마일스톤별 기능 명세 | 해당 기능을 구현할 때 |
 
 ## 문서 작성 규칙

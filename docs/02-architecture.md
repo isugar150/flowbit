@@ -132,7 +132,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
                                         └─▶ WebhookNotificationChannel   관리자가 정한 주소 (WebClient)
 ```
 
-- `notification/` 패키지: `Notifications.kt`(`IssueNotification`, `NotificationChannel`, `NotificationDispatcher`), `NotificationText.kt`(세 통로가 함께 쓰는 문구), `MailChannel.kt`, `PushChannel.kt`, `WebhookChannel.kt`, `NotificationSettingsService.kt`, `NotificationControllers.kt`, `NotificationData.kt`(엔티티).
+- `notification/` 패키지: `Notifications.kt`(`IssueNotification`·`ContentNotification`·`NotificationChannel`), `NotificationDispatcher.kt`(모아 보내기·바로 보내기), `NotificationMerge.kt`(모은 변경 합치기), `NotificationText.kt`(세 통로가 함께 쓰는 문구), `MailChannel.kt`, `PushChannel.kt`, `WebhookChannel.kt`, `NotificationSettingsService.kt`, `NotificationControllers.kt`, `NotificationData.kt`(엔티티).
 - **받는 사람** = 그 티켓의 구독자와 **그 티켓이 연결된 프로젝트의 구독자**(지금도 그 프로젝트에 들어갈 수 있는 사람만)를 합친 것에서 바꾼 사람 본인을 뺀 것(D-102, `IssueActivityStore.recipientIds`). 서비스가 트랜잭션 안에서 계산해 `IssueChange.recipientIds` 로 돌려준다. 받는 사람이 없으면 어느 통로로도 보내지 않는다. 세 통로 모두 받는 사람에게만 가고, API 알림도 받는 사람마다 한 번씩 부른다(구독과 무관하게 전체로 나가는 알림은 없다). **`@` 로 태그된 사람**(댓글, 티켓 본문)은 그 자리에서 구독자가 되므로 같은 계산에 들어간다(D-101). **D-166 부터 댓글과 본문의 태그 알림(`COMMENT_ADDED`·`MENTIONED`)은 `IssueChange.taggedIds`, 곧 태그된 사람에게만 가고(`NotificationDispatcher.dispatchTalk`: 모으지 않고 바로), 구독자는 나머지 변경(`recipientIds`)만 받는다.** 알리는 일은 `IssueAnnouncer.commented` 가 한다(목록은 다시 그리지 않고 그 티켓 화면만). 프로젝트·문서·목표의 알림(`ContentNotification`)도 같은 규칙이고, 문서는 `document_subscriptions`(`V25`)의 구독자에게 간다.
 - **바뀐 일** = 활동 기록과 같은 종류와 값(`IssueActivityType`, `{from,to}`).
 - 통로를 더하려면 `NotificationChannel` 을 구현한 빈을 만든다. 통로는 스스로 켜져 있는지 확인하고, 필요한 것(주소, 토큰)을 직접 찾는다.
@@ -246,6 +246,6 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 - 컨테이너는 `restart: unless-stopped` 라 서버를 재부팅해도 다시 뜬다(Docker 가 부팅 때 시작되게 되어 있으면).
 - 자주 쓰는 명령(서버의 그 폴더에서): `docker compose ps`, `docker compose logs -f`, `docker compose stop`, `docker compose start`.
 - 새 버전의 마이그레이션이 적용된 뒤 예전 버전으로 되돌리면 스키마가 앞서 있을 수 있다.
-- 개발 PC 가 ARM(Apple Silicon)이고 서버가 x86 이면 `push.sh` 의 `docker build` 에 `--platform linux/amd64` 가 필요하다(지금은 없다).
+- 개발 PC 가 ARM(Apple Silicon)이어도 `push.sh` 가 `--platform linux/amd64` 로 만든다(D-168. 예전에는 이 옵션이 없었다).
 - **nginx 를 앞에 둘 때** (`script/nginx/flowbit.conf`): 그 서버가 여러 도메인을 받거나 80 포트를 이미 nginx 가 쓰는 경우에만 필요하다. 80 포트(HTTP)만 듣고 `server_name` 의 도메인으로 온 요청을 `127.0.0.1:3000` 으로 넘긴다. `Host` 를 그대로 넘기고(실시간 연결의 Origin 확인에 필요), WebSocket 업그레이드 헤더, 본문 20MB 제한, 읽기 제한 120초를 둔다. **HTTPS 가 없으므로 웹 푸시와 앱으로 설치(PWA, D-110)는 동작하지 않는다**(브라우저가 HTTPS 나 localhost 에서만 허용한다). 세션 쿠키도 `Secure` 없이 나간다.
 - 없는 것: HTTPS, DB 백업, CI 에서 이미지 빌드. D-105 의 "서버에서 git pull 받아 프로세스로 띄우는 스크립트"는 D-106 으로 없앴다.

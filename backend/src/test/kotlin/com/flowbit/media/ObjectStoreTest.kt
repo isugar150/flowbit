@@ -20,7 +20,6 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.S3Configuration
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 import java.net.URI
 import java.nio.file.Path
@@ -77,21 +76,22 @@ class LocalObjectStoreTest {
         }
 }
 
-/** An S3-compatible store (MinIO) in a container: objects land under the prefix, and are read back and deleted (D-167). */
+/**
+ * An S3-compatible store (Adobe's S3Mock) in a container: objects land under the prefix, and are read back and deleted (D-167).
+ * (MinIO would do as well, but its images are no longer published.)
+ */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class S3ObjectStoreTest {
-    private val minio = GenericContainer(DockerImageName.parse("minio/minio:latest"))
+    private val s3mock = GenericContainer(DockerImageName.parse("adobe/s3mock:latest"))
     private lateinit var admin: S3Client
 
     @BeforeAll
     fun start() {
-        minio
-            .withEnv("MINIO_ROOT_USER", "flowbit")
-            .withEnv("MINIO_ROOT_PASSWORD", "flowbit-secret")
-            .withCommand("server", "/data")
-            .withExposedPorts(9000)
-            .waitingFor(Wait.forHttp("/minio/health/ready").forPort(9000))
-        minio.start()
+        s3mock
+            .withEnv("COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS", BUCKET)
+            .withExposedPorts(9090)
+            .waitingFor(Wait.forListeningPort())
+        s3mock.start()
         admin =
             S3Client
                 .builder()
@@ -100,16 +100,15 @@ class S3ObjectStoreTest {
                 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("flowbit", "flowbit-secret")))
                 .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
                 .build()
-        admin.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build())
     }
 
     @AfterAll
     fun stop() {
         admin.close()
-        minio.stop()
+        s3mock.stop()
     }
 
-    private fun endpoint() = "http://${minio.host}:${minio.getMappedPort(9000)}"
+    private fun endpoint() = "http://${s3mock.host}:${s3mock.getMappedPort(9090)}"
 
     private fun store(prefix: String) =
         S3ObjectStore.create(

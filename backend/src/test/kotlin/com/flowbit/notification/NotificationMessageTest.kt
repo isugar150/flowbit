@@ -1,9 +1,31 @@
 package com.flowbit.notification
 
+import com.flowbit.common.web.FlowbitProperties
+import com.flowbit.common.web.PublicUrl
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
 class NotificationMessageTest {
+    private val text = NotificationText(PublicUrl(FlowbitProperties()))
+
+    private fun comment(detail: Map<String, Any?>) =
+        IssueNotification(
+            issueKey = "FB-12",
+            issueNumber = 12,
+            issueTitle = "로그인 화면 깨짐",
+            projectId = null,
+            actorId = null,
+            actorName = "김지민",
+            events = listOf(IssueNotification.Event("COMMENT_ADDED", detail)),
+            recipientIds = emptyList(),
+        )
+
+    @Test
+    fun `답글이면 머리말이 댓글에 답글을 남겼다고 말한다`() {
+        assertEquals("김지민 님이 댓글을 남겼습니다", text.of(comment(mapOf("text" to "확인했습니다"))).headline)
+        assertEquals("김지민 님이 댓글에 답글을 남겼습니다", text.of(comment(mapOf("text" to "확인했습니다", "reply" to true))).headline)
+    }
+
     private fun message(url: String) =
         NotificationMessage(
             title = "[FB-12] 로그인 화면 깨짐",

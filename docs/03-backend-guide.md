@@ -39,11 +39,12 @@ com.flowbit
 │   ├─ domain/          UserSession, LdapSettings, SsoSettings
 │   └─ config/          SecurityConfig, SessionSecurityContextRepository
 ├─ project/           프로젝트, 프로젝트 구성원과 역할 (접근 판단은 ProjectService 가 한다)
-├─ issue/             티켓 (IssueService, 조회용 IssueQueries)
+├─ issue/             티켓 (D-168: 한 클래스였던 IssueService 를 일에 따라 나눴다. `IssueService` 티켓 만들기·고치기·지우기·목록, `IssueLookup` 누가 볼 수 있고 고칠 수 있나와 조회의 출발점, `IssueTagging` @ 태그, `IssueCommentService` 활동·댓글·답글·이모지·파일, `IssueDocumentService` 문서, `IssueGitService` Git 서버가 하는 일. 조회용 IssueQueries, 요청·결과 모양은 IssueModels)
+├─ content/           프로젝트·문서·목표·티켓 본문의 블록 댓글, 활동, 일반 댓글, 문서 구독 (D-165~D-167). 파일마다 클래스 하나: Store(저장소)·Service(규칙)·Controller·Dtos
 ├─ notification/      알림 통로(메일, 웹 푸시, API 알림)와 그 설정. 계층을 나누지 않은 작은 모듈
 ├─ setup/             초기 설정
 ├─ git/               Git 서버 연결, 들어오는 웹훅(제공자별 서명·파싱), 티켓 키 인식, 티켓에 브랜치·PR·커밋 연결 (D-141). 계층을 나누지 않은 작은 모듈
-└─ media/             이미지 변환(ImageProcessor), 파일 저장(ImageStorage), 파일 제공, 업로드 읽기
+└─ media/             이미지 변환(ImageProcessor), 파일 저장(FileStorage·ImageStorage → ObjectStore: 로컬 폴더 또는 S3, D-167), 파일 제공, 업로드 읽기
 ```
 
 모듈 안의 계층: `api`(Controller, 요청/응답 DTO) → `application`(Service, 트랜잭션 경계) → `domain`(엔티티, 규칙, Repository).
@@ -94,7 +95,7 @@ com.flowbit
 - 스키마 변경은 Flyway 마이그레이션으로만 한다 (사용자 지정, D-008).
 - 파일 위치: `backend/src/main/resources/db/migration/V<번호>__<설명>.sql`
 - **이미 배포된 마이그레이션 파일은 고치지 않는다.** 새 파일을 추가한다.
-- **`V1__schema.sql` 은 더 고치지 않는다** (D-084). 첫 운영 배포의 기준 스키마다: 개발 중의 `V1`~`V6` 을 2026-10-13 에 한 번 합쳤고(D-104), 다시 합치지 않는다. 운영 DB 에 한 번 적용된 뒤에 이 파일을 고치면 Flyway 가 체크섬 불일치로 시작을 막는다. 그 뒤의 변경은 `V2__….sql`, `V3__….sql` … 처럼 새 파일로 추가하고, 데이터가 들어 있는 DB 에 그대로 적용되게 쓴다(기본값, 기존 행 채우기).
+- **`V1__schema.sql` 은 더 고치지 않는다** (D-084). 첫 운영 배포의 기준 스키마다: 개발 중의 마이그레이션을 2026-10-13 에 한 번(D-104), **첫 배포 직전인 2026-10-21 에 `V1`~`V26` 을 한 번 더**(D-168, 그때의 DB 는 모두 지움) 합쳤고, **운영에 나간 뒤에는 다시 합치지 않는다.** 합치기 전 DB 는 Flyway 가 시작을 막으므로 지우고 새로 만든다. 운영 DB 에 한 번 적용된 뒤에 이 파일을 고치면 Flyway 가 체크섬 불일치로 시작을 막는다. 그 뒤의 변경은 `V2__….sql`, `V3__….sql` … 처럼 새 파일로 추가하고, 데이터가 들어 있는 DB 에 그대로 적용되게 쓴다(기본값, 기존 행 채우기).
 - 애플리케이션은 R2DBC(`spring.r2dbc.*`)로, Flyway 는 JDBC(`spring.flyway.*`)로 같은 DB 에 접속한다. 접속 정보를 바꿀 때 둘 다 바꾼다.
 - 엔티티와 테이블이 맞는지 자동으로 검증해 주는 장치가 없다(JPA 의 `ddl-auto=validate` 에 해당하는 것이 없음). 통합 테스트가 실제 PostgreSQL 에서 읽고 쓰는 것으로 확인한다.
 - 테이블 규칙은 [05-data-model.md](05-data-model.md).

@@ -30,7 +30,8 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 echo "=== Build $IMAGE:$VERSION ==="
-docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+# Always for x86-64 servers, also when this PC is an ARM one (Apple Silicon).
+docker build --platform linux/amd64 -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 
 echo "=== Push ==="
 docker push "$IMAGE:$VERSION"

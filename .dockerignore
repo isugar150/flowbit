@@ -11,7 +11,7 @@ script
 
 backend/.gradle
 backend/build
-backend/build-check
+backend/build-*
 backend/data
 backend/.idea
 backend/*.iml

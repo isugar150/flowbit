@@ -188,13 +188,14 @@ export function IssuesView({
       if (value === ALL) params.delete(key);
       else params.set(key, value === NONE ? NONE_PARAM : value);
     });
-  const filters = {
-    project: readFilter("project", (value) => projects.some((project) => project.id === value)),
-    status: readFilter("status", (value) => STATUS_ORDER.some((status) => status === value)),
-    priority: readFilter("priority", (value) => priorityOptions.some((option) => option.value === value)),
-    assignee: assigneeFilter ? readFilter("assignee", (value) => members.some((member) => member.userId === value)) : ALL,
-    milestone: readFilter("milestone", (value) => milestones.some((milestone) => milestone.id === value)),
-  };
+  // Each filter is a value of its own (not a field of one object made on every render), so that the list below can
+  // name exactly what it depends on.
+  const project = readFilter("project", (value) => projects.some((option) => option.id === value));
+  const status = readFilter("status", (value) => STATUS_ORDER.some((known) => known === value));
+  const priority = readFilter("priority", (value) => priorityOptions.some((option) => option.value === value));
+  const assignee = assigneeFilter ? readFilter("assignee", (value) => members.some((member) => member.userId === value)) : ALL;
+  const milestone = readFilter("milestone", (value) => milestones.some((option) => option.id === value));
+  const filters = { project, status, priority, assignee, milestone };
   // Labels are the one filter with several values at once: "?label=<id>,<id>,none".
   const labelParam = searchParams.get("label") ?? "";
   const labelFilter = useMemo(
@@ -217,28 +218,24 @@ export function IssuesView({
   // The box shows each letter at once; a long list catches up with the typing a moment later.
   const needle = useDeferredValue(search).trim().toLowerCase();
   const filtered = needle !== "" || labelFilter.length > 0 || CHIP_KEYS.some((key) => filters[key] !== ALL);
-  const { project, status, priority, assignee, milestone } = filters;
-  // Worked out again only when the issues or what narrows them changes, not on every render
-  // (a menu opening, someone else arriving on the page).
-  const issues = useMemo(() => {
-    const matches = (filter: string, value: string | null | undefined) => filter === ALL || (value ?? NONE) === filter;
-    return allIssues.filter(
-      (issue) =>
-        matches(project, issue.project?.id) &&
-        matches(status, issue.status) &&
-        // "No priority" is a priority of its own (NONE), not a missing value.
-        (priority === ALL || issue.priority === priority) &&
-        // One person is picked: the issue passes when they are one of its assignees.
-        (assignee === ALL ||
-          (assignee === NONE ? issue.assignees.length === 0 : issue.assignees.some((person) => person.id === assignee))) &&
-        (labelFilter.length === 0 ||
-          (issue.labels.length === 0
-            ? labelFilter.includes(NONE)
-            : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
-        matches(milestone, issue.milestone?.id) &&
-        (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle)),
-    );
-  }, [allIssues, project, status, priority, assignee, milestone, labelFilter, needle]);
+  // The list of issues (at most a thousand) narrowed by the filters. It is worked out on each render rather than
+  // memoized by hand: that is under a millisecond, and the hand-written dependency list could not be kept by the
+  // React Compiler lint (it reads `searchParams`, which it cannot prove is not changed later).
+  const matches = (filter: string, value: string | null | undefined) => filter === ALL || (value ?? NONE) === filter;
+  const issues = allIssues.filter(
+    (issue) =>
+      matches(project, issue.project?.id) &&
+      matches(status, issue.status) &&
+      // "No priority" is a priority of its own (NONE), not a missing value.
+      (priority === ALL || issue.priority === priority) &&
+      // One person is picked: the issue passes when they are one of its assignees.
+      (assignee === ALL ||
+        (assignee === NONE ? issue.assignees.length === 0 : issue.assignees.some((person) => person.id === assignee))) &&
+      (labelFilter.length === 0 ||
+        (issue.labels.length === 0 ? labelFilter.includes(NONE) : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
+      matches(milestone, issue.milestone?.id) &&
+      (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle)),
+  );
   const all = (label: string, icon: React.ReactNode): ChipOption<string> => ({ value: ALL, label, icon });
   const filterChips: { key: ChipKey; label: string; options: ChipOption<string>[] }[] = [
     // Inside a project every issue has that project, so the filter is only on the list of all issues.

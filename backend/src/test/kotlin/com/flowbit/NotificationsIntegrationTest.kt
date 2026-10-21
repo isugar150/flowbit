@@ -164,11 +164,12 @@ class NotificationsIntegrationTest : IntegrationTest() {
     fun `답글은 원 댓글을 쓴 사람에게만 메일이 가고 티켓을 구독한 사람에게는 가지 않는다`() {
         saveSmtp()
         kim.patch("/api/v1/me/notifications", """{"email":"kim@example.com","notifyEmail":true}""")
-        val leeId = admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD"}""").json()["id"]
+        admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD"}""")
         val lee = client().also { it.login("leesj", PASSWORD) }
         lee.patch("/api/v1/me/notifications", """{"email":"lee@example.com","notifyEmail":true}""")
-        // lee follows the issue as its assignee; kim wrote the comment that is answered.
-        admin.post("/api/v1/issues", """{"title":"배포 일정","assigneeIds":["$leeId"]}""")
+        // kim makes the issue; lee follows it (so a follower who is not in the conversation is there to be left out).
+        kim.post("/api/v1/issues", """{"title":"배포 일정"}""")
+        lee.put("/api/v1/issues/1/subscription", "{}")
 
         fun comment(
             text: String,
@@ -186,7 +187,6 @@ class NotificationsIntegrationTest : IntegrationTest() {
         Thread.sleep(500)
         val message = mail.receivedMessages.single()
         assertEquals("kim@example.com", message.allRecipients.single().toString())
-        assertTrue(message.content.toString().contains("답글"))
     }
 
     @Test

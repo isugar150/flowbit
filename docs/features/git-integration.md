@@ -264,7 +264,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
    └ GitLinkService.apply (트랜잭션)
         ├ IssueKeyMatcher 로 키 찾기 → 티켓·프로젝트가 정한 저장소에서 온 것만(D-148)
         ├ 연결·커밋 저장 (이미 있으면 갱신만: 같은 배달이 다시 와도 두 번 쌓이지 않는다)
-        ├ 상태 규칙 적용 → IssueService 의 Git 전용 경로로 상태 변경
+        ├ 상태 규칙 적용 → IssueGitService(D-168 에 IssueService 에서 나뉨)의 Git 전용 경로로 상태 변경
         └ 활동 기록 → 커밋 뒤 IssueAnnouncer (실시간 반영, 상태 변경은 알림)
 ```
 
@@ -315,7 +315,7 @@ Git 서버 ─ POST /api/v1/integrations/git/{id}/webhook ─▶ GitWebhookContr
   - `GitWebhookController`, `GitConnectionController`, `GitConnectionService`
   - `GitProvider`(인터페이스: `verify(headers, body, secret)`, `parse(headers, body): List<GitEvent>`), `GiteaProvider`, `GitLabProvider`, `GitHubProvider`. Gitea 와 GitHub 는 본문 모양이 거의 같아 파싱을 함께 쓴다.
   - `IssueKeyMatcher`(워크스페이스 키로 정규식을 만들고 키가 바뀌면 다시 만든다), `GitLinkService`
-- `IssueService` 에 사람 대신 **연결이 바꾸는 경로**를 더한다: 권한 검사 없이(어느 저장소가 닿는지는 Git 모듈이 정한다), 활동의 `actor_id`·`via` 를 받는다. 지금 `update()` 와 `IssueAnnouncer` 는 `AuthenticatedUser` 를 받으므로, 바꾼 사람을 `Actor`(사람 또는 Git) 로 넓히는 작은 리팩터링이 먼저 필요하다. 알림 문구(`NotificationText`)는 `actorName` 만 받으므로 그대로 쓴다.
+- `IssueGitService`(처음에는 `IssueService`, D-168 에 나뉨)에 사람 대신 **연결이 바꾸는 경로**를 더한다: 권한 검사 없이(어느 저장소가 닿는지는 Git 모듈이 정한다), 활동의 `actor_id`·`via` 를 받는다. 지금 `update()` 와 `IssueAnnouncer` 는 `AuthenticatedUser` 를 받으므로, 바꾼 사람을 `Actor`(사람 또는 Git) 로 넓히는 작은 리팩터링이 먼저 필요하다. 알림 문구(`NotificationText`)는 `actorName` 만 받으므로 그대로 쓴다.
 - 프런트엔드: `app/(app)/admin/git/page.tsx` 와 관리자 탭, `features/issues/` 의 옆 패널 "Git" 묶음, 활동 줄 문구, 키 메뉴의 브랜치 이름 복사.
 
 ## 구현 순서

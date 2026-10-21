@@ -4,27 +4,15 @@ import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.UuidV7
 import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.FieldError
-import com.flowbit.common.error.ForbiddenException
-import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
-import com.flowbit.common.richtext.RichTextDocument
-import com.flowbit.content.ContentEvent
-import com.flowbit.content.ContentEventType
-import com.flowbit.content.ContentLog
-import com.flowbit.content.ContentTarget
-import com.flowbit.content.ContentTargetType
 import com.flowbit.issue.domain.Issue
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueRepository
 import com.flowbit.issue.domain.IssueStatus
-import com.flowbit.media.application.FileStorage
 import com.flowbit.milestone.application.MilestoneService
 import com.flowbit.project.application.ProjectService
-import com.flowbit.project.domain.Project
-import com.flowbit.user.domain.UserRole
 import kotlinx.coroutines.reactor.awaitSingle
-import org.springframework.core.io.Resource
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -32,141 +20,19 @@ import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
 
-/** What a new issue is made from. Only the title is required. */
-data class NewIssue(
-    val title: String,
-    val description: String?,
-    /** The body as an editor document. When present, `description` is derived from it. */
-    val content: Any?,
-    val status: IssueStatus?,
-    val priority: IssuePriority?,
-    /**
-     * The people the issue is given to, in order; empty for no one. Null leaves it to the default:
-     * a sub-issue starts with its parent's assignees (D-129), any other issue with no one.
-     */
-    val assigneeIds: List<UUID>?,
-    val dueDate: LocalDate?,
-    val milestoneId: UUID? = null,
-    val labelIds: List<UUID> = emptyList(),
-    /** The project to link the issue to; null leaves it on its own. */
-    val projectId: String? = null,
-    /** Makes the new issue a sub-issue of this one. */
-    val parentId: UUID? = null,
-    /** With [dueDate], makes the issue cover a span of days. */
-    val startDate: LocalDate? = null,
-)
-
-/**
- * A partial change. A field is applied only when it was present in the request, so that
- * "not mentioned" and "set to nothing" (clearing the assignee or the due date) stay different.
- */
-class IssuePatch(
-    private val fields: Map<String, Any?>,
-) {
-    fun has(name: String): Boolean = fields.containsKey(name)
-
-    fun string(name: String): String? = fields[name] as? String
-
-    fun raw(name: String): Any? = fields[name]
-
-    fun <T : Enum<T>> enum(
-        name: String,
-        parse: (String) -> T,
-    ): T? = string(name)?.let { value -> runCatching { parse(value) }.getOrElse { throw invalid(name) } }
-
-    fun uuid(name: String): UUID? = string(name)?.let { value -> runCatching { UUID.fromString(value) }.getOrElse { throw invalid(name) } }
-
-    /** A list of ids; anything else in the field is a validation error. */
-    fun uuids(name: String): List<UUID> =
-        (fields[name] as? List<*> ?: throw invalid(name)).map { value ->
-            runCatching { UUID.fromString(value as String) }.getOrElse { throw invalid(name) }
-        }
-
-    fun date(name: String): LocalDate? = string(name)?.let { value -> runCatching { LocalDate.parse(value) }.getOrElse { throw invalid(name) } }
-
-    private fun invalid(name: String) = ValidationException(name, "INVALID", "값이 올바르지 않습니다")
-}
-
-data class IssueActivityFeed(
-    val items: List<IssueActivityView>,
-    /** Oldest first; the page mixes them into `items` by time. */
-    val comments: List<CommentView>,
-    val subscribers: List<IssuePerson>,
-    /** Whether the caller is one of the subscribers. */
-    val subscribed: Boolean,
-)
-
-/** One issue with everything its page shows. */
-data class IssueDetail(
-    val issue: IssueView,
-    /** Whether the caller may change the issue. Never for a deleted one. */
-    val canEdit: Boolean,
-    /** Whether the caller's role would let them restore the issue if it is deleted. */
-    val canRestore: Boolean,
-    /** Whether a sub-issue may be made under it: the caller may edit, and it is not at the deepest level. */
-    val canAddSubIssue: Boolean,
-    val subIssues: List<IssueView>,
-    val reactions: List<ReactionSummary>,
-    val attachments: List<AttachmentView>,
-    val documents: List<DocumentSummary>,
-    /** Branches and pull requests a Git server linked it to (D-141). */
-    val git: List<IssueGitLinkView> = emptyList(),
-    /** The repository picked on the issue (D-148); kept only while it is one of [gitRepositoryOptions]. */
-    val gitRepository: IssueGitRepositoryView? = null,
-    /** The repositories of its project that can be picked; empty for an issue on its own. */
-    val gitRepositoryOptions: List<IssueGitRepositoryView> = emptyList(),
-)
-
-/** A comment that was written or changed, with whom to tell about it. */
-data class CommentResult(
-    val comment: CommentView,
-    val change: IssueChange,
-)
-
-/** The emoji left on a comment or an entry of the history after a press, and the issue it is on. */
-data class EntryReactions(
-    val issueNumber: Int,
-    val reactions: List<ReactionSummary>,
-)
-
-/** A document with what its page needs to know about the issue or the project it belongs to. */
-data class DocumentDetail(
-    val document: DocumentSummary,
-    /** Raw editor JSON, or null while the document is empty. */
-    val content: String?,
-    val issue: IssueView?,
-    val project: IssueProject?,
-    val canEdit: Boolean,
-    /** The documents it sits inside, the outermost first. */
-    val ancestors: List<DocumentSummary>,
-    /** The documents inside it. */
-    val children: List<DocumentSummary>,
-    /** Whether a document may be made inside it: the caller may edit, and it is not at the deepest level. */
-    val canAddChild: Boolean,
-    /** Whether the caller may bring this deleted document back. */
-    val canRestore: Boolean = false,
-)
-
-/** What a document belonged to: an issue (by number) or a project (by id). */
-data class DocumentOwner(
-    val issueNumber: Int?,
-    val projectId: UUID?,
-)
-
-/** An attached file ready to be sent. */
-data class AttachmentFile(
-    val attachment: AttachmentView,
-    val resource: Resource,
-)
-
 /**
  * Issues. An issue stands on its own and may be linked to a project. Linked, it follows that
  * project's access rules (only people who may enter the project see it, and the view-only role
  * cannot change it); linked to none, every signed-in person may see and change it.
- * An issue the caller may not see is reported as "not found".
+ * An issue the caller may not see is reported as "not found". Its comments, files and documents, and what a Git
+ * server does to it, are the work of [IssueCommentService], [IssueDocumentService] and [IssueGitService]; who may
+ * see and change it is [IssueLookup]'s.
  */
 @Service
 class IssueService(
+    private val lookup: IssueLookup,
+    private val tagging: IssueTagging,
+    private val git: IssueGitService,
     private val projectService: ProjectService,
     private val repository: IssueRepository,
     private val queries: IssueQueries,
@@ -175,9 +41,6 @@ class IssueService(
     private val milestoneService: MilestoneService,
     private val activities: IssueActivityStore,
     private val extras: IssueExtrasStore,
-    private val comments: IssueCommentStore,
-    private val fileStorage: FileStorage,
-    private val contentLog: ContentLog,
     private val clock: Clock,
 ) {
     /**
@@ -188,14 +51,14 @@ class IssueService(
         user: AuthenticatedUser,
         projectId: String?,
         deleted: Boolean = false,
-    ): List<IssueView> = queries.list(viewer(user), projectId?.let { projectService.access(user, it).project.id }, deleted)
+    ): List<IssueView> = queries.list(lookup.viewer(user), projectId?.let { projectService.access(user, it).project.id }, deleted)
 
     /** The caller's own issues ("내 티켓"). */
     suspend fun mine(
         user: AuthenticatedUser,
         scope: MyIssueScope,
         deleted: Boolean = false,
-    ): List<IssueView> = queries.listForUser(viewer(user), scope, deleted)
+    ): List<IssueView> = queries.listForUser(lookup.viewer(user), scope, deleted)
 
     /**
      * Deletes an issue: it leaves the lists but can still be opened, read-only, with its history,
@@ -218,8 +81,8 @@ class IssueService(
         number: Int,
         deleted: Boolean,
     ): IssueChange {
-        val access = access(user, number)
-        if (!access.mayEdit) throw noEditRight()
+        val access = lookup.access(user, number)
+        if (!access.mayEdit) throw lookup.noEditRight()
         val issue = access.issue
         val type = if (deleted) IssueActivityType.DELETED else IssueActivityType.RESTORED
         // Deleting what is already deleted (or restoring what is in use) changes nothing.
@@ -233,26 +96,26 @@ class IssueService(
             repository.save(issue)
             activities.record(issue.id, user.id, events, now)
         }
-        return IssueChange(checkNotNull(detail(number)), events, recipients(issue.id, user))
+        return IssueChange(checkNotNull(lookup.detail(number)), events, lookup.recipients(issue.id, user))
     }
 
     suspend fun get(
         user: AuthenticatedUser,
         number: Int,
     ): IssueDetail {
-        val access = access(user, number)
+        val access = lookup.access(user, number)
         val id = access.issue.id
         return IssueDetail(
-            issue = checkNotNull(detail(number)),
+            issue = checkNotNull(lookup.detail(number)),
             canEdit = access.canEdit,
             canRestore = access.mayEdit,
             canAddSubIssue = access.canEdit && depthOf(access.issue) < MAX_SUB_ISSUE_DEPTH,
-            subIssues = queries.subIssues(viewer(user), id),
+            subIssues = queries.subIssues(lookup.viewer(user), id),
             reactions = extras.reactions(id, user.id),
             attachments = extras.attachments(id),
             documents = extras.documents(id),
             git = extras.gitLinks(id),
-            gitRepository = gitRepositoryOf(access.issue),
+            gitRepository = git.gitRepositoryOf(access.issue),
             gitRepositoryOptions =
                 access.issue.projectId
                     ?.let { extras.projectGitRepositories(it) }
@@ -264,13 +127,13 @@ class IssueService(
     suspend fun canRead(
         user: AuthenticatedUser,
         number: Int,
-    ): Boolean = repository.findByNumber(number)?.let { accessOf(user, it) } != null
+    ): Boolean = repository.findByNumber(number)?.let { lookup.accessOf(user, it) } != null
 
     /** The project an issue the caller may see is linked to; null when it is linked to none. */
     suspend fun projectIdOf(
         user: AuthenticatedUser,
         number: Int,
-    ): UUID? = access(user, number).issue.projectId
+    ): UUID? = lookup.access(user, number).issue.projectId
 
     @Transactional
     suspend fun create(
@@ -282,9 +145,9 @@ class IssueService(
         // the request says about them is not used.
         val project =
             if (parent != null) {
-                parent.projectId?.let { editableProjectById(user, it) }
+                parent.projectId?.let { lookup.editableProjectById(user, it) }
             } else {
-                input.projectId?.let { editableProject(user, it) }
+                input.projectId?.let { lookup.editableProject(user, it) }
             }
         val milestoneId = if (parent != null) parent.milestoneId else input.milestoneId
         val title = input.title.trim()
@@ -329,8 +192,18 @@ class IssueService(
         // The author and the assignees follow the issue from the start.
         activities.subscribe(issue.id, user.id)
         assigneeIds.forEach { activities.subscribe(issue.id, it) }
-        val tagged = tag(issue, document?.mentions.orEmpty(), user)
-        return IssueChange(checkNotNull(detail(issue.number)), events + mentionEvents(tagged), recipients(issue.id, user), taggedIds = tagged.map { it.first })
+        val tagged = tagging.tag(issue, document?.mentions.orEmpty(), user)
+        return IssueChange(
+            checkNotNull(
+                lookup.detail(issue.number),
+            ),
+            events + tagging.mentionEvents(tagged),
+            lookup.recipients(issue.id, user),
+            taggedIds =
+                tagged.map {
+                    it.first
+                },
+        )
     }
 
     @Transactional
@@ -339,8 +212,8 @@ class IssueService(
         number: Int,
         patch: IssuePatch,
     ): IssueChange {
-        val issue = editable(access(user, number)).issue
-        val before = queries.find(number) ?: throw notFound()
+        val issue = lookup.editable(lookup.access(user, number)).issue
+        val before = queries.find(number) ?: throw lookup.notFound()
         val oldProjectId = issue.projectId
         val oldMilestoneId = issue.milestoneId
 
@@ -369,12 +242,12 @@ class IssueService(
             val otherMilestone = patch.has("milestoneId") && patch.uuid("milestoneId") != parent.milestoneId
             if (otherProject || otherMilestone) throw ConflictException("FOLLOWS_PARENT", "하위 티켓의 프로젝트와 목표는 상위 티켓을 따릅니다")
             // Put under an issue of another project: it moves there, which needs the right to edit there.
-            if (parent.projectId != issue.projectId) parent.projectId?.let { editableProjectById(user, it) }
+            if (parent.projectId != issue.projectId) parent.projectId?.let { lookup.editableProjectById(user, it) }
             issue.projectId = parent.projectId
             issue.milestoneId = parent.milestoneId
         } else {
             if (patch.has("projectId")) {
-                val projectId = patch.string("projectId")?.let { editableProject(user, it).id }
+                val projectId = patch.string("projectId")?.let { lookup.editableProject(user, it).id }
                 if (projectId != issue.projectId) {
                     issue.projectId = projectId
                     // A milestone belongs to one project; it cannot follow the issue to another.
@@ -399,18 +272,18 @@ class IssueService(
         val newMentions =
             document?.mentions?.takeIf { it.isNotEmpty() }?.let { it - richText.mentionsIn(richText.load(RichText.ContentTable.ISSUES, issue.id)) }
         if (patch.has("content")) richText.store(RichText.ContentTable.ISSUES, issue.id, document)
-        val after = checkNotNull(detail(number))
+        val after = checkNotNull(lookup.detail(number))
         val recorded = activities.diff(before, after)
         activities.record(issue.id, user.id, recorded, issue.updatedAt)
-        val tagged = tag(issue, newMentions.orEmpty(), user)
-        val events = recorded + mentionEvents(tagged)
+        val tagged = tagging.tag(issue, newMentions.orEmpty(), user)
+        val events = recorded + tagging.mentionEvents(tagged)
         // Whoever is given the issue follows it from then on.
         after.assignees.filter { person -> before.assignees.none { it.id == person.id } }.forEach { activities.subscribe(issue.id, it.id) }
         if (issue.projectId != oldProjectId || issue.milestoneId != oldMilestoneId) moveSubIssuesAlong(user, issue, 0)
         return IssueChange(
             after,
             events,
-            recipients(issue.id, user),
+            lookup.recipients(issue.id, user),
             listOfNotNull(before.project?.id, after.project?.id).distinct(),
             tagged.map { it.first },
         )
@@ -440,735 +313,6 @@ class IssueService(
         }
     }
 
-    /** The history of an issue with who follows it. Anyone who may see the issue can read it. */
-    suspend fun activity(
-        user: AuthenticatedUser,
-        number: Int,
-    ): IssueActivityFeed {
-        val access = access(user, number)
-        val issue = access.issue
-        val subscribers = activities.subscribers(issue.id)
-        val commentReactions = extras.commentReactions(issue.id, user.id)
-        val commentFiles = extras.commentAttachments(issue.id)
-        val entryReactions = extras.activityReactions(issue.id, user.id)
-        val shown =
-            comments.list(issue.id).map {
-                // A deleted comment kept for its replies shows no emoji or files (D-167).
-                if (it.deleted) {
-                    it
-                } else {
-                    it.withRights(user, access).copy(reactions = commentReactions[it.id].orEmpty(), attachments = commentFiles[it.id].orEmpty())
-                }
-            }
-        val items = activities.list(issue.id).map { it.copy(reactions = entryReactions[it.id].orEmpty()) }
-        return IssueActivityFeed(items, shown, subscribers, subscribers.any { it.id == user.id })
-    }
-
-    /**
-     * Writes a comment on an issue; needs the right to edit it. The author and the people tagged
-     * in it with @ follow the issue from then on, and the people tagged are told. `attachmentIds` are
-     * files the caller uploaded for the comment ([attachToDraft]); with files, the text may be empty.
-     *
-     * With `parentId` it is a reply to that comment (D-167): one level, so the comment must be one of
-     * the issue's own and not itself a reply. The author of the comment and whoever else has replied to
-     * it are told as well as the people tagged, and nobody else (the subscribers are not).
-     */
-    @Transactional
-    suspend fun addComment(
-        user: AuthenticatedUser,
-        number: Int,
-        content: Any?,
-        attachmentIds: List<UUID> = emptyList(),
-        parentId: UUID? = null,
-    ): CommentResult {
-        val access = editable(access(user, number))
-        val issue = access.issue
-        val parent = parentId?.let { parentComment(issue, it) }
-        val files = pendingFiles(issue, user, attachmentIds)
-        val document = commentDocument(content, hasFiles = files.isNotEmpty())
-        val now = clock.instant()
-        val id = comments.add(issue.id, user.id, document, now, parent?.id)
-        extras.attachToComment(id, files.map { it.id })
-        activities.subscribe(issue.id, user.id)
-        val tagged = tag(issue, document.mentions, user)
-        val conversation = if (parent == null) emptyList() else inConversation(issue, parent, user)
-        val comment = checkNotNull(comments.find(id)).withRights(user, access).withExtras(user)
-        val change =
-            IssueChange(
-                checkNotNull(queries.find(number)),
-                listOf(commentEvent(document, tagged, files, reply = parent != null)),
-                recipients(issue.id, user),
-                taggedIds = (tagged.map { it.first } + conversation).distinct(),
-            )
-        return CommentResult(comment, change)
-    }
-
-    /** The comment a reply goes to: one of this issue's, not deleted, and not a reply itself. */
-    private suspend fun parentComment(
-        issue: Issue,
-        parentId: UUID,
-    ): CommentView {
-        val parent = comments.find(parentId)?.takeIf { it.issueId == issue.id } ?: throw commentNotFound()
-        if (parent.parentId != null) throw ValidationException("parentId", "INVALID", "답글에는 답글을 달 수 없습니다")
-        return parent
-    }
-
-    /** The author of the comment and the others who have replied to it, other than the person writing, who may still see the issue. */
-    private suspend fun inConversation(
-        issue: Issue,
-        parent: CommentView,
-        actor: AuthenticatedUser,
-    ): List<UUID> =
-        (listOf(parent.author.id) + comments.replyAuthors(parent.id))
-            .distinct()
-            .filter { it != actor.id && canSee(issue, it) }
-
-    private suspend fun canSee(
-        issue: Issue,
-        userId: UUID,
-    ): Boolean = issue.projectId?.let { queries.isProjectMember(it, userId) } ?: queries.isActiveUser(userId)
-
-    /**
-     * Only its author may change a comment. People newly tagged by the change are told; nobody else is told again.
-     * `attachmentIds`, when given, is the whole set of files the comment has afterwards: the ones
-     * of it that are left out are removed, new ones are files the caller uploaded for it.
-     */
-    @Transactional
-    suspend fun updateComment(
-        user: AuthenticatedUser,
-        commentId: UUID,
-        content: Any?,
-        attachmentIds: List<UUID>? = null,
-    ): CommentResult {
-        val existing = comments.find(commentId) ?: throw commentNotFound()
-        val access = editable(accessById(user, existing.issueId))
-        if (existing.author.id != user.id) throw ForbiddenException("다른 사람의 댓글은 수정할 수 없습니다")
-        val current = extras.commentAttachmentsOf(commentId)
-        val keptIds = attachmentIds?.distinct() ?: current.map { it.id }
-        val added = pendingFiles(access.issue, user, keptIds.filter { id -> current.none { it.id == id } }, total = keptIds.size)
-        val removed = current.filter { it.id !in keptIds }
-        val document = commentDocument(content, hasFiles = keptIds.isNotEmpty())
-        comments.update(commentId, document, clock.instant())
-        extras.attachToComment(commentId, added.map { it.id })
-        removed.forEach { extras.deleteAttachment(it.id) }
-        removed.forEach { fileStorage.delete(it.fileKey) }
-        val tagged = tag(access.issue, document.mentions - richText.mentionsIn(existing.content), user)
-        val comment = checkNotNull(comments.find(commentId)).withRights(user, access).withExtras(user)
-        val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged, comment.attachments, reply = existing.parentId != null))
-        return CommentResult(
-            comment,
-            IssueChange(checkNotNull(queries.find(access.issue.number)), events, emptyList(), taggedIds = tagged.map { it.first }),
-        )
-    }
-
-    /**
-     * The files `user` uploaded for a comment on `issue` and has not sent, for the ids given.
-     * `total` is how many files the comment will have in all (default: these).
-     */
-    private suspend fun pendingFiles(
-        issue: Issue,
-        user: AuthenticatedUser,
-        ids: List<UUID>,
-        total: Int = ids.size,
-    ): List<AttachmentView> {
-        if (total > MAX_COMMENT_FILES) throw ValidationException("attachmentIds", "TOO_MANY", "파일은 댓글마다 ${MAX_COMMENT_FILES}개까지 붙일 수 있습니다")
-        return ids.distinct().map { id ->
-            extras.findAttachment(id)?.takeIf { it.issueId == issue.id && it.pending && it.uploadedBy == user.id }
-                ?: throw ValidationException("attachmentIds", "INVALID", "올린 파일을 찾을 수 없습니다. 다시 올려 주세요")
-        }
-    }
-
-    /** The emoji and files of a comment, as the page shows them. */
-    private suspend fun CommentView.withExtras(user: AuthenticatedUser): CommentView =
-        copy(reactions = extras.commentReactionsOf(id, user.id), attachments = extras.commentAttachmentsOf(id))
-
-    /** Its author or a workspace admin may delete a comment. Returns the number of the issue it was on. */
-    @Transactional
-    suspend fun removeComment(
-        user: AuthenticatedUser,
-        commentId: UUID,
-    ): Int {
-        val existing = comments.find(commentId) ?: throw commentNotFound()
-        val access = editable(accessById(user, existing.issueId))
-        if (existing.author.id != user.id && user.role != UserRole.ADMIN) throw ForbiddenException("다른 사람의 댓글은 지울 수 없습니다")
-        comments.delete(commentId, clock.instant())
-        return access.issue.number
-    }
-
-    private fun CommentView.withRights(
-        user: AuthenticatedUser,
-        access: IssueAccess,
-    ): CommentView {
-        val mine = author.id == user.id
-        return copy(canEdit = access.canEdit && mine, canDelete = access.canEdit && (mine || user.role == UserRole.ADMIN))
-    }
-
-    private fun commentDocument(
-        content: Any?,
-        hasFiles: Boolean,
-    ): RichTextDocument {
-        val document = content?.let { richText.parse(it) }
-        // A picture alone is a comment too, and so are files alone (D-164).
-        if (document == null) return if (hasFiles) EMPTY_COMMENT else throw commentRequired()
-        if (!hasFiles && document.plainText.isBlank() && "\"image\"" !in document.json) throw commentRequired()
-        return document
-    }
-
-    private fun commentRequired() = ValidationException("content", "REQUIRED", "댓글 내용을 입력하세요")
-
-    /** A comment made of files alone is announced by their names. */
-    private fun commentEvent(
-        document: RichTextDocument,
-        tagged: List<Pair<UUID, String>>,
-        files: List<AttachmentView>,
-        reply: Boolean = false,
-    ) = IssueEvent(
-        IssueActivityType.COMMENT_ADDED,
-        mapOf(
-            "text" to document.plainText.ifBlank { files.joinToString(", ") { it.fileName } }.take(COMMENT_PREVIEW_LENGTH),
-            "mentions" to tagged.map { it.second },
-        ) + (if (reply) mapOf("reply" to true) else emptyMap()),
-    )
-
-    private fun mentionEvents(tagged: List<Pair<UUID, String>>): List<IssueEvent> =
-        if (tagged.isEmpty()) emptyList() else listOf(IssueEvent(IssueActivityType.MENTIONED, mapOf("mentions" to tagged.map { it.second })))
-
-    /**
-     * Makes the people tagged with @ follow the issue, so the notification about it reaches them
-     * through every channel they have set up. Only people who could be given the issue count
-     * (members of its project, or anyone active for an issue on its own); tagging oneself does
-     * nothing. Returns who was tagged, with their names as of now.
-     */
-    private suspend fun tag(
-        issue: Issue,
-        userIds: Collection<UUID>,
-        actor: AuthenticatedUser,
-    ): List<Pair<UUID, String>> =
-        userIds.filter { it != actor.id }.mapNotNull { userId ->
-            if (!canSee(issue, userId)) return@mapNotNull null
-            activities.subscribe(issue.id, userId)
-            userId to activities.displayName(userId)
-        }
-
-    /** Follow or stop following an issue. Open to everyone who can see it, the view-only role included. */
-    suspend fun setSubscribed(
-        user: AuthenticatedUser,
-        number: Int,
-        subscribed: Boolean,
-    ): IssueActivityFeed {
-        val issue = access(user, number).issue
-        if (subscribed) activities.subscribe(issue.id, user.id) else activities.unsubscribe(issue.id, user.id)
-        return activity(user, number)
-    }
-
-    /** Adds the caller's emoji to the issue or takes it back. Open to everyone who can see the issue. */
-    suspend fun toggleReaction(
-        user: AuthenticatedUser,
-        number: Int,
-        emoji: String,
-    ): List<ReactionSummary> {
-        requireReaction(emoji)
-        val issue = access(user, number).issue
-        extras.toggleReaction(issue.id, user.id, emoji)
-        return extras.reactions(issue.id, user.id)
-    }
-
-    /** Adds the caller's emoji to a comment or takes it back (D-164). Open to everyone who can see the issue. */
-    suspend fun toggleCommentReaction(
-        user: AuthenticatedUser,
-        commentId: UUID,
-        emoji: String,
-    ): EntryReactions {
-        requireReaction(emoji)
-        val comment = comments.find(commentId) ?: throw commentNotFound()
-        val issue = reactable(accessById(user, comment.issueId))
-        extras.toggleCommentReaction(commentId, user.id, emoji)
-        return EntryReactions(issue.number, extras.commentReactionsOf(commentId, user.id))
-    }
-
-    /** Adds the caller's emoji to an entry of the issue's history or takes it back (D-164). */
-    suspend fun toggleActivityReaction(
-        user: AuthenticatedUser,
-        activityId: UUID,
-        emoji: String,
-    ): EntryReactions {
-        requireReaction(emoji)
-        val issueId = activities.issueIdOf(activityId) ?: throw NotFoundException("ACTIVITY_NOT_FOUND", "활동 기록을 찾을 수 없습니다")
-        val issue = reactable(accessById(user, issueId))
-        extras.toggleActivityReaction(activityId, user.id, emoji)
-        return EntryReactions(issue.number, extras.activityReactionsOf(activityId, user.id))
-    }
-
-    private fun requireReaction(emoji: String) {
-        if (emoji !in REACTIONS) throw ValidationException("emoji", "INVALID", "쓸 수 없는 이모지입니다")
-    }
-
-    private fun reactable(access: IssueAccess): Issue {
-        if (access.issue.deletedAt != null) throw ForbiddenException("삭제된 티켓에는 이모지를 달 수 없습니다")
-        return access.issue
-    }
-
-    @Transactional
-    suspend fun attach(
-        user: AuthenticatedUser,
-        number: Int,
-        rawFileName: String,
-        bytes: ByteArray,
-    ): AttachmentView {
-        val issue = editable(access(user, number)).issue
-        val fileName = fileNameOf(rawFileName)
-        val now = clock.instant()
-        val attachment = extras.addAttachment(issue.id, fileStorage.store(bytes), fileName, bytes.size.toLong(), user.id, now)
-        activities.record(issue.id, user.id, listOf(IssueEvent(IssueActivityType.ATTACHMENT_ADDED, mapOf("to" to fileName))), now)
-        return attachment
-    }
-
-    /**
-     * Stores a file for a comment that is being written (D-164). It belongs to no comment and shows
-     * nowhere until the comment is sent with its id; one never sent is removed after a day.
-     */
-    suspend fun attachToDraft(
-        user: AuthenticatedUser,
-        number: Int,
-        rawFileName: String,
-        bytes: ByteArray,
-    ): AttachmentView {
-        val issue = editable(access(user, number)).issue
-        return extras.addAttachment(issue.id, fileStorage.store(bytes), fileNameOf(rawFileName), bytes.size.toLong(), user.id, clock.instant(), pending = true)
-    }
-
-    /** Keeps only the last path segment and no control characters: the name is shown and sent back in a header. */
-    private fun fileNameOf(raw: String): String =
-        raw
-            .substringAfterLast('/')
-            .substringAfterLast('\\')
-            .filterNot { it.isISOControl() }
-            .trim()
-            .take(FILE_NAME_MAX_LENGTH)
-            .ifEmpty { "file" }
-
-    /** The file of an attachment, for someone who may see its issue. */
-    suspend fun attachmentFile(
-        user: AuthenticatedUser,
-        attachmentId: UUID,
-    ): AttachmentFile {
-        val attachment = extras.findAttachment(attachmentId) ?: throw notFound()
-        accessById(user, attachment.issueId)
-        // A file not yet sent is its uploader's alone; one on a deleted comment goes with the comment.
-        if (attachment.pending && attachment.uploadedBy != user.id) throw notFound()
-        if (attachment.commentId != null && comments.find(attachment.commentId) == null) throw notFound()
-        val resource = fileStorage.find(attachment.fileKey) ?: throw notFound()
-        return AttachmentFile(attachment, resource)
-    }
-
-    /** Returns the number of the issue the attachment was on. */
-    @Transactional
-    suspend fun removeAttachment(
-        user: AuthenticatedUser,
-        attachmentId: UUID,
-    ): Int {
-        val attachment = extras.findAttachment(attachmentId) ?: throw notFound()
-        if (attachment.pending) {
-            // Taking back a file chosen for a comment that was never sent: nothing to record.
-            if (attachment.uploadedBy != user.id) throw notFound()
-            val number = accessById(user, attachment.issueId).issue.number
-            extras.deleteAttachment(attachment.id)
-            fileStorage.delete(attachment.fileKey)
-            return number
-        }
-        if (attachment.commentId != null) throw ForbiddenException("댓글에 붙은 파일은 댓글을 수정해서 지우세요")
-        val issue = editable(accessById(user, attachment.issueId)).issue
-        extras.deleteAttachment(attachment.id)
-        fileStorage.delete(attachment.fileKey)
-        val event = IssueEvent(IssueActivityType.ATTACHMENT_REMOVED, mapOf("from" to attachment.fileName))
-        activities.record(issue.id, user.id, listOf(event), clock.instant())
-        return issue.number
-    }
-
-    @Transactional
-    suspend fun createDocument(
-        user: AuthenticatedUser,
-        number: Int,
-        rawTitle: String?,
-    ): DocumentSummary {
-        val issue = editable(access(user, number)).issue
-        val title = documentTitle(rawTitle.orEmpty())
-        val now = clock.instant()
-        val document = extras.addDocument(issue.id, null, null, title, user.id, now)
-        activities.record(issue.id, user.id, listOf(IssueEvent(IssueActivityType.DOCUMENT_ADDED, mapOf("to" to title))), now)
-        return document
-    }
-
-    /** A document of a project, made from its overview. Needs the right to edit in the project. */
-    suspend fun createProjectDocument(
-        user: AuthenticatedUser,
-        projectId: String,
-        rawTitle: String?,
-    ): DocumentSummary {
-        val project = editableProject(user, projectId)
-        val title = documentTitle(rawTitle.orEmpty())
-        val now = clock.instant()
-        val document = extras.addDocument(null, project.id, null, title, user.id, now)
-        // A document made on the overview is a line of the project's activity (D-165).
-        contentLog.record(
-            ContentTarget(ContentTargetType.PROJECT, project.id),
-            user.id,
-            listOf(
-                ContentEvent(
-                    ContentEventType.DOCUMENT_ADDED,
-                    mapOf(
-                        "to" to title,
-                    ),
-                ),
-            ),
-            now,
-        )
-        return document
-    }
-
-    /**
-     * A document inside another one. Only a project's documents nest, and only
-     * [MAX_DOCUMENT_DEPTH] levels deep; an issue's documents stay one level.
-     */
-    @Transactional
-    suspend fun createChildDocument(
-        user: AuthenticatedUser,
-        parentId: UUID,
-        rawTitle: String?,
-    ): DocumentSummary {
-        val parent = extras.findDocument(parentId) ?: throw notFound()
-        if (!ownerOf(user, parent).canEdit || parent.deletedAt != null) throw noEditRight()
-        if (parent.issueId != null) throw ConflictException("DOCUMENT_TOO_DEEP", "티켓의 문서 안에는 문서를 만들 수 없습니다")
-        if (extras.documentAncestors(parent.id).size + 1 >= MAX_DOCUMENT_DEPTH) {
-            throw ConflictException("DOCUMENT_TOO_DEEP", "문서는 ${MAX_DOCUMENT_DEPTH}단계까지만 만들 수 있습니다")
-        }
-        val title = documentTitle(rawTitle.orEmpty())
-        val now = clock.instant()
-        val child = extras.addDocument(null, parent.projectId, parent.id, title, user.id, now)
-        // One inside another is a line of the activity of the one it is in.
-        contentLog.record(
-            ContentTarget(ContentTargetType.DOCUMENT, parent.id),
-            user.id,
-            listOf(
-                ContentEvent(
-                    ContentEventType.DOCUMENT_ADDED,
-                    mapOf(
-                        "to" to title,
-                    ),
-                ),
-            ),
-            now,
-        )
-        return child
-    }
-
-    suspend fun projectDocuments(
-        user: AuthenticatedUser,
-        projectId: String,
-        deleted: Boolean = false,
-    ): List<DocumentSummary> {
-        val id = projectService.access(user, projectId).project.id
-        return if (deleted) extras.deletedProjectDocuments(id) else extras.projectDocuments(id)
-    }
-
-    /** The deleted documents of an issue; the ones in use come with the issue itself. */
-    suspend fun deletedDocuments(
-        user: AuthenticatedUser,
-        number: Int,
-    ): List<DocumentSummary> = extras.deletedDocuments(access(user, number).issue.id)
-
-    suspend fun document(
-        user: AuthenticatedUser,
-        documentId: UUID,
-    ): DocumentDetail {
-        val document = extras.findDocument(documentId) ?: throw notFound()
-        val owner = ownerOf(user, document)
-        val ancestors = extras.documentAncestors(document.id)
-        return DocumentDetail(
-            document = document,
-            content = richText.load(RichText.ContentTable.DOCUMENTS, document.id),
-            issue = owner.issue?.let { checkNotNull(queries.find(it.number)) },
-            project = owner.project?.let { IssueProject(it.id, it.name) },
-            // A deleted document is read-only until it is restored.
-            canEdit = owner.canEdit && document.deletedAt == null,
-            ancestors = ancestors,
-            children = extras.childDocuments(document.id),
-            canAddChild =
-                owner.canEdit && document.deletedAt == null && document.issueId == null && ancestors.size + 1 < MAX_DOCUMENT_DEPTH,
-            canRestore = owner.canEdit && document.deletedAt != null,
-        )
-    }
-
-    /** `title` and `content` change only when present in the patch; a null `content` empties the document. */
-    @Transactional
-    suspend fun updateDocument(
-        user: AuthenticatedUser,
-        documentId: UUID,
-        patch: IssuePatch,
-    ): DocumentDetail {
-        val document = extras.findDocument(documentId) ?: throw notFound()
-        if (!ownerOf(user, document).canEdit || document.deletedAt != null) throw noEditRight()
-        val title = if (patch.has("title")) documentTitle(patch.string("title").orEmpty()) else null
-        var contentChanged = false
-        if (patch.has("content")) {
-            // A document is a page whose blocks can be commented on: every top-level block has a number (D-165).
-            val parsed = patch.raw("content")?.let { richText.parse(it, blockIds = true) }
-            contentChanged = !richText.same(richText.load(RichText.ContentTable.DOCUMENTS, document.id), parsed)
-            richText.store(RichText.ContentTable.DOCUMENTS, document.id, parsed)
-        }
-        val now = clock.instant()
-        extras.touchDocument(document.id, title, now)
-        val events = mutableListOf<ContentEvent>()
-        if (title != null && title != document.title) {
-            events += ContentEvent(ContentEventType.NAME_CHANGED, mapOf("from" to document.title, "to" to title))
-        }
-        if (contentChanged) events += ContentEvent(ContentEventType.CONTENT_EDITED)
-        contentLog.record(ContentTarget(ContentTargetType.DOCUMENT, document.id), user.id, events, now)
-        return document(user, documentId)
-    }
-
-    /**
-     * Archives the document (the row stays and can be restored). Returns what it belongs to, so
-     * that whoever shows it can be told.
-     */
-    @Transactional
-    suspend fun removeDocument(
-        user: AuthenticatedUser,
-        documentId: UUID,
-    ): DocumentOwner {
-        val document = extras.findDocument(documentId)?.takeIf { it.deletedAt == null } ?: throw notFound()
-        val owner = ownerOf(user, document)
-        if (!owner.canEdit) throw noEditRight()
-        extras.deleteDocument(document.id, user.id, clock.instant())
-        owner.issue?.let { issue ->
-            val event = IssueEvent(IssueActivityType.DOCUMENT_REMOVED, mapOf("from" to document.title))
-            activities.record(issue.id, user.id, listOf(event), clock.instant())
-        }
-        recordInHolder(document, user.id, ContentEvent(ContentEventType.DOCUMENT_REMOVED, mapOf("from" to document.title)))
-        return DocumentOwner(owner.issue?.number, owner.project?.id)
-    }
-
-    /** Brings a deleted document back to where it was. */
-    @Transactional
-    suspend fun restoreDocument(
-        user: AuthenticatedUser,
-        documentId: UUID,
-    ): DocumentOwner {
-        val document = extras.findDocument(documentId)?.takeIf { it.deletedAt != null } ?: throw notFound()
-        val owner = ownerOf(user, document)
-        if (!owner.canEdit) throw noEditRight()
-        extras.restoreDocument(document.id)
-        owner.issue?.let { issue ->
-            val event = IssueEvent(IssueActivityType.DOCUMENT_RESTORED, mapOf("to" to document.title))
-            activities.record(issue.id, user.id, listOf(event), clock.instant())
-        }
-        recordInHolder(document, user.id, ContentEvent(ContentEventType.DOCUMENT_RESTORED, mapOf("to" to document.title)))
-        return DocumentOwner(owner.issue?.number, owner.project?.id)
-    }
-
-    /**
-     * A document that was deleted or restored is a line of the activity of what holds it (D-165):
-     * the document it sits inside, or else the project. An issue's own documents are in the
-     * issue's activity already.
-     */
-    private suspend fun recordInHolder(
-        document: DocumentSummary,
-        actorId: UUID,
-        event: ContentEvent,
-    ) {
-        val holder =
-            document.parentId?.let { ContentTarget(ContentTargetType.DOCUMENT, it) }
-                ?: document.projectId?.let { ContentTarget(ContentTargetType.PROJECT, it) }
-                ?: return
-        contentLog.record(holder, actorId, listOf(event), clock.instant())
-    }
-
-    /** The issue or project a document belongs to, as the caller may see it; "not found" when they may not. */
-    private suspend fun ownerOf(
-        user: AuthenticatedUser,
-        document: DocumentSummary,
-    ): OwnerAccess {
-        if (document.issueId != null) {
-            val access = accessById(user, document.issueId)
-            return OwnerAccess(access.issue, null, access.canEdit)
-        }
-        val access = projectService.accessById(user, checkNotNull(document.projectId)) ?: throw notFound()
-        return OwnerAccess(null, access.project, access.role.canEdit)
-    }
-
-    suspend fun actorName(user: AuthenticatedUser): String = activities.displayName(user.id)
-
-    // --- what a Git server does (docs/features/git-integration.md, D-141) --------------------
-
-    /**
-     * The issues in use with these numbers, for a Git server. There is no person to check access
-     * for; which repositories may reach an issue is decided by the Git module (D-148, D-149).
-     */
-    suspend fun gitTargets(numbers: Collection<Int>): List<Issue> =
-        numbers.distinct().mapNotNull { repository.findByNumber(it) }.filter { it.deletedAt == null }
-
-    /**
-     * Moves an issue to [status] for a Git server, and only from one of [from]: the rules never
-     * move an issue back, so a status set by hand is not undone by Git (D-141). Null when the
-     * issue is deleted or not in one of [from]. Recorded as [actor], with whom to tell, like a
-     * change by hand.
-     */
-    suspend fun changeStatusFromGit(
-        issueId: UUID,
-        status: IssueStatus,
-        from: Set<IssueStatus>,
-        actor: Actor,
-    ): IssueChange? {
-        val issue = repository.findById(issueId) ?: return null
-        if (issue.deletedAt != null || issue.status !in from) return null
-        val before = queries.find(issue.number) ?: return null
-        issue.status = status
-        issue.version += 1
-        issue.updatedAt = clock.instant()
-        repository.save(issue)
-        val after = checkNotNull(detail(issue.number))
-        val events = activities.diff(before, after).map(actor::mark)
-        activities.record(issue.id, actor.userId, events, issue.updatedAt)
-        return IssueChange(after, events, activities.recipientIds(issue.id).filter { it != actor.userId })
-    }
-
-    /** The issue, once [user] may edit it: for making its branch on a Git server (D-159). */
-    suspend fun editableForGit(
-        user: AuthenticatedUser,
-        number: Int,
-    ): Issue = editable(access(user, number)).issue
-
-    /**
-     * Adds the person a Git server says worked on the issue to its assignees (D-156): someone
-     * who pushed to its branch. Nothing happens when they already are one, when the issue has as
-     * many as it may, or when they could not be given it by hand (a project they are not in).
-     */
-    suspend fun addAssigneeFromGit(
-        issueId: UUID,
-        actor: Actor,
-    ): IssueChange? {
-        val userId = actor.userId ?: return null
-        val issue = repository.findById(issueId) ?: return null
-        if (issue.deletedAt != null) return null
-        val before = queries.find(issue.number) ?: return null
-        val current = before.assignees.map { it.id }
-        if (userId in current || current.size >= MAX_ASSIGNEES) return null
-        val assignable = issue.projectId?.let { queries.isProjectMember(it, userId) } ?: queries.isActiveUser(userId)
-        if (!assignable) return null
-        issue.version += 1
-        issue.updatedAt = clock.instant()
-        repository.save(issue)
-        queries.replaceAssignees(issue.id, current + userId, issue.updatedAt)
-        val after = checkNotNull(detail(issue.number))
-        val events = activities.diff(before, after).map(actor::mark)
-        activities.record(issue.id, actor.userId, events, issue.updatedAt)
-        return IssueChange(after, events, activities.recipientIds(issue.id).filter { it != actor.userId })
-    }
-
-    /**
-     * What to tell about Git entries that were just recorded: they go only to API notifications
-     * that ask for them (IssueNotification.OPT_IN_TYPES), to the people who follow the issue.
-     */
-    suspend fun gitNotice(
-        issueId: UUID,
-        actor: Actor,
-        events: List<IssueEvent>,
-    ): IssueChange? {
-        if (events.isEmpty()) return null
-        val issue = repository.findById(issueId) ?: return null
-        val view = detail(issue.number) ?: return null
-        return IssueChange(view, events.map(actor::mark), activities.recipientIds(issue.id).filter { it != actor.userId })
-    }
-
-    /**
-     * The repository picked on the issue (D-148), or the one its first branch or pull request came
-     * from (D-153). In a project that chose its repositories it counts while it is still one of them.
-     */
-    private suspend fun gitRepositoryOf(issue: Issue): IssueGitRepositoryView? {
-        val picked = extras.issueGitRepository(issue.id) ?: return null
-        val options = issue.projectId?.let { extras.projectGitRepositories(it) }.orEmpty()
-        if (options.isEmpty()) return picked
-        return picked.takeIf { choice -> options.any { it.connectionId == choice.connectionId && it.repository == choice.repository } }
-    }
-
-    /**
-     * Picks which of its project's repositories the issue's work is in (D-148), or takes the pick
-     * away with nulls. Needs the right to edit the issue. Returns the issue's number.
-     */
-    suspend fun setGitRepository(
-        user: AuthenticatedUser,
-        number: Int,
-        connectionId: UUID?,
-        rawRepository: String?,
-    ): Int {
-        val issue = editable(access(user, number)).issue
-        val repository = rawRepository?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
-        if (connectionId != null && repository != null) {
-            val options = issue.projectId?.let { extras.projectGitRepositories(it) }.orEmpty()
-            if (options.none { it.connectionId == connectionId && it.repository == repository }) {
-                throw ValidationException("repository", "NOT_IN_PROJECT", "이 티켓의 프로젝트에 정해진 저장소가 아닙니다")
-            }
-            extras.setIssueGitRepository(issue.id, connectionId, repository, clock.instant())
-        } else {
-            extras.setIssueGitRepository(issue.id, null, null, clock.instant())
-        }
-        return number
-    }
-
-    /** Adds history entries for something a Git server reported, marked as coming from Git. */
-    suspend fun recordFromGit(
-        issueId: UUID,
-        actor: Actor,
-        events: List<IssueEvent>,
-    ) {
-        if (events.isNotEmpty()) activities.record(issueId, actor.userId, events.map(actor::mark), clock.instant())
-    }
-
-    private suspend fun detail(number: Int): IssueView? = queries.find(number)?.let { it.copy(content = richText.load(RichText.ContentTable.ISSUES, it.id)) }
-
-    /** Everyone, administrators included, sees the issues of the projects they are a member of (D-131). */
-    private fun viewer(user: AuthenticatedUser) = Viewer(user.id, seesAllProjects = false)
-
-    private suspend fun access(
-        user: AuthenticatedUser,
-        number: Int,
-    ): IssueAccess = repository.findByNumber(number)?.let { accessOf(user, it) } ?: throw notFound()
-
-    private suspend fun accessById(
-        user: AuthenticatedUser,
-        issueId: UUID,
-    ): IssueAccess = repository.findById(issueId)?.let { accessOf(user, it) } ?: throw notFound()
-
-    /** Null when the issue is linked to a project the caller may not enter. */
-    private suspend fun accessOf(
-        user: AuthenticatedUser,
-        issue: Issue,
-    ): IssueAccess? {
-        val mayEdit = if (issue.projectId == null) true else (projectService.accessById(user, issue.projectId!!) ?: return null).role.canEdit
-        return IssueAccess(issue, mayEdit)
-    }
-
-    private fun editable(access: IssueAccess): IssueAccess {
-        if (!access.mayEdit) throw noEditRight()
-        if (access.issue.deletedAt != null) throw ForbiddenException("삭제된 티켓은 수정할 수 없습니다. 먼저 복원하세요")
-        return access
-    }
-
-    /** A project the caller may put issues into. */
-    private suspend fun editableProject(
-        user: AuthenticatedUser,
-        projectId: String,
-    ): Project {
-        val access = projectService.access(user, projectId)
-        if (!access.role.canEdit) throw noEditRight()
-        return access.project
-    }
-
-    private suspend fun editableProjectById(
-        user: AuthenticatedUser,
-        projectId: UUID,
-    ): Project = projectService.accessById(user, projectId)?.takeIf { it.role.canEdit }?.project ?: throw noEditRight()
-
     /** A new sub-issue's assignees: its parent's, without those who can no longer be given an issue there (D-129). */
     private suspend fun inheritedAssignees(
         parent: Issue,
@@ -1190,7 +334,7 @@ class IssueService(
         child: Issue?,
     ): Issue {
         val invalid = ValidationException("parentId", "INVALID_PARENT", "상위 티켓으로 지정할 수 없는 티켓입니다")
-        val parent = repository.findById(parentId)?.takeIf { accessOf(user, it) != null } ?: throw invalid
+        val parent = repository.findById(parentId)?.takeIf { lookup.accessOf(user, it) != null } ?: throw invalid
         // How deep the child would sit: one more than the number of issues above its parent.
         var depth = 0
         var ancestor: Issue? = parent
@@ -1265,11 +409,6 @@ class IssueService(
         return distinct
     }
 
-    private suspend fun recipients(
-        issueId: UUID,
-        actor: AuthenticatedUser,
-    ): List<UUID> = activities.recipientIds(issueId).filter { it != actor.id }
-
     /** The start of an issue's span: none without a due date, and never after it. */
     private fun spanStart(
         startDate: LocalDate?,
@@ -1278,14 +417,6 @@ class IssueService(
         if (startDate == null || dueDate == null) return null
         if (startDate.isAfter(dueDate)) throw ValidationException("startDate", "AFTER_DUE_DATE", "시작일은 종료일보다 늦을 수 없습니다")
         return startDate
-    }
-
-    private fun documentTitle(raw: String): String {
-        val title = raw.trim()
-        if (title.length > Issue.TITLE_MAX_LENGTH) {
-            throw ValidationException("title", "TOO_LONG", "문서 제목은 ${Issue.TITLE_MAX_LENGTH}자 이하여야 합니다")
-        }
-        return title
     }
 
     private fun textErrors(
@@ -1305,48 +436,13 @@ class IssueService(
             },
         )
 
-    private fun noEditRight() = ForbiddenException("이 티켓을 쓰거나 수정할 권한이 없습니다")
-
-    private fun notFound() = NotFoundException("ISSUE_NOT_FOUND", "티켓을 찾을 수 없습니다")
-
-    private fun commentNotFound() = NotFoundException("COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다")
-
-    private data class OwnerAccess(
-        val issue: Issue?,
-        val project: Project?,
-        val canEdit: Boolean,
-    )
-
-    private data class IssueAccess(
-        val issue: Issue,
-        /** Whether the caller's role lets them change the issue (and delete or restore it). */
-        val mayEdit: Boolean,
-    ) {
-        /** A deleted issue is read-only for everyone until it is restored. */
-        val canEdit: Boolean
-            get() = mayEdit && issue.deletedAt == null
-    }
-
     companion object {
-        /** The emoji an issue can be reacted to with. */
-        val REACTIONS = listOf("👍", "❤️", "🎉", "😄", "👀", "🚀", "🙏", "✅")
         private const val MAX_LABELS = 10
-        private const val MAX_ASSIGNEES = 10
 
         /** Stops walks up and down the tree should the data ever hold a loop. */
         private const val MAX_DEPTH = 50
 
         /** How many levels of sub-issues a top-level issue can have under it (D-118). */
         const val MAX_SUB_ISSUE_DEPTH = 10
-        private const val FILE_NAME_MAX_LENGTH = 255
-
-        /** How many files one comment can hold (D-164). */
-        const val MAX_COMMENT_FILES = 10
-
-        /** The text of a comment that is only files. */
-        private val EMPTY_COMMENT = RichTextDocument("""{"type":"doc","content":[{"type":"paragraph"}]}""", "")
-
-        /** How much of a comment a notification quotes. */
-        private const val COMMENT_PREVIEW_LENGTH = 300
     }
 }
