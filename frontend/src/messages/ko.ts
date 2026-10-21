@@ -684,9 +684,8 @@ export const ko = {
     propLead: "리드",
     propDates: "기간",
     propLabels: "라벨",
-    subscribe: "구독",
-    unsubscribe: "구독 취소",
-    subscribeHint: "구독하면 이 프로젝트의 모든 티켓 변경을 알림으로 받습니다.",
+    // Said over the follow button of the project's activity (D-176).
+    subscribeHint: "구독하면 이 프로젝트의 모든 티켓 변경과 활동을 알림으로 받습니다.",
     noLead: "리드 없음",
     noDates: "기간 설정",
     addLabel: "라벨 추가",

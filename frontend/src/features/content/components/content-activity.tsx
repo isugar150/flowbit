@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import type { MentionPerson } from "@/components/editor/mention";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ActivityEvent } from "@/features/issues/components/activity-event";
 import { ShowOlderButton, timelineOf, useCollapsedEntries } from "@/features/issues/components/activity-timeline";
 import { SubscriberAvatars } from "@/features/issues/components/subscriber-avatars";
@@ -19,11 +20,37 @@ import { ThreadCard } from "./thread-parts";
 
 const m = messages.content;
 
+/** Follow or stop following the page; with a hint, it says over the button what following brings. */
+function FollowButton({ subscribed, hint, onClick }: { subscribed: boolean; hint: string | null; onClick: () => void }) {
+  const content = (
+    <>
+      {subscribed ? <BellOffIcon data-icon="inline-start" /> : <BellIcon data-icon="inline-start" />}
+      {subscribed ? m.activity.unsubscribe : m.activity.subscribe}
+    </>
+  );
+  const className = "text-muted-foreground max-md:h-11";
+  if (!hint) {
+    return (
+      <Button type="button" variant="ghost" size="sm" className={className} onClick={onClick}>
+        {content}
+      </Button>
+    );
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<Button type="button" variant="ghost" size="sm" className={className} onClick={onClick} />}>
+        {content}
+      </TooltipTrigger>
+      <TooltipContent>{hint}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 /**
  * The activity of a project, a document or a milestone, the same as an issue's (D-165): its
  * changes, the comments under it (with their replies) and the threads on its blocks, mixed by time,
  * newest first with a box for a comment at the top (D-167). Open to everyone who can see the page; on a deleted document it
- * can only be read. A document also says who follows it, with a button to follow or stop (D-166).
+ * can only be read. A document and a project also say who follows them, with a button to follow or stop (D-166, D-176).
  * `watch` is what the page was last rendered from (see `useContentFeed`).
  */
 export function ContentActivity({
@@ -62,16 +89,12 @@ export function ContentActivity({
         <h3 className="mr-auto text-[0.9375rem] leading-[1.375rem] font-semibold">{m.activity.heading}</h3>
         {subscription && subscription.subscribers.length > 0 ? <SubscriberAvatars people={subscription.subscribers} /> : null}
         {subscription && !data.readOnly ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground max-md:h-11"
+          <FollowButton
+            subscribed={subscription.subscribed}
+            // A project's follow reaches further than the page's own activity: all its issues' changes.
+            hint={target.type === "project" ? messages.projects.subscribeHint : null}
             onClick={() => follow.mutate(!subscription.subscribed)}
-          >
-            {subscription.subscribed ? <BellOffIcon data-icon="inline-start" /> : <BellIcon data-icon="inline-start" />}
-            {subscription.subscribed ? m.activity.unsubscribe : m.activity.subscribe}
-          </Button>
+          />
         ) : null}
       </div>
       {follow.isError ? (

@@ -266,10 +266,34 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
         viewer.delete("$path/subscription")
         assertEquals(listOf<Any?>("editor"), followers(feed(editor, "document", documentId).json()))
 
-        // Someone who cannot open the project cannot follow; a project or a milestone is not followed this way.
+        // Someone who cannot open the project cannot follow; a milestone is not followed on its own.
         assertEquals(404, outsider.put("$path/subscription", "{}").status)
-        assertEquals(404, viewer.put("/api/v1/content/project/${p("PAY")}/subscription", "{}").status)
-        assertEquals(null, feed(viewer, "project", p("PAY")).json()["subscription"])
+        val milestoneId = editor.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"1차"}""").json()["id"] as String
+        assertEquals(404, viewer.put("/api/v1/content/milestone/$milestoneId/subscription", "{}").status)
+        assertEquals(null, feed(viewer, "milestone", milestoneId).json()["subscription"])
+    }
+
+    @Test
+    fun `프로젝트도 활동에서 구독하고 구독자가 보이며 프로젝트 구독과 같은 것이다`() {
+        val path = "/api/v1/content/project/${p("PAY")}"
+        // Nobody follows at first (the project's own button used to be the only way, and it did not show who).
+        assertEquals(emptyList<Any?>(), followers(feed(viewer, "project", p("PAY")).json()))
+
+        // Anyone who may enter the project, the view-only role included, follows it and stops.
+        val followed = viewer.put("$path/subscription", "{}")
+        assertEquals(200, followed.status)
+        assertEquals(true, followed.json()["subscribed"])
+        editor.put("$path/subscription", "{}")
+        assertEquals(listOf<Any?>("viewer", "editor"), followers(feed(editor, "project", p("PAY")).json()))
+        assertEquals(true, (feed(viewer, "project", p("PAY")).json()["subscription"] as Map<*, *>)["subscribed"])
+        // The same follow as the project's own: its answer says so, and so does stopping through either.
+        assertEquals(true, viewer.get("/api/v1/projects/${p("PAY")}").json()["subscribed"])
+        assertEquals(false, viewer.delete("$path/subscription").json()["subscribed"])
+        assertEquals(false, viewer.get("/api/v1/projects/${p("PAY")}").json()["subscribed"])
+        assertEquals(listOf<Any?>("editor"), followers(feed(viewer, "project", p("PAY")).json()))
+
+        // Someone who cannot open the project cannot follow it.
+        assertEquals(404, outsider.put("$path/subscription", "{}").status)
     }
 
     @Test

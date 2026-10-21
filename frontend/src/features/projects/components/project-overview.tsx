@@ -9,7 +9,6 @@ import type { Milestone } from "@/features/milestones/types";
 import { ProjectMemberList } from "@/features/projects/components/project-member-list";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { ProjectProperties } from "@/features/projects/components/project-properties";
-import { ProjectSubscribeButton } from "@/features/projects/components/project-subscribe-button";
 import { ProjectUpdates } from "@/features/projects/components/project-updates";
 import { HealthBadge } from "@/features/projects/meta";
 import { mentionablesOf, type ProjectMember, type ProjectUpdate } from "@/features/projects/types";
@@ -71,10 +70,7 @@ export async function ProjectOverview({ id }: { id: string }) {
         <ContentActivity target={{ type: "project", id: project.id }} watch={project} mentionables={mentionablesOf(members)} />
       </div>
       <aside className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 lg:mx-0 lg:w-80">
-        <PropertyCard
-          title={m.properties}
-          action={<ProjectSubscribeButton projectId={project.id} subscribed={project.subscribed} />}
-        >
+        <PropertyCard title={m.properties}>
           <dl className="flex flex-col">
             <ProjectProperties
               project={project}

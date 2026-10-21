@@ -10,13 +10,6 @@ export function updateProject(input: { id: string; changes: ProjectChanges }): P
   return apiFetch<Project>(`/api/v1/projects/${input.id}`, { method: "PATCH", body: input.changes });
 }
 
-/** Follow the project (be told about every change to its issues) or stop. Anyone who may enter it. */
-export function setProjectSubscribed(input: { id: string; subscribed: boolean }): Promise<Project> {
-  return apiFetch<Project>(`/api/v1/projects/${input.id}/subscription`, {
-    method: input.subscribed ? "PUT" : "DELETE",
-  });
-}
-
 /** Managers only. The project leaves the lists and cannot be entered until it is restored. */
 export function archiveProject(id: string): Promise<void> {
   return apiFetch<void>(`/api/v1/projects/${id}/archive`, { method: "POST" });

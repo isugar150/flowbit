@@ -58,6 +58,8 @@
 
 - **글의 링크를 누르면 주소와 "바로가기"가 뜨고(같은 링크를 한 번 더 누르면 새 탭), 표 위의 도구 모음 자리는 도구 모음이 보일 때만 생긴다** (D-175, 2026-10-22). `components/editor/link-card.tsx` 새 파일, `RichTextEditor` 의 상자 `onClick`, `table-extensions.ts` 의 `TableToolbarRoom`(노드 장식 `table-has-toolbar`), `globals.css` 의 `.tableWrapper.table-has-toolbar`. `typecheck`·eslint 통과, 샘플 글을 그린 임시 페이지(지웠다)로 확인했다: 편집 가능·읽기 전용 모두 카드가 뜨고 두 번째 누르기가 새 탭(`window.open` 가로채기)을 열고 Esc 로 닫히며, 줄이 넘어간 긴 링크도 맞는 줄 아래에 뜬다. 표는 커서가 들어간 표에만 클래스가 붙고 나가면 사라진다. **이 PC 의 개발 서버(PID 23276)는 `globals.css` 를 다시 컴파일하지 않아 새 CSS 규칙은 같은 규칙을 직접 넣어 확인했다. 개발 서버를 다시 시작해야 표 여백이 바뀐다.** 실제 문서 화면으로는 보지 못했다.
 
+- **프로젝트 개요의 "구독" 버튼을 속성 카드에서 "활동" 머리글로 옮기고 구독자 아바타를 보인다** (D-176, 2026-10-22, 사용자 요청). 활동 피드가 프로젝트에도 `subscription` 을 주고(`ProjectSubscriptionStore`, `ContentSubscriptionService` 가 프로젝트도 받는다) `PUT/DELETE /api/v1/content/project/{id}/subscription` 이 프로젝트 자신의 구독(`project_subscriptions`)을 켜고 끈다. 화면은 `ContentActivity` 의 `FollowButton`(프로젝트는 마우스를 올리면 "모든 티켓 변경과 활동을 알림으로"가 뜬다). 속성 카드의 `ProjectSubscribeButton`·`setProjectSubscribed` 를 지웠다. **백엔드를 다시 띄워야 한다.** 컴파일·ktlint·`typecheck`·eslint 만 했고 테스트는 돌리지 않았다(`ContentCommentsIntegrationTest` 에 프로젝트 구독 테스트를 더하고 "프로젝트는 구독 없음" 단언을 고쳤다). 화면은 샘플 데이터를 그린 임시 페이지(지웠다)로 확인했다. 질문 답: 문서 목차(D-170)는 문서 화면에만 있고 프로젝트 개요에는 없다 — 개요는 본문 오른쪽에 속성 카드 열(`lg:w-80`)이 붙어 있어 지금의 "편집기 상자 바로 오른쪽" 배치가 들어가지 않는다.
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.

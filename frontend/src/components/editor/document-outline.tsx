@@ -105,14 +105,26 @@ function useActive(editor: Editor, scroller: HTMLElement | null, entries: Entry[
  * on them; phones show nothing. The one being read is picked out. Given the editor and the box it sits in (the overlay
  * of `RichTextEditor`), it lays itself in the margin to the right of that box and stays in view while the page scrolls.
  */
-export function DocumentOutline({ editor, container }: { editor: Editor; container: HTMLElement | null }) {
+export function DocumentOutline({
+  editor,
+  container,
+  compact = false,
+}: {
+  editor: Editor;
+  container: HTMLElement | null;
+  /**
+   * Only the marks, however wide the page: for a page with something else beside the text, where the whole list would lie
+   * over it (the project overview, whose cards stand right of the description; D-177). The list opens over the text.
+   */
+  compact?: boolean;
+}) {
   // The page scrolls in the <main> of the app's frame, and the width left beside the text is what that box has to spare.
   const scroller = container?.closest("main") ?? null;
   const entries = useEntries(editor);
   const width = useWidth(scroller);
   const [active, setActive] = useActive(editor, scroller, entries);
   const list = useRef<HTMLOListElement>(null);
-  const full = width >= FULL_FROM;
+  const full = !compact && width >= FULL_FROM;
 
   // A long list scrolls by itself to keep the heading being read in view.
   useEffect(() => {

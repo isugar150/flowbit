@@ -67,7 +67,7 @@ export type ContentActivityItem = {
   reactions: Reaction[];
 };
 
-/** Who follows a document, and whether the reader does (D-166). */
+/** Who follows a document or a project, and whether the reader does (D-166, D-176). */
 export type ContentSubscription = {
   subscribers: IssuePerson[];
   subscribed: boolean;
@@ -83,6 +83,6 @@ export type ContentFeed = {
   items: ContentActivityItem[];
   /** The general comments; empty for an issue. */
   comments: IssueComment[];
-  /** Only a document is followed on its own; a project, a milestone and an issue leave it out. */
+  /** A document and a project are followed on their own; a milestone and an issue leave it out. */
   subscription?: ContentSubscription;
 };
