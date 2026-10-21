@@ -143,15 +143,15 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 
 ## 파일 저장소 (D-167)
 
-올린 파일(프로필·로고·프로젝트 아이콘·편집기 이미지는 `images/`, 티켓 첨부·댓글 파일은 `files/`)은 **로컬 폴더 또는 Amazon S3** 에 둔다. 사용자 지정(2026-10-21): 기본은 로컬이고 지금과 같다, S3 는 환경 변수만 넣으면 모든 파일이 올라간다.
+올린 파일(프로필·로고·프로젝트 아이콘·편집기와 댓글에 넣는 사진은 WebP 로 바꾼 사본을 `images/` 에, 올린 원본을 `originals/` 에, 티켓 첨부·댓글 파일은 `files/` 에. D-169)은 **로컬 폴더 또는 Amazon S3** 에 둔다. 사용자 지정(2026-10-21): 기본은 로컬이고 지금과 같다, S3 는 환경 변수만 넣으면 모든 파일이 올라간다.
 
 - **고르는 법**: `FLOWBIT_S3_BUCKET` 이 있으면 S3, 없으면 `FLOWBIT_STORAGE_PATH` 의 폴더. `FLOWBIT_STORAGE_TYPE=local` 이면 버킷이 적혀 있어도 폴더, `=s3` 인데 버킷이 없으면 시작할 때 멈춘다. 설정이 앞뒤가 안 맞으면(접근 키만 있고 비밀 키가 없다 등) 시작할 때 멈추고 이유를 알린다(`StorageProperties`).
 - **코드**: `media/application/ObjectStore`(`put`·`delete`·`get`) 하나를 `FileStorage`(첨부·댓글 파일)와 `ImageStorage`(이미지)가 쓴다. 구현은 `LocalObjectStore`(예전과 같은 폴더·임시 파일 뒤 옮기기)와 `S3ObjectStore`(AWS SDK v2 의 동기 클라이언트를 `Dispatchers.IO` 에서 부른다. 비동기 Netty 클라이언트는 빼서 Reactor Netty 와 겹치지 않게 했다). 어느 쪽인지는 `StorageConfig` 가 정한다. 키(UUID 와 `.webp`)·DB 의 열·주소(`/api/v1/files/{키}`, `/api/v1/attachments/{id}`, `/api/v1/content-files/{id}`)는 그대로다.
-- **S3 의 모양**: 객체 이름은 `<접두어>/images/<키>`, `<접두어>/files/<키>`. **파일은 Flowbit 이 대신 읽어 내려 준다**(권한 확인과 `Content-Disposition: attachment`·`nosniff` 가 그대로 지켜진다). 그래서 버킷은 비공개여도 되고 미리 서명한 주소는 쓰지 않는다. 올릴 때와 내려 줄 때 모두 파일 하나를 메모리에 올린다(`FLOWBIT_MAX_UPLOAD_SIZE`, 기본 5MB).
+- **S3 의 모양**: 객체 이름은 `<접두어>/images/<키>`, `<접두어>/files/<키>`, `<접두어>/originals/<uuid>`. **사진은 사본과 원본 둘 다 올린다**(D-169): `ImageStorage.store(webp, original)` 가 원본을 먼저 올리고 사본을 올리며, 어느 쪽이든 실패하면 요청이 실패하고 올라간 쪽은 지운다. 원본의 이름은 사본 키(`<uuid>.webp`)에서 `.webp` 를 뺀 것이고 확장자가 없다(`files/` 와 같다. 내려 줄 때는 쓰지 않고 복구용이다). 사진을 바꾸거나 지우면 원본도 지운다. D-169 이전에 올린 사진의 원본은 없다. **파일은 Flowbit 이 대신 읽어 내려 준다**(권한 확인과 `Content-Disposition: attachment`·`nosniff` 가 그대로 지켜진다). 그래서 버킷은 비공개여도 되고 미리 서명한 주소는 쓰지 않는다. 올릴 때와 내려 줄 때 모두 파일 하나를 메모리에 올린다(`FLOWBIT_MAX_UPLOAD_SIZE`, 기본 5MB).
 - **자격 증명**: `FLOWBIT_S3_ACCESS_KEY`·`FLOWBIT_S3_SECRET_KEY` 를 주면 그것, 비우면 SDK 의 기본(`AWS_ACCESS_KEY_ID` 같은 환경 변수, 서버에 붙은 IAM 역할). `FLOWBIT_S3_ENDPOINT` 를 주면 MinIO 같은 S3 호환 저장소이고 주소 방식은 경로 방식(`FLOWBIT_S3_PATH_STYLE` 로 바꿀 수 있다). 리전은 `FLOWBIT_S3_REGION`, 없으면 `us-east-1`(호환 저장소는 아무 값이나 받는다).
 - **시작할 때**: 버킷에 닿는지 한 번 본다. 안 닿으면 로그에 크게 남기지만 앱은 뜬다(저장소가 잠깐 안 되는 일이 앱 전체를 막지 않게). 그동안의 올리기·내려받기는 이유와 함께 실패한다.
 - **지우기**: 파일·이미지를 바꾸거나 지울 때(그리고 보관 작업 D-132 가 지울 때)의 삭제도 같은 저장소로 간다. 삭제가 실패해도 요청은 실패하지 않고 로그만 남긴다(남은 파일은 해롭지 않다).
-- **로컬에서 S3 로 바꿀 때**: 이미 폴더에 있던 파일은 **옮겨지지 않는다.** S3 로 바꾼 뒤에는 S3 에서만 읽으므로 그 파일은 열리지 않는다(사용자 선택: 옮기는 도구는 만들지 않는다). 쓰던 서버를 바꾸려면 폴더의 `files/`·`images/` 를 버킷의 같은 이름 아래로 올려야 한다(`aws s3 sync uploads/files s3://버킷/<접두어>/files`).
+- **로컬에서 S3 로 바꿀 때**: 이미 폴더에 있던 파일은 **옮겨지지 않는다.** S3 로 바꾼 뒤에는 S3 에서만 읽으므로 그 파일은 열리지 않는다(사용자 선택: 옮기는 도구는 만들지 않는다). 쓰던 서버를 바꾸려면 폴더의 `files/`·`images/`·`originals/` 를 버킷의 같은 이름 아래로 올려야 한다(`aws s3 sync uploads/files s3://버킷/<접두어>/files`).
 - **배포**: `script/docker-compose.yml`·루트 `docker-compose.yml` 이 `FLOWBIT_S3_*`·`FLOWBIT_STORAGE_TYPE` 을 `.env` 에서 컨테이너로 넘기므로, 서버의 `.env` 에 적고 `./deploy.sh` 만 다시 실행하면 된다. S3 를 쓰면 `uploads` 볼륨은 쓰이지 않는다.
 - 테스트: `StoragePropertiesTest`(고르는 규칙), `LocalObjectStoreTest`, `S3ObjectStoreTest`(MinIO 컨테이너로 접두어·읽기·지우기). **돌려 보지 않았다**(컴파일만). 실제 AWS S3 로도 시험하지 않았다.
 

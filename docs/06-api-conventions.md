@@ -19,7 +19,7 @@
 ## 파일 업로드
 
 - `multipart/form-data` 로 보내고 파일은 `file` 파트에 담는다. 한 요청에 파일 하나.
-- 이미지는 서버가 WebP 로 바꾸고 크기를 줄여 저장한다. 응답에는 저장된 이미지의 주소(`/api/v1/files/<key>`)가 들어 있다.
+- 이미지는 서버가 WebP 로 바꾸고 크기를 줄여 저장한다(올린 원본도 복구용으로 따로 저장한다, D-169). 응답에는 저장된 이미지의 주소(`/api/v1/files/<key>`)가 들어 있다.
 - 오류: 413 `FILE_TOO_LARGE`, 422 `UNSUPPORTED_IMAGE`, 422 `IMAGE_DIMENSIONS_TOO_LARGE`.
 - 자세한 규칙은 [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md).
 

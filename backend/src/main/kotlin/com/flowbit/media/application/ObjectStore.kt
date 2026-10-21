@@ -24,12 +24,13 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.time.Duration
 
-/** The two kinds of thing kept: attached files as they came in, and processed images. */
+/** The kinds of thing kept: attached files as they came in, processed images, and the uploads those images were made from. */
 enum class StorageArea(
     val folder: String,
 ) {
     FILES("files"),
     IMAGES("images"),
+    ORIGINALS("originals"),
 }
 
 /**
@@ -57,7 +58,7 @@ interface ObjectStore {
     ): Resource?
 }
 
-/** The storage folder (FLOWBIT_STORAGE_PATH): `files/` and `images/` under it. */
+/** The storage folder (FLOWBIT_STORAGE_PATH): `files/`, `images/` and `originals/` under it. */
 class LocalObjectStore(
     root: Path,
 ) : ObjectStore {
@@ -115,7 +116,7 @@ class LocalObjectStore(
 
 /**
  * An S3 bucket, or any store that speaks S3 (MinIO, Ceph, …; set the endpoint): objects are
- * `<prefix>/files/<key>` and `<prefix>/images/<key>`. The files are served by this application, not
+ * `<prefix>/files/<key>`, `<prefix>/images/<key>` and `<prefix>/originals/<key>`. The files are served by this application, not
  * by the bucket, so the bucket can stay private. The SDK client is blocking: every call runs on
  * Dispatchers.IO, like the folder's file access. An upload is held in memory anyway (up to
  * FLOWBIT_MAX_UPLOAD_SIZE), and so is a download.

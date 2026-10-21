@@ -32,7 +32,8 @@ class ImageUploadController(
     suspend fun upload(
         @RequestPart("file") file: FilePart,
     ): UploadedImageResponse {
-        val key = imageStorage.store(imageProcessor.toWebp(uploadReader.read(file), ImageSpec.CONTENT))
+        val upload = uploadReader.read(file)
+        val key = imageStorage.store(webp = imageProcessor.toWebp(upload, ImageSpec.CONTENT), original = upload)
         return UploadedImageResponse(checkNotNull(ImageStorage.urlOf(key)))
     }
 }

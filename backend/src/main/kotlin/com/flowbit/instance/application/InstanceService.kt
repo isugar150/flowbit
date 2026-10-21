@@ -103,10 +103,10 @@ class InstanceService(
             else -> null
         }
 
-    /** Replaces the workspace logo with the upload, converted to WebP no larger than 512px. */
+    /** Replaces the workspace logo with the upload, converted to WebP no larger than 512px. The upload itself is kept too. */
     suspend fun replaceLogo(upload: ByteArray): Workspace {
         val previous = settings().logoKey
-        val key = imageStorage.store(imageProcessor.toWebp(upload, ImageSpec.LOGO))
+        val key = imageStorage.store(webp = imageProcessor.toWebp(upload, ImageSpec.LOGO), original = upload)
         repository.updateLogoKey(key, clock.instant())
         imageStorage.delete(previous)
         return workspace()

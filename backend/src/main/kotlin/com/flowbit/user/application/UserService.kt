@@ -97,13 +97,13 @@ class UserService(
         return profile(userId)
     }
 
-    /** Replaces the profile image with the upload, converted to a 256px WebP. */
+    /** Replaces the profile image with the upload, converted to a 256px WebP. The upload itself is kept too. */
     suspend fun replaceAvatar(
         userId: UUID,
         upload: ByteArray,
     ): UserProfile {
         val previous = requireActive(userId).avatarKey
-        val key = imageStorage.store(imageProcessor.toWebp(upload, ImageSpec.AVATAR))
+        val key = imageStorage.store(webp = imageProcessor.toWebp(upload, ImageSpec.AVATAR), original = upload)
         repository.updateAvatarKey(userId, key, clock.instant())
         imageStorage.delete(previous)
         return profile(userId)

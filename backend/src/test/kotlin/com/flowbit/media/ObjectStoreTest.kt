@@ -40,32 +40,37 @@ class LocalObjectStoreTest {
             val images = ImageStorage(LocalObjectStore(root))
 
             val fileKey = files.store("보고서".toByteArray())
-            val imageKey = images.store(byteArrayOf(1, 2, 3))
+            val imageKey = images.store(webp = byteArrayOf(1, 2, 3), original = byteArrayOf(4, 5, 6))
 
             assertContentEquals("보고서".toByteArray(), files.find(fileKey)!!.inputStream.readBytes())
             assertContentEquals(byteArrayOf(1, 2, 3), images.find(imageKey)!!.inputStream.readBytes())
-            assertEquals(
-                1,
+            for (folder in listOf("files", "images", "originals")) {
+                assertEquals(1, countIn(folder), folder)
+            }
+            // The upload is kept as it came in, under the picture's id without the extension.
+            assertContentEquals(
+                byteArrayOf(4, 5, 6),
                 root
-                    .resolve("files")
+                    .resolve("originals")
+                    .resolve(imageKey.removeSuffix(".webp"))
                     .toFile()
-                    .listFiles()!!
-                    .size,
-            )
-            assertEquals(
-                1,
-                root
-                    .resolve("images")
-                    .toFile()
-                    .listFiles()!!
-                    .size,
+                    .readBytes(),
             )
 
             files.delete(fileKey)
             images.delete(imageKey)
             assertNull(files.find(fileKey))
             assertNull(images.find(imageKey))
+            // Deleting the picture deletes its original with it.
+            assertEquals(0, countIn("originals"))
         }
+
+    private fun countIn(folder: String) =
+        root
+            .resolve(folder)
+            .toFile()
+            .listFiles()!!
+            .size
 
     @Test
     fun `모양이 다른 키는 찾지도 지우지도 않는다`() =
@@ -116,17 +121,19 @@ class S3ObjectStoreTest {
         )
 
     @Test
-    fun `파일과 이미지가 접두어 아래 files 와 images 에 쌓이고 읽고 지워진다`() =
+    fun `파일과 이미지가 접두어 아래 files 와 images 에 쌓이고 이미지의 원본은 originals 에 쌓인다`() =
         runBlocking {
             val objects = store("flowbit/")
             val files = FileStorage(objects)
             val images = ImageStorage(objects)
 
             val fileKey = files.store("보고서".toByteArray())
-            val imageKey = images.store(byteArrayOf(9, 8, 7))
+            val imageKey = images.store(webp = byteArrayOf(9, 8, 7), original = byteArrayOf(6, 5, 4))
+            val imageId = imageKey.removeSuffix(".webp")
 
             assertContentEquals("보고서".toByteArray(), files.find(fileKey)!!.inputStream.readBytes())
             assertContentEquals(byteArrayOf(9, 8, 7), images.find(imageKey)!!.inputStream.readBytes())
+            assertContentEquals(byteArrayOf(6, 5, 4), objects.get(StorageArea.ORIGINALS, imageId)!!.inputStream.readBytes())
             val keys =
                 admin
                     .listObjectsV2(
@@ -137,10 +144,13 @@ class S3ObjectStoreTest {
                             .build(),
                     ).contents()
                     .map { it.key() }
-            assertEquals(setOf("flowbit/files/$fileKey", "flowbit/images/$imageKey"), keys.toSet())
+            assertEquals(setOf("flowbit/files/$fileKey", "flowbit/images/$imageKey", "flowbit/originals/$imageId"), keys.toSet())
 
             files.delete(fileKey)
+            images.delete(imageKey)
             assertNull(files.find(fileKey))
+            assertNull(images.find(imageKey))
+            assertNull(objects.get(StorageArea.ORIGINALS, imageId))
             // Nothing stored under a key that was never used.
             assertNull(objects.get(StorageArea.FILES, UUID.randomUUID().toString()))
         }

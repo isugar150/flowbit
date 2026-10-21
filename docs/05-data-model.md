@@ -113,7 +113,7 @@
 
 ### 이미지 파일
 
-이미지 자체는 DB 가 아니라 파일로 저장한다(`FLOWBIT_STORAGE_PATH/images/`, 또는 S3 의 `images/`. D-167). DB 에는 위의 `*_key` 컬럼에 파일 이름만 둔다. 규칙은 [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md). 티켓 첨부처럼 한 대상에 이미지가 여러 개 붙게 되면 그때 별도 테이블을 만든다.
+이미지 자체는 DB 가 아니라 파일로 저장한다(`FLOWBIT_STORAGE_PATH/images/`, 또는 S3 의 `images/`. D-167). 올린 원본은 `originals/<uuid>` 에 따로 둔다(D-169, DB 에 열은 없고 `<uuid>.webp` 키에서 유추한다). DB 에는 위의 `*_key` 컬럼에 파일 이름만 둔다. 규칙은 [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md). 티켓 첨부처럼 한 대상에 이미지가 여러 개 붙게 되면 그때 별도 테이블을 만든다.
 
 ### `projects`, `project_members` (M3 1단계)
 

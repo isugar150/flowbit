@@ -423,7 +423,7 @@ class ProjectService(
         user: AuthenticatedUser,
     ): ProjectView = view(memberStore.summary(projectId, user.id), user).copy(content = richText.load(RichText.ContentTable.PROJECTS, projectId))
 
-    /** Replaces the project icon with the upload, converted to a 256px square WebP. Managers only. */
+    /** Replaces the project icon with the upload, converted to a 256px square WebP. The upload itself is kept too. Managers only. */
     suspend fun replaceIcon(
         user: AuthenticatedUser,
         projectId: String,
@@ -431,7 +431,7 @@ class ProjectService(
     ): ProjectView {
         val project = manage(user, projectId)
         val previous = repository.findIconKey(project.id)
-        val iconKey = imageStorage.store(imageProcessor.toWebp(upload, ImageSpec.PROJECT_ICON))
+        val iconKey = imageStorage.store(webp = imageProcessor.toWebp(upload, ImageSpec.PROJECT_ICON), original = upload)
         repository.updateIconKey(project.id, iconKey, clock.instant())
         imageStorage.delete(previous)
         contentLog.record(projectTarget(project.id), user.id, listOf(ContentEvent(ContentEventType.ICON_CHANGED)), clock.instant())
