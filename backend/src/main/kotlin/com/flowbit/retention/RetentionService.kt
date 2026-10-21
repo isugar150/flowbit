@@ -5,6 +5,7 @@ import com.flowbit.common.audit.AuditService
 import com.flowbit.common.error.FieldError
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.web.ClientInfo
+import com.flowbit.content.ContentTargetType
 import com.flowbit.media.application.FileStorage
 import kotlinx.coroutines.reactor.awaitSingle
 import org.slf4j.LoggerFactory
@@ -165,13 +166,20 @@ class RetentionService(
             transactionalOperator.executeAndAwait {
                 val comments =
                     settings.comments?.let { period ->
+                        val cutoff = period.cutoff(now)
                         // The files sent with a comment go with it.
                         removedFiles +=
                             fileKeys(
                                 "select a.file_key from issue_attachments a join issue_comments c on c.id = a.comment_id where c.deleted_at is not null and c.deleted_at < :cutoff",
-                                period.cutoff(now),
+                                cutoff,
                             )
-                        deleteOlder("issue_comments", period.cutoff(now))
+                        removedFiles +=
+                            fileKeys(
+                                "select f.file_key from content_files f join content_comments c on c.id = f.comment_id where c.deleted_at is not null and c.deleted_at < :cutoff",
+                                cutoff,
+                            )
+                        // Comments on the blocks of pages and under the activity of pages are comments too (D-165).
+                        deleteOlder("issue_comments", cutoff) + deleteOlder("content_comments", cutoff) + deleteOlder("content_thread_comments", cutoff)
                     } ?: 0
                 val documents = settings.documents?.let { deleteOlder("documents", it.cutoff(now)) } ?: 0
                 val issues =
@@ -192,6 +200,15 @@ class RetentionService(
                     .fetch()
                     .rowsUpdated()
                     .awaitSingle()
+                removedFiles += fileKeys("select f.file_key from content_files f where f.pending and f.created_at < :cutoff", abandoned)
+                databaseClient
+                    .sql("delete from content_files where pending and created_at < :cutoff")
+                    .bind("cutoff", at(abandoned))
+                    .fetch()
+                    .rowsUpdated()
+                    .awaitSingle()
+                // Comments, threads and activity are kept by the page's id without a foreign key (D-165): what a page deleted for good left behind goes too.
+                removedFiles += sweepOrphans()
                 val result = PurgeResult(issues = issues, documents = documents, comments = comments)
                 if (!result.isEmpty) {
                     auditService.record(
@@ -221,6 +238,31 @@ class RetentionService(
             .rowsUpdated()
             .awaitSingle()
 
+    /**
+     * Removes the threads, comments, activity and files of pages that no longer exist, and returns
+     * the storage keys of those files. The page is one of four kinds of row, so nothing deletes
+     * these along with it.
+     */
+    private suspend fun sweepOrphans(): List<String> {
+        val keys = mutableListOf<String>()
+        for ((table, types) in CONTENT_TABLES) {
+            for (type in types) {
+                val gone = "target_type = '${type.name}' and not exists (select 1 from ${type.table.sqlName} p where p.id = $table.target_id)"
+                if (table == "content_files") {
+                    keys +=
+                        databaseClient
+                            .sql("select file_key from content_files where $gone")
+                            .map { row -> checkNotNull(row.get("file_key", String::class.java)) }
+                            .all()
+                            .collectList()
+                            .awaitSingle()
+                }
+                execute("delete from $table where $gone")
+            }
+        }
+        return keys
+    }
+
     /** The storage keys of the files the query (one `:cutoff` parameter) selects. */
     private suspend fun fileKeys(
         sql: String,
@@ -249,5 +291,14 @@ class RetentionService(
     private companion object {
         /** How long a file uploaded for a comment waits for the comment to be sent. */
         val PENDING_FILE_LIFETIME: Duration = Duration.ofDays(1)
+
+        /** Which kinds of page each table of comments, threads, activity and files can hold. `table` and `type` are ours, never input. */
+        val CONTENT_TABLES: Map<String, List<ContentTargetType>> =
+            mapOf(
+                "content_threads" to ContentTargetType.entries,
+                "content_activities" to ContentTargetType.entries.filter { it.hasActivity },
+                "content_comments" to ContentTargetType.entries.filter { it.hasActivity },
+                "content_files" to ContentTargetType.entries.filter { it.hasActivity },
+            )
     }
 }

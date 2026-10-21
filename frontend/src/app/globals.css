@@ -382,6 +382,27 @@
   }
 }
 
+/* A block of a page that a thread in the activity leads to lights up for a moment (features/content/go-to-block.ts). */
+@layer components {
+  .block-flash {
+    animation: block-flash 1.5s ease-out;
+    border-radius: 0.25rem;
+  }
+  @keyframes block-flash {
+    from {
+      background-color: color-mix(in oklab, var(--primary) 22%, transparent);
+    }
+    to {
+      background-color: transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .block-flash {
+      animation: none;
+    }
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

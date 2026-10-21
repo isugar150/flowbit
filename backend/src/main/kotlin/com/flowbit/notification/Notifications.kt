@@ -53,6 +53,27 @@ data class IssueNotification(
 }
 
 /**
+ * Something happened to a project, a document or a milestone, or someone commented on one (D-165):
+ * what [IssueNotification] is for an issue. The changes are held and merged the same way.
+ */
+data class ContentNotification(
+    /** `PROJECT`, `DOCUMENT` or `MILESTONE`. */
+    val targetType: String,
+    val targetId: UUID,
+    /** What the notification is headed with: `[결제 개편] 설계 문서`. */
+    val title: String,
+    /** Where it opens: `/doc/…`. */
+    val path: String,
+    val projectId: UUID?,
+    val actorId: UUID,
+    val actorName: String,
+    /** ContentEventType names, with the same details the activity list shows. */
+    val events: List<IssueNotification.Event>,
+    /** The people who follow the project (or the issue the document is on) and whoever is tagged or in the thread, without the actor. */
+    val recipientIds: List<UUID>,
+)
+
+/**
  * Someone asked to be let into a project they may not enter (D-128). Told at once, not held,
  * to the people who can let them in.
  */
@@ -82,6 +103,9 @@ interface NotificationChannel {
 
     /** A request to join a project. A channel that has nothing to say about it leaves this out. */
     suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {}
+
+    /** A change to a project, a document or a milestone, or a comment on one (D-165). */
+    suspend fun sendContent(notification: ContentNotification) {}
 }
 
 /**
@@ -118,9 +142,22 @@ class NotificationDispatcher(
         val timer: Job,
     )
 
+    private data class ContentKey(
+        val targetId: UUID,
+        val actorId: UUID,
+    )
+
+    private class PendingContent(
+        val notification: ContentNotification,
+        val since: Long,
+        val generation: Long,
+        val timer: Job,
+    )
+
     private val log = LoggerFactory.getLogger(javaClass)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val pending = HashMap<Key, Pending>()
+    private val pendingContent = HashMap<ContentKey, PendingContent>()
     private var generations = 0L
 
     fun dispatch(notification: IssueNotification) {
@@ -145,6 +182,61 @@ class NotificationDispatcher(
                     release(key, generation)
                 }
             pending[key] = Pending(merged, since, generation, timer)
+        }
+    }
+
+    /**
+     * What one person does to a project, a document or a milestone is held and merged like what
+     * they do to an issue (D-126, D-165): one notification once they leave it alone for
+     * [batchDelay], or [batchMaxDelay] after the first change at the latest.
+     */
+    fun dispatch(notification: ContentNotification) {
+        if (notification.events.isEmpty() || notification.recipientIds.isEmpty()) return
+        if (batchDelay.isZero || batchDelay.isNegative) {
+            sendContent(notification)
+            return
+        }
+        val key = ContentKey(notification.targetId, notification.actorId)
+        synchronized(pending) {
+            val held = pendingContent[key]
+            held?.timer?.cancel()
+            val since = held?.since ?: System.nanoTime()
+            val merged = held?.let { NotificationMerge.merge(it.notification, notification) } ?: notification
+            val left = batchMaxDelay.toNanos() - (System.nanoTime() - since)
+            val wait = minOf(batchDelay.toNanos(), left).coerceAtLeast(0)
+            val generation = ++generations
+            val timer =
+                scope.launch {
+                    delay(wait / 1_000_000)
+                    releaseContent(key, generation)
+                }
+            pendingContent[key] = PendingContent(merged, since, generation, timer)
+        }
+    }
+
+    private fun releaseContent(
+        key: ContentKey,
+        generation: Long,
+    ) {
+        val held =
+            synchronized(pending) {
+                pendingContent[key]?.takeIf { it.generation == generation }?.also { pendingContent.remove(key) }
+            } ?: return
+        sendContent(held.notification)
+    }
+
+    private fun sendContent(notification: ContentNotification): List<Job> {
+        if (notification.events.isEmpty()) return emptyList()
+        return channels.map { channel ->
+            scope.launch {
+                try {
+                    channel.sendContent(notification)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    log.warn("Notification channel {} failed for {}", channel.javaClass.simpleName, notification.title, e)
+                }
+            }
         }
     }
 
@@ -219,6 +311,8 @@ class NotificationDispatcher(
         synchronized(pending) {
             pending.values.forEach { it.timer.cancel() }
             pending.clear()
+            pendingContent.values.forEach { it.timer.cancel() }
+            pendingContent.clear()
         }
     }
 
@@ -226,7 +320,9 @@ class NotificationDispatcher(
     fun stop() {
         val held = synchronized(pending) { pending.values.toList().also { pending.clear() } }
         held.forEach { it.timer.cancel() }
-        val sending = held.flatMap { send(it.notification) }
+        val heldContent = synchronized(pending) { pendingContent.values.toList().also { pendingContent.clear() } }
+        heldContent.forEach { it.timer.cancel() }
+        val sending = held.flatMap { send(it.notification) } + heldContent.flatMap { sendContent(it.notification) }
         if (sending.isNotEmpty()) runBlocking { withTimeoutOrNull(SHUTDOWN_GRACE) { sending.joinAll() } }
         scope.cancel()
     }
@@ -254,8 +350,13 @@ object NotificationMerge {
             "MILESTONE_CHANGED",
             "PROJECT_CHANGED",
             "PARENT_CHANGED",
+            // What a project, a document or a milestone has (D-165).
+            "NAME_CHANGED",
+            "LEAD_CHANGED",
+            "DATES_CHANGED",
+            "TARGET_DATE_CHANGED",
         )
-    private val ONCE = setOf("CREATED", "DESCRIPTION_CHANGED")
+    private val ONCE = setOf("CREATED", "DESCRIPTION_CHANGED", "CONTENT_EDITED")
     private val OPPOSITES = mapOf("DELETED" to "RESTORED", "RESTORED" to "DELETED")
 
     /** `earlier` with `later` on top: the newer title, and the recipients of both. */
@@ -263,6 +364,16 @@ object NotificationMerge {
         earlier: IssueNotification,
         later: IssueNotification,
     ): IssueNotification {
+        val events = earlier.events.toMutableList()
+        later.events.forEach { add(events, it) }
+        return later.copy(events = events, recipientIds = (earlier.recipientIds + later.recipientIds).distinct())
+    }
+
+    /** The same for what is done to a project, a document or a milestone. */
+    fun merge(
+        earlier: ContentNotification,
+        later: ContentNotification,
+    ): ContentNotification {
         val events = earlier.events.toMutableList()
         later.events.forEach { add(events, it) }
         return later.copy(events = events, recipientIds = (earlier.recipientIds + later.recipientIds).distinct())

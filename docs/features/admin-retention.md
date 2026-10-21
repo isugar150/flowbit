@@ -16,7 +16,7 @@
 |---|---|---|
 | 삭제된 티켓 (`issues`) | `issues.deleted_at` | 활동 기록, 댓글, 리액션, 첨부 파일(저장소의 파일까지), 티켓의 문서, 라벨·담당자·구독. **하위 티켓은 남고** 상위가 없는 티켓이 된다 |
 | 삭제된 문서 (`documents`) | `documents.deleted_at` | 그 문서 안에 든 문서 |
-| 삭제된 댓글 (`comments`) | `issue_comments.deleted_at` | 그 댓글의 이모지, 댓글에 붙은 파일(저장소의 파일까지. D-164) |
+| 삭제된 댓글 (`comments`) | `issue_comments.deleted_at`, 프로젝트·문서·목표의 일반 댓글(`content_comments.deleted_at`)과 블록 댓글(`content_thread_comments.deleted_at`) (D-165) | 그 댓글의 이모지, 댓글에 붙은 파일(저장소의 파일까지. D-164) |
 
 - 기본값은 셋 다 **영구 삭제 안 함**이다. 설치한 뒤 관리자가 정하기 전에는 지금처럼 아무것도 지우지 않는다.
 - 삭제되지 않은 티켓 안의 삭제된 문서·댓글은 각자의 설정을 따른다. 삭제된 티켓 안의 것은(따로 삭제됐든 아니든) 티켓이 영구 삭제될 때 함께 사라진다.
@@ -27,7 +27,7 @@
 
 - 서버가 뜨고 1분 뒤에 처음, 그 뒤로 1시간마다 돈다 (`flowbit.retention.initial-delay`, `flowbit.retention.interval`). `flowbit.retention.enabled=false` 면 돌지 않는다(통합 테스트가 끈다).
 - 한 번 돌 때 댓글 → 문서 → 티켓 순으로 지운다. 티켓·댓글의 첨부 파일은 DB 에서 지운 뒤 저장소에서 지운다(파일 삭제가 실패해도 DB 는 되돌리지 않는다, 남은 파일은 해가 없다).
-- 설정과 상관없이 같은 작업이 **댓글을 쓰다 올렸지만 하루 안에 보내지 않은 파일**(`issue_attachments.pending`)도 지운다(D-164). 개수는 `DATA_PURGED` 에 넣지 않는다.
+- 설정과 상관없이 같은 작업이 **영구 삭제된 티켓·문서·목표·프로젝트가 남긴 블록 스레드, 활동, 일반 댓글, 파일**(`content_*` 는 대상에 외래 키가 없다. D-165)도 지우고(`sweepOrphans`), 같은 작업이 **댓글을 쓰다 올렸지만 하루 안에 보내지 않은 파일**(`issue_attachments.pending`)도 지운다(D-164). 개수는 `DATA_PURGED` 에 넣지 않는다.
 - 무엇이든 지웠으면 감사 로그에 `DATA_PURGED`(행위자 없음, `detail` 에 항목별 개수)를 남긴다. 설정을 바꾸면 `RETENTION_SETTINGS_CHANGED`.
 - 지운 것을 실시간으로 알리지 않는다. 삭제된 티켓·문서는 이미 목록에서 빠져 있고, 그것을 열어 둔 화면은 다음에 불러올 때 "찾을 수 없음"이 된다.
 

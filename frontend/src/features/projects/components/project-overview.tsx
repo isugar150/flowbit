@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
+import { ContentActivity } from "@/features/content/components/content-activity";
 import { ProjectIssueSummary } from "@/features/issues/components/project-issue-summary";
 import type { Issue, IssueDocumentSummary } from "@/features/issues/types";
 import { MilestonesSection } from "@/features/milestones/components/milestones-section";
@@ -11,7 +12,7 @@ import { ProjectProperties } from "@/features/projects/components/project-proper
 import { ProjectSubscribeButton } from "@/features/projects/components/project-subscribe-button";
 import { ProjectUpdates } from "@/features/projects/components/project-updates";
 import { HealthBadge } from "@/features/projects/meta";
-import type { ProjectMember, ProjectUpdate } from "@/features/projects/types";
+import { mentionablesOf, type ProjectMember, type ProjectUpdate } from "@/features/projects/types";
 import { getProjects, loadProject, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
 
@@ -51,7 +52,12 @@ export async function ProjectOverview({ id }: { id: string }) {
           <ProjectIcon iconUrl={project.iconUrl} size="lg" />
           <h2 className="text-2xl leading-8 font-semibold">{project.name}</h2>
         </div>
-        <ProjectOverviewEditor project={project} documents={documents ?? []} canEdit={project.myRole !== "VIEWER"} />
+        <ProjectOverviewEditor
+          project={project}
+          documents={documents ?? []}
+          canEdit={project.myRole !== "VIEWER"}
+          mentionables={mentionablesOf(members)}
+        />
         <ProjectIssueSummary projectId={project.id} issues={issues ?? []} canEdit={project.myRole !== "VIEWER"} />
         <MilestonesSection projectId={project.id} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
         <ProjectUpdates
@@ -61,6 +67,8 @@ export async function ProjectOverview({ id }: { id: string }) {
           canManage={canManage}
           currentUserId={user.id}
         />
+        {/* What changed on the project and what was said about it, as on an issue (D-165). */}
+        <ContentActivity target={{ type: "project", id: project.id }} watch={project} mentionables={mentionablesOf(members)} />
       </div>
       <aside className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 lg:mx-0 lg:w-80">
         <PropertyCard

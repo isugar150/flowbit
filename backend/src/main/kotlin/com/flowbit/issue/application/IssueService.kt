@@ -9,6 +9,11 @@ import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.common.richtext.RichTextDocument
+import com.flowbit.content.ContentEvent
+import com.flowbit.content.ContentEventType
+import com.flowbit.content.ContentLog
+import com.flowbit.content.ContentTarget
+import com.flowbit.content.ContentTargetType
 import com.flowbit.issue.domain.Issue
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueRepository
@@ -172,6 +177,7 @@ class IssueService(
     private val extras: IssueExtrasStore,
     private val comments: IssueCommentStore,
     private val fileStorage: FileStorage,
+    private val contentLog: ContentLog,
     private val clock: Clock,
 ) {
     /**
@@ -282,7 +288,7 @@ class IssueService(
             }
         val milestoneId = if (parent != null) parent.milestoneId else input.milestoneId
         val title = input.title.trim()
-        val document = input.content?.let { richText.parse(it) }
+        val document = input.content?.let { richText.parse(it, blockIds = true) }
         val description = document?.plainText ?: input.description?.trim().orEmpty()
         val errors = textErrors(title, description)
         if (errors.isNotEmpty()) throw ValidationException(errors)
@@ -340,7 +346,7 @@ class IssueService(
 
         if (patch.has("title")) issue.title = patch.string("title")?.trim().orEmpty()
         if (patch.has("description")) issue.description = patch.string("description")?.trim().orEmpty()
-        val document = if (patch.has("content")) patch.raw("content")?.let { richText.parse(it) } else null
+        val document = if (patch.has("content")) patch.raw("content")?.let { richText.parse(it, blockIds = true) } else null
         if (patch.has("content")) issue.description = document?.plainText.orEmpty()
         val errors = textErrors(issue.title, issue.description)
         if (errors.isNotEmpty()) throw ValidationException(errors)
@@ -745,7 +751,27 @@ class IssueService(
         user: AuthenticatedUser,
         projectId: String,
         rawTitle: String?,
-    ): DocumentSummary = extras.addDocument(null, editableProject(user, projectId).id, null, documentTitle(rawTitle.orEmpty()), user.id, clock.instant())
+    ): DocumentSummary {
+        val project = editableProject(user, projectId)
+        val title = documentTitle(rawTitle.orEmpty())
+        val now = clock.instant()
+        val document = extras.addDocument(null, project.id, null, title, user.id, now)
+        // A document made on the overview is a line of the project's activity (D-165).
+        contentLog.record(
+            ContentTarget(ContentTargetType.PROJECT, project.id),
+            user.id,
+            listOf(
+                ContentEvent(
+                    ContentEventType.DOCUMENT_ADDED,
+                    mapOf(
+                        "to" to title,
+                    ),
+                ),
+            ),
+            now,
+        )
+        return document
+    }
 
     /**
      * A document inside another one. Only a project's documents nest, and only
@@ -763,7 +789,24 @@ class IssueService(
         if (extras.documentAncestors(parent.id).size + 1 >= MAX_DOCUMENT_DEPTH) {
             throw ConflictException("DOCUMENT_TOO_DEEP", "문서는 ${MAX_DOCUMENT_DEPTH}단계까지만 만들 수 있습니다")
         }
-        return extras.addDocument(null, parent.projectId, parent.id, documentTitle(rawTitle.orEmpty()), user.id, clock.instant())
+        val title = documentTitle(rawTitle.orEmpty())
+        val now = clock.instant()
+        val child = extras.addDocument(null, parent.projectId, parent.id, title, user.id, now)
+        // One inside another is a line of the activity of the one it is in.
+        contentLog.record(
+            ContentTarget(ContentTargetType.DOCUMENT, parent.id),
+            user.id,
+            listOf(
+                ContentEvent(
+                    ContentEventType.DOCUMENT_ADDED,
+                    mapOf(
+                        "to" to title,
+                    ),
+                ),
+            ),
+            now,
+        )
+        return child
     }
 
     suspend fun projectDocuments(
@@ -813,11 +856,21 @@ class IssueService(
         val document = extras.findDocument(documentId) ?: throw notFound()
         if (!ownerOf(user, document).canEdit || document.deletedAt != null) throw noEditRight()
         val title = if (patch.has("title")) documentTitle(patch.string("title").orEmpty()) else null
+        var contentChanged = false
         if (patch.has("content")) {
-            val parsed = patch.raw("content")?.let { richText.parse(it) }
+            // A document is a page whose blocks can be commented on: every top-level block has a number (D-165).
+            val parsed = patch.raw("content")?.let { richText.parse(it, blockIds = true) }
+            contentChanged = !richText.same(richText.load(RichText.ContentTable.DOCUMENTS, document.id), parsed)
             richText.store(RichText.ContentTable.DOCUMENTS, document.id, parsed)
         }
-        extras.touchDocument(document.id, title, clock.instant())
+        val now = clock.instant()
+        extras.touchDocument(document.id, title, now)
+        val events = mutableListOf<ContentEvent>()
+        if (title != null && title != document.title) {
+            events += ContentEvent(ContentEventType.NAME_CHANGED, mapOf("from" to document.title, "to" to title))
+        }
+        if (contentChanged) events += ContentEvent(ContentEventType.CONTENT_EDITED)
+        contentLog.record(ContentTarget(ContentTargetType.DOCUMENT, document.id), user.id, events, now)
         return document(user, documentId)
     }
 
@@ -838,6 +891,7 @@ class IssueService(
             val event = IssueEvent(IssueActivityType.DOCUMENT_REMOVED, mapOf("from" to document.title))
             activities.record(issue.id, user.id, listOf(event), clock.instant())
         }
+        recordInHolder(document, user.id, ContentEvent(ContentEventType.DOCUMENT_REMOVED, mapOf("from" to document.title)))
         return DocumentOwner(owner.issue?.number, owner.project?.id)
     }
 
@@ -855,7 +909,25 @@ class IssueService(
             val event = IssueEvent(IssueActivityType.DOCUMENT_RESTORED, mapOf("to" to document.title))
             activities.record(issue.id, user.id, listOf(event), clock.instant())
         }
+        recordInHolder(document, user.id, ContentEvent(ContentEventType.DOCUMENT_RESTORED, mapOf("to" to document.title)))
         return DocumentOwner(owner.issue?.number, owner.project?.id)
+    }
+
+    /**
+     * A document that was deleted or restored is a line of the activity of what holds it (D-165):
+     * the document it sits inside, or else the project. An issue's own documents are in the
+     * issue's activity already.
+     */
+    private suspend fun recordInHolder(
+        document: DocumentSummary,
+        actorId: UUID,
+        event: ContentEvent,
+    ) {
+        val holder =
+            document.parentId?.let { ContentTarget(ContentTargetType.DOCUMENT, it) }
+                ?: document.projectId?.let { ContentTarget(ContentTargetType.PROJECT, it) }
+                ?: return
+        contentLog.record(holder, actorId, listOf(event), clock.instant())
     }
 
     /** The issue or project a document belongs to, as the caller may see it; "not found" when they may not. */

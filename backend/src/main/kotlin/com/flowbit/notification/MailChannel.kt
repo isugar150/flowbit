@@ -91,6 +91,10 @@ class MailNotificationChannel(
         mail(request.recipientIds, texts.of(request), "the access request to ${request.projectId}")
     }
 
+    override suspend fun sendContent(notification: ContentNotification) {
+        mail(notification.recipientIds, texts.of(notification), notification.title)
+    }
+
     private suspend fun mail(
         recipientIds: List<java.util.UUID>,
         message: NotificationMessage,

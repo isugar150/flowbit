@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import type { MentionPerson } from "@/components/editor/mention";
@@ -9,10 +10,15 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { repositoryName } from "@/features/git/components/issue-git-links";
+import { goToBlock } from "@/features/content/go-to-block";
+import { ThreadCard } from "@/features/content/components/thread-parts";
+import type { ContentThread } from "@/features/content/types";
+import { useContentFeed } from "@/features/content/use-content-feed";
 import { setIssueSubscribed, toggleActivityReaction } from "../api";
 import { priorityLabel, statusLabel } from "../meta";
 import { PersonAvatar, personName } from "@/components/person";
-import type { IssueActivityFeed, IssueActivityItem, IssueComment, IssuePerson, IssuePriority, IssueStatus } from "../types";
+import { issueCommentApi } from "../comment-api";
+import type { IssueActivityFeed, IssueActivityItem, IssuePerson, IssuePriority, IssueStatus, Reaction } from "../types";
 import { CommentComposer, CommentItem } from "./issue-comments";
 import { ReactionPicker, ReactionPills, useReactions } from "./issue-reactions";
 
@@ -37,11 +43,14 @@ function pullRequestName(detail: IssueActivityItem["detail"], withTitle: boolean
   return withTitle && typeof detail.title === "string" ? `${name} ${detail.title}` : name;
 }
 
+/** What a line of the history says: who did what, and the value it is about. */
+export type Described = { action: string; change?: string; href?: string; commits?: Commit[] };
+
 /**
  * What happened, in words, with the old and new value where there is one. `href` makes the value
  * a link (to the Git server); `commits` are listed under the line.
  */
-function describe(item: IssueActivityItem): { action: string; change?: string; href?: string; commits?: Commit[] } {
+function describe(item: IssueActivityItem): Described {
   const { from, to, added, removed } = item.detail;
   const arrow = (before: string, after: string) => `${before} → ${after}`;
   const url = typeof item.detail.url === "string" && /^https?:\/\//.test(item.detail.url) ? item.detail.url : undefined;
@@ -113,13 +122,22 @@ function describe(item: IssueActivityItem): { action: string; change?: string; h
   }
 }
 
-type Entry = { at: string; event: IssueActivityItem; comment?: undefined } | { at: string; comment: IssueComment; event?: undefined };
+/** One place in the list under the heading "활동": a change, a comment, or a thread on a block. */
+export type TimelineEntry<E, C> =
+  | { kind: "event"; at: string; event: E }
+  | { kind: "comment"; at: string; comment: C }
+  | { kind: "thread"; at: string; thread: ContentThread };
 
-/** History entries and comments as one list, oldest first. */
-function entriesOf(feed: IssueActivityFeed): Entry[] {
-  const entries: Entry[] = [
-    ...feed.items.map((event) => ({ at: event.createdAt, event })),
-    ...feed.comments.map((comment) => ({ at: comment.createdAt, comment })),
+/** History entries, comments and the threads on blocks as one list, oldest first; a thread stands where its first comment was written. */
+export function timelineOf<E extends { createdAt: string }, C extends { createdAt: string }>(
+  events: E[],
+  comments: C[],
+  threads: ContentThread[],
+): TimelineEntry<E, C>[] {
+  const entries: TimelineEntry<E, C>[] = [
+    ...events.map((event): TimelineEntry<E, C> => ({ kind: "event", at: event.createdAt, event })),
+    ...comments.map((comment): TimelineEntry<E, C> => ({ kind: "comment", at: comment.createdAt, comment })),
+    ...threads.map((thread): TimelineEntry<E, C> => ({ kind: "thread", at: thread.createdAt, thread })),
   ];
   // Timestamps are ISO strings in UTC, so they sort as text; ties keep the order above.
   return entries.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
@@ -194,9 +212,19 @@ function SubscriberAvatars({ people }: { people: IssuePerson[] }) {
  * the line, and the button to add one appears when the pointer is on the line (always on a touch
  * screen). `readOnly` (a deleted issue) only shows them.
  */
-function ActivityEvent({ item, readOnly }: { item: IssueActivityItem; readOnly: boolean }) {
-  const reactions = useReactions(item.reactions, (emoji) => toggleActivityReaction({ id: item.id, emoji }));
-  const described = describe(item);
+export function ActivityEvent({
+  item,
+  described,
+  react,
+  readOnly,
+}: {
+  item: { id: string; createdAt: string; actor: IssuePerson | null; detail: IssueActivityItem["detail"]; reactions: Reaction[] };
+  described: Described;
+  /** Puts the person's emoji on the line, or takes it back. */
+  react: (emoji: string) => Promise<Reaction[]>;
+  readOnly: boolean;
+}) {
+  const reactions = useReactions(item.reactions, react);
   const { change, href, commits } = described;
   // A Git server's change (D-153): a Git user without an account here is named as the server
   // knows them, and when the event named nobody the server itself is ("GitHub에서 …").
@@ -288,12 +316,15 @@ function ActivityEvent({ item, readOnly }: { item: IssueActivityItem; readOnly: 
  */
 export function IssueActivity({
   number,
+  issueId,
   feed,
   canComment,
   mentionables,
   readOnly = false,
 }: {
   number: number;
+  /** The issue's id: the comments on the blocks of its body are found by it (D-165). */
+  issueId: string;
   feed: IssueActivityFeed;
   canComment: boolean;
   /** The people "@" offers in a comment. */
@@ -307,6 +338,10 @@ export function IssueActivity({
     setIssueSubscribed,
   );
   const subscribed = mutation.value;
+  const api = useMemo(() => issueCommentApi(number), [number]);
+  // The comments on the blocks of the body stand among the rest, where their first comment was written.
+  const target = useMemo(() => ({ type: "issue" as const, id: issueId }), [issueId]);
+  const threads = useContentFeed(target, feed).data?.threads ?? [];
 
   return (
     <section data-presence-id="activity" aria-labelledby="issue-activity-title" className="flex flex-col gap-3 border-t pt-5">
@@ -332,15 +367,33 @@ export function IssueActivity({
         </p>
       ) : null}
       <ol className="flex flex-col gap-2.5">
-        {entriesOf(feed).map((entry) =>
-          entry.comment ? (
-            <CommentItem key={entry.comment.id} number={number} comment={entry.comment} mentionables={mentionables} readOnly={readOnly} />
+        {timelineOf(feed.items, feed.comments, threads).map((entry) =>
+          entry.kind === "comment" ? (
+            <CommentItem key={entry.comment.id} api={api} comment={entry.comment} mentionables={mentionables} readOnly={readOnly} />
+          ) : entry.kind === "thread" ? (
+            <li key={entry.thread.id}>
+              <ThreadCard
+                target={target}
+                thread={entry.thread}
+                canComment={!readOnly}
+                mentionables={mentionables}
+                quote
+                collapseResolved
+                onGoToBlock={goToBlock}
+              />
+            </li>
           ) : (
-            <ActivityEvent key={entry.event.id} item={entry.event} readOnly={readOnly} />
+            <ActivityEvent
+              key={entry.event.id}
+              item={entry.event}
+              described={describe(entry.event)}
+              react={(emoji) => toggleActivityReaction({ id: entry.event.id, emoji })}
+              readOnly={readOnly}
+            />
           ),
         )}
       </ol>
-      {canComment ? <CommentComposer number={number} mentionables={mentionables} /> : null}
+      {canComment ? <CommentComposer api={api} mentionables={mentionables} /> : null}
     </section>
   );
 }

@@ -1,8 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
+import { BlockComments } from "@/features/content/components/block-comments";
+import { useContentFeed } from "@/features/content/use-content-feed";
 import { createDocument } from "@/features/issues/api";
 import type { IssueDocumentSummary } from "@/features/issues/types";
 import { useAutosave } from "@/lib/use-autosave";
@@ -21,8 +25,11 @@ export function ProjectOverviewEditor({
   project,
   documents,
   canEdit,
+  mentionables = [],
 }: {
   project: Project;
+  /** The people "@" offers in a comment on a block. */
+  mentionables?: MentionPerson[];
   /** The documents made on this overview; they sit in the description as page blocks. */
   documents: IssueDocumentSummary[];
   canEdit: boolean;
@@ -30,6 +37,8 @@ export function ProjectOverviewEditor({
   const router = useRouter();
   const content = useAutosave((doc: RichDoc | null) => updateProject({ id: project.id, changes: { content: doc } }));
   const status = content.status;
+  const target = useMemo(() => ({ type: "project" as const, id: project.id }), [project.id]);
+  const feed = useContentFeed(target, project);
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,6 +56,18 @@ export function ProjectOverviewEditor({
             className="min-h-40"
             onChange={content.schedule}
             keepLocal={content.isDirty}
+            // Each block can be commented on, by anyone who may enter the project (D-165).
+            blockIds
+            overlay={({ editor, container }) => (
+              <BlockComments
+                editor={editor}
+                container={container}
+                target={target}
+                threads={feed.data?.threads ?? []}
+                canComment={feed.data?.canComment ?? false}
+                mentionables={mentionables}
+              />
+            )}
             // "/문서" in the description makes a document on this project and puts it there as a block.
             documents={documents}
             onCreateDocument={

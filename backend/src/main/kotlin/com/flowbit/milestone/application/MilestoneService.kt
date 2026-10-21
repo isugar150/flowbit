@@ -8,6 +8,11 @@ import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
+import com.flowbit.content.ContentEvent
+import com.flowbit.content.ContentEventType
+import com.flowbit.content.ContentLog
+import com.flowbit.content.ContentTarget
+import com.flowbit.content.ContentTargetType
 import com.flowbit.milestone.domain.Milestone
 import com.flowbit.milestone.domain.MilestoneRepository
 import com.flowbit.milestone.domain.MilestoneStatus
@@ -51,6 +56,7 @@ class MilestoneService(
     private val entityTemplate: R2dbcEntityTemplate,
     private val databaseClient: DatabaseClient,
     private val richText: RichText,
+    private val contentLog: ContentLog,
     private val clock: Clock,
 ) {
     /** Dated milestones first, soonest first; undated ones after, in the order they were made. */
@@ -71,8 +77,11 @@ class MilestoneService(
         val now = clock.instant()
         val milestone = Milestone(UuidV7.generate(now), project.id, validName(rawName), targetDate, status, now, now)
         entityTemplate.insert(milestone).awaitSingle()
+        contentLog.record(projectTarget(project.id), user.id, listOf(ContentEvent(ContentEventType.MILESTONE_ADDED, mapOf("name" to milestone.name))), now)
         return views(project.id).single { it.id == milestone.id }
     }
+
+    private fun projectTarget(projectId: UUID) = ContentTarget(ContentTargetType.PROJECT, projectId)
 
     /** Changes the fields present in `changes`: `name`, `targetDate`, `status` and `content` (null clears the date or the document). */
     @Transactional
@@ -84,6 +93,9 @@ class MilestoneService(
     ): MilestoneView {
         val project = editable(projectService.access(user, projectId)).project
         val milestone = repository.findByIdAndProjectId(milestoneId, project.id) ?: throw notFound()
+        val oldName = milestone.name
+        val oldDate = milestone.targetDate
+        val oldStatus = milestone.status
         if ("name" in changes) milestone.name = validName(changes["name"] as? String ?: "")
         if ("targetDate" in changes) {
             milestone.targetDate =
@@ -98,11 +110,24 @@ class MilestoneService(
                 (changes["status"] as? String)?.let { value -> MilestoneStatus.entries.firstOrNull { it.name == value } }
                     ?: throw ValidationException("status", "INVALID", "값이 올바르지 않습니다")
         }
-        val document = if ("content" in changes) changes["content"]?.let { richText.parse(it) } else null
+        // The milestone's document is a page whose blocks can be commented on: every top-level block has a number (D-165).
+        val document = if ("content" in changes) changes["content"]?.let { richText.parse(it, blockIds = true) } else null
+        val contentChanged = "content" in changes && !richText.same(richText.load(RichText.ContentTable.MILESTONES, milestone.id), document)
         milestone.updatedAt = clock.instant()
         repository.save(milestone)
         // The entity does not carry the document (it is not read with every milestone row).
         if ("content" in changes) richText.store(RichText.ContentTable.MILESTONES, milestone.id, document)
+
+        val events = mutableListOf<ContentEvent>()
+        if (milestone.name != oldName) events += ContentEvent(ContentEventType.NAME_CHANGED, mapOf("from" to oldName, "to" to milestone.name))
+        if (contentChanged) events += ContentEvent(ContentEventType.CONTENT_EDITED)
+        if (milestone.status != oldStatus) {
+            events += ContentEvent(ContentEventType.STATUS_CHANGED, mapOf("from" to oldStatus.name, "to" to milestone.status.name))
+        }
+        if (milestone.targetDate != oldDate) {
+            events += ContentEvent(ContentEventType.TARGET_DATE_CHANGED, mapOf("from" to oldDate?.toString(), "to" to milestone.targetDate?.toString()))
+        }
+        contentLog.record(ContentTarget(ContentTargetType.MILESTONE, milestone.id), user.id, events, milestone.updatedAt)
         return views(project.id).single { it.id == milestone.id }
     }
 
@@ -116,6 +141,12 @@ class MilestoneService(
         val project = editable(projectService.access(user, projectId)).project
         val milestone = repository.findByIdAndProjectId(milestoneId, project.id) ?: throw notFound()
         repository.delete(milestone)
+        contentLog.record(
+            projectTarget(project.id),
+            user.id,
+            listOf(ContentEvent(ContentEventType.MILESTONE_REMOVED, mapOf("name" to milestone.name))),
+            clock.instant(),
+        )
     }
 
     /** For issues: a milestone can only be set from the issue's own project. */

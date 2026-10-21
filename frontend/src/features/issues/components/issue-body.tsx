@@ -1,9 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
+import { BlockComments } from "@/features/content/components/block-comments";
+import { useContentFeed } from "@/features/content/use-content-feed";
 import { IssueKeyMenu } from "@/features/git/components/issue-key-menu";
 import type { IssueGitRepository } from "@/features/git/types";
 import { useAutosave } from "@/lib/use-autosave";
@@ -48,6 +51,8 @@ export function IssueBody({
   );
   const status = content.status !== "idle" ? content.status : title.status;
   const titleInput = useRemoteValue<HTMLInputElement>(issue.title, title.isDirty);
+  const target = useMemo(() => ({ type: "issue" as const, id: issue.id }), [issue.id]);
+  const feed = useContentFeed(target, issue);
 
   return (
     <>
@@ -94,6 +99,18 @@ export function IssueBody({
           onChange={content.schedule}
           keepLocal={content.isDirty}
           mentionables={mentionables}
+          // Each block can be commented on, by anyone who sees the issue (D-165).
+          blockIds
+          overlay={({ editor, container }) => (
+            <BlockComments
+              editor={editor}
+              container={container}
+              target={target}
+              threads={feed.data?.threads ?? []}
+              canComment={feed.data?.canComment ?? false}
+              mentionables={mentionables}
+            />
+          )}
           // "/문서" in the body makes a document on this issue and puts it there as a block.
           documents={issue.documents}
           onCreateDocument={

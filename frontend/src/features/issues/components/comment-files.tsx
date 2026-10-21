@@ -8,7 +8,7 @@ import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES } from "@/features/settings/erro
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { deleteAttachment, uploadCommentFile } from "../api";
+import type { CommentApi } from "../comment-api";
 import { MAX_COMMENT_FILES, type Attachment } from "../types";
 import { formatSize } from "./issue-attachments";
 
@@ -35,7 +35,7 @@ export function splitFiles(list: File[]): { pictures: File[]; others: File[] } {
  * the comment when the comment is sent with `ids`. `saved` are the files a comment being changed
  * already has; taking one of those away only changes the list, which the change then saves.
  */
-export function useCommentFiles(number: number, saved: Attachment[] = []) {
+export function useCommentFiles(api: CommentApi, saved: Attachment[] = []) {
   const [files, setFiles] = useState<DraftFile[]>(() => saved.map(draftOf));
   const [error, setError] = useState<string | null>(null);
   const counter = useRef(0);
@@ -56,7 +56,7 @@ export function useCommentFiles(number: number, saved: Attachment[] = []) {
     for (const [index, file] of accepted.entries()) {
       const draft = drafts[index];
       try {
-        const attachment = await uploadCommentFile({ number, file });
+        const attachment = await api.uploadFile(file);
         setFiles((current) => current.map((item) => (item.key === draft.key ? { ...item, attachment } : item)));
       } catch (failure) {
         setFiles((current) => current.filter((item) => item.key !== draft.key));
@@ -68,7 +68,7 @@ export function useCommentFiles(number: number, saved: Attachment[] = []) {
   /** A file uploaded for this comment and not sent is thrown away; one the comment holds leaves when the change is saved. */
   const discardUnsent = (items: DraftFile[]) => {
     for (const item of items) {
-      if (item.attachment && !kept.current.has(item.attachment.id)) void deleteAttachment(item.attachment.id).catch(() => undefined);
+      if (item.attachment && !kept.current.has(item.attachment.id)) void api.discardFile(item.attachment.id).catch(() => undefined);
     }
   };
 

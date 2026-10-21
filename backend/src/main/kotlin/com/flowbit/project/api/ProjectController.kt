@@ -384,7 +384,7 @@ class AdminMemberProjectsController(
         @PathVariable projectId: UUID,
         @RequestBody body: PutProjectMemberRequest,
     ) {
-        projectService.adminPutMember(projectId, memberId, body.role)
+        projectService.adminPutMember(user.id, projectId, memberId, body.role)
         realtime.publish("project:$projectId", user.id)
         realtime.publish(RealtimeHub.PROJECTS, user.id)
     }
@@ -396,7 +396,7 @@ class AdminMemberProjectsController(
         @PathVariable memberId: UUID,
         @PathVariable projectId: UUID,
     ) {
-        projectService.adminRemoveMember(projectId, memberId)
+        projectService.adminRemoveMember(user.id, projectId, memberId)
         realtime.publish("project:$projectId", user.id)
         realtime.publish(RealtimeHub.PROJECTS, user.id)
     }

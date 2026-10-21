@@ -100,6 +100,41 @@ class WebhookSender(
         )
     }
 
+    /** A change to a project, a document or a milestone, or a comment on one (D-165): no issue, the page that changed instead. */
+    fun contentOf(notification: ContentNotification): WebhookContent {
+        val message = texts.of(notification)
+        val kind = notification.targetType.lowercase()
+        val commented = notification.events.any { it.type == "THREAD_COMMENT" || it.type == "COMMENT_ADDED" }
+        return WebhookContent(
+            event = "$kind.${if (commented) "commented" else "updated"}",
+            types = notification.events.map { it.type }.toSet(),
+            about = notification.title,
+            message = message,
+            subject =
+                mapOf(
+                    "issue" to null,
+                    "target" to
+                        mapOf(
+                            "type" to notification.targetType,
+                            "id" to notification.targetId.toString(),
+                            "title" to notification.title,
+                            "url" to message.url,
+                            "projectId" to notification.projectId?.toString(),
+                        ),
+                    "actor" to mapOf("id" to notification.actorId.toString(), "name" to notification.actorName),
+                    "changes" to notification.events.map { mapOf("type" to it.type, "detail" to it.detail) },
+                ),
+            values =
+                mapOf(
+                    "target.type" to notification.targetType,
+                    "target.id" to notification.targetId.toString(),
+                    "target.title" to notification.title,
+                    "target.url" to message.url,
+                    "actor.name" to notification.actorName,
+                ),
+        )
+    }
+
     /** A request to join a project: no issue, the project instead, and the requester as the actor. */
     fun contentOf(request: ProjectAccessRequestNotification): WebhookContent {
         val message = texts.of(request)
@@ -345,6 +380,11 @@ class WebhookNotificationChannel(
             val types = webhook.eventTypeSet
             if (types.isEmpty()) common else full.takeIf { types.any(full.types::contains) }
         }
+    }
+
+    override suspend fun sendContent(notification: ContentNotification) {
+        val content = sender.contentOf(notification)
+        deliverAll(notification.recipientIds) { webhook -> content.takeIf { webhook.eventTypeSet.let { it.isEmpty() || it.any(content.types::contains) } } }
     }
 
     override suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {

@@ -12,6 +12,9 @@ import { SaveStatus } from "@/components/editor/save-status";
 import { PeopleMarks } from "@/components/person";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BlockComments } from "@/features/content/components/block-comments";
+import { ContentActivity } from "@/features/content/components/content-activity";
+import { useContentFeed } from "@/features/content/use-content-feed";
 import { DateChip } from "@/features/issues/components/date-chips";
 import { updateIssue } from "@/features/issues/api";
 import { ChipSelect } from "@/features/issues/components/chip-select";
@@ -27,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { updateMilestone } from "../api";
 import { ProjectStatusIcon, projectStatusLabel, projectStatusOptions } from "@/features/projects/meta";
+import { mentionablesOf, type ProjectMember } from "@/features/projects/types";
 import { milestoneProgress, type Milestone, type MilestoneStatus } from "../types";
 
 const statusOptions = STATUSES.map((status) => ({
@@ -180,6 +184,15 @@ export function MilestoneDetailBody({
   const percent = milestoneProgress(milestone);
   const done = milestone.status === "COMPLETED";
   const nameInput = useRemoteValue<HTMLInputElement>(milestone.name, isFocused);
+  // Comments on the blocks of the document, and the activity under it, are open to everyone who sees the milestone (D-165), also in the panel beside a ticket.
+  const target = useMemo(() => ({ type: "milestone" as const, id: milestone.id }), [milestone.id]);
+  const feed = useContentFeed(target, milestone);
+  const members = useQuery({
+    queryKey: ["project-members", projectId],
+    queryFn: () => apiFetch<ProjectMember[]>(`/api/v1/projects/${encodeURIComponent(projectId)}/members`),
+    staleTime: 60_000,
+  });
+  const mentionables = useMemo(() => mentionablesOf(members.data ?? []), [members.data]);
   // Read each time the milestone is opened: issues move in and out of it elsewhere.
   const issuesKey = ["milestone-issues", projectId, milestone.id];
   const queryClient = useQueryClient();
@@ -322,11 +335,24 @@ export function MilestoneDetailBody({
                   className="min-h-48"
                   onChange={notes?.schedule}
                   keepLocal={notes?.isDirty}
+                  blockIds
+                  overlay={({ editor, container }) => (
+                    <BlockComments
+                      editor={editor}
+                      container={container}
+                      target={target}
+                      threads={feed.data?.threads ?? []}
+                      canComment={feed.data?.canComment ?? false}
+                      mentionables={mentionables}
+                    />
+                  )}
                 />
               ) : (
                 <p className="text-muted-foreground">{m.noNotes}</p>
               )}
             </section>
+            {/* What changed on the milestone and what was said about it, as on an issue. */}
+            <ContentActivity target={target} watch={milestone} mentionables={mentionables} />
           </div>
           <aside
             aria-labelledby="milestone-issues-title"

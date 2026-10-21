@@ -28,22 +28,95 @@ class RichText(
     private val jsonMapper: JsonMapper,
     private val databaseClient: DatabaseClient,
 ) {
-    /** @param field the request field the document came in, named in validation errors. */
+    /**
+     * @param field the request field the document came in, named in validation errors.
+     * @param blockIds give every top-level block a number that does not change (D-165), and a new
+     *   one to a block whose number another block already has; for the documents comments hang on.
+     * @param textOnly only paragraphs, text and @ tags: what a comment on a block may hold.
+     */
     fun parse(
         document: Any?,
         field: String = "content",
+        blockIds: Boolean = false,
+        textOnly: Boolean = false,
     ): RichTextDocument {
         val root = document as? Map<*, *> ?: throw invalid(field)
         if (root["type"] != "doc") throw invalid(field)
         val text = StringBuilder()
         val nodes = intArrayOf(0)
         val mentions = linkedSetOf<UUID>()
-        visit(root, 0, text, nodes, mentions, field)
-        val json = jsonMapper.writeValueAsString(root)
+        visit(root, 0, text, nodes, mentions, field, if (textOnly) TEXT_ONLY_NODE_TYPES else NODE_TYPES)
+        val json = jsonMapper.writeValueAsString(if (blockIds) withBlockIds(root) else root)
         if (json.length > MAX_JSON_LENGTH) {
             throw ValidationException(field, "TOO_LONG", "내용이 너무 깁니다")
         }
         return RichTextDocument(json, text.toString().trim(), mentions.toList())
+    }
+
+    /** `root` with a `blockId` on every top-level block that has none or shares it with an earlier one. */
+    private fun withBlockIds(root: Map<*, *>): Map<*, *> {
+        val blocks = root["content"] as? List<*> ?: return root
+        val seen = HashSet<String>()
+        val numbered =
+            blocks.map { block ->
+                val node = block as? Map<*, *> ?: return@map block
+                val attrs = node["attrs"] as? Map<*, *>
+                val current = attrs?.get("blockId") as? String
+                if (current != null && seen.add(current)) {
+                    node
+                } else {
+                    val id = UUID.randomUUID().toString().also(seen::add)
+                    LinkedHashMap<Any?, Any?>(node).apply { put("attrs", LinkedHashMap<Any?, Any?>(attrs.orEmpty()).apply { put("blockId", id) }) }
+                }
+            }
+        return LinkedHashMap<Any?, Any?>(root).apply { put("content", numbered) }
+    }
+
+    /** Whether the stored document (raw JSON, or none) says what the one just parsed (or none) says; key order and spacing do not matter. */
+    fun same(
+        stored: String?,
+        document: RichTextDocument?,
+    ): Boolean {
+        if (stored == null || document == null) return stored == null && document == null
+        return jsonMapper.readTree(stored) == jsonMapper.readTree(document.json)
+    }
+
+    /** The numbers of the top-level blocks of a stored document (raw JSON), in order. */
+    fun blockIdsIn(json: String?): List<String> = topLevelBlocks(json).mapNotNull { ((it["attrs"] as? Map<*, *>)?.get("blockId")) as? String }
+
+    /**
+     * The start of the text of the top-level block with this number, to quote when a comment is
+     * made on it; the kind of block when it holds no text ("이미지"). Null when no block has the number.
+     */
+    fun blockQuote(
+        json: String?,
+        blockId: String,
+    ): String? {
+        val block = topLevelBlocks(json).firstOrNull { ((it["attrs"] as? Map<*, *>)?.get("blockId")) == blockId } ?: return null
+        val text = StringBuilder()
+
+        fun collect(node: Any?) {
+            val map = node as? Map<*, *> ?: return
+            when (map["type"]) {
+                "text" -> text.append(map["text"] as? String ?: "")
+                "mention" -> text.append('@').append((map["attrs"] as? Map<*, *>)?.get("label") as? String ?: "")
+                "hardBreak" -> text.append(' ')
+                "pageLink" -> text.append((map["attrs"] as? Map<*, *>)?.get("title") as? String ?: "")
+            }
+            (map["content"] as? List<*>)?.forEach { child ->
+                collect(child)
+                if ((child as? Map<*, *>)?.get("type") in BLOCK_TYPES) text.append(' ')
+            }
+        }
+        collect(block)
+        val quote = text.toString().replace(Regex("\\s+"), " ").trim()
+        return quote.ifEmpty { BLOCK_KIND_LABELS[block["type"]] ?: "블록" }.take(MAX_QUOTE_LENGTH)
+    }
+
+    private fun topLevelBlocks(json: String?): List<Map<*, *>> {
+        if (json == null) return emptyList()
+        val root = jsonMapper.readValue(json, Map::class.java)
+        return (root["content"] as? List<*>).orEmpty().filterIsInstance<Map<*, *>>()
     }
 
     /** The people tagged in a stored document (raw JSON, as [load] returns it). */
@@ -94,9 +167,10 @@ class RichText(
         nodes: IntArray,
         mentions: MutableSet<UUID>,
         field: String,
+        allowed: Set<String>,
     ) {
         val type = node["type"] as? String ?: throw invalid(field)
-        if (type !in NODE_TYPES || depth > MAX_DEPTH || ++nodes[0] > MAX_NODES) throw invalid(field)
+        if (type !in allowed || depth > MAX_DEPTH || ++nodes[0] > MAX_NODES) throw invalid(field)
 
         (node["marks"] as? List<*>)?.forEach { mark ->
             val markMap = mark as? Map<*, *> ?: throw invalid(field)
@@ -108,6 +182,7 @@ class RichText(
             }
         }
         val attrs = node["attrs"] as? Map<*, *>
+        attrs?.get("blockId")?.let { if (it !is String || !BLOCK_ID.matches(it)) throw invalid(field) }
         when (type) {
             "image" -> {
                 val src = attrs?.get("src") as? String ?: throw invalid(field)
@@ -143,7 +218,7 @@ class RichText(
             return
         }
         (node["content"] as? List<*>)?.forEach { child ->
-            visit(child as? Map<*, *> ?: throw invalid(field), depth + 1, text, nodes, mentions, field)
+            visit(child as? Map<*, *> ?: throw invalid(field), depth + 1, text, nodes, mentions, field, allowed)
         }
         if (type in BLOCK_TYPES && text.isNotEmpty() && text.last() != '\n') text.append('\n')
     }
@@ -175,6 +250,24 @@ class RichText(
                 setOf("doc", "text", "bulletList", "orderedList", "taskList", "hardBreak") +
                 setOf("image", "table", "tableRow", "tableHeader", "tableCell", "pageLink", "mention", "embed")
         val MARK_TYPES = setOf("bold", "italic", "strike", "code", "underline", "link")
+
+        /** What a comment on a block holds (D-165): text and people. */
+        val TEXT_ONLY_NODE_TYPES = setOf("doc", "paragraph", "text", "hardBreak", "mention")
+
+        /** The number of a block (`attrs.blockId`): a UUID as the editor and the server write it, or anything as short and plain. */
+        val BLOCK_ID = Regex("^[A-Za-z0-9_-]{6,64}$")
+        const val MAX_QUOTE_LENGTH = 200
+
+        /** What a thread quotes when its block holds no text. */
+        val BLOCK_KIND_LABELS =
+            mapOf(
+                "image" to "이미지",
+                "embed" to "임베드",
+                "horizontalRule" to "구분선",
+                "table" to "표",
+                "pageLink" to "문서",
+                "codeBlock" to "코드",
+            )
 
         /** Only images uploaded here (ImageStorage keys); an outside address could track readers. */
         val STORED_IMAGE = Regex("^/api/v1/files/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp$")

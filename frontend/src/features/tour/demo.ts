@@ -170,6 +170,8 @@ export function answer(demo: Demo, method: string, path: string, body: unknown):
     if (issueNumber) return { demo, result: demo.issues.find((issue) => issue.number === issueNumber) ?? null };
     if (route.endsWith("/issues")) return { demo, result: demo.issues };
     if (route.endsWith("/milestones")) return { demo, result: demo.milestones };
+    // The example has no comments and takes none (D-165).
+    if (/\/content\/[a-z]+\/[^/]+\/feed$/.test(route)) return { demo, result: { canComment: false, readOnly: true, threads: [], items: [], comments: [] } };
     return { demo, result: [] };
   }
   if (method === "POST" && route.endsWith("/issues")) {

@@ -11,6 +11,11 @@ import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.common.web.ClientInfo
+import com.flowbit.content.ContentEvent
+import com.flowbit.content.ContentEventType
+import com.flowbit.content.ContentLog
+import com.flowbit.content.ContentTarget
+import com.flowbit.content.ContentTargetType
 import com.flowbit.media.application.ImageProcessor
 import com.flowbit.media.application.ImageSpec
 import com.flowbit.media.application.ImageStorage
@@ -106,6 +111,7 @@ class ProjectService(
     private val richText: RichText,
     private val imageProcessor: ImageProcessor,
     private val imageStorage: ImageStorage,
+    private val contentLog: ContentLog,
     private val clock: Clock,
 ) {
     /** Every active project; `myRole` is null for those the user may not enter. */
@@ -131,6 +137,7 @@ class ProjectService(
         val now = clock.instant()
         repository.updateArchivedAt(project.id, now, now)
         auditService.record(AuditEventType.PROJECT_ARCHIVED, user.id, client, mapOf("projectId" to project.id.toString()))
+        contentLog.record(projectTarget(project.id), user.id, listOf(ContentEvent(ContentEventType.ARCHIVED)), now)
         return project.id
     }
 
@@ -149,8 +156,10 @@ class ProjectService(
                 ?: throw notFound()
         val role = effectiveRole(memberStore.roleOf(project.id, user.id), user)
         if (role?.canManage != true) throw ForbiddenException("프로젝트를 관리할 권한이 없습니다")
-        repository.updateArchivedAt(project.id, null, clock.instant())
+        val now = clock.instant()
+        repository.updateArchivedAt(project.id, null, now)
         auditService.record(AuditEventType.PROJECT_RESTORED, user.id, client, mapOf("projectId" to project.id.toString()))
+        contentLog.record(projectTarget(project.id), user.id, listOf(ContentEvent(ContentEventType.RESTORED)), now)
         return detail(project.id, user)
     }
 
@@ -280,15 +289,85 @@ class ProjectService(
             if ("description" in changes) (changes["description"] as? String)?.trim().orEmpty() else project.description
         val errors = detailErrors(name, description)
         if (errors.isNotEmpty()) throw ValidationException(errors)
-        val document = if ("content" in changes) changes["content"]?.let { richText.parse(it) } else null
+        // The overview is a page whose blocks can be commented on: every top-level block has a number (D-165).
+        val document = if ("content" in changes) changes["content"]?.let { richText.parse(it, blockIds = true) } else null
         val current = memberStore.summary(project.id, user.id)
         val properties = properties(project.id, current, changes)
+        val contentChanged = "content" in changes && !richText.same(richText.load(RichText.ContentTable.PROJECTS, project.id), document)
 
         val now = clock.instant()
         repository.updateDetails(project.id, name, description, now)
         if (PROPERTY_FIELDS.any { it in changes }) memberStore.updateProperties(project.id, properties, now)
         if ("content" in changes) richText.store(RichText.ContentTable.PROJECTS, project.id, document)
+        contentLog.record(projectTarget(project.id), user.id, activityOf(project.name, name, current, properties, contentChanged), now)
         return detail(project.id, user)
+    }
+
+    private fun projectTarget(projectId: UUID) = ContentTarget(ContentTargetType.PROJECT, projectId)
+
+    /** What a change to the name, the overview and the properties is in the project's activity. */
+    private suspend fun activityOf(
+        oldName: String,
+        name: String,
+        before: ProjectSummaryRow,
+        after: ProjectProperties,
+        contentChanged: Boolean,
+    ): List<ContentEvent> {
+        fun span(
+            start: LocalDate?,
+            end: LocalDate?,
+        ): String? =
+            when {
+                start == null && end == null -> null
+                start != null && end != null -> "$start ~ $end"
+                start != null -> "$start ~"
+                else -> "~ $end"
+            }
+        val events = mutableListOf<ContentEvent>()
+        if (name != oldName) events += ContentEvent(ContentEventType.NAME_CHANGED, mapOf("from" to oldName, "to" to name))
+        if (contentChanged) events += ContentEvent(ContentEventType.CONTENT_EDITED)
+        if (before.status != after.status) {
+            events += ContentEvent(ContentEventType.STATUS_CHANGED, mapOf("from" to before.status.name, "to" to after.status.name))
+        }
+        if (before.priority != after.priority) {
+            events += ContentEvent(ContentEventType.PRIORITY_CHANGED, mapOf("from" to before.priority.name, "to" to after.priority.name))
+        }
+        if (before.lead?.id != after.leadId) {
+            val from = before.lead?.let { it.displayName ?: it.loginId }
+            events += ContentEvent(ContentEventType.LEAD_CHANGED, mapOf("from" to from, "to" to after.leadId?.let { contentLog.nameOf(it) }))
+        }
+        if (before.startDate != after.startDate || before.targetDate != after.targetDate) {
+            events +=
+                ContentEvent(
+                    ContentEventType.DATES_CHANGED,
+                    mapOf("from" to span(before.startDate, before.targetDate), "to" to span(after.startDate, after.targetDate)),
+                )
+        }
+        val added = after.labels.filter { label -> before.labels.none { it.equals(label, ignoreCase = true) } }
+        val removed = before.labels.filter { label -> after.labels.none { it.equals(label, ignoreCase = true) } }
+        if (added.isNotEmpty() || removed.isNotEmpty()) {
+            events += ContentEvent(ContentEventType.LABELS_CHANGED, mapOf("added" to added, "removed" to removed))
+        }
+        return events
+    }
+
+    /** Who joined, left or got another role, in the project's activity. */
+    private suspend fun recordMember(
+        projectId: UUID,
+        actorId: UUID,
+        memberId: UUID,
+        before: ProjectRole?,
+        after: ProjectRole?,
+    ) {
+        val name = contentLog.nameOf(memberId)
+        val event =
+            when {
+                after == null -> if (before == null) return else ContentEvent(ContentEventType.MEMBER_REMOVED, mapOf("name" to name))
+                before == null -> ContentEvent(ContentEventType.MEMBER_ADDED, mapOf("name" to name, "role" to after.name))
+                before != after -> ContentEvent(ContentEventType.MEMBER_ROLE_CHANGED, mapOf("name" to name, "from" to before.name, "to" to after.name))
+                else -> return
+            }
+        contentLog.record(projectTarget(projectId), actorId, listOf(event), clock.instant())
     }
 
     /** The current properties with the ones present in `changes` applied and checked. */
@@ -355,6 +434,7 @@ class ProjectService(
         val iconKey = imageStorage.store(imageProcessor.toWebp(upload, ImageSpec.PROJECT_ICON))
         repository.updateIconKey(project.id, iconKey, clock.instant())
         imageStorage.delete(previous)
+        contentLog.record(projectTarget(project.id), user.id, listOf(ContentEvent(ContentEventType.ICON_CHANGED)), clock.instant())
         return detail(project.id, user)
     }
 
@@ -367,6 +447,7 @@ class ProjectService(
         val previous = repository.findIconKey(project.id)
         repository.updateIconKey(project.id, null, clock.instant())
         imageStorage.delete(previous)
+        contentLog.record(projectTarget(project.id), user.id, listOf(ContentEvent(ContentEventType.ICON_CHANGED)), clock.instant())
         return detail(project.id, user)
     }
 
@@ -396,6 +477,7 @@ class ProjectService(
      */
     @Transactional
     suspend fun adminPutMember(
+        actorId: UUID,
         projectId: UUID,
         memberId: UUID,
         role: ProjectRole,
@@ -403,19 +485,24 @@ class ProjectService(
         val project = repository.findById(projectId)?.takeIf { it.archivedAt == null } ?: throw notFound()
         userService.findActive(memberId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
         if (role != ProjectRole.MANAGER) requireAnotherManager(project.id, memberId)
+        val before = memberStore.roleOf(project.id, memberId)
         memberStore.put(project.id, memberId, role, clock.instant())
         memberStore.removeAccessRequest(project.id, memberId)
+        recordMember(project.id, actorId, memberId, before, role)
     }
 
     /** Takes the person out of a project, from the administrator screen. */
     @Transactional
     suspend fun adminRemoveMember(
+        actorId: UUID,
         projectId: UUID,
         memberId: UUID,
     ) {
         val project = repository.findById(projectId)?.takeIf { it.archivedAt == null } ?: throw notFound()
         requireAnotherManager(project.id, memberId)
+        val before = memberStore.roleOf(project.id, memberId)
         memberStore.remove(project.id, memberId)
+        recordMember(project.id, actorId, memberId, before, null)
     }
 
     /** Adds a member or changes their role. */
@@ -429,9 +516,11 @@ class ProjectService(
         val project = manage(user, projectId)
         userService.findActive(memberId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
         if (role != ProjectRole.MANAGER) requireAnotherManager(project.id, memberId)
+        val before = memberStore.roleOf(project.id, memberId)
         memberStore.put(project.id, memberId, role, clock.instant())
         // Added directly: a request they had waiting is answered by it.
         memberStore.removeAccessRequest(project.id, memberId)
+        recordMember(project.id, user.id, memberId, before, role)
         return memberStore.members(project.id)
     }
 
@@ -443,7 +532,9 @@ class ProjectService(
     ) {
         val project = manage(user, projectId)
         requireAnotherManager(project.id, memberId)
+        val before = memberStore.roleOf(project.id, memberId)
         memberStore.remove(project.id, memberId)
+        recordMember(project.id, user.id, memberId, before, null)
     }
 
     /**

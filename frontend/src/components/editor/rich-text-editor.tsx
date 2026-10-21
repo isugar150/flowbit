@@ -28,6 +28,7 @@ import { fileProblem, settingsErrorMessage } from "@/features/settings/error-mes
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { BlockDragHandle } from "./block-drag-handle";
+import { BlockId } from "./block-id";
 import { Embed, MAX_EMBED_URL_LENGTH, embedFor } from "./embed";
 import { fixedOrigin } from "./fixed-origin";
 import { Mention, MentionPeopleContext, type MentionPerson } from "./mention";
@@ -40,6 +41,9 @@ const m = messages.editor;
 
 /** An editor document as stored by the backend (Tiptap JSON). */
 export type RichDoc = Record<string, unknown>;
+
+/** What an overlay is given to lay itself over an editor. */
+export type EditorOverlayContext = { editor: Editor; container: HTMLElement | null };
 
 /** What a parent can ask of an editor from outside. */
 export type RichTextEditorHandle = {
@@ -201,13 +205,13 @@ function menuItems(
  * Where the menu should be, if the cursor sits right after "/word" in an ordinary paragraph, or,
  * where people can be tagged, right after "@name".
  */
-function readSlash(editor: Editor, probe: HTMLElement | null, withMentions: boolean): SlashState | null {
+function readSlash(editor: Editor, probe: HTMLElement | null, withMentions: boolean, withSlash: boolean): SlashState | null {
   const { selection } = editor.state;
   const { $from } = selection;
   if (!selection.empty) return null;
   const parent = $from.parent.type.name;
   const before = $from.parent.textBetween(0, $from.parentOffset, undefined, "￼");
-  const slashMatch = parent === "paragraph" ? /(?:^|\s)\/([^\s/]*)$/.exec(before) : null;
+  const slashMatch = withSlash && parent === "paragraph" ?/(?:^|\s)\/([^\s/]*)$/.exec(before) : null;
   const match = slashMatch ?? (withMentions && parent !== "codeBlock" ? /(?:^|\s)@([^\s@]*)$/.exec(before) : null);
   if (!match) return null;
   const coords = editor.view.coordsAtPos($from.pos);
@@ -257,9 +261,18 @@ export function RichTextEditor({
   documents,
   mentionables,
   ref,
+  blockIds = false,
+  plain = false,
+  overlay,
 }: {
   initialContent: RichDoc | null;
   ref?: React.Ref<RichTextEditorHandle>;
+  /** Gives every top-level block a number that does not change, so that comments can stay with their blocks (D-165). */
+  blockIds?: boolean;
+  /** Only text and tags: no blocks, no pictures, no `/` menu. For a comment on a block. */
+  plain?: boolean;
+  /** What to lay over the editor (the comments of its blocks); it is given the editor and the box it sits in. */
+  overlay?: (context: EditorOverlayContext) => React.ReactNode;
   /**
    * Makes a new document with this title and says which. When given, the `/` menu offers "문서":
    * it asks for the title first, then puts the new document at the cursor as a block of its own.
@@ -306,7 +319,7 @@ export function RichTextEditor({
   }, [mentionables]);
 
   const updateSlash = (editor: Editor) => {
-    const next = editor.isEditable ? readSlash(editor, probeRef.current, Boolean(mentionablesRef.current?.length)) : null;
+    const next = editor.isEditable ? readSlash(editor, probeRef.current, Boolean(mentionablesRef.current?.length), !plain) : null;
     // After Escape the menu stays closed until the "/" it belonged to is gone.
     const visible = next && dismissedAtRef.current === next.from ? null : next;
     if (!next) dismissedAtRef.current = null;
@@ -430,20 +443,39 @@ export function RichTextEditor({
     editable,
     autofocus: autoFocus ? "end" : false,
     content: initialContent ?? undefined,
-    extensions: [
-      StarterKit.configure({ link: { openOnClick: false, autolink: true, defaultProtocol: "https" } }),
-      TaskList,
-      TaskItem.configure({ nested: true, a11y: { checkboxLabel: (node) => m.taskItemLabel(node.textContent) } }),
-      Placeholder.configure({ placeholder: placeholder ?? "" }),
-      Image.configure({ allowBase64: false }),
-      ...tableExtensions,
-      PageLink,
-      Mention,
-      Embed,
-    ],
+    extensions: plain
+      ? [
+          // A comment on a block holds text and tags only (D-165): none of the blocks, so that no shortcut can make one.
+          StarterKit.configure({
+            heading: false,
+            bulletList: false,
+            orderedList: false,
+            listItem: false,
+            listKeymap: false,
+            blockquote: false,
+            codeBlock: false,
+            horizontalRule: false,
+            link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
+          }),
+          Placeholder.configure({ placeholder: placeholder ?? "" }),
+          Mention,
+        ]
+      : [
+          StarterKit.configure({ link: { openOnClick: false, autolink: true, defaultProtocol: "https" } }),
+          TaskList,
+          TaskItem.configure({ nested: true, a11y: { checkboxLabel: (node) => m.taskItemLabel(node.textContent) } }),
+          Placeholder.configure({ placeholder: placeholder ?? "" }),
+          Image.configure({ allowBase64: false }),
+          ...tableExtensions,
+          PageLink,
+          Mention,
+          Embed,
+          ...(blockIds ? [BlockId] : []),
+        ],
     editorProps: {
       attributes: { "aria-label": ariaLabel, role: "textbox", "aria-multiline": "true" },
       handlePaste: (view, event) => {
+        if (plain) return false;
         const files = imageFiles(event.clipboardData?.files);
         if (files.length > 0) {
           void insertImagesRef.current(files);
@@ -457,6 +489,7 @@ export function RichTextEditor({
         return true;
       },
       handleDrop: (view, event, _slice, moved) => {
+        if (plain) return false;
         // `moved` is a block dragged within the document, which the editor handles itself.
         const files = moved ? [] : imageFiles(event.dataTransfer?.files);
         if (files.length === 0) return false;
@@ -527,13 +560,14 @@ export function RichTextEditor({
   // Page blocks show the documents' current titles and open them inside the app.
   const router = useRouter();
   useEffect(() => {
-    if (!editor || editor.isDestroyed) return;
+    // A plain editor (a comment) has no page blocks.
+    if (!editor || editor.isDestroyed || plain) return;
     editor.storage.pageLink.configure({
       open: (id) => router.push(`/doc/${id}`),
       untitled: m.untitledDocument,
       documents: documents ?? [],
     });
-  }, [editor, documents, router]);
+  }, [editor, documents, router, plain]);
 
   const keepLocalRef = useRef(keepLocal);
   useEffect(() => {
@@ -559,7 +593,8 @@ export function RichTextEditor({
   return (
     <div
       // "rich-text-editable": tables leave room above for their toolbar (globals.css).
-      className={cn("rich-text relative", editable && "rich-text-editable", className)}
+      // An overlay (the comment markers of the blocks) stands in a margin of its own at the right.
+      className={cn("rich-text relative", editable && "rich-text-editable", overlay && "pr-8", className)}
       onPointerDownCapture={() => {
         interactedRef.current = true;
       }}
@@ -585,8 +620,9 @@ export function RichTextEditor({
         aria-hidden="true"
         className="pointer-events-none fixed top-0 left-0 size-0"
       />
-      {editor && editable ? <TableToolbar editor={editor} probe={probe} /> : null}
-      {editor && editable ? <BlockDragHandle editor={editor} container={probe?.parentElement ?? null} /> : null}
+      {editor && editable && !plain ? <TableToolbar editor={editor} probe={probe} /> : null}
+      {editor && editable && !plain ? <BlockDragHandle editor={editor} container={probe?.parentElement ?? null} /> : null}
+      {editor && overlay ? overlay({ editor, container: probe?.parentElement ?? null }) : null}
       <input
         ref={fileInputRef}
         type="file"

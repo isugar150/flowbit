@@ -5,6 +5,11 @@ import com.flowbit.common.UuidV7
 import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
+import com.flowbit.content.ContentEvent
+import com.flowbit.content.ContentEventType
+import com.flowbit.content.ContentLog
+import com.flowbit.content.ContentTarget
+import com.flowbit.content.ContentTargetType
 import com.flowbit.project.domain.ProjectHealth
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.r2dbc.core.DatabaseClient
@@ -33,6 +38,7 @@ data class ProjectUpdateView(
 class ProjectUpdateService(
     private val projectService: ProjectService,
     private val databaseClient: DatabaseClient,
+    private val contentLog: ContentLog,
     private val clock: Clock,
 ) {
     /** Newest first, at most LIST_LIMIT. */
@@ -70,6 +76,14 @@ class ProjectUpdateService(
             .fetch()
             .rowsUpdated()
             .awaitSingle()
+        // The update is also a line of the project's activity, with the start of what it says.
+        val detail = mapOf("health" to health.name, "text" to body.take(PREVIEW_LENGTH))
+        contentLog.record(
+            ContentTarget(ContentTargetType.PROJECT, access.project.id),
+            user.id,
+            listOf(ContentEvent(ContentEventType.UPDATE_POSTED, detail)),
+            now,
+        )
         return query(access.project.id, id).single()
     }
 
@@ -134,6 +148,7 @@ class ProjectUpdateService(
 
     private companion object {
         const val BODY_MAX_LENGTH = 5000
+        const val PREVIEW_LENGTH = 200
         const val LIST_LIMIT = 50
     }
 }

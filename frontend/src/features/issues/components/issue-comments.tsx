@@ -13,7 +13,7 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { createComment, deleteComment, toggleCommentReaction, updateComment } from "../api";
+import type { CommentApi } from "../comment-api";
 import type { IssueComment } from "../types";
 import { AttachButton, CommentFiles, DraftFiles, splitFiles, useCommentFiles, useFileTransfer } from "./comment-files";
 import { ReactionPicker, ReactionPills, useReactions } from "./issue-reactions";
@@ -21,7 +21,7 @@ import { ReactionPicker, ReactionPills, useReactions } from "./issue-reactions";
 const m = messages.issues.comments;
 
 /** Ctrl/⌘+Enter sends; caught before the editor, which would break the line instead. */
-function takeSubmitKey(event: React.KeyboardEvent): boolean {
+export function takeSubmitKey(event: React.KeyboardEvent): boolean {
   if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey) || event.nativeEvent.isComposing) return false;
   event.preventDefault();
   event.stopPropagation();
@@ -44,14 +44,14 @@ function isBlankDoc(node: unknown): boolean {
  * ten) from the paperclip, a drop or a paste, are sent along: pictures inside the text, the rest
  * as files under it.
  */
-export function CommentComposer({ number, mentionables }: { number: number; mentionables: MentionPerson[] }) {
+export function CommentComposer({ api, mentionables }: { api: CommentApi; mentionables: MentionPerson[] }) {
   const draft = useRef<RichDoc | null>(null);
   const editor = useRef<RichTextEditorHandle>(null);
   const [empty, setEmpty] = useState(true);
   // A new key empties the editor after the comment is sent.
   const [revision, setRevision] = useState(0);
-  const files = useCommentFiles(number);
-  const mutation = useRefreshingMutation(createComment, () => {
+  const files = useCommentFiles(api);
+  const mutation = useRefreshingMutation(api.create, () => {
     draft.current = null;
     setEmpty(true);
     setRevision((current) => current + 1);
@@ -59,7 +59,7 @@ export function CommentComposer({ number, mentionables }: { number: number; ment
   });
   const sendable = (!empty || files.ids.length > 0) && !files.busy && !mutation.isPending;
   const submit = () => {
-    if (sendable) mutation.mutate({ number, content: empty ? null : draft.current, attachmentIds: files.ids });
+    if (sendable) mutation.mutate({ content: empty ? null : draft.current, attachmentIds: files.ids });
   };
   const takeFiles = (list: File[]) => {
     const { pictures, others } = splitFiles(list);
@@ -124,13 +124,13 @@ export function CommentComposer({ number, mentionables }: { number: number; ment
  * delete it. Anyone who sees it can put an emoji on it (`readOnly`, a deleted issue, only shows them).
  */
 export function CommentItem({
-  number,
+  api,
   comment,
   mentionables,
   readOnly = false,
 }: {
-  /** The issue the comment is on, where files added to it are uploaded. */
-  number: number;
+  /** What the comment does to the server: its issue's calls, or those of the page it is on. */
+  api: CommentApi;
   comment: IssueComment;
   mentionables: MentionPerson[];
   readOnly?: boolean;
@@ -143,14 +143,14 @@ export function CommentItem({
   const [empty, setEmpty] = useState(false);
   // The first press asks, the second one deletes (the same as deleting an issue).
   const [confirming, setConfirming] = useState(false);
-  const files = useCommentFiles(number, comment.attachments);
-  const reactions = useReactions(comment.reactions, (emoji) => toggleCommentReaction({ id: comment.id, emoji }));
+  const files = useCommentFiles(api, comment.attachments);
+  const reactions = useReactions(comment.reactions, (emoji) => api.react({ id: comment.id, emoji }));
   const stopEditing = () => {
     setEditing(false);
     setRevision((current) => current + 1);
   };
-  const saving = useRefreshingMutation(updateComment, stopEditing);
-  const removal = useRefreshingMutation(deleteComment);
+  const saving = useRefreshingMutation(api.update, stopEditing);
+  const removal = useRefreshingMutation(api.remove);
   const savable = (!empty || files.ids.length > 0) && !files.busy && !saving.isPending;
   const save = () => {
     if (savable) saving.mutate({ id: comment.id, content: empty ? null : draft.current, attachmentIds: files.ids });

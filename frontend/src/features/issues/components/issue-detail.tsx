@@ -89,6 +89,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
         {activity ? (
           <IssueActivity
             number={issue.number}
+            issueId={issue.id}
             feed={activity}
             canComment={canEdit}
             mentionables={mentionables}

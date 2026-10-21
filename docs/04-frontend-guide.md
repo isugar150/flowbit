@@ -120,6 +120,13 @@ frontend/
 - 온보딩 투어가 가리키는 곳은 `data-tour="nav"` 같은 속성으로 표시한다(`features/tour/steps.ts` 의 `target`). 앱 틀(사이드바, 위쪽 막대)을 고칠 때 이 속성을 지우지 않는다. 단계를 더하려면 `steps.ts` 와 `messages.tour.steps`, 명세의 표를 함께 고친다. 투어는 `z-40` 이라 메뉴·팝오버(`z-50`)가 그 위에 뜬다.
 - 한 글자 단축키(`C`)는 `event.code` 로 판단하고, 입력란에 포커스가 있거나 대화상자가 열려 있으면 무시한다(`issues-view.tsx` 참고).
 
+### 글의 블록에 댓글 (D-165)
+
+- 편집기 `RichTextEditor` 는 `blockIds`(최상위 블록마다 안 바뀌는 번호 `attrs.blockId`, DOM 에는 `data-block-id`), `overlay`(편집기 위에 얹는 조각을 `({ editor, container }) => 노드` 로 받는다), `plain`(댓글용: 문단·글·`@` 태그만, `/` 메뉴·이미지·표 없음)을 받는다. 댓글을 달 수 있는 편집기 네 곳(프로젝트 개요, 문서, 티켓 본문, 목표 내용)이 `blockIds` 와 `overlay={… <BlockComments …/>}` 를 쓴다.
+- 스레드·활동 데이터는 서버 컴포넌트가 아니라 `features/content/use-content-feed.ts` 의 `useContentFeed(target, watch)` 로 읽는다(`GET /api/v1/content/{type}/{id}/feed`, react-query). `watch` 에는 서버가 그린 객체(`project`, `document`, `issue`, `milestone`)를 넘기면 실시간 갱신(`router.refresh()`)으로 그 객체가 새로 내려올 때 다시 읽는다. 바꾼 뒤에는 `useFeedRefresh(target)()` 로 다시 읽게 한다.
+- 티켓의 일반 댓글과 프로젝트·문서·목표의 일반 댓글은 같은 컴포넌트(`CommentComposer`·`CommentItem`·`useCommentFiles`)를 쓰고, 서버 호출은 `CommentApi`(`features/issues/comment-api.ts`)로 갈아 끼운다. 활동의 한 줄은 `ActivityEvent`(`describe` 결과와 `react` 를 받는다), 시간순 목록은 `timelineOf`.
+- 위치를 재는 타이머는 `requestAnimationFrame` 이 아니라 `setTimeout` 이다: 백그라운드 탭에서는 프레임이 안 돌아 말풍선이 자리를 못 잡는다.
+
 ## 키보드
 
 - 전역·목록 단축키는 [01-product.md](01-product.md) 3장과 4장의 표를 따른다. 새 단축키를 만들면 그 표에 먼저 추가한다.

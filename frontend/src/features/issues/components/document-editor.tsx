@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { Trash2Icon } from "lucide-react";
+import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
 import { Button } from "@/components/ui/button";
+import { BlockComments } from "@/features/content/components/block-comments";
+import { ContentActivity } from "@/features/content/components/content-activity";
+import { useContentFeed } from "@/features/content/use-content-feed";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useAutosave } from "@/lib/use-autosave";
 import { useRemoteValue } from "@/lib/use-remote-value";
@@ -21,8 +25,10 @@ const m = messages.issues.documents;
  * same way an issue is. Documents inside it sit in the body as page blocks. Deleting asks for a
  * second press, takes the documents inside along, and goes back to where the document was.
  */
-export function DocumentEditor({ document }: { document: IssueDocument }) {
+export function DocumentEditor({ document, mentionables }: { document: IssueDocument; mentionables: MentionPerson[] }) {
   const router = useRouter();
+  const target = useMemo(() => ({ type: "document" as const, id: document.id }), [document.id]);
+  const feed = useContentFeed(target, document);
   const [confirming, setConfirming] = useState(false);
   const title = useAutosave(async (value: string) => {
     await updateDocument({ id: document.id, changes: { title: value } });
@@ -110,6 +116,18 @@ export function DocumentEditor({ document }: { document: IssueDocument }) {
           className="min-h-64"
           onChange={content.schedule}
           keepLocal={content.isDirty}
+          // Each block can be commented on, by anyone who sees the document (D-165).
+          blockIds
+          overlay={({ editor, container }) => (
+            <BlockComments
+              editor={editor}
+              container={container}
+              target={target}
+              threads={feed.data?.threads ?? []}
+              canComment={feed.data?.canComment ?? false}
+              mentionables={mentionables}
+            />
+          )}
           documents={document.children}
           // "/문서" makes a document inside this one. Only a project's documents nest, five levels deep.
           onCreateDocument={
@@ -123,6 +141,8 @@ export function DocumentEditor({ document }: { document: IssueDocument }) {
           }
         />
       </div>
+      {/* What changed in the document and what was said about it, as on an issue (D-165). */}
+      <ContentActivity target={target} watch={document} mentionables={mentionables} />
     </article>
   );
 }

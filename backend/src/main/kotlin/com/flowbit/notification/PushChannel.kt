@@ -177,6 +177,13 @@ class PushNotificationChannel(
         pushTo(notification.recipientIds, message.title, body, notification.issueKey, message.path)
     }
 
+    override suspend fun sendContent(notification: ContentNotification) {
+        if (notification.recipientIds.isEmpty()) return
+        val message = texts.of(notification)
+        val body = (listOf(message.headline) + message.lines).joinToString("\n")
+        pushTo(notification.recipientIds, message.title, body, "content-${notification.targetId}", message.path)
+    }
+
     override suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {
         val message = texts.of(request)
         if (request.recipientIds.isEmpty()) return

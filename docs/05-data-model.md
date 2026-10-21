@@ -322,6 +322,10 @@ notifications (수신함)
 | `issue_reactions` | `issue_id`, `user_id`, `emoji` (셋이 PK). 이모지는 서버가 정한 8개만 |
 | `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at`, `comment_id` null(댓글에 붙은 파일이면 그 댓글, 지워지면 함께 지워진다. D-164), `pending`(댓글을 쓰는 중에 올라가 아직 보내지 않은 파일. 올린 사람만 보고, 하루 뒤 보관 작업이 지운다). 티켓의 "첨부 파일" 목록은 `comment_id is null and not pending` 인 것만이다 |
 | `issue_comment_reactions` | `comment_id`(`issue_comments`, `ON DELETE CASCADE`), `user_id`, `emoji` (셋이 PK). 댓글의 이모지, 같은 8개 (D-164) |
+| `content_threads` | 블록 댓글의 스레드 (D-165): `id`, `target_type`(`PROJECT`·`ISSUE`·`DOCUMENT`·`MILESTONE`), `target_id`(외래 키 없음: 보관 작업이 정리), `block_id`(본문의 `attrs.blockId`), `quote`(블록 글 앞 200자), `created_by`, `created_at`, `resolved_at`, `resolved_by` |
+| `content_thread_comments` | 스레드의 댓글: `thread_id`(`ON DELETE CASCADE`), `author_id`, `content`(문단·글·태그만), `body`, `created_at`, `updated_at`, `deleted_at` |
+| `content_activities`, `content_comments`, `content_comment_reactions`, `content_activity_reactions`, `content_files` | 프로젝트·문서·목표의 활동과 일반 댓글, 이모지, 파일 (D-165). `issue_activities`·`issue_comments`·`issue_*_reactions`·`issue_attachments` 와 같은 모양에 `target_type`(`PROJECT`·`DOCUMENT`·`MILESTONE`)·`target_id` |
+| (본문 JSON) | `projects`·`issues`·`documents`·`milestones` 의 `content` 의 최상위 블록마다 `attrs.blockId`(안 바뀌는 번호). 서버가 저장할 때 붙이고 `V24` 가 있던 본문에 붙였다 |
 | `issue_activity_reactions` | `activity_id`(`issue_activities`, `ON DELETE CASCADE`), `user_id`, `emoji` (셋이 PK). 활동 기록 줄의 이모지 (D-164). 본문·제목 수정이 앞의 줄에 합쳐져도 줄의 id 는 그대로라 이모지가 남는다 |
 | `documents` | `id`, `issue_id` null, `project_id` null, `parent_id` null(안에 들어 있는 상위 문서. 프로젝트 문서만, 5단계까지, 상위가 지워지면 함께 지워진다. D-083), `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 티켓이나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |
 | `issues.start_date` | 티켓이 기간을 가질 때의 첫날. `due_date` 가 있어야 하고 그보다 늦을 수 없다(`issues_dates_order`) (D-077) |
