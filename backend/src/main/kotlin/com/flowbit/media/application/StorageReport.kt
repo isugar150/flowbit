@@ -113,6 +113,8 @@ data class Consistency(
 data class StorageInspection(
     val checkedAt: Instant,
     val storage: StorageDescription,
+    /** The largest file the server takes (FLOWBIT_MAX_UPLOAD_SIZE), so that the page can say where the limit is set. */
+    val maxUploadBytes: Long,
     val areas: AreaTallies,
     val total: Tally,
     val uses: FileUses,

@@ -171,7 +171,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 | `FLOWBIT_S3_PREFIX` | backend | (없음) | 버킷 안에서 쓸 폴더. 비우면 버킷 맨 위 |
 | `FLOWBIT_S3_ENDPOINT` | backend | (없음) | MinIO 같은 S3 호환 저장소의 주소. AWS 는 적지 않는다 |
 | `FLOWBIT_S3_PATH_STYLE` | backend | (자동) | `true`/`false`. 비우면 엔드포인트를 줬을 때 `true` |
-| `FLOWBIT_MAX_UPLOAD_SIZE` | backend | `5MB` | 올릴 수 있는 파일 하나의 최대 크기 |
+| `FLOWBIT_MAX_UPLOAD_SIZE` | backend | `5MB` | 올릴 수 있는 파일 하나의 최대 크기. 화면의 안내 문구와 미리 거르는 크기도 이 값이다(`GET /api/v1/upload-limit`, D-174). 백엔드가 한 파트를 20MB 에서 끊으므로 그 이상은 못 올린다 |
 | `SERVER_PORT` | backend | `8080` | 백엔드 포트 |
 | `FLOWBIT_PUBLIC_URL` | backend | 없음 | 사람들이 Flowbit 을 여는 주소(`https://flowbit.example.com`). **메일과 API 알림의 티켓 링크**에 쓴다(없으면 `/issue/FB-12` 같은 경로만 들어가고, API 알림의 `text` 맨 아래 주소는 아예 붙지 않는다). SSO 리다이렉트 URI 에도 쓰는데, 그쪽은 비워 두면 요청의 `X-Forwarded-*` 로 알아낸다 |
 | `BACKEND_URL` | frontend | `http://localhost:8080` | Next.js 가 `/api` 를 넘기고 서버에서 직접 부를 백엔드 주소. Docker 이미지에서는 빌드 인자로도 준다 ("Docker 이미지") |
@@ -188,7 +188,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 루트 [README.md](../README.md) 참고. 요약:
 
 1. `docker compose up -d` — PostgreSQL 18 (`127.0.0.1:5432`). 볼륨이 처음 만들어질 때 E2E 용 `flowbit_e2e` DB 도 함께 만든다.
-2. `backend/` 에서 `./gradlew bootRun` — 8080. 시작할 때 Flyway 가 스키마를 올린다.
+2. `backend/` 에서 `./gradlew bootRun` — 8080. 시작할 때 Flyway 가 스키마를 올린다. JDK 25 는 Netty 가 네이티브 라이브러리를 불러올 때 "A restricted method in java.lang.System has been called" 경고를 내므로 `bootRun`·테스트·Docker 실행에 `--enable-native-access=ALL-UNNAMED` 를 준다(`build.gradle.kts`, `docker/entrypoint.sh`). **IDE 의 실행 설정으로 띄우면 이 옵션이 안 들어가니** 실행 설정의 VM 옵션에 같은 것을 적는다.
 3. `frontend/` 에서 `npm run dev` — 3000.
 
 PostgreSQL 18 이미지는 볼륨을 `/var/lib/postgresql` 에 마운트한다 (17 이하의 `/var/lib/postgresql/data` 와 다르다).

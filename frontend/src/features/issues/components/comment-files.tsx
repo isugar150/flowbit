@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { FileIcon, PaperclipIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES } from "@/features/settings/error-message";
+import { ACCEPTED_IMAGE_TYPES } from "@/features/settings/error-message";
+import { useUploadLimit } from "@/features/settings/upload-limit-provider";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -36,6 +37,7 @@ export function splitFiles(list: File[]): { pictures: File[]; others: File[] } {
  * already has; taking one of those away only changes the list, which the change then saves.
  */
 export function useCommentFiles(api: CommentApi, saved: Attachment[] = []) {
+  const limit = useUploadLimit();
   const [files, setFiles] = useState<DraftFile[]>(() => saved.map(draftOf));
   const [error, setError] = useState<string | null>(null);
   const counter = useRef(0);
@@ -46,7 +48,7 @@ export function useCommentFiles(api: CommentApi, saved: Attachment[] = []) {
     const room = MAX_COMMENT_FILES - files.length;
     const accepted: File[] = [];
     for (const file of list) {
-      if (file.size > MAX_UPLOAD_BYTES) setError(messages.issues.attachments.tooLarge(file.name));
+      if (file.size > limit.bytes) setError(messages.issues.attachments.tooLarge(file.name, limit.label));
       else if (accepted.length >= room) setError(m.tooMany);
       else accepted.push(file);
     }

@@ -52,6 +52,10 @@
 
 - **비활성 사용자를 프로젝트 구성원 목록에서 숨기고, 관리자 구성원 목록에서는 맨 아래로 내렸고, 프로젝트 권한을 주면 새로고침 없이 들어갈 수 있게 했다** (D-173, 2026-10-22). 백엔드: `ProjectMemberStore.members`·`member_count`·`lockManagerIds` 가 활성만 본다. 프런트: `MembersPanel` 정렬, `MemberProjectRoles` 가 변경 뒤 `router.refresh()`, 권한 없음 화면의 `AccessWatcher`. **백엔드를 다시 띄워야 적용된다. 컴파일·ktlint·`typecheck`·eslint 만 했고 `ProjectsIntegrationTest` 의 새 테스트 2개는 돌리지 않았다.** 목록 정렬은 샘플 데이터를 그린 임시 페이지(지웠다)로 확인했다. **권한 부여 직후 접근은 실제 두 계정으로 보지 못했다.**
 
+- **JDK 25 의 "A restricted method in java.lang.System has been called"(Netty) 경고를 없앴다** (2026-10-22). `--enable-native-access=ALL-UNNAMED` 를 `build.gradle.kts` 의 `bootRun`·`Test` 와 `docker/entrypoint.sh` 의 `java` 에 넣었다. 동작은 그대로이고 경고만 사라진다. **IDE 의 실행 설정(IntelliJ 등)은 저장소 밖이라 VM 옵션에 직접 적어야 한다**([02-architecture.md](02-architecture.md) 개발 환경). Gradle 스크립트가 컴파일되는 것까지만 봤고 서버를 다시 띄워 보지는 않았다.
+
+- **화면의 업로드 용량 제한이 서버 설정을 따른다** (D-174, 2026-10-22, 사용자 지적: `FLOWBIT_MAX_UPLOAD_SIZE=10MB` 인데 화면은 5MB). 프런트에 박혀 있던 5MB(`MAX_UPLOAD_BYTES`)와 문구 여섯 곳을 없애고 공개 `GET /api/v1/upload-limit` 값을 `UploadLimitProvider`(`features/settings/upload-limit-provider.tsx`, 로그인한 화면은 서버 렌더 `getUploadLimit`, 초기 설정은 열린 뒤 요청)로 쓴다. 413 문구에도 실제 값이 들어간다. 파일 관리 페이지에 현재 값이 보인다. **백엔드를 다시 띄워야 한다**(새 엔드포인트). 컴파일·ktlint·`typecheck`·eslint 만 했고 화면은 아무도 확인하지 않았다. 새 테스트(`SettingsIntegrationTest`)는 돌리지 않았다. 도움말은 정적이라 "서버에 정한 크기(기본 5MB)"로 썼다. **백엔드는 한 파트를 20MB 에서 끊으므로 그 이상은 설정해도 못 올린다.**
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.

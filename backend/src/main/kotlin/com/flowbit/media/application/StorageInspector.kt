@@ -21,6 +21,7 @@ import java.util.UUID
 @Service
 class StorageInspector(
     private val store: ObjectStore,
+    private val properties: StorageProperties,
     private val databaseClient: DatabaseClient,
     private val auditService: AuditService,
     private val clock: Clock,
@@ -80,6 +81,7 @@ class StorageInspector(
         return StorageInspection(
             checkedAt = now,
             storage = store.describe(),
+            maxUploadBytes = properties.maxUploadSize.toBytes(),
             areas = areas,
             total = areas.total,
             uses = uses,

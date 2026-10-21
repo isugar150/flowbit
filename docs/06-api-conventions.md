@@ -74,6 +74,7 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 - 인증이 필요 없는 엔드포인트는 다음뿐이다. 추가하려면 기능 명세에 명시한다.
   - `GET /api/v1/health`
   - `GET /api/v1/setup/status`
+  - `GET /api/v1/upload-limit` (올릴 수 있는 파일의 최대 크기. 로그인 전의 초기 설정 화면이 로고를 거르는 데 쓴다. [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md), D-174)
   - `POST /api/v1/setup`
   - `POST /api/v1/auth/login`
   - `GET /api/v1/auth/csrf`

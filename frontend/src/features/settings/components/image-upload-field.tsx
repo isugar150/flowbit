@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { ACCEPTED_IMAGE_TYPES, fileProblem, settingsErrorMessage } from "../error-message";
+import { useUploadLimit } from "../upload-limit-provider";
 
 const m = messages.settings.image;
 
@@ -39,6 +40,7 @@ export function ImageUploadField({
   remove: () => Promise<unknown>;
 }) {
   const router = useRouter();
+  const limit = useUploadLimit();
   const inputRef = useRef<HTMLInputElement>(null);
   const [problem, setProblem] = useState<string | null>(null);
   // Re-render server components (sidebar, user menu) with the new image.
@@ -57,7 +59,7 @@ export function ImageUploadField({
     if (!file) return;
     uploadMutation.reset();
     removeMutation.reset();
-    const found = fileProblem(file);
+    const found = fileProblem(file, limit.bytes);
     setProblem(found);
     if (!found) uploadMutation.mutate(file);
   };
@@ -116,7 +118,7 @@ export function ImageUploadField({
         </div>
       </div>
       {error ? <FieldError>{error}</FieldError> : null}
-      <FieldDescription id={`${id}-hint`}>{m.hint}</FieldDescription>
+      <FieldDescription id={`${id}-hint`}>{m.hint(limit.label)}</FieldDescription>
     </Field>
   );
 }

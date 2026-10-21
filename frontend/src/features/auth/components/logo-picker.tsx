@@ -14,6 +14,7 @@ import {
   ACCEPTED_IMAGE_TYPES,
   fileProblem,
 } from "@/features/settings/error-message";
+import { useUploadLimit } from "@/features/settings/upload-limit-provider";
 import { messages } from "@/messages";
 
 const m = messages.setup;
@@ -37,6 +38,7 @@ export function LogoPicker({
   disabled?: boolean;
   onChange: (file: File | null) => void;
 }) {
+  const limit = useUploadLimit();
   const inputRef = useRef<HTMLInputElement>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const previewUrl = useMemo(
@@ -53,7 +55,7 @@ export function LogoPicker({
     // Allow choosing the same file again after removing it.
     event.target.value = "";
     if (!chosen) return;
-    const found = fileProblem(chosen);
+    const found = fileProblem(chosen, limit.bytes);
     setProblem(found);
     if (!found) onChange(chosen);
   };
@@ -111,7 +113,7 @@ export function LogoPicker({
         </div>
       </div>
       {problem ? <FieldError>{problem}</FieldError> : null}
-      <FieldDescription id={`${id}-hint`}>{m.logoHint}</FieldDescription>
+      <FieldDescription id={`${id}-hint`}>{m.logoHint(limit.label)}</FieldDescription>
     </Field>
   );
 }

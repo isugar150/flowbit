@@ -25,6 +25,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { fileProblem, settingsErrorMessage } from "@/features/settings/error-message";
+import { useUploadLimit } from "@/features/settings/upload-limit-provider";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { BlockDragHandle } from "./block-drag-handle";
@@ -293,6 +294,7 @@ export function RichTextEditor({
   className?: string;
   autoFocus?: boolean;
 }) {
+  const uploadLimit = useUploadLimit();
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [probe, setProbe] = useState<HTMLSpanElement | null>(null);
@@ -339,7 +341,7 @@ export function RichTextEditor({
     setImageError(null);
     let at = position;
     for (const file of files) {
-      const problem = fileProblem(file);
+      const problem = fileProblem(file, uploadLimit.bytes);
       if (problem) {
         setImageError(problem);
         continue;

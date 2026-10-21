@@ -135,6 +135,16 @@ class SettingsIntegrationTest : IntegrationTest() {
 
         assertEquals(413, response.status)
         assertEquals("FILE_TOO_LARGE", response.json()["code"])
+        // The message names the limit that is set, so that a screen can show it as it is.
+        assertTrue(response.body.contains("5MB"))
+    }
+
+    @Test
+    fun `업로드 제한은 로그인하지 않아도 읽을 수 있고 설정한 값을 알려 준다`() {
+        val response = client().get("/api/v1/upload-limit")
+
+        assertEquals(200, response.status)
+        assertEquals(5 * 1024 * 1024, (response.json()["maxUploadBytes"] as Number).toInt())
     }
 
     @Test

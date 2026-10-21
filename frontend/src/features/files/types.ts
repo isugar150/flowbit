@@ -83,6 +83,8 @@ export interface Consistency {
 export interface StorageInspection {
   checkedAt: string;
   storage: StorageInfo;
+  /** The largest file the server takes (FLOWBIT_MAX_UPLOAD_SIZE). */
+  maxUploadBytes: number;
   areas: AreaTallies;
   total: Tally;
   uses: FileUses;

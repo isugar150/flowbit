@@ -108,7 +108,7 @@ docker run -d --name flowbit --restart unless-stopped \
 | `FLOWBIT_PUBLIC_URL` | (없음) | 사람들이 Flowbit 을 여는 주소. 메일·API 알림의 링크와 SSO 리다이렉트에 쓴다. 없으면 알림에 `/issue/FB-12` 같은 경로만 들어간다 |
 | `FLOWBIT_WEB_PORT` | `3000` | 서버가 여는 포트. `80` 으로 바꾸면 `http://서버주소` 로 바로 열린다 |
 | `FLOWBIT_WEB_BIND` | `0.0.0.0` | 그 포트를 여는 주소. 앞에 nginx 를 두고 이 서버 안에서만 열려면 `127.0.0.1` |
-| `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 파일 하나의 최대 크기(백엔드가 한 파트를 20MB 에서 끊으므로 그 이상으로는 올릴 수 없다). 프록시를 두면 그 쪽 본문 제한(`client_max_body_size`)도 맞춘다 |
+| `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 파일 하나의 최대 크기(백엔드가 한 파트를 20MB 에서 끊으므로 그 이상으로는 올릴 수 없다). 프록시를 두면 그 쪽 본문 제한(`client_max_body_size`)도 맞춘다. 화면에 보이는 "N MB까지"와 올리기 전의 크기 검사도 이 값을 따르고, 관리자 설정 > 파일 관리에서 현재 값을 볼 수 있다 |
 | `FLOWBIT_VERSION`, `FLOWBIT_IMAGE` | `latest`, `isugar150/flowbit` | 받을 이미지의 버전과 저장소 |
 | `FLOWBIT_S3_*`, `FLOWBIT_STORAGE_TYPE` | (없음) | 파일을 S3 에 둘 때([5](#5-파일-저장소-로컬-또는-s3)) |
 

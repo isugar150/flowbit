@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { fetchJson, fetchMe, fetchWorkspace, SESSION_COOKIE } from "@/lib/backend";
 import type { Me } from "@/features/auth/types";
 import type { Project, ProjectEntry, ProjectSummary } from "@/features/projects/types";
+import { DEFAULT_UPLOAD_LIMIT } from "@/features/settings/upload-limit";
 import type { Workspace } from "@/features/settings/types";
 
 /** Where a request with a session cookie that no longer works is sent: it clears the cookie, then goes to sign-in. */
@@ -33,6 +34,12 @@ export const getWorkspace = cache(async (): Promise<Workspace> => {
   const workspace = cookieHeader ? await fetchWorkspace(cookieHeader) : null;
   return workspace ?? redirect(SESSION_EXPIRED);
 });
+
+/** The largest file the server takes (FLOWBIT_MAX_UPLOAD_SIZE), for the screens that check a file before sending it. */
+export const getUploadLimit = cache(
+  async (): Promise<number> =>
+    (await serverGet<{ maxUploadBytes: number }>("/api/v1/upload-limit"))?.maxUploadBytes ?? DEFAULT_UPLOAD_LIMIT,
+);
 
 /**
  * Every project, fetched once per render for the sidebar and the home page. `myRole` is null for

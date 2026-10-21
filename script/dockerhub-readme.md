@@ -66,7 +66,7 @@ volumes:
 | `FLOWBIT_DB_USER` | `flowbit` | 계정 |
 | `FLOWBIT_DB_PASSWORD` | `flowbit` | 비밀번호. **반드시 지정합니다** |
 | `FLOWBIT_PUBLIC_URL` | (없음) | 사람들이 Flowbit을 여는 주소. 알림 메일과 API 알림의 티켓 링크에 쓰입니다 |
-| `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 이미지 한 장의 최대 크기 |
+| `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 파일 하나의 최대 크기(이미지와 첨부 파일 모두. 화면의 안내도 이 값을 따릅니다) |
 | `FLOWBIT_S3_BUCKET` | (없음) | **적으면 올린 모든 파일(이미지, 첨부 파일, 댓글 파일)이 Amazon S3 에 올라갑니다.** 비워 두면 `uploads` 볼륨에 둡니다(기본) |
 | `FLOWBIT_S3_REGION` | (없음) | 버킷의 리전. 예: `ap-northeast-2` |
 | `FLOWBIT_S3_ACCESS_KEY`, `FLOWBIT_S3_SECRET_KEY` | (없음) | 접근 키. 둘 다 적거나 둘 다 비웁니다. 비우면 서버에 붙은 IAM 역할이나 `AWS_ACCESS_KEY_ID` 같은 환경 변수를 씁니다 |

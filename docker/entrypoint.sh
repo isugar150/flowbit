@@ -8,7 +8,8 @@ set -u
 # container has (its limit, else the machine's): the rest is for the JVM's own memory (class metadata, threads, direct
 # buffers) and the Node.js frontend that shares the container (about 150MB). When the heap does run out the JVM
 # exits instead of limping on, which ends the container and lets the restart policy bring it back clean.
-SERVER_PORT=8080 java -XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError -jar /app/backend/app.jar &
+# --enable-native-access: Netty loads native libraries, and JDK 24+ warns about that at every start unless it is allowed.
+SERVER_PORT=8080 java -XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError --enable-native-access=ALL-UNNAMED -jar /app/backend/app.jar &
 BACKEND_PID=$!
 
 # The frontend: the port the container exposes. HOSTNAME is the address Next.js listens on

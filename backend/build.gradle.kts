@@ -75,8 +75,17 @@ kotlin {
     }
 }
 
+// JDK 24+ warns when a library loads a native library without being allowed to (Netty does, for its faster transports):
+// "A restricted method in java.lang.System has been called". The application is the whole classpath, so allow it for all of it.
+val nativeAccess = "--enable-native-access=ALL-UNNAMED"
+
 tasks.withType<Test> {
     useJUnitPlatform()
+    jvmArgs(nativeAccess)
+}
+
+tasks.bootRun {
+    jvmArgs(nativeAccess)
 }
 
 // A check run from the command line while the application is running from the IDE must not

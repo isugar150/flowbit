@@ -1,16 +1,18 @@
 import { ApiError, NetworkError } from "@/lib/api/errors";
 import { messages } from "@/messages";
+import { formatLimit } from "./upload-limit";
 
 const m = messages.settings.image;
 
-/** Largest file the server accepts by default (FLOWBIT_MAX_UPLOAD_SIZE). Checked here only to fail fast. */
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
-/** Why a file cannot be uploaded, or null when it looks fine. The server checks again. */
-export function fileProblem(file: File): string | null {
+/**
+ * Why a file cannot be uploaded, or null when it looks fine. `limitBytes` is what the server takes
+ * (`useUploadLimit`); it is checked here only to fail fast, the server checks again.
+ */
+export function fileProblem(file: File, limitBytes: number): string | null {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) return m.unsupportedType;
-  if (file.size > MAX_UPLOAD_BYTES) return m.tooLarge;
+  if (file.size > limitBytes) return m.tooLarge(formatLimit(limitBytes));
   return null;
 }
 
@@ -21,7 +23,8 @@ export function settingsErrorMessage(error: unknown): string {
 
   switch (error.code) {
     case "FILE_TOO_LARGE":
-      return m.tooLarge;
+      // The server's sentence names the limit that is set.
+      return error.message || m.tooLargeAny;
     case "UNSUPPORTED_IMAGE":
       return m.unreadable;
     case "IMAGE_DIMENSIONS_TOO_LARGE":

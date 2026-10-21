@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { FileIcon, PaperclipIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { MAX_UPLOAD_BYTES } from "@/features/settings/error-message";
+import { useUploadLimit } from "@/features/settings/upload-limit-provider";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
@@ -33,6 +33,7 @@ export function IssueAttachments({
   attachments: Attachment[];
   canEdit: boolean;
 }) {
+  const limit = useUploadLimit();
   const inputRef = useRef<HTMLInputElement>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const upload = useRefreshingMutation(uploadAttachment);
@@ -47,8 +48,8 @@ export function IssueAttachments({
     remove.reset();
     setProblem(null);
     for (const file of files) {
-      if (file.size > MAX_UPLOAD_BYTES) {
-        setProblem(m.tooLarge(file.name));
+      if (file.size > limit.bytes) {
+        setProblem(m.tooLarge(file.name, limit.label));
         continue;
       }
       try {

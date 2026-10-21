@@ -6,6 +6,7 @@ import type { Me } from "@/features/auth/types";
 import type { ProjectSummary } from "@/features/projects/types";
 import { RealtimeProvider } from "@/features/realtime/realtime-provider";
 import type { Workspace } from "@/features/settings/types";
+import { UploadLimitProvider } from "@/features/settings/upload-limit-provider";
 import { TourProvider } from "@/features/tour/components/onboarding-tour";
 import { mark } from "@/lib/initials";
 import { NewIssueButton, NewIssueProvider } from "@/features/issues/components/new-issue-launcher";
@@ -23,15 +24,19 @@ export function AppShell({
   user,
   workspace,
   projects,
+  uploadLimit,
   children,
 }: {
   user: Me;
   workspace: Workspace;
   projects: ProjectSummary[];
+  /** The largest file the server takes, in bytes (FLOWBIT_MAX_UPLOAD_SIZE). */
+  uploadLimit: number;
   children: React.ReactNode;
 }) {
   return (
     <RealtimeProvider userId={user.id}>
+      <UploadLimitProvider bytes={uploadLimit}>
       <TooltipProvider>
         <NewIssueProvider projects={projects}>
         <SearchProvider>
@@ -71,6 +76,7 @@ export function AppShell({
         </SearchProvider>
         </NewIssueProvider>
       </TooltipProvider>
+      </UploadLimitProvider>
     </RealtimeProvider>
   );
 }

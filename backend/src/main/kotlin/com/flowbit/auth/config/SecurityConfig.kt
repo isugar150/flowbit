@@ -96,6 +96,7 @@ class SecurityConfig {
             arrayOf(
                 "/api/v1/health",
                 "/api/v1/setup/status",
+                "/api/v1/upload-limit",
                 "/api/v1/auth/csrf",
                 "/api/v1/auth/methods",
                 "/api/v1/auth/sso/start",

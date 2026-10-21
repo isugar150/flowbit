@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { TimeAgo } from "@/components/dates";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { formatSize } from "@/features/issues/components/issue-attachments";
+import { formatLimit } from "@/features/settings/upload-limit";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
 import { fetchFiles } from "../api";
@@ -52,6 +53,11 @@ function Overview({ data, onCleaned }: { data: StorageInspection; onCleaned: () 
               <dd className="min-w-0 font-mono text-xs leading-5 break-all">{storage.endpoint}</dd>
             </>
           ) : null}
+          <dt className="text-muted-foreground">{m.storage.maxUpload}</dt>
+          <dd>
+            {formatLimit(data.maxUploadBytes)}
+            <span className="block text-xs leading-4 text-muted-foreground">{m.storage.maxUploadHint}</span>
+          </dd>
         </dl>
       </Block>
 
