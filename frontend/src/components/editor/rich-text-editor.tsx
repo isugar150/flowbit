@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -32,6 +32,7 @@ import { BlockDragHandle } from "./block-drag-handle";
 import { BlockId } from "./block-id";
 import { Embed, MAX_EMBED_URL_LENGTH, embedFor } from "./embed";
 import { fixedOrigin } from "./fixed-origin";
+import { LinkCard, cardPlace, linkIn, openLink, type LinkCardState } from "./link-card";
 import { Mention, MentionPeopleContext, type MentionPerson } from "./mention";
 import { PageLink } from "./page-link";
 import { tableExtensions } from "./table-extensions";
@@ -295,6 +296,10 @@ export function RichTextEditor({
   autoFocus?: boolean;
 }) {
   const uploadLimit = useUploadLimit();
+  // A link that was clicked shows where it goes; a second click on it opens it in a new tab (D-175).
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [linkCard, setLinkCard] = useState<LinkCardState | null>(null);
+  const closeLinkCard = useCallback(() => setLinkCard(null), []);
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [probe, setProbe] = useState<HTMLSpanElement | null>(null);
@@ -597,6 +602,24 @@ export function RichTextEditor({
       // "rich-text-editable": tables leave room above for their toolbar (globals.css).
       // An overlay (the comment markers of the blocks) stands in a margin of its own at the right.
       className={cn("rich-text relative", editable && "rich-text-editable", overlay && "pr-8", className)}
+      ref={boxRef}
+      onClick={(event) => {
+        const anchor = linkIn(event.target, editorRef.current?.view.dom);
+        const href = anchor?.getAttribute("href");
+        const box = boxRef.current;
+        if (!anchor || !href || !box) {
+          setLinkCard(null);
+          return;
+        }
+        // Never follow it by itself (an editor that cannot be changed would otherwise open it at once).
+        event.preventDefault();
+        if (event.metaKey || event.ctrlKey || linkCard?.anchor === anchor) {
+          openLink(href);
+          setLinkCard(null);
+        } else {
+          setLinkCard({ href, anchor, ...cardPlace(anchor, box, event.clientY) });
+        }
+      }}
       onPointerDownCapture={() => {
         interactedRef.current = true;
       }}
@@ -625,6 +648,7 @@ export function RichTextEditor({
       {editor && editable && !plain ? <TableToolbar editor={editor} probe={probe} /> : null}
       {editor && editable && !plain ? <BlockDragHandle editor={editor} container={probe?.parentElement ?? null} /> : null}
       {editor && overlay ? overlay({ editor, container: probe?.parentElement ?? null }) : null}
+      {editor && linkCard ? <LinkCard card={linkCard} editor={editor} onClose={closeLinkCard} /> : null}
       <input
         ref={fileInputRef}
         type="file"

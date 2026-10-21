@@ -190,6 +190,9 @@ export const ko = {
     imageUploading: "이미지를 올리는 중…",
     imageFailed: "이미지를 올리지 못했습니다.",
     dismiss: "닫기",
+    // What a click on a link shows: its address and a way to open it (D-175).
+    linkAddress: "링크 주소",
+    linkOpen: "바로가기",
     tableTools: {
       toolbar: "표 도구",
       addRowBefore: "위에 행 추가",

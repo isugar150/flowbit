@@ -56,6 +56,8 @@
 
 - **화면의 업로드 용량 제한이 서버 설정을 따른다** (D-174, 2026-10-22, 사용자 지적: `FLOWBIT_MAX_UPLOAD_SIZE=10MB` 인데 화면은 5MB). 프런트에 박혀 있던 5MB(`MAX_UPLOAD_BYTES`)와 문구 여섯 곳을 없애고 공개 `GET /api/v1/upload-limit` 값을 `UploadLimitProvider`(`features/settings/upload-limit-provider.tsx`, 로그인한 화면은 서버 렌더 `getUploadLimit`, 초기 설정은 열린 뒤 요청)로 쓴다. 413 문구에도 실제 값이 들어간다. 파일 관리 페이지에 현재 값이 보인다. **백엔드를 다시 띄워야 한다**(새 엔드포인트). 컴파일·ktlint·`typecheck`·eslint 만 했고 화면은 아무도 확인하지 않았다. 새 테스트(`SettingsIntegrationTest`)는 돌리지 않았다. 도움말은 정적이라 "서버에 정한 크기(기본 5MB)"로 썼다. **백엔드는 한 파트를 20MB 에서 끊으므로 그 이상은 설정해도 못 올린다.**
 
+- **글의 링크를 누르면 주소와 "바로가기"가 뜨고(같은 링크를 한 번 더 누르면 새 탭), 표 위의 도구 모음 자리는 도구 모음이 보일 때만 생긴다** (D-175, 2026-10-22). `components/editor/link-card.tsx` 새 파일, `RichTextEditor` 의 상자 `onClick`, `table-extensions.ts` 의 `TableToolbarRoom`(노드 장식 `table-has-toolbar`), `globals.css` 의 `.tableWrapper.table-has-toolbar`. `typecheck`·eslint 통과, 샘플 글을 그린 임시 페이지(지웠다)로 확인했다: 편집 가능·읽기 전용 모두 카드가 뜨고 두 번째 누르기가 새 탭(`window.open` 가로채기)을 열고 Esc 로 닫히며, 줄이 넘어간 긴 링크도 맞는 줄 아래에 뜬다. 표는 커서가 들어간 표에만 클래스가 붙고 나가면 사라진다. **이 PC 의 개발 서버(PID 23276)는 `globals.css` 를 다시 컴파일하지 않아 새 CSS 규칙은 같은 규칙을 직접 넣어 확인했다. 개발 서버를 다시 시작해야 표 여백이 바뀐다.** 실제 문서 화면으로는 보지 못했다.
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.

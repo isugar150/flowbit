@@ -1,3 +1,6 @@
+import { Extension } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 
 export const CELL_ALIGNS = ["left", "center", "right"] as const;
@@ -43,5 +46,47 @@ const AlignedHeader = TableHeader.extend({
   },
 });
 
+/** The class a table has while its toolbar is shown above it (globals.css: only then does it keep room above itself). */
+export const TOOLBAR_ROOM_CLASS = "table-has-toolbar";
+
+/**
+ * Marks the table the cursor is in while the toolbar is shown (table-toolbar.tsx shows it for an editor that can be
+ * changed and has the focus, with the cursor in a table). Only that table keeps room above itself for the toolbar;
+ * a table the cursor is not in lies where its text puts it. Focus and blur are transactions too, so the mark follows them.
+ */
+const TableToolbarRoom = Extension.create({
+  name: "tableToolbarRoom",
+
+  addProseMirrorPlugins() {
+    const editor = this.editor;
+    return [
+      new Plugin({
+        key: new PluginKey("tableToolbarRoom"),
+        props: {
+          decorations: (state) => {
+            if (!editor.isEditable || !editor.isFocused) return null;
+            const { $from } = state.selection;
+            for (let depth = $from.depth; depth > 0; depth--) {
+              const node = $from.node(depth);
+              if (node.type.name !== "table") continue;
+              const start = $from.before(depth);
+              return DecorationSet.create(state.doc, [
+                Decoration.node(start, start + node.nodeSize, { class: TOOLBAR_ROOM_CLASS }),
+              ]);
+            }
+            return null;
+          },
+        },
+      }),
+    ];
+  },
+});
+
 /** Tables with resizable columns and per-cell alignment. Node names must match RichText.kt. */
-export const tableExtensions = [Table.configure({ resizable: true }), TableRow, AlignedHeader, AlignedCell];
+export const tableExtensions = [
+  Table.configure({ resizable: true }),
+  TableRow,
+  AlignedHeader,
+  AlignedCell,
+  TableToolbarRoom,
+];
