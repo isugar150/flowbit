@@ -273,6 +273,31 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `일반 댓글에 답글을 한 단계만 달 수 있고 원 댓글을 지워도 답글은 남는다`() {
+        val documentId = editor.post("/api/v1/projects/${p("PAY")}/documents", """{"title":"설계"}""").json()["id"] as String
+        val path = "/api/v1/content/document/$documentId"
+        val parent = viewer.post("$path/comments", """{"content":${comment("원 댓글")}}""").json()["id"] as String
+
+        val reply = editor.post("$path/comments", """{"content":${comment("답글")},"parentId":"$parent"}""")
+
+        assertEquals(201, reply.status)
+        assertEquals(parent, reply.json()["parentId"])
+        val replyId = reply.json()["id"] as String
+        assertEquals(422, viewer.post("$path/comments", """{"content":${comment("답글의 답글")},"parentId":"$replyId"}""").status)
+        assertEquals(404, viewer.post("$path/comments", """{"content":${comment("없는 댓글에")},"parentId":"11111111-1111-1111-1111-111111111111"}""").status)
+
+        // Deleting the comment keeps its place for the reply, with nothing of what it said.
+        assertEquals(204, viewer.delete("/api/v1/content-comments/$parent").status)
+        val shown = comments(feed(editor, "document", documentId).json())
+        assertEquals(listOf(parent, replyId), shown.map { it["id"] })
+        assertEquals(listOf(true, false), shown.map { it["deleted"] })
+        assertEquals(404, editor.post("$path/comments", """{"content":${comment("지워진 댓글에")},"parentId":"$parent"}""").status)
+
+        assertEquals(204, editor.delete("/api/v1/content-comments/$replyId").status)
+        assertEquals(emptyList<Any?>(), comments(feed(editor, "document", documentId).json()))
+    }
+
+    @Test
     fun `일반 댓글은 보기 역할도 쓰고 이모지와 파일을 붙일 수 있고 삭제된 문서에는 쓸 수 없다`() {
         val document = editor.post("/api/v1/projects/${p("PAY")}/documents", """{"title":"설계"}""").json()
         val documentId = document["id"] as String

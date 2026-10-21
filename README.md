@@ -71,7 +71,7 @@ DB 는 포함하지 않는다. 처음 실행하면 `.env` 양식이 만들어지
 
 기본값으로 바로 실행된다. 바꾸려면 `.env.example` 을 저장소 루트에 `.env` 로 복사해 고친다. `docker compose` 와 백엔드가 이 파일을 읽는다. 프론트엔드의 `BACKEND_URL` 은 환경 변수나 `frontend/.env.local` 로 준다. 변수 목록은 [docs/02-architecture.md](docs/02-architecture.md).
 
-올린 이미지는 기본으로 `backend/data/uploads` 에 저장된다. 다른 곳에 두려면 `.env` 에 `FLOWBIT_STORAGE_PATH` 를 지정하고 백엔드를 다시 시작한다. 이 폴더는 DB 와 함께 백업해야 한다.
+올린 파일(이미지, 첨부 파일, 댓글 파일)은 기본으로 `backend/data/uploads` 에 저장된다(Amazon S3 에 두려면 `.env` 에 `FLOWBIT_S3_BUCKET` 등을 적는다. `.env.example` 참고). 다른 곳에 두려면 `.env` 에 `FLOWBIT_STORAGE_PATH` 를 지정하고 백엔드를 다시 시작한다. 이 폴더는 DB 와 함께 백업해야 한다.
 
 ## 검사
 

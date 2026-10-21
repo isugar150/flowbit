@@ -36,7 +36,6 @@ import com.flowbit.notification.IssueNotification
 import com.flowbit.notification.NotificationDispatcher
 import com.flowbit.notification.NotificationMerge
 import com.flowbit.realtime.RealtimeHub
-import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
@@ -240,6 +239,11 @@ data class CommentResponse(
     val reactions: List<ReactionSummary>,
     /** The files sent with the comment. */
     val attachments: List<AttachmentResponse>,
+    /** The comment this one answers; null for a comment of its own (D-167). */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val parentId: UUID?,
+    /** Deleted, but kept because it has replies: no text, files or emoji (D-167). */
+    val deleted: Boolean,
 ) {
     companion object {
         fun from(comment: CommentView) =
@@ -253,6 +257,8 @@ data class CommentResponse(
                 comment.canDelete,
                 comment.reactions,
                 comment.attachments.map(AttachmentResponse::from),
+                comment.parentId,
+                comment.deleted,
             )
     }
 }
@@ -260,10 +266,12 @@ data class CommentResponse(
 /**
  * `content` may be left out when the comment is made of files alone. `attachmentIds` are files
  * uploaded for it beforehand; on a change they are the whole set the comment keeps (left out: no change).
+ * `parentId` makes a new comment a reply to that comment (D-167); a change ignores it.
  */
 data class CommentRequest(
     val content: Map<String, Any?>? = null,
     val attachmentIds: List<UUID>? = null,
+    val parentId: UUID? = null,
 )
 
 data class IssueActivityResponse(
@@ -683,7 +691,7 @@ class IssueController(
         @PathVariable number: Int,
         @RequestBody body: CommentRequest,
     ): CommentResponse {
-        val result = issueService.addComment(user, number, body.content, body.attachmentIds.orEmpty())
+        val result = issueService.addComment(user, number, body.content, body.attachmentIds.orEmpty(), body.parentId)
         announcer.commented(user, result.change)
         return CommentResponse.from(result.comment)
     }
@@ -797,7 +805,7 @@ class AttachmentController(
             .contentType(MediaType.APPLICATION_OCTET_STREAM)
             .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
             .header("X-Content-Type-Options", "nosniff")
-            .body(FileSystemResource(file.path))
+            .body(file.resource)
     }
 
     @DeleteMapping("/{id}")

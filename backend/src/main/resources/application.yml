@@ -57,6 +57,18 @@ flowbit:
   storage:
     # Where uploaded files are kept. Relative paths are resolved against the working directory.
     path: ${FLOWBIT_STORAGE_PATH:./data/uploads}
+    # local (the storage folder above, the default) or s3. Left out: s3 when FLOWBIT_S3_BUCKET is given (D-167).
+    type: ${FLOWBIT_STORAGE_TYPE:}
+    s3:
+      bucket: ${FLOWBIT_S3_BUCKET:}
+      region: ${FLOWBIT_S3_REGION:}
+      # Only for an S3-compatible store (MinIO, …); AWS needs none.
+      endpoint: ${FLOWBIT_S3_ENDPOINT:}
+      # Both, or neither: then the SDK's usual places (AWS_ACCESS_KEY_ID…, a role on the server).
+      access-key: ${FLOWBIT_S3_ACCESS_KEY:}
+      secret-key: ${FLOWBIT_S3_SECRET_KEY:}
+      prefix: ${FLOWBIT_S3_PREFIX:}
+      path-style: ${FLOWBIT_S3_PATH_STYLE:}
     max-upload-size: ${FLOWBIT_MAX_UPLOAD_SIZE:5MB}
   auth:
     max-failed-logins: 5

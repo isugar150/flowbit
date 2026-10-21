@@ -79,26 +79,26 @@ class ContentLog(
     }
 
     /**
-     * Tells the people who follow the page about what happened to it, and the people in [tagged]
-     * about a comment (D-166): a comment goes to the ones tagged in it and to nobody else, whoever
-     * follows the page. Never fails the request that made the change. Changes nobody follows, such
-     * as who joined a project, are only kept in the activity.
+     * Tells the people who follow the page about what happened to it, and the people in [told]
+     * about a comment (D-166, D-167): the ones tagged in it and, for a reply, the ones in the
+     * conversation, and nobody else, whoever follows the page. Never fails the request that made the
+     * change. Changes nobody follows, such as who joined a project, are only kept in the activity.
      */
     suspend fun announce(
         target: ContentTarget,
         actorId: UUID,
         events: List<ContentEvent>,
-        tagged: Collection<UUID> = emptyList(),
+        told: Collection<UUID> = emptyList(),
     ) {
-        val told = events.filter { it.type !in ContentEventType.SILENT }
-        if (told.isEmpty()) return
+        val tellable = events.filter { it.type !in ContentEventType.SILENT }
+        if (tellable.isEmpty()) return
         try {
             val context = directory.describe(target) ?: return
-            val (talk, activity) = told.partition { it.type in ContentEventType.TALK }
+            val (talk, activity) = tellable.partition { it.type in ContentEventType.TALK }
             if (activity.isNotEmpty()) {
                 tell(context, actorId, activity, directory.followers(context).filter { it != actorId }, held = true)
             }
-            if (talk.isNotEmpty()) tell(context, actorId, talk, tagged.distinct().filter { it != actorId }, held = false)
+            if (talk.isNotEmpty()) tell(context, actorId, talk, told.distinct().filter { it != actorId }, held = false)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

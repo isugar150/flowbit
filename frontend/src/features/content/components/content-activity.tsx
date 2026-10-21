@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import type { MentionPerson } from "@/components/editor/mention";
 import { Button } from "@/components/ui/button";
-import { ActivityEvent, SubscriberAvatars, timelineOf } from "@/features/issues/components/issue-activity";
+import { ActivityEvent, ShowOlderButton, SubscriberAvatars, timelineOf, useCollapsedEntries } from "@/features/issues/components/issue-activity";
 import { CommentComposer, CommentItem } from "@/features/issues/components/issue-comments";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
@@ -19,8 +19,8 @@ const m = messages.content;
 
 /**
  * The activity of a project, a document or a milestone, the same as an issue's (D-165): its
- * changes, the comments under it and the threads on its blocks, mixed by time, oldest first, with a
- * box for a comment at the bottom. Open to everyone who can see the page; on a deleted document it
+ * changes, the comments under it (with their replies) and the threads on its blocks, mixed by time,
+ * newest first with a box for a comment at the top (D-167). Open to everyone who can see the page; on a deleted document it
  * can only be read. A document also says who follows it, with a button to follow or stop (D-166).
  * `watch` is what the page was last rendered from (see `useContentFeed`).
  */
@@ -39,6 +39,8 @@ export function ContentActivity({
   const follow = useContentSubscription(target);
   const api = useMemo(() => contentCommentApi(target, refresh), [target, refresh]);
   const data = feed.data;
+  // Hooks come before any return: the entries are those of the feed once it is there.
+  const timeline = useCollapsedEntries(data ? timelineOf(data.items, data.comments, data.threads) : []);
 
   if (!data) {
     return feed.isError ? (
@@ -48,9 +50,8 @@ export function ContentActivity({
     ) : null;
   }
 
-  const entries = timelineOf(data.items, data.comments, data.threads);
   // Nothing to read and nothing can be added (the example of the tour): no heading over nothing.
-  if (entries.length === 0 && !data.canComment) return null;
+  if (timeline.shown.length === 0 && !data.canComment) return null;
   const subscription = data.subscription;
 
   return (
@@ -76,10 +77,20 @@ export function ContentActivity({
           {apiErrorMessage(follow.error)}
         </p>
       ) : null}
+      {/* The box for a comment is at the top, where the newest activity is (D-167). */}
+      {data.canComment ? <CommentComposer api={api} mentionables={mentionables} /> : null}
       <ol className="flex flex-col gap-2.5">
-        {entries.map((entry) =>
+        {timeline.shown.map((entry) =>
           entry.kind === "comment" ? (
-            <CommentItem key={entry.comment.id} api={api} comment={entry.comment} mentionables={mentionables} readOnly={data.readOnly} />
+            <CommentItem
+              key={entry.comment.id}
+              api={api}
+              comment={entry.comment}
+              replies={entry.replies}
+              mentionables={mentionables}
+              readOnly={data.readOnly}
+              canReply={data.canComment}
+            />
           ) : entry.kind === "thread" ? (
             <li key={entry.thread.id}>
               <ThreadCard
@@ -107,7 +118,7 @@ export function ContentActivity({
           ),
         )}
       </ol>
-      {data.canComment ? <CommentComposer api={api} mentionables={mentionables} /> : null}
+      <ShowOlderButton hidden={timeline.hidden} onClick={timeline.expand} />
     </section>
   );
 }

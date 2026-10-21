@@ -13,11 +13,11 @@ import com.flowbit.issue.application.ReactionSummary
 import com.flowbit.media.application.FileStorage
 import com.flowbit.user.domain.UserRole
 import kotlinx.coroutines.reactor.awaitSingle
+import org.springframework.core.io.Resource
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.nio.file.Path
 import java.time.Clock
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -50,6 +50,10 @@ data class ContentCommentView(
     val canDelete: Boolean = false,
     val reactions: List<ReactionSummary> = emptyList(),
     val files: List<ContentFileView> = emptyList(),
+    /** The comment this one answers; null for a comment of its own. A reply cannot be answered (D-167). */
+    val parentId: UUID? = null,
+    /** Deleted but kept because it has replies: no text, files or emoji (D-167). */
+    val deleted: Boolean = false,
 )
 
 /** A comment after a change, with the page it is on. */
@@ -61,7 +65,7 @@ data class ContentCommentResult(
 /** A file ready to be sent. */
 data class ContentFileDownload(
     val file: ContentFileView,
-    val path: Path,
+    val resource: Resource,
 )
 
 /** The two kinds of thing here an emoji goes on. */
@@ -78,23 +82,39 @@ private enum class EmojiTable(
 class ContentCommentStore(
     private val databaseClient: DatabaseClient,
 ) {
+    /** Oldest first, replies among the rest. A deleted comment is listed, as deleted, while it has replies (D-167). */
     suspend fun comments(target: ContentTarget): List<ContentCommentView> =
-        select("c.target_type = :type and c.target_id = :id order by c.created_at, c.id") { it.bind("type", target.type.name).bind("id", target.id) }
+        select(
+            "c.target_type = :type and c.target_id = :id order by c.created_at, c.id",
+            "(c.deleted_at is null or (c.parent_id is null and exists (select 1 from content_comments r where r.parent_id = c.id and r.deleted_at is null)))",
+        ) { it.bind("type", target.type.name).bind("id", target.id) }
 
+    /** A comment that has not been deleted. */
     suspend fun find(id: UUID): ContentCommentView? = select("c.id = :id") { it.bind("id", id) }.firstOrNull()
+
+    /** The people whose replies to the comment are still there. */
+    suspend fun replyAuthors(parentId: UUID): List<UUID> =
+        databaseClient
+            .sql("select distinct author_id from content_comments where parent_id = :id and deleted_at is null")
+            .bind("id", parentId)
+            .map { row -> checkNotNull(row.get("author_id", UUID::class.java)) }
+            .all()
+            .collectList()
+            .awaitSingle()
 
     suspend fun add(
         target: ContentTarget,
         authorId: UUID,
         document: RichTextDocument,
         now: Instant,
+        parentId: UUID? = null,
     ): UUID {
         val id = UuidV7.generate(now)
         databaseClient
             .sql(
                 """
-                insert into content_comments (id, target_type, target_id, author_id, content, body, created_at, updated_at)
-                values (:id, :type, :targetId, :authorId, cast(:content as jsonb), :body, :now, :now)
+                insert into content_comments (id, target_type, target_id, author_id, content, body, created_at, updated_at, parent_id)
+                values (:id, :type, :targetId, :authorId, cast(:content as jsonb), :body, :now, :now, :parentId)
                 """.trimIndent(),
             ).bind("id", id)
             .bind("type", target.type.name)
@@ -103,6 +123,7 @@ class ContentCommentStore(
             .bind("content", document.json)
             .bind("body", document.plainText)
             .bind("now", at(now))
+            .let { if (parentId != null) it.bind("parentId", parentId) else it.bindNull("parentId", UUID::class.java) }
             .fetch()
             .rowsUpdated()
             .awaitSingle()
@@ -243,22 +264,27 @@ class ContentCommentStore(
             .awaitSingle()
     }
 
+    /** `live` is the condition for a comment to count; by default it is not deleted. */
     private suspend fun select(
         where: String,
+        live: String = "c.deleted_at is null",
         bind: (DatabaseClient.GenericExecuteSpec) -> DatabaseClient.GenericExecuteSpec,
     ): List<ContentCommentView> =
         bind(
             databaseClient.sql(
                 """
-                select c.id, c.target_type, c.target_id, c.content::text as content, c.created_at, c.updated_at,
+                select c.id, c.target_type, c.target_id, c.parent_id, c.deleted_at, c.content::text as content, c.created_at, c.updated_at,
                        u.id as author_id, u.login_id, u.display_name, u.avatar_key
                 from content_comments c join users u on u.id = c.author_id
-                where c.deleted_at is null and $where
+                where $live and $where
                 """.trimIndent(),
             ),
         ).map { row ->
+            val deleted = row.get("deleted_at", OffsetDateTime::class.java) != null
             ContentCommentView(
                 id = checkNotNull(row.get("id", UUID::class.java)),
+                parentId = row.get("parent_id", UUID::class.java),
+                deleted = deleted,
                 target =
                     ContentTarget(
                         ContentTargetType.valueOf(checkNotNull(row.get("target_type", String::class.java))),
@@ -271,7 +297,8 @@ class ContentCommentStore(
                         displayName = row.get("display_name", String::class.java),
                         avatarKey = row.get("avatar_key", String::class.java),
                     ),
-                content = checkNotNull(row.get("content", String::class.java)),
+                // What a deleted comment said is not sent any more.
+                content = if (deleted) EMPTY_DOCUMENT else checkNotNull(row.get("content", String::class.java)),
                 createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
                 updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
             )
@@ -372,6 +399,10 @@ class ContentCommentStore(
     }
 
     private fun at(instant: Instant) = OffsetDateTime.ofInstant(instant, ZoneOffset.UTC)
+
+    private companion object {
+        const val EMPTY_DOCUMENT = """{"type":"doc","content":[]}"""
+    }
 }
 
 /**
@@ -399,6 +430,8 @@ class ContentCommentService(
         val emoji = store.commentReactions(target, user.id)
         val files = store.files(target)
         return store.comments(target).map {
+            // A deleted comment kept for its replies shows no emoji or files (D-167).
+            if (it.deleted) return@map it
             val mine = it.author.id == user.id
             it.copy(
                 canEdit = mine && !context.readOnly,
@@ -409,26 +442,55 @@ class ContentCommentService(
         }
     }
 
+    /**
+     * With `parentId` it is a reply to that comment (D-167): one level, so the comment must be on this
+     * page and not itself a reply. The author of the comment and whoever else has replied to it are told
+     * as well as the people tagged in the reply, and nobody else (the followers are not).
+     */
     @Transactional
     suspend fun add(
         user: AuthenticatedUser,
         target: ContentTarget,
         rawContent: Any?,
         fileIds: List<UUID>,
+        parentId: UUID? = null,
     ): ContentCommentResult {
         val context = writable(user, target)
+        val parent = parentId?.let { parentComment(target, it) }
         val files = pendingFiles(context, user, fileIds)
         val document = commentDocument(rawContent, hasFiles = files.isNotEmpty())
         val now = clock.instant()
-        val id = store.add(target, user.id, document, now)
+        val id = store.add(target, user.id, document, now, parent?.id)
         store.attachFiles(id, files.map { it.id })
         val tagged = taggedPeople(context, document.mentions, user.id)
+        val conversation = if (parent == null) emptyList() else inConversation(context, parent, user.id)
         val text = document.plainText.ifBlank { files.joinToString(", ") { it.fileName } }.take(PREVIEW_LENGTH)
         val names = tagged.map { directory.displayName(it) }
         followTagged(target, tagged)
-        log.announce(target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, mapOf("text" to text, "mentions" to names))), tagged)
+        val detail = mapOf("text" to text, "mentions" to names) + (if (parent != null) mapOf("reply" to true) else emptyMap())
+        log.announce(target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, detail)), (tagged + conversation).distinct())
         return ContentCommentResult(shown(user, context, id), context)
     }
+
+    /** The comment a reply goes to: on this page, not deleted, and not a reply itself. */
+    private suspend fun parentComment(
+        target: ContentTarget,
+        parentId: UUID,
+    ): ContentCommentView {
+        val parent = store.find(parentId)?.takeIf { it.target == target } ?: throw commentNotFound()
+        if (parent.parentId != null) throw ValidationException("parentId", "INVALID", "답글에는 답글을 달 수 없습니다")
+        return parent
+    }
+
+    /** The author of the comment and the others who have replied to it, other than the person writing, who can still open the page. */
+    private suspend fun inConversation(
+        context: ContentContext,
+        parent: ContentCommentView,
+        actorId: UUID,
+    ): List<UUID> =
+        (listOf(parent.author.id) + store.replyAuthors(parent.id))
+            .distinct()
+            .filter { it != actorId && directory.canReach(context, it) }
 
     /** `fileIds`, when given, is the whole set of files the comment keeps; only its author may change it. */
     @Transactional
@@ -453,7 +515,9 @@ class ContentCommentService(
         // Only the people newly tagged by the change are told.
         val tagged = taggedPeople(context, document.mentions - richText.mentionsIn(existing.content), user.id)
         if (tagged.isNotEmpty()) {
-            val detail = mapOf("text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to tagged.map { directory.displayName(it) })
+            val detail =
+                mapOf("text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to tagged.map { directory.displayName(it) }) +
+                    (if (existing.parentId != null) mapOf("reply" to true) else emptyMap())
             followTagged(existing.target, tagged)
             log.announce(existing.target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, detail)), tagged)
         }
@@ -525,8 +589,8 @@ class ContentCommentService(
         access.resolve(user, file.target)
         if (file.pending && file.uploadedBy != user.id) throw fileNotFound()
         if (file.commentId != null && store.find(file.commentId) == null) throw fileNotFound()
-        val path = fileStorage.find(file.fileKey) ?: throw fileNotFound()
-        return ContentFileDownload(file, path)
+        val resource = fileStorage.find(file.fileKey) ?: throw fileNotFound()
+        return ContentFileDownload(file, resource)
     }
 
     /** Takes back a file chosen for a comment that was never sent. A file on a comment goes by changing the comment. */

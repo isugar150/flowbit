@@ -23,13 +23,22 @@ services:
       FLOWBIT_DB_PASSWORD: ${FLOWBIT_DB_PASSWORD:?Set FLOWBIT_DB_PASSWORD in .env}
       FLOWBIT_MAX_UPLOAD_SIZE: ${FLOWBIT_MAX_UPLOAD_SIZE:-5MB}
       FLOWBIT_PUBLIC_URL: ${FLOWBIT_PUBLIC_URL:-}
+      # Uploaded files: in the volume below, or in S3 when FLOWBIT_S3_BUCKET is set in .env (D-167).
+      FLOWBIT_STORAGE_TYPE: ${FLOWBIT_STORAGE_TYPE:-}
+      FLOWBIT_S3_BUCKET: ${FLOWBIT_S3_BUCKET:-}
+      FLOWBIT_S3_REGION: ${FLOWBIT_S3_REGION:-}
+      FLOWBIT_S3_ENDPOINT: ${FLOWBIT_S3_ENDPOINT:-}
+      FLOWBIT_S3_ACCESS_KEY: ${FLOWBIT_S3_ACCESS_KEY:-}
+      FLOWBIT_S3_SECRET_KEY: ${FLOWBIT_S3_SECRET_KEY:-}
+      FLOWBIT_S3_PREFIX: ${FLOWBIT_S3_PREFIX:-}
+      FLOWBIT_S3_PATH_STYLE: ${FLOWBIT_S3_PATH_STYLE:-}
       TZ: UTC
     extra_hosts:
       # A database on this same server: inside the container "localhost" is the container
       # itself, so use FLOWBIT_DB_HOST=host.docker.internal to reach the server.
       - "host.docker.internal:host-gateway"
     volumes:
-      # Uploaded files. Back this up together with the database.
+      # Uploaded files. Back this up together with the database. (Not used when they are kept in S3.)
       - uploads:/var/lib/flowbit/uploads
     ports:
       # Only the frontend (3000) is opened; the backend is reached through its /api.

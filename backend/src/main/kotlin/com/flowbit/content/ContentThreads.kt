@@ -349,7 +349,7 @@ class ContentThreadService(
         val now = clock.instant()
         val threadId = store.create(target, blockId, quote, user.id, now)
         store.addComment(threadId, user.id, document, now)
-        announce(user, context, quote, document)
+        announce(user, context, quote, document, inConversation = emptyList())
         return ThreadResult(thread(user, context, threadId), context)
     }
 
@@ -362,8 +362,13 @@ class ContentThreadService(
         val existing = store.find(threadId) ?: throw threadNotFound()
         val context = writable(user, existing.target)
         val document = commentDocument(rawContent)
+        val inConversation =
+            existing.comments
+                .map { it.author.id }
+                .distinct()
+                .filter { it != user.id && directory.canReach(context, it) }
         store.addComment(threadId, user.id, document, clock.instant())
-        announce(user, context, existing.quote, document)
+        announce(user, context, existing.quote, document, inConversation, reply = true)
         return ThreadResult(thread(user, context, threadId), context)
     }
 
@@ -453,13 +458,21 @@ class ContentThreadService(
         return document
     }
 
-    /** Who hears about a comment: the people tagged in it, and nobody else (D-166). */
+    /**
+     * Who hears about a comment: the people tagged in it and, for a reply, the others in the thread,
+     * and nobody else (D-166, D-167). Only the people tagged follow the page because of it.
+     */
     private suspend fun announce(
         user: AuthenticatedUser,
         context: ContentContext,
         quote: String,
         document: RichTextDocument,
-    ) = announceTo(user, context, quote, document, taggedPeople(context, document.mentions, user.id))
+        inConversation: List<UUID>,
+        reply: Boolean = false,
+    ) {
+        val tagged = taggedPeople(context, document.mentions, user.id)
+        announceTo(user, context, quote, document, tagged, told = (tagged + inConversation).distinct(), reply = reply)
+    }
 
     private suspend fun taggedPeople(
         context: ContentContext,
@@ -473,14 +486,18 @@ class ContentThreadService(
         quote: String,
         document: RichTextDocument,
         tagged: List<UUID>,
+        told: List<UUID> = tagged,
+        reply: Boolean = false,
     ) {
         val names = tagged.map { directory.displayName(it) }
-        val detail = mapOf("quote" to quote, "text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to names)
+        val detail =
+            mapOf("quote" to quote, "text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to names) +
+                (if (reply) mapOf("reply" to true) else emptyMap())
         if (context.issueId != null && context.target.type == ContentTargetType.ISSUE) {
             // A comment on a ticket's body is a comment on the ticket: the people in it follow the ticket, and the ones tagged are told.
             issueActivities.subscribe(context.issueId, user.id)
             tagged.forEach { issueActivities.subscribe(context.issueId, it) }
-            if (tagged.isEmpty()) return
+            if (told.isEmpty()) return
             val issue = issueQueries.find(checkNotNull(context.issueNumber)) ?: return
             notifications.dispatchTalk(
                 IssueNotification(
@@ -491,14 +508,14 @@ class ContentThreadService(
                     actorId = user.id,
                     actorName = directory.displayName(user.id),
                     events = listOf(IssueNotification.Event("COMMENT_ADDED", detail)),
-                    recipientIds = tagged,
+                    recipientIds = told,
                 ),
             )
             return
         }
         // Being tagged in a comment on a document makes the person follow it; they can stop (D-166).
         if (context.target.type == ContentTargetType.DOCUMENT) tagged.forEach { subscriptions.subscribe(context.target.id, it) }
-        log.announce(context.target, user.id, listOf(ContentEvent(ContentEventType.THREAD_COMMENT, detail)), tagged)
+        log.announce(context.target, user.id, listOf(ContentEvent(ContentEventType.THREAD_COMMENT, detail)), told)
     }
 
     private fun threadNotFound() = NotFoundException("THREAD_NOT_FOUND", "댓글을 찾을 수 없습니다")

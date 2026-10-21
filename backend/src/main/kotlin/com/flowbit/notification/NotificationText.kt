@@ -40,7 +40,7 @@ class NotificationText(
                 "CREATED" in types -> "티켓을 만들었습니다"
                 "DELETED" in types -> "티켓을 삭제했습니다"
                 "RESTORED" in types -> "티켓을 복원했습니다"
-                "COMMENT_ADDED" in types -> "댓글을 남겼습니다"
+                "COMMENT_ADDED" in types -> if (isReply(notification.events)) "댓글에 답글을 남겼습니다" else "댓글을 남겼습니다"
                 fromGit -> "Git에서 티켓을 수정했습니다"
                 else -> "티켓을 수정했습니다"
             }
@@ -59,6 +59,9 @@ class NotificationText(
         )
     }
 
+    /** The comment is an answer to another comment (D-167). */
+    private fun isReply(events: List<IssueNotification.Event>): Boolean = events.any { it.detail["reply"] == true }
+
     /** A Git server's change that names nobody (D-153): the actor is the server itself, "GitHub". */
     private fun gitNamesNobody(notification: IssueNotification): Boolean = notification.events.all { (it.detail["via"] as? Map<*, *>)?.get("name") == null }
 
@@ -67,7 +70,7 @@ class NotificationText(
         val types = notification.events.map { it.type }
         val did =
             when {
-                "THREAD_COMMENT" in types || "COMMENT_ADDED" in types -> "댓글을 남겼습니다"
+                "THREAD_COMMENT" in types || "COMMENT_ADDED" in types -> if (isReply(notification.events)) "댓글에 답글을 남겼습니다" else "댓글을 남겼습니다"
                 else ->
                     when (notification.targetType) {
                         "PROJECT" -> "프로젝트를 수정했습니다"

@@ -54,8 +54,8 @@ export function contentCommentApi(target: ContentTarget, changed: () => void): C
     return result;
   };
   return {
-    create: ({ content, attachmentIds }) =>
-      then(apiFetch<IssueComment>(`${base(target)}/comments`, { method: "POST", body: { content, attachmentIds } })),
+    create: ({ content, attachmentIds, parentId }) =>
+      then(apiFetch<IssueComment>(`${base(target)}/comments`, { method: "POST", body: { content, attachmentIds, parentId } })),
     update: ({ id, content, attachmentIds }) =>
       then(apiFetch<IssueComment>(`/api/v1/content-comments/${id}`, { method: "PATCH", body: { content, attachmentIds } })),
     remove: (id) => then(apiFetch<void>(`/api/v1/content-comments/${id}`, { method: "DELETE" })),

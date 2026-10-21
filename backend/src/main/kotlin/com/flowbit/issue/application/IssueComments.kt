@@ -27,30 +27,58 @@ data class CommentView(
     val reactions: List<ReactionSummary> = emptyList(),
     /** The files sent with it, in the order they were added (D-164). */
     val attachments: List<AttachmentView> = emptyList(),
+    /** The comment this one answers; null for a comment of its own. A reply cannot be answered (D-167). */
+    val parentId: UUID? = null,
+    /**
+     * A comment that was deleted while it has replies: only its place is kept, with no text, files or
+     * emoji, so that the replies still have something to hang from (D-167).
+     */
+    val deleted: Boolean = false,
 )
 
-/** Comments on issues (`issue_comments`). A deleted comment stays as a row and is never read. */
+/**
+ * Comments on issues (`issue_comments`). A deleted comment stays as a row and is never read, except that one
+ * with replies is listed as deleted (D-167).
+ */
 @Component
 class IssueCommentStore(
     private val databaseClient: DatabaseClient,
 ) {
-    /** Oldest first. */
-    suspend fun list(issueId: UUID): List<CommentView> = where("c.issue_id = :id order by c.created_at, c.id", issueId)
+    /** Oldest first, replies among the rest (they belong under the comment their `parentId` names). */
+    suspend fun list(issueId: UUID): List<CommentView> =
+        where(
+            "c.issue_id = :id order by c.created_at, c.id",
+            issueId,
+            // A deleted comment shows as long as someone has answered it.
+            "(c.deleted_at is null or (c.parent_id is null and exists (select 1 from issue_comments r where r.parent_id = c.id and r.deleted_at is null)))",
+        )
 
+    /** A comment that has not been deleted. */
     suspend fun find(id: UUID): CommentView? = where("c.id = :id", id).firstOrNull()
+
+    /** Who has written to the comment: the people whose replies to it are still there. */
+    suspend fun replyAuthors(parentId: UUID): List<UUID> =
+        databaseClient
+            .sql("select distinct author_id from issue_comments where parent_id = :id and deleted_at is null")
+            .bind("id", parentId)
+            .map { row -> checkNotNull(row.get("author_id", UUID::class.java)) }
+            .all()
+            .collectList()
+            .awaitSingle()
 
     suspend fun add(
         issueId: UUID,
         authorId: UUID,
         document: RichTextDocument,
         now: Instant,
+        parentId: UUID? = null,
     ): UUID {
         val id = UuidV7.generate(now)
         databaseClient
             .sql(
                 """
-                insert into issue_comments (id, issue_id, author_id, content, body, created_at, updated_at)
-                values (:id, :issueId, :authorId, cast(:content as jsonb), :body, :now, :now)
+                insert into issue_comments (id, issue_id, author_id, content, body, created_at, updated_at, parent_id)
+                values (:id, :issueId, :authorId, cast(:content as jsonb), :body, :now, :now, :parentId)
                 """.trimIndent(),
             ).bind("id", id)
             .bind("issueId", issueId)
@@ -58,6 +86,7 @@ class IssueCommentStore(
             .bind("content", document.json)
             .bind("body", document.plainText)
             .bind("now", now)
+            .let { if (parentId != null) it.bind("parentId", parentId) else it.bindNull("parentId", UUID::class.java) }
             .fetch()
             .rowsUpdated()
             .awaitSingle()
@@ -93,23 +122,28 @@ class IssueCommentStore(
             .awaitSingle()
     }
 
+    /** `live` is the condition for a comment to count; by default it is not deleted. */
     private suspend fun where(
         where: String,
         id: UUID,
+        live: String = "c.deleted_at is null",
     ): List<CommentView> =
         databaseClient
             .sql(
                 """
-                select c.id, c.issue_id, c.content::text as content, c.created_at, c.updated_at,
+                select c.id, c.issue_id, c.parent_id, c.deleted_at, c.content::text as content, c.created_at, c.updated_at,
                        u.id as author_id, u.login_id, u.display_name, u.avatar_key
                 from issue_comments c join users u on u.id = c.author_id
-                where c.deleted_at is null and $where
+                where $live and $where
                 """.trimIndent(),
             ).bind("id", id)
             .map { row ->
+                val deleted = row.get("deleted_at", OffsetDateTime::class.java) != null
                 CommentView(
                     id = checkNotNull(row.get("id", UUID::class.java)),
                     issueId = checkNotNull(row.get("issue_id", UUID::class.java)),
+                    parentId = row.get("parent_id", UUID::class.java),
+                    deleted = deleted,
                     author =
                         IssuePerson(
                             id = checkNotNull(row.get("author_id", UUID::class.java)),
@@ -117,11 +151,16 @@ class IssueCommentStore(
                             displayName = row.get("display_name", String::class.java),
                             avatarKey = row.get("avatar_key", String::class.java),
                         ),
-                    content = checkNotNull(row.get("content", String::class.java)),
+                    // What a deleted comment said is not sent any more.
+                    content = if (deleted) EMPTY_DOCUMENT else checkNotNull(row.get("content", String::class.java)),
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
                     updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
                 )
             }.all()
             .collectList()
             .awaitSingle()
+
+    private companion object {
+        const val EMPTY_DOCUMENT = """{"type":"doc","content":[]}"""
+    }
 }

@@ -47,6 +47,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-mail")
     // Signs the service account assertion for Firebase Cloud Messaging (FcmClient).
     implementation("com.nimbusds:nimbus-jose-jwt")
+    // Uploaded files in Amazon S3 (or an S3-compatible store) instead of the storage folder (S3ObjectStore).
+    // The blocking client, called on Dispatchers.IO; its Apache HTTP client is the only one wanted, so the async Netty one stays out.
+    implementation("software.amazon.awssdk:s3:2.55.16") {
+        exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+    }
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("org.postgresql:r2dbc-postgresql")
     testImplementation("org.springframework.boot:spring-boot-starter-data-r2dbc-test")

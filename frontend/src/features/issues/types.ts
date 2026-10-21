@@ -237,12 +237,16 @@ export type IssueComment = {
   reactions: Reaction[];
   /** The files sent with it, in the order they were added. */
   attachments: Attachment[];
+  /** The comment this one answers; null for a comment of its own. A reply cannot be answered (D-167). */
+  parentId: string | null;
+  /** Deleted but kept because it has replies: no text, files or emoji, and shown as "삭제된 댓글" (D-167). */
+  deleted: boolean;
 };
 
 /** GET /api/v1/issues/{number}/activity */
 export type IssueActivityFeed = {
   items: IssueActivityItem[];
-  /** Oldest first; shown mixed into `items` by time. */
+  /** Oldest first, replies among them; shown mixed into `items` by time, each reply under its comment. */
   comments: IssueComment[];
   subscribers: IssuePerson[];
   /** Whether the signed-in person follows the issue. */

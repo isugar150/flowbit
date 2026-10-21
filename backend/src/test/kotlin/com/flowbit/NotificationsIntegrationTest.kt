@@ -161,6 +161,35 @@ class NotificationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `답글은 원 댓글을 쓴 사람에게만 메일이 가고 티켓을 구독한 사람에게는 가지 않는다`() {
+        saveSmtp()
+        kim.patch("/api/v1/me/notifications", """{"email":"kim@example.com","notifyEmail":true}""")
+        val leeId = admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD"}""").json()["id"]
+        val lee = client().also { it.login("leesj", PASSWORD) }
+        lee.patch("/api/v1/me/notifications", """{"email":"lee@example.com","notifyEmail":true}""")
+        // lee follows the issue as its assignee; kim wrote the comment that is answered.
+        admin.post("/api/v1/issues", """{"title":"배포 일정","assigneeIds":["$leeId"]}""")
+
+        fun comment(
+            text: String,
+            parent: Any? = null,
+        ) = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"$text"}]}]}${parent?.let {
+            ""","parentId":"$it""""
+        } ?: ""}}"""
+        val parent = kim.post("/api/v1/issues/1/comments", comment("옮깁니다")).json()["id"]
+        Thread.sleep(1_000)
+        assertEquals(0, mail.receivedMessages.size)
+
+        assertEquals(201, admin.post("/api/v1/issues/1/comments", comment("알겠습니다", parent)).status)
+
+        assertTrue(mail.waitForIncomingEmail(10_000, 1))
+        Thread.sleep(500)
+        val message = mail.receivedMessages.single()
+        assertEquals("kim@example.com", message.allRecipients.single().toString())
+        assertTrue(message.content.toString().contains("답글"))
+    }
+
+    @Test
     fun `메일이 꺼져 있으면 보내지 않고 테스트 메일은 저장하지 않은 설정으로 보낸다`() {
         val test = admin.post("/api/v1/admin/notifications/smtp/test", smtpJson(enabled = false, testTo = "someone@example.com"))
         val refused = admin.post("/api/v1/admin/notifications/smtp/test", smtpJson(port = 1, testTo = "someone@example.com"))

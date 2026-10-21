@@ -8,8 +8,8 @@ import type { Attachment, Reaction } from "./types";
  * components serve both; each page gives them its own calls.
  */
 export type CommentApi = {
-  /** Sends a comment; `content` is null when it is files alone. */
-  create(input: { content: RichDoc | null; attachmentIds: string[] }): Promise<unknown>;
+  /** Sends a comment; `content` is null when it is files alone. `parentId` makes it a reply to that comment (D-167). */
+  create(input: { content: RichDoc | null; attachmentIds: string[]; parentId?: string }): Promise<unknown>;
   /** `attachmentIds` is the whole set of files the comment keeps. */
   update(input: { id: string; content: RichDoc | null; attachmentIds: string[] }): Promise<unknown>;
   remove(id: string): Promise<void>;
@@ -24,7 +24,7 @@ export type CommentApi = {
 /** The comments of one issue, by its number. */
 export function issueCommentApi(number: number): CommentApi {
   return {
-    create: ({ content, attachmentIds }) => createComment({ number, content, attachmentIds }),
+    create: ({ content, attachmentIds, parentId }) => createComment({ number, content, attachmentIds, parentId }),
     update: updateComment,
     remove: deleteComment,
     react: toggleCommentReaction,

@@ -63,6 +63,20 @@ FLOWBIT_WEB_PORT=3000
 
 # 올릴 수 있는 이미지 한 장의 최대 크기
 # FLOWBIT_MAX_UPLOAD_SIZE=5MB
+
+# 올린 파일(이미지, 첨부 파일, 댓글 파일)을 Amazon S3 에 둔다. 버킷 이름을 적으면 모든 파일이 S3 에 올라가고,
+# 비워 두면 컨테이너의 uploads 볼륨에 둔다(기본). S3 로 바꾸기 전에 볼륨에 올라간 파일은 옮겨지지 않는다.
+# FLOWBIT_S3_BUCKET=
+# FLOWBIT_S3_REGION=ap-northeast-2
+# 키를 적지 않으면 서버에 붙은 IAM 역할이나 AWS_ACCESS_KEY_ID 같은 환경 변수를 쓴다.
+# FLOWBIT_S3_ACCESS_KEY=
+# FLOWBIT_S3_SECRET_KEY=
+# 버킷 안의 폴더(선택). 비우면 버킷 맨 위
+# FLOWBIT_S3_PREFIX=flowbit
+# MinIO 같은 S3 호환 저장소를 쓸 때만 그 주소를 적는다(AWS 는 적지 않는다).
+# FLOWBIT_S3_ENDPOINT=
+# 강제로 로컬에 두려면 local (버킷을 적어 둔 채로도)
+# FLOWBIT_STORAGE_TYPE=local
 EOF
   chmod 600 "$ENV_FILE" 2>/dev/null || true
 

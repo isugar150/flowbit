@@ -168,18 +168,24 @@ class RetentionService(
                     settings.comments?.let { period ->
                         val cutoff = period.cutoff(now)
                         // The files sent with a comment go with it.
+                        val issueReplies = noReplyLeft("issue_comments", "c")
+                        val contentReplies = noReplyLeft("content_comments", "c")
                         removedFiles +=
                             fileKeys(
-                                "select a.file_key from issue_attachments a join issue_comments c on c.id = a.comment_id where c.deleted_at is not null and c.deleted_at < :cutoff",
+                                "select a.file_key from issue_attachments a join issue_comments c on c.id = a.comment_id " +
+                                    "where c.deleted_at is not null and c.deleted_at < :cutoff and $issueReplies",
                                 cutoff,
                             )
                         removedFiles +=
                             fileKeys(
-                                "select f.file_key from content_files f join content_comments c on c.id = f.comment_id where c.deleted_at is not null and c.deleted_at < :cutoff",
+                                "select f.file_key from content_files f join content_comments c on c.id = f.comment_id " +
+                                    "where c.deleted_at is not null and c.deleted_at < :cutoff and $contentReplies",
                                 cutoff,
                             )
                         // Comments on the blocks of pages and under the activity of pages are comments too (D-165).
-                        deleteOlder("issue_comments", cutoff) + deleteOlder("content_comments", cutoff) + deleteOlder("content_thread_comments", cutoff)
+                        deleteOlder("issue_comments", cutoff, guardReplies = true) +
+                            deleteOlder("content_comments", cutoff, guardReplies = true) +
+                            deleteOlder("content_thread_comments", cutoff)
                     } ?: 0
                 val documents = settings.documents?.let { deleteOlder("documents", it.cutoff(now)) } ?: 0
                 val issues =
@@ -227,16 +233,27 @@ class RetentionService(
         return result
     }
 
+    /**
+     * `guardReplies`: a comment that has replies not yet due for removal stays, whatever its own age: removing it
+     * would take them along (their foreign key) before their own period is over, and their files would be left behind (D-167).
+     */
     private suspend fun deleteOlder(
         table: String,
         cutoff: Instant,
+        guardReplies: Boolean = false,
     ): Long =
         databaseClient
-            .sql("delete from $table where deleted_at is not null and deleted_at < :cutoff")
+            .sql("delete from $table where deleted_at is not null and deleted_at < :cutoff" + if (guardReplies) " and ${noReplyLeft(table, table)}" else "")
             .bind("cutoff", at(cutoff))
             .fetch()
             .rowsUpdated()
             .awaitSingle()
+
+    /** The condition that no reply of the comment (alias `alias` in `table`) is live or newer than the cutoff. `table` is ours, never input. */
+    private fun noReplyLeft(
+        table: String,
+        alias: String,
+    ) = "not exists (select 1 from $table r where r.parent_id = $alias.id and (r.deleted_at is null or r.deleted_at >= :cutoff))"
 
     /**
      * Removes the threads, comments, activity and files of pages that no longer exist, and returns

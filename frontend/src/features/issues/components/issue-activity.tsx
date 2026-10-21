@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import type { MentionPerson } from "@/components/editor/mention";
@@ -125,22 +125,56 @@ function describe(item: IssueActivityItem): Described {
 /** One place in the list under the heading "활동": a change, a comment, or a thread on a block. */
 export type TimelineEntry<E, C> =
   | { kind: "event"; at: string; event: E }
-  | { kind: "comment"; at: string; comment: C }
+  | { kind: "comment"; at: string; comment: C; replies: C[] }
   | { kind: "thread"; at: string; thread: ContentThread };
 
-/** History entries, comments and the threads on blocks as one list, oldest first; a thread stands where its first comment was written. */
-export function timelineOf<E extends { createdAt: string }, C extends { createdAt: string }>(
+const byTime = (a: { createdAt: string }, b: { createdAt: string }) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0);
+
+/**
+ * History entries, comments and the threads on blocks as one list, **newest first** (D-167); a thread
+ * stands where its first comment was written, a comment where it was written. A reply is not an entry
+ * of its own: it belongs to its comment, oldest first under it.
+ */
+export function timelineOf<E extends { createdAt: string }, C extends { id: string; createdAt: string; parentId: string | null }>(
   events: E[],
   comments: C[],
   threads: ContentThread[],
 ): TimelineEntry<E, C>[] {
+  const answers = new Map<string, C[]>();
+  for (const comment of comments) {
+    if (comment.parentId) answers.set(comment.parentId, [...(answers.get(comment.parentId) ?? []), comment]);
+  }
   const entries: TimelineEntry<E, C>[] = [
     ...events.map((event): TimelineEntry<E, C> => ({ kind: "event", at: event.createdAt, event })),
-    ...comments.map((comment): TimelineEntry<E, C> => ({ kind: "comment", at: comment.createdAt, comment })),
+    ...comments
+      .filter((comment) => !comment.parentId)
+      .map((comment): TimelineEntry<E, C> => ({ kind: "comment", at: comment.createdAt, comment, replies: (answers.get(comment.id) ?? []).sort(byTime) })),
     ...threads.map((thread): TimelineEntry<E, C> => ({ kind: "thread", at: thread.createdAt, thread })),
   ];
   // Timestamps are ISO strings in UTC, so they sort as text; ties keep the order above.
-  return entries.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  return entries.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+}
+
+/** How many entries of the activity show before "이전 활동 N개 더 보기" (D-167). */
+export const ACTIVITY_PAGE_SIZE = 15;
+
+/**
+ * The newest [ACTIVITY_PAGE_SIZE] entries; the rest wait until the button is pressed, and then they all show.
+ * `ShowOlderButton` is that button, below the list.
+ */
+export function useCollapsedEntries<T>(entries: T[]) {
+  const [expanded, setExpanded] = useState(false);
+  const hidden = expanded ? 0 : Math.max(0, entries.length - ACTIVITY_PAGE_SIZE);
+  return { shown: hidden > 0 ? entries.slice(0, ACTIVITY_PAGE_SIZE) : entries, hidden, expand: () => setExpanded(true) };
+}
+
+export function ShowOlderButton({ hidden, onClick }: { hidden: number; onClick: () => void }) {
+  if (hidden === 0) return null;
+  return (
+    <Button type="button" variant="ghost" size="sm" className="w-fit self-center text-muted-foreground max-md:h-11" onClick={onClick}>
+      {m.showOlder(hidden)}
+    </Button>
+  );
 }
 
 /** How many followers get an avatar of their own beside the heading; the rest are behind "+N". */
@@ -309,8 +343,8 @@ export function ActivityEvent({
 }
 
 /**
- * The history of an issue and its comments, mixed by time, oldest first, with who follows it and,
- * for people who may edit the issue, where to write a comment. The author, the assignee, whoever
+ * The history of an issue and its comments, mixed by time, newest first (the latest 15, the rest behind a
+ * button), with who follows it and, for people who may edit the issue, where to write a comment, which is at the top. The author, the assignee, whoever
  * comments and whoever is tagged with "@" follow automatically; anyone who can see the issue can
  * follow or stop with the button.
  */
@@ -342,6 +376,7 @@ export function IssueActivity({
   // The comments on the blocks of the body stand among the rest, where their first comment was written.
   const target = useMemo(() => ({ type: "issue" as const, id: issueId }), [issueId]);
   const threads = useContentFeed(target, feed).data?.threads ?? [];
+  const timeline = useCollapsedEntries(timelineOf(feed.items, feed.comments, threads));
 
   return (
     <section data-presence-id="activity" aria-labelledby="issue-activity-title" className="flex flex-col gap-3 border-t pt-5">
@@ -366,10 +401,20 @@ export function IssueActivity({
           {apiErrorMessage(mutation.error)}
         </p>
       ) : null}
+      {/* The box for a comment is at the top, where the newest activity is (D-167). */}
+      {canComment ? <CommentComposer api={api} mentionables={mentionables} /> : null}
       <ol className="flex flex-col gap-2.5">
-        {timelineOf(feed.items, feed.comments, threads).map((entry) =>
+        {timeline.shown.map((entry) =>
           entry.kind === "comment" ? (
-            <CommentItem key={entry.comment.id} api={api} comment={entry.comment} mentionables={mentionables} readOnly={readOnly} />
+            <CommentItem
+              key={entry.comment.id}
+              api={api}
+              comment={entry.comment}
+              replies={entry.replies}
+              mentionables={mentionables}
+              readOnly={readOnly}
+              canReply={canComment}
+            />
           ) : entry.kind === "thread" ? (
             <li key={entry.thread.id}>
               <ThreadCard
@@ -393,7 +438,7 @@ export function IssueActivity({
           ),
         )}
       </ol>
-      {canComment ? <CommentComposer api={api} mentionables={mentionables} /> : null}
+      <ShowOlderButton hidden={timeline.hidden} onClick={timeline.expand} />
     </section>
   );
 }

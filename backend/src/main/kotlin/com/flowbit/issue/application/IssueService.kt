@@ -24,10 +24,10 @@ import com.flowbit.project.application.ProjectService
 import com.flowbit.project.domain.Project
 import com.flowbit.user.domain.UserRole
 import kotlinx.coroutines.reactor.awaitSingle
+import org.springframework.core.io.Resource
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.nio.file.Path
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
@@ -156,7 +156,7 @@ data class DocumentOwner(
 /** An attached file ready to be sent. */
 data class AttachmentFile(
     val attachment: AttachmentView,
-    val path: Path,
+    val resource: Resource,
 )
 
 /**
@@ -453,7 +453,12 @@ class IssueService(
         val entryReactions = extras.activityReactions(issue.id, user.id)
         val shown =
             comments.list(issue.id).map {
-                it.withRights(user, access).copy(reactions = commentReactions[it.id].orEmpty(), attachments = commentFiles[it.id].orEmpty())
+                // A deleted comment kept for its replies shows no emoji or files (D-167).
+                if (it.deleted) {
+                    it
+                } else {
+                    it.withRights(user, access).copy(reactions = commentReactions[it.id].orEmpty(), attachments = commentFiles[it.id].orEmpty())
+                }
             }
         val items = activities.list(issue.id).map { it.copy(reactions = entryReactions[it.id].orEmpty()) }
         return IssueActivityFeed(items, shown, subscribers, subscribers.any { it.id == user.id })
@@ -461,8 +466,12 @@ class IssueService(
 
     /**
      * Writes a comment on an issue; needs the right to edit it. The author and the people tagged
-     * in it with @ follow the issue from then on, and every follower is told. `attachmentIds` are
+     * in it with @ follow the issue from then on, and the people tagged are told. `attachmentIds` are
      * files the caller uploaded for the comment ([attachToDraft]); with files, the text may be empty.
+     *
+     * With `parentId` it is a reply to that comment (D-167): one level, so the comment must be one of
+     * the issue's own and not itself a reply. The author of the comment and whoever else has replied to
+     * it are told as well as the people tagged, and nobody else (the subscribers are not).
      */
     @Transactional
     suspend fun addComment(
@@ -470,26 +479,54 @@ class IssueService(
         number: Int,
         content: Any?,
         attachmentIds: List<UUID> = emptyList(),
+        parentId: UUID? = null,
     ): CommentResult {
         val access = editable(access(user, number))
         val issue = access.issue
+        val parent = parentId?.let { parentComment(issue, it) }
         val files = pendingFiles(issue, user, attachmentIds)
         val document = commentDocument(content, hasFiles = files.isNotEmpty())
         val now = clock.instant()
-        val id = comments.add(issue.id, user.id, document, now)
+        val id = comments.add(issue.id, user.id, document, now, parent?.id)
         extras.attachToComment(id, files.map { it.id })
         activities.subscribe(issue.id, user.id)
         val tagged = tag(issue, document.mentions, user)
+        val conversation = if (parent == null) emptyList() else inConversation(issue, parent, user)
         val comment = checkNotNull(comments.find(id)).withRights(user, access).withExtras(user)
         val change =
             IssueChange(
                 checkNotNull(queries.find(number)),
-                listOf(commentEvent(document, tagged, files)),
+                listOf(commentEvent(document, tagged, files, reply = parent != null)),
                 recipients(issue.id, user),
-                taggedIds = tagged.map { it.first },
+                taggedIds = (tagged.map { it.first } + conversation).distinct(),
             )
         return CommentResult(comment, change)
     }
+
+    /** The comment a reply goes to: one of this issue's, not deleted, and not a reply itself. */
+    private suspend fun parentComment(
+        issue: Issue,
+        parentId: UUID,
+    ): CommentView {
+        val parent = comments.find(parentId)?.takeIf { it.issueId == issue.id } ?: throw commentNotFound()
+        if (parent.parentId != null) throw ValidationException("parentId", "INVALID", "답글에는 답글을 달 수 없습니다")
+        return parent
+    }
+
+    /** The author of the comment and the others who have replied to it, other than the person writing, who may still see the issue. */
+    private suspend fun inConversation(
+        issue: Issue,
+        parent: CommentView,
+        actor: AuthenticatedUser,
+    ): List<UUID> =
+        (listOf(parent.author.id) + comments.replyAuthors(parent.id))
+            .distinct()
+            .filter { it != actor.id && canSee(issue, it) }
+
+    private suspend fun canSee(
+        issue: Issue,
+        userId: UUID,
+    ): Boolean = issue.projectId?.let { queries.isProjectMember(it, userId) } ?: queries.isActiveUser(userId)
 
     /**
      * Only its author may change a comment. People newly tagged by the change are told; nobody else is told again.
@@ -517,7 +554,7 @@ class IssueService(
         removed.forEach { fileStorage.delete(it.fileKey) }
         val tagged = tag(access.issue, document.mentions - richText.mentionsIn(existing.content), user)
         val comment = checkNotNull(comments.find(commentId)).withRights(user, access).withExtras(user)
-        val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged, comment.attachments))
+        val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged, comment.attachments, reply = existing.parentId != null))
         return CommentResult(
             comment,
             IssueChange(checkNotNull(queries.find(access.issue.number)), events, emptyList(), taggedIds = tagged.map { it.first }),
@@ -584,12 +621,13 @@ class IssueService(
         document: RichTextDocument,
         tagged: List<Pair<UUID, String>>,
         files: List<AttachmentView>,
+        reply: Boolean = false,
     ) = IssueEvent(
         IssueActivityType.COMMENT_ADDED,
         mapOf(
             "text" to document.plainText.ifBlank { files.joinToString(", ") { it.fileName } }.take(COMMENT_PREVIEW_LENGTH),
             "mentions" to tagged.map { it.second },
-        ),
+        ) + (if (reply) mapOf("reply" to true) else emptyMap()),
     )
 
     private fun mentionEvents(tagged: List<Pair<UUID, String>>): List<IssueEvent> =
@@ -607,8 +645,7 @@ class IssueService(
         actor: AuthenticatedUser,
     ): List<Pair<UUID, String>> =
         userIds.filter { it != actor.id }.mapNotNull { userId ->
-            val reachable = issue.projectId?.let { queries.isProjectMember(it, userId) } ?: queries.isActiveUser(userId)
-            if (!reachable) return@mapNotNull null
+            if (!canSee(issue, userId)) return@mapNotNull null
             activities.subscribe(issue.id, userId)
             userId to activities.displayName(userId)
         }
@@ -720,8 +757,8 @@ class IssueService(
         // A file not yet sent is its uploader's alone; one on a deleted comment goes with the comment.
         if (attachment.pending && attachment.uploadedBy != user.id) throw notFound()
         if (attachment.commentId != null && comments.find(attachment.commentId) == null) throw notFound()
-        val path = fileStorage.find(attachment.fileKey) ?: throw notFound()
-        return AttachmentFile(attachment, path)
+        val resource = fileStorage.find(attachment.fileKey) ?: throw notFound()
+        return AttachmentFile(attachment, resource)
     }
 
     /** Returns the number of the issue the attachment was on. */

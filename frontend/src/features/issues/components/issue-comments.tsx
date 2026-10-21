@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { PencilIcon, Trash2Icon } from "lucide-react";
+import { MessageSquareReplyIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc, type RichTextEditorHandle } from "@/components/editor/rich-text-editor";
@@ -38,13 +38,29 @@ function isBlankDoc(node: unknown): boolean {
 }
 
 /**
- * Where a comment is written, under the activity of an issue. The same editor as the body, so `/`
- * blocks and pasted pictures work; `@` tags a person, who is then told through every notification
- * channel they have set up and follows the issue from then on. Pictures, and other files (up to
- * ten) from the paperclip, a drop or a paste, are sent along: pictures inside the text, the rest
- * as files under it.
+ * Where a comment is written, at the top of the activity of an issue (D-167). The same editor as the
+ * body, so `/` blocks and pasted pictures work; `@` tags a person, who is then told through every
+ * notification channel they have set up and follows the issue from then on. Pictures, and other
+ * files (up to ten) from the paperclip, a drop or a paste, are sent along: pictures inside the
+ * text, the rest as files under it.
+ *
+ * With `parentId` it writes a reply to that comment: the same, a little smaller, with a way to give
+ * up (`onCancel`); `onSent` is called when the reply has gone.
  */
-export function CommentComposer({ api, mentionables }: { api: CommentApi; mentionables: MentionPerson[] }) {
+export function CommentComposer({
+  api,
+  mentionables,
+  parentId,
+  onSent,
+  onCancel,
+}: {
+  api: CommentApi;
+  mentionables: MentionPerson[];
+  parentId?: string;
+  onSent?: () => void;
+  onCancel?: () => void;
+}) {
+  const reply = parentId !== undefined;
   const draft = useRef<RichDoc | null>(null);
   const editor = useRef<RichTextEditorHandle>(null);
   const [empty, setEmpty] = useState(true);
@@ -56,10 +72,15 @@ export function CommentComposer({ api, mentionables }: { api: CommentApi; mentio
     setEmpty(true);
     setRevision((current) => current + 1);
     files.clear();
+    onSent?.();
   });
   const sendable = (!empty || files.ids.length > 0) && !files.busy && !mutation.isPending;
   const submit = () => {
-    if (sendable) mutation.mutate({ content: empty ? null : draft.current, attachmentIds: files.ids });
+    if (sendable) mutation.mutate({ content: empty ? null : draft.current, attachmentIds: files.ids, parentId });
+  };
+  const giveUp = () => {
+    files.cancel([]);
+    onCancel?.();
   };
   const takeFiles = (list: File[]) => {
     const { pictures, others } = splitFiles(list);
@@ -70,7 +91,7 @@ export function CommentComposer({ api, mentionables }: { api: CommentApi; mentio
 
   return (
     <div
-      data-presence-id="comment"
+      data-presence-id={reply ? undefined : "comment"}
       className={cn(
         "flex flex-col gap-2 rounded-lg border p-3 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
         transfer.dragging && "border-ring ring-3 ring-ring/50",
@@ -84,9 +105,10 @@ export function CommentComposer({ api, mentionables }: { api: CommentApi; mentio
         key={revision}
         ref={editor}
         initialContent={null}
-        placeholder={m.placeholder}
-        ariaLabel={m.label}
-        className="min-h-14 text-sm"
+        placeholder={reply ? m.replyPlaceholder : m.placeholder}
+        ariaLabel={reply ? m.replyLabel : m.label}
+        autoFocus={reply}
+        className={cn("text-sm", reply ? "min-h-10" : "min-h-14")}
         mentionables={mentionables}
         onChange={(doc) => {
           draft.current = doc;
@@ -110,9 +132,14 @@ export function CommentComposer({ api, mentionables }: { api: CommentApi; mentio
           <ModKey />
           +Enter
         </span>
+        {reply ? (
+          <Button type="button" variant="ghost" size="sm" disabled={mutation.isPending} className="max-md:h-11" onClick={giveUp}>
+            {m.cancel}
+          </Button>
+        ) : null}
         <Button type="button" size="sm" disabled={!sendable} className="max-md:h-11" onClick={submit}>
           {mutation.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}
-          {mutation.isPending ? m.submitting : m.submit}
+          {mutation.isPending ? m.submitting : reply ? m.replySubmit : m.submit}
         </Button>
       </div>
     </div>
@@ -120,21 +147,33 @@ export function CommentComposer({ api, mentionables }: { api: CommentApi; mentio
 }
 
 /**
- * One comment in the activity of an issue. Its author can change it in place; they or an admin can
- * delete it. Anyone who sees it can put an emoji on it (`readOnly`, a deleted issue, only shows them).
+ * One comment in the activity of an issue, with the replies under it (D-167). Its author can change
+ * it in place; they or an admin can delete it. Anyone who sees it can put an emoji on it
+ * (`readOnly`, a deleted issue, only shows them). Where people may write, a "답글" button opens a
+ * box for a reply; a reply itself cannot be answered (`isReply`). A comment that was deleted while
+ * it has replies is only a line saying so, with the replies under it.
  */
 export function CommentItem({
   api,
   comment,
+  replies = [],
   mentionables,
   readOnly = false,
+  canReply = false,
+  isReply = false,
 }: {
   /** What the comment does to the server: its issue's calls, or those of the page it is on. */
   api: CommentApi;
   comment: IssueComment;
+  /** The answers to it, oldest first. */
+  replies?: IssueComment[];
   mentionables: MentionPerson[];
   readOnly?: boolean;
+  /** Whether the person may write here at all (the same as for a new comment). */
+  canReply?: boolean;
+  isReply?: boolean;
 }) {
+  const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const draft = useRef<RichDoc | null>(comment.content);
   const editor = useRef<RichTextEditorHandle>(null);
@@ -166,8 +205,41 @@ export function CommentItem({
   // A comment of files alone has no text to show.
   const textless = isBlankDoc(comment.content) && comment.attachments.length > 0;
 
+  const answers =
+    replies.length > 0 || (canReply && !readOnly && !comment.deleted && !isReply) ? (
+      <div className={cn("flex flex-col gap-2", comment.deleted ? "pl-3" : "")}>
+        {replies.length > 0 ? (
+          <ol aria-label={m.replies(replies.length)} className="flex flex-col gap-2 border-l-2 pl-3">
+            {replies.map((reply) => (
+              <CommentItem key={reply.id} api={api} comment={reply} mentionables={mentionables} readOnly={readOnly} isReply />
+            ))}
+          </ol>
+        ) : null}
+        {canReply && !readOnly && !comment.deleted && !isReply ? (
+          replying ? (
+            <CommentComposer api={api} mentionables={mentionables} parentId={comment.id} onSent={() => setReplying(false)} onCancel={() => setReplying(false)} />
+          ) : (
+            <Button type="button" variant="ghost" size="sm" className="w-fit text-muted-foreground max-md:h-11" onClick={() => setReplying(true)}>
+              <MessageSquareReplyIcon data-icon="inline-start" />
+              {m.reply}
+            </Button>
+          )
+        ) : null}
+      </div>
+    ) : null;
+
+  // Deleted, and only here because of its replies.
+  if (comment.deleted) {
+    return (
+      <li className="flex flex-col gap-2 rounded-lg border border-dashed p-3">
+        <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedComment}</p>
+        {answers}
+      </li>
+    );
+  }
+
   return (
-    <li className="flex flex-col gap-2 rounded-lg border p-3">
+    <li className={cn("flex flex-col gap-2", isReply ? "py-1" : "rounded-lg border p-3")}>
       <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] leading-5">
         <PersonAvatar person={comment.author} />
         <span className="min-w-0 truncate font-medium">{personName(comment.author)}</span>
@@ -260,6 +332,7 @@ export function CommentItem({
           {error}
         </p>
       ) : null}
+      {!editing ? answers : null}
       {editing ? (
         <div className="flex items-center gap-2">
           <AttachButton onFiles={takeFiles} disabled={saving.isPending} />

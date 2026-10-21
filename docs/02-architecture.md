@@ -141,6 +141,20 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 - 프런트: `public/push-sw.js`(서비스 워커), `features/notifications/push.ts`(브라우저 등록, `firebase` 는 동적 import).
 - 링크에 쓰는 접속 주소는 `FLOWBIT_PUBLIC_URL`(`common/web/PublicUrl.kt`). 없으면 메일·API 알림의 링크가 경로뿐이다.
 
+## 파일 저장소 (D-167)
+
+올린 파일(프로필·로고·프로젝트 아이콘·편집기 이미지는 `images/`, 티켓 첨부·댓글 파일은 `files/`)은 **로컬 폴더 또는 Amazon S3** 에 둔다. 사용자 지정(2026-10-21): 기본은 로컬이고 지금과 같다, S3 는 환경 변수만 넣으면 모든 파일이 올라간다.
+
+- **고르는 법**: `FLOWBIT_S3_BUCKET` 이 있으면 S3, 없으면 `FLOWBIT_STORAGE_PATH` 의 폴더. `FLOWBIT_STORAGE_TYPE=local` 이면 버킷이 적혀 있어도 폴더, `=s3` 인데 버킷이 없으면 시작할 때 멈춘다. 설정이 앞뒤가 안 맞으면(접근 키만 있고 비밀 키가 없다 등) 시작할 때 멈추고 이유를 알린다(`StorageProperties`).
+- **코드**: `media/application/ObjectStore`(`put`·`delete`·`get`) 하나를 `FileStorage`(첨부·댓글 파일)와 `ImageStorage`(이미지)가 쓴다. 구현은 `LocalObjectStore`(예전과 같은 폴더·임시 파일 뒤 옮기기)와 `S3ObjectStore`(AWS SDK v2 의 동기 클라이언트를 `Dispatchers.IO` 에서 부른다. 비동기 Netty 클라이언트는 빼서 Reactor Netty 와 겹치지 않게 했다). 어느 쪽인지는 `StorageConfig` 가 정한다. 키(UUID 와 `.webp`)·DB 의 열·주소(`/api/v1/files/{키}`, `/api/v1/attachments/{id}`, `/api/v1/content-files/{id}`)는 그대로다.
+- **S3 의 모양**: 객체 이름은 `<접두어>/images/<키>`, `<접두어>/files/<키>`. **파일은 Flowbit 이 대신 읽어 내려 준다**(권한 확인과 `Content-Disposition: attachment`·`nosniff` 가 그대로 지켜진다). 그래서 버킷은 비공개여도 되고 미리 서명한 주소는 쓰지 않는다. 올릴 때와 내려 줄 때 모두 파일 하나를 메모리에 올린다(`FLOWBIT_MAX_UPLOAD_SIZE`, 기본 5MB).
+- **자격 증명**: `FLOWBIT_S3_ACCESS_KEY`·`FLOWBIT_S3_SECRET_KEY` 를 주면 그것, 비우면 SDK 의 기본(`AWS_ACCESS_KEY_ID` 같은 환경 변수, 서버에 붙은 IAM 역할). `FLOWBIT_S3_ENDPOINT` 를 주면 MinIO 같은 S3 호환 저장소이고 주소 방식은 경로 방식(`FLOWBIT_S3_PATH_STYLE` 로 바꿀 수 있다). 리전은 `FLOWBIT_S3_REGION`, 없으면 `us-east-1`(호환 저장소는 아무 값이나 받는다).
+- **시작할 때**: 버킷에 닿는지 한 번 본다. 안 닿으면 로그에 크게 남기지만 앱은 뜬다(저장소가 잠깐 안 되는 일이 앱 전체를 막지 않게). 그동안의 올리기·내려받기는 이유와 함께 실패한다.
+- **지우기**: 파일·이미지를 바꾸거나 지울 때(그리고 보관 작업 D-132 가 지울 때)의 삭제도 같은 저장소로 간다. 삭제가 실패해도 요청은 실패하지 않고 로그만 남긴다(남은 파일은 해롭지 않다).
+- **로컬에서 S3 로 바꿀 때**: 이미 폴더에 있던 파일은 **옮겨지지 않는다.** S3 로 바꾼 뒤에는 S3 에서만 읽으므로 그 파일은 열리지 않는다(사용자 선택: 옮기는 도구는 만들지 않는다). 쓰던 서버를 바꾸려면 폴더의 `files/`·`images/` 를 버킷의 같은 이름 아래로 올려야 한다(`aws s3 sync uploads/files s3://버킷/<접두어>/files`).
+- **배포**: `script/docker-compose.yml`·루트 `docker-compose.yml` 이 `FLOWBIT_S3_*`·`FLOWBIT_STORAGE_TYPE` 을 `.env` 에서 컨테이너로 넘기므로, 서버의 `.env` 에 적고 `./deploy.sh` 만 다시 실행하면 된다. S3 를 쓰면 `uploads` 볼륨은 쓰이지 않는다.
+- 테스트: `StoragePropertiesTest`(고르는 규칙), `LocalObjectStoreTest`, `S3ObjectStoreTest`(MinIO 컨테이너로 접두어·읽기·지우기). **돌려 보지 않았다**(컴파일만). 실제 AWS S3 로도 시험하지 않았다.
+
 ## 환경과 설정
 
 | 변수 | 사용처 | 기본값 | 설명 |
@@ -149,7 +163,14 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 | `FLOWBIT_DB_PORT` | docker-compose, backend | `5432` | DB 포트 (compose 에서는 호스트에 노출할 포트) |
 | `FLOWBIT_DB_NAME` | docker-compose, backend | `flowbit` | DB 이름 |
 | `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD` | docker-compose, backend | `flowbit` | DB 계정. 기본값은 로컬 개발용이다 |
-| `FLOWBIT_STORAGE_PATH` | backend | `./data/uploads` | 올린 이미지를 저장할 폴더. 상대 경로는 백엔드를 실행한 폴더 기준. **백업 대상** |
+| `FLOWBIT_STORAGE_PATH` | backend | `./data/uploads` | 올린 파일(이미지·첨부·댓글 파일)을 저장할 폴더. 상대 경로는 백엔드를 실행한 폴더 기준. **백업 대상**(S3 를 쓰면 쓰이지 않는다) |
+| `FLOWBIT_STORAGE_TYPE` | backend | (자동) | `local` 또는 `s3`. 비우면 `FLOWBIT_S3_BUCKET` 이 있을 때 S3, 없으면 로컬 (D-167) |
+| `FLOWBIT_S3_BUCKET` | backend | (없음) | **적으면 올린 모든 파일이 Amazon S3 에 올라간다.** 위의 폴더는 쓰이지 않는다 |
+| `FLOWBIT_S3_REGION` | backend | (없음) | 버킷의 리전(`ap-northeast-2`). 엔드포인트를 쓰는 호환 저장소는 비워도 된다 |
+| `FLOWBIT_S3_ACCESS_KEY`, `FLOWBIT_S3_SECRET_KEY` | backend | (없음) | 접근 키. 둘 다 주거나 둘 다 비운다. 비우면 SDK 의 기본 자격 증명(`AWS_ACCESS_KEY_ID` 같은 환경 변수, 서버에 붙은 IAM 역할 등) |
+| `FLOWBIT_S3_PREFIX` | backend | (없음) | 버킷 안에서 쓸 폴더. 비우면 버킷 맨 위 |
+| `FLOWBIT_S3_ENDPOINT` | backend | (없음) | MinIO 같은 S3 호환 저장소의 주소. AWS 는 적지 않는다 |
+| `FLOWBIT_S3_PATH_STYLE` | backend | (자동) | `true`/`false`. 비우면 엔드포인트를 줬을 때 `true` |
 | `FLOWBIT_MAX_UPLOAD_SIZE` | backend | `5MB` | 올릴 수 있는 파일 하나의 최대 크기 |
 | `SERVER_PORT` | backend | `8080` | 백엔드 포트 |
 | `FLOWBIT_PUBLIC_URL` | backend | 없음 | 사람들이 Flowbit 을 여는 주소(`https://flowbit.example.com`). **메일과 API 알림의 티켓 링크**에 쓴다(없으면 `/issue/FB-12` 같은 경로만 들어가고, API 알림의 `text` 맨 아래 주소는 아예 붙지 않는다). SSO 리다이렉트 URI 에도 쓰는데, 그쪽은 비워 두면 요청의 `X-Forwarded-*` 로 알아낸다 |
@@ -191,7 +212,7 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 - **컨테이너 안에서 두 프로세스가 돈다**: `docker/entrypoint.sh` 가 백엔드(`java -jar`, 8080)와 프런트(`node server.js`, 3000)를 띄운다. 둘 중 하나가 죽으면 나머지도 내리고 컨테이너가 끝나므로 재시작 정책이 둘을 함께 다시 올린다. `docker stop` 의 종료 신호는 둘 다에게 넘긴다.
 - **여는 포트는 3000 하나다.** 백엔드(8080)는 컨테이너 밖으로 열지 않고, 브라우저는 프런트의 `/api`(WebSocket `/api/v1/realtime` 포함)를 거쳐서만 닿는다.
 - 프런트는 `BACKEND_URL=http://127.0.0.1:8080` 으로 빌드된다(`/api` rewrite 주소가 빌드 결과에 들어간다). 같은 컨테이너 안이라 바꿀 일이 없다.
-- 넣어 줘야 하는 환경 변수: `FLOWBIT_DB_HOST`, `FLOWBIT_DB_PORT`, `FLOWBIT_DB_NAME`, `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD`, 그리고 선택으로 `FLOWBIT_PUBLIC_URL`, `FLOWBIT_MAX_UPLOAD_SIZE`. 올린 파일은 `/var/lib/flowbit/uploads`(볼륨, **백업 대상**).
+- 넣어 줘야 하는 환경 변수: `FLOWBIT_DB_HOST`, `FLOWBIT_DB_PORT`, `FLOWBIT_DB_NAME`, `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD`, 그리고 선택으로 `FLOWBIT_PUBLIC_URL`, `FLOWBIT_MAX_UPLOAD_SIZE`, **올린 파일을 S3 에 두려면 `FLOWBIT_S3_*`**(위 표, D-167). 올린 파일은 `/var/lib/flowbit/uploads`(볼륨, **백업 대상**).
 - 루트의 `.dockerignore` 가 빌드에 보내는 것을 `backend/`, `frontend/`, `docker/entrypoint.sh` 로 줄인다.
 - **빌드 속도** (2026-10-15): BuildKit 캐시 마운트로 빌드 사이에 남겨 두는 것: Gradle 홈(`/root/.gradle`: 배포판·의존성)과 프로젝트의 `build/`·`.gradle/`(바뀐 것만 다시 컴파일), npm 캐시(`/root/.npm`), Next.js 의 `.next/cache`(Turbopack 빌드 캐시, 16.4 에서 기본으로 켜짐). 그래서 바탕 이미지(`amazoncorretto:25` 등)가 새로 나와도 처음부터 내려받지 않는다. 실행 이미지에서 백엔드는 `/app/backend/app.jar` + `lib/`(층별 COPY), 프런트는 `node_modules` 를 먼저 COPY 해서, 코드만 바뀐 푸시는 바뀐 층만 올린다. 캐시 마운트는 `docker builder prune` 으로 지워지고, `docker build --no-cache` 는 캐시 마운트도 쓰지 않는다. 잰 것: 바탕 이미지가 바뀐 빌드가 228초였다(dnf 59초, 의존성 52초, 컴파일 52초, `next build` 80초). 고친 뒤 캐시가 찬 상태에서 코드를 바꾼 빌드는 108초였고(그때 다른 작업이 함께 돌고 있었다) `next build` 는 30초였다.
 - `next.config.ts` 에 `output: "standalone"` 을 두었다. `next dev`, `next start` 에는 영향이 없다.

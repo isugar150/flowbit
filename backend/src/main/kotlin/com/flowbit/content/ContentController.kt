@@ -11,7 +11,6 @@ import com.flowbit.issue.api.ReactionRequest
 import com.flowbit.issue.application.ReactionSummary
 import com.flowbit.media.api.UploadReader
 import com.flowbit.realtime.RealtimeHub
-import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
@@ -103,6 +102,11 @@ data class ContentCommentResponse(
     val canDelete: Boolean,
     val reactions: List<ReactionSummary>,
     val attachments: List<AttachmentResponse>,
+    /** The comment this one answers; null for a comment of its own (D-167). */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val parentId: UUID?,
+    /** Deleted, but kept because it has replies: no text, files or emoji (D-167). */
+    val deleted: Boolean,
 ) {
     companion object {
         fun from(comment: ContentCommentView) =
@@ -116,6 +120,8 @@ data class ContentCommentResponse(
                 canDelete = comment.canDelete,
                 reactions = comment.reactions,
                 attachments = comment.files.map(::file),
+                parentId = comment.parentId,
+                deleted = comment.deleted,
             )
 
         fun file(file: ContentFileView) = AttachmentResponse(file.id, file.fileName, file.sizeBytes, "/api/v1/content-files/${file.id}", file.createdAt)
@@ -156,10 +162,14 @@ data class ThreadCommentRequest(
     val content: Map<String, Any?>? = null,
 )
 
-/** `content` may be left out when the comment is files alone; `attachmentIds` on a change is the whole set kept (left out: no change). */
+/**
+ * `content` may be left out when the comment is files alone; `attachmentIds` on a change is the whole set kept (left
+ * out: no change). `parentId` makes a new comment a reply to that comment (D-167); a change ignores it.
+ */
 data class ContentCommentRequest(
     val content: Map<String, Any?>? = null,
     val attachmentIds: List<UUID>? = null,
+    val parentId: UUID? = null,
 )
 
 data class ContentFeed(
@@ -311,7 +321,7 @@ class ContentController(
         @PathVariable id: UUID,
         @RequestBody body: ContentCommentRequest,
     ): ContentCommentResponse {
-        val result = comments.add(user, target(type, id), body.content, body.attachmentIds.orEmpty())
+        val result = comments.add(user, target(type, id), body.content, body.attachmentIds.orEmpty(), body.parentId)
         publish(user, result.context)
         return ContentCommentResponse.from(result.comment)
     }
@@ -380,7 +390,7 @@ class ContentController(
             .contentType(MediaType.APPLICATION_OCTET_STREAM)
             .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
             .header("X-Content-Type-Options", "nosniff")
-            .body(FileSystemResource(download.path))
+            .body(download.resource)
     }
 
     @DeleteMapping("/content-files/{id}")

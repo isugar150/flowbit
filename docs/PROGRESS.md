@@ -40,6 +40,8 @@
 
 - **댓글은 태그된 사람에게만, 구독자는 바뀐 것만 알린다. 문서는 문서마다 구독한다. 검색은 프로젝트 개요·목표·문서의 본문도 찾는다. 문서 화면에 보는 사람과 "더보기"가 생겼다** (D-166, 2026-10-21, [features/content-comments.md](features/content-comments.md) "구독과 알림"·[features/search.md](features/search.md)). 마이그레이션 `V25`. D-102 의 "티켓 구독자는 댓글도 받는다"와 D-165 의 "프로젝트 구독자·스레드 참여자도 댓글을 받는다"를 바꾼 것이다. **백엔드를 다시 띄워야 적용된다. 컴파일·ktlint·타입 검사·eslint 만 했고 테스트는 돌리지 않았다. 새 백엔드로는 화면을 보지 못했다.**
 
+- **활동이 최신순이고 댓글에 답글을 달 수 있다. 올린 파일을 로컬 폴더나 Amazon S3 에 둘 수 있다** (D-167, 2026-10-21, [features/content-comments.md](features/content-comments.md) "답글과 활동의 순서"·[02-architecture.md](02-architecture.md) "파일 저장소"). 마이그레이션 `V26`(답글). S3 는 `FLOWBIT_S3_BUCKET` 등 환경 변수만 넣으면 모든 파일이 올라가고 기본은 로컬(현행)이다. **백엔드를 다시 띄워야 적용된다. 컴파일·ktlint·타입 검사·eslint 만 했고 테스트는 돌리지 않았다. S3 는 실제 AWS 로도 MinIO 로도 시험하지 못했다.**
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
@@ -187,6 +189,19 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-21 — 활동 최신순, 댓글 답글, 파일 저장소 로컬/S3 (D-167)
+
+- 사용자 요청 세 가지: ① 활동을 역순(최신이 위)으로, 댓글 입력 칸도 위로, 15개가 넘으면 "더보기"로 펼치기 ② 활동의 댓글에 대댓글, 알림은 구독자가 아니라 원 댓글 작성자와 대댓글 작성자에게 ③ 파일 저장을 로컬/S3 로 나누기(기본 로컬·현행 유지, S3 는 도커에 환경 변수만 넣으면 모든 파일이 S3 로). 모호한 네 가지를 물어 정했다(블록 댓글 답글도 같은 알림 / 답글 있는 댓글을 지우면 "삭제된 댓글"로 남김 / 답글에도 이모지·파일 / 기존 로컬 파일은 S3 로 바꾼 뒤 S3 만 사용).
+- 저장소(백엔드): `media/application/ObjectStore.kt`(`ObjectStore`·`LocalObjectStore`·`S3ObjectStore`), `StorageProperties`(`type`·`s3`, `kind` 고르는 규칙과 검증), `StorageConfig`, `FileStorage`·`ImageStorage` 가 `ObjectStore` 를 쓰게 바뀌고 `find` 가 `Path` 대신 `Resource` 를 준다(다운로드 컨트롤러 네 곳). 의존성 `software.amazon.awssdk:s3:2.55.16`(`netty-nio-client` 제외). 환경 변수는 `application.yml`·`.env.example`·`script/docker-compose.yml`·루트 `docker-compose.yml`·`script/deploy.sh` 의 `.env` 견본·`script/dockerhub-readme.md`·`02-architecture.md`.
+- 답글(백엔드): `V26__comment_replies.sql`(`issue_comments.parent_id`·`content_comments.parent_id`), 두 댓글 저장소가 `parentId`·`deleted` 를 싣고 답글 있는 지워진 댓글을 목록에 낸다(내용은 비움). `IssueService.addComment`·`ContentCommentService.add` 의 `parentId`(한 단계·같은 곳·지워지지 않은 댓글만, 아니면 422/404), `inConversation` 이 원 댓글 작성자와 앞선 답글 작성자를 모아 `IssueChange.taggedIds`/`ContentLog.announce(told)` 로 알린다(구독자는 아님). `ContentThreadService` 의 스레드 답글도 앞선 모든 작성자에게. `NotificationText` 머리말 "댓글에 답글을 남겼습니다". 보관 작업이 답글이 남은 지워진 댓글을 안 지운다(`noReplyLeft`).
+- 프런트: `timelineOf` 가 최신순이고 답글을 원 댓글에 묶는다, `useCollapsedEntries`/`ShowOlderButton`(15개·"이전 활동 N개 더 보기"), 입력 칸을 목록 위로(`IssueActivity`·`ContentActivity`), `CommentItem` 에 답글 목록·"답글" 버튼·삭제된 댓글 줄, `CommentComposer` 가 `parentId`·`onSent`·`onCancel` 을 받아 답글 입력 칸으로도 쓰인다, `CommentApi.create` 의 `parentId`.
+- 테스트 코드(돌리지 않음, 컴파일만): `StoragePropertiesTest`, `LocalObjectStoreTest`·`S3ObjectStoreTest`(MinIO 컨테이너), `IssuesIntegrationTest`·`ContentCommentsIntegrationTest` 의 답글 한 단계·지운 뒤 남음, `NotificationsIntegrationTest` 의 답글 메일 대상.
+- 도움말·문서: "댓글과 활동"(최신순·더보기·"댓글에 답글 달기" 소절), "구독과 알림", 명세 `content-comments.md`·`M3-projects-and-issues.md`·`M7a-notification-channels.md`·`M2a-settings-and-images.md`·`05-data-model.md`, README.
+- 화면: 샘플 데이터를 그린 임시 페이지(지웠다)에서 입력 칸이 위, 최신 댓글이 맨 위, 삭제된 댓글 줄과 아래 답글, 답글 두 개의 들여쓰기, "답글" 버튼으로 입력 칸 열기·취소, 20개 중 15개만 보이고 "이전 활동 3개 더 보기"를 누르면 모두 보이는 것을 확인했다.
+- 알아둘 것: 개발 서버에서 임시 페이지는 정적 prerender 라 `Math.random()` 경고가 났지만 실제 화면은 동적이라 해당 없다. S3 는 파일 하나를 메모리에 올려 보낸다(`FLOWBIT_MAX_UPLOAD_SIZE` 만큼). 로컬에서 S3 로 바꾸면 옛 파일이 열리지 않는다 — 옮기려면 `aws s3 sync`.
+- 볼 곳: 새 백엔드에서 ① `V26` 적용, 답글을 달고 원 댓글 작성자만 메일·푸시를 받는지(구독자는 안 받는지) ② 원 댓글을 지웠을 때 "삭제된 댓글" 이 남고 답글이 그대로인지, 답글까지 지우면 둘 다 사라지는지 ③ 블록 댓글 스레드 답글이 앞선 작성자에게 가는지 ④ 활동 15개 넘는 티켓에서 더보기 ⑤ S3: 버킷과 키를 넣고 띄워서 프로필 사진·티켓 첨부·댓글 파일이 버킷의 `files/`·`images/` 에 올라가는지, 내려받기와 삭제, 버킷이 안 닿을 때의 로그. `script/.env` 에 `FLOWBIT_S3_*` 를 적고 `./deploy.sh` 를 다시 실행한다.
+- 열린 질문: 로컬 파일을 S3 로 옮기는 도구(지금은 `aws s3 sync` 안내만), S3 에서 미리 서명한 주소로 바로 내려받게 할지(지금은 앱이 대신 읽어 줌), 블록 댓글 스레드도 첫 댓글을 지울 때 "삭제된 댓글"로 남길지(지금은 스레드째 삭제).
 
 ### 2026-10-21 — 댓글 알림 규칙, 문서 구독, 본문 검색, 문서 화면의 보는 사람·더보기, 구성원 추가 칸 (D-166)
 

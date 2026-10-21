@@ -736,6 +736,36 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `댓글에 답글을 한 단계만 달 수 있고 원 댓글을 지워도 답글은 남는다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"답글 확인"}""")
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"다른 티켓"}""")
+        val parent = admin.post("/api/v1/issues/1/comments", commentJson("원 댓글")).json()["id"] as String
+        val other = admin.post("/api/v1/issues/2/comments", commentJson("다른 티켓의 댓글")).json()["id"] as String
+
+        val reply = editor.post("/api/v1/issues/1/comments", """{"content":${commentDocument("답글")},"parentId":"$parent"}""")
+
+        assertEquals(201, reply.status)
+        assertEquals(parent, reply.json()["parentId"])
+        val replyId = reply.json()["id"] as String
+        // One level: a reply cannot be answered, and a comment of another issue is not found.
+        assertEquals(422, editor.post("/api/v1/issues/1/comments", """{"content":${commentDocument("답글의 답글")},"parentId":"$replyId"}""").status)
+        assertEquals(404, editor.post("/api/v1/issues/1/comments", """{"content":${commentDocument("남의 댓글")},"parentId":"$other"}""").status)
+        assertEquals(403, viewer.post("/api/v1/issues/1/comments", """{"content":${commentDocument("보기 역할")},"parentId":"$parent"}""").status)
+
+        // Deleting the comment keeps its place for the reply, with nothing of what it said.
+        assertEquals(204, admin.delete("/api/v1/comments/$parent").status)
+        val shown = commentsOf(admin.get("/api/v1/issues/1/activity").json())
+        assertEquals(listOf(parent, replyId), shown.map { it["id"] })
+        assertEquals(listOf(true, false), shown.map { it["deleted"] })
+        assertEquals(emptyList<Any?>(), (shown.first()["attachments"] as List<*>))
+        assertEquals(404, editor.post("/api/v1/issues/1/comments", """{"content":${commentDocument("지워진 댓글에")},"parentId":"$parent"}""").status)
+
+        // Once the reply goes too, nothing is left.
+        assertEquals(204, editor.delete("/api/v1/comments/$replyId").status)
+        assertTrue(commentsOf(admin.get("/api/v1/issues/1/activity").json()).isEmpty())
+    }
+
+    @Test
     fun `댓글과 본문에서 태그된 프로젝트 구성원은 티켓을 구독하게 된다`() {
         admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"태그 확인"}""")
         val mention = """{"type":"mention","attrs":{"id":"%s","label":"이름"}}"""

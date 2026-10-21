@@ -48,10 +48,16 @@ export function setIssueSubscribed(input: { number: number; subscribed: boolean 
  * `content` may be null when the comment is files alone; `attachmentIds` are files uploaded with
  * `uploadCommentFile` beforehand.
  */
-export function createComment(input: { number: number; content: RichDoc | null; attachmentIds: string[] }): Promise<IssueComment> {
+export function createComment(input: {
+  number: number;
+  content: RichDoc | null;
+  attachmentIds: string[];
+  /** The comment this one answers (D-167). */
+  parentId?: string;
+}): Promise<IssueComment> {
   return apiFetch<IssueComment>(`/api/v1/issues/${input.number}/comments`, {
     method: "POST",
-    body: { content: input.content, attachmentIds: input.attachmentIds },
+    body: { content: input.content, attachmentIds: input.attachmentIds, parentId: input.parentId },
   });
 }
 
