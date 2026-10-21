@@ -159,6 +159,10 @@
     font-weight: 600;
     margin-top: 1.25rem;
   }
+  /* Where a heading stops when the outline beside the document scrolls to it: below the page header (h-11). */
+  .rich-text .tiptap :is(h1, h2, h3, h4, h5, h6) {
+    scroll-margin-top: 4rem;
+  }
   .rich-text .tiptap > :first-child {
     margin-top: 0;
   }

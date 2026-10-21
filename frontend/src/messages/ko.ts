@@ -153,6 +153,9 @@ export const ko = {
     projectRoleNone: "권한 없음",
   },
   editor: {
+    // The headings of a document, listed beside it to jump to them (D-170).
+    outline: "문서 목차",
+    outlineOpen: "목차 보기",
     slashMenu: "블록 넣기",
     mentionMenu: "태그할 사람",
     heading1: "제목 1",

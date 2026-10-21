@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.imageio.ImageIO
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -24,7 +25,7 @@ class SettingsIntegrationTest : IntegrationTest() {
 
     @BeforeEach
     fun signInAsAdmin() {
-        storedFiles().forEach(Files::delete)
+        (storedFiles() + storedOriginals()).forEach(Files::delete)
         admin = client().also { it.setup("admin", PASSWORD) }
     }
 
@@ -61,8 +62,9 @@ class SettingsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로필 이미지를 올리면 256px 정사각형 WebP 로 바뀌어 저장된다`() {
-        val response = admin.putFile("/api/v1/me/avatar", "photo.png", "image/png", image("png", 1200, 800))
+    fun `프로필 이미지를 올리면 256px 정사각형 WebP 로 바뀌어 저장되고 올린 원본도 그대로 저장된다`() {
+        val upload = image("png", 1200, 800)
+        val response = admin.putFile("/api/v1/me/avatar", "photo.png", "image/png", upload)
 
         assertEquals(200, response.status)
         val avatarUrl = assertNotNull(response.json()["avatarUrl"] as String?)
@@ -74,6 +76,11 @@ class SettingsIntegrationTest : IntegrationTest() {
         assertTrue(file.header("Cache-Control").orEmpty().contains("immutable"))
         assertEquals(ImageDimensions(256, 256), ImageDimensions.read(file.bytes))
         assertEquals(1, storedFiles().size)
+        // The upload is kept byte for byte, under the same id as the WebP (D-169).
+        val original = storedOriginals().single()
+        val webpName = storedFiles().single().fileName.toString()
+        assertEquals(webpName.removeSuffix(".webp"), original.fileName.toString())
+        assertContentEquals(upload, Files.readAllBytes(original))
     }
 
     @Test
@@ -95,6 +102,7 @@ class SettingsIntegrationTest : IntegrationTest() {
         assertEquals(404, admin.get(first).status)
         assertEquals(200, admin.get(second).status)
         assertEquals(1, storedFiles().size)
+        assertEquals(1, storedOriginals().size)
     }
 
     @Test
@@ -107,6 +115,7 @@ class SettingsIntegrationTest : IntegrationTest() {
         assertNull(response.json()["avatarUrl"])
         assertEquals(404, admin.get(url).status)
         assertTrue(storedFiles().isEmpty())
+        assertTrue(storedOriginals().isEmpty())
     }
 
     @Test
@@ -117,6 +126,7 @@ class SettingsIntegrationTest : IntegrationTest() {
         assertEquals("UNSUPPORTED_IMAGE", response.json()["code"])
         assertNull(admin.me().json()["avatarUrl"])
         assertTrue(storedFiles().isEmpty())
+        assertTrue(storedOriginals().isEmpty())
     }
 
     @Test
@@ -234,9 +244,15 @@ class SettingsIntegrationTest : IntegrationTest() {
     }
 
     /** Everything in the test storage directory; it is emptied before each test. */
-    private fun storedFiles(): List<Path> = if (Files.isDirectory(storage)) Files.list(storage).use { it.toList() } else emptyList()
+    private fun storedFiles(): List<Path> = filesIn(storage)
+
+    /** The originals of the uploaded pictures, kept next to the WebP copies. */
+    private fun storedOriginals(): List<Path> = filesIn(originals)
+
+    private fun filesIn(directory: Path): List<Path> = if (Files.isDirectory(directory)) Files.list(directory).use { it.toList() } else emptyList()
 
     private companion object {
         val storage: Path = Path.of("build/test-uploads/images")
+        val originals: Path = Path.of("build/test-uploads/originals")
     }
 }
