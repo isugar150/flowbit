@@ -6,6 +6,7 @@ import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.common.richtext.RichTextDocument
+import com.flowbit.common.transaction.AfterCommit
 import com.flowbit.issue.domain.Issue
 import com.flowbit.media.application.FileStorage
 import com.flowbit.user.domain.UserRole
@@ -29,6 +30,7 @@ class IssueCommentService(
     private val comments: IssueCommentStore,
     private val richText: RichText,
     private val fileStorage: FileStorage,
+    private val afterCommit: AfterCommit,
     private val clock: Clock,
 ) {
     /** The history of an issue with who follows it. Anyone who may see the issue can read it. */
@@ -137,7 +139,8 @@ class IssueCommentService(
         comments.update(commentId, document, clock.instant())
         extras.attachToComment(commentId, added.map { it.id })
         removed.forEach { extras.deleteAttachment(it.id) }
-        removed.forEach { fileStorage.delete(it.fileKey) }
+        // The files go once this change is committed (D-172).
+        afterCommit.run { removed.forEach { fileStorage.delete(it.fileKey) } }
         val tagged = tagging.tag(access.issue, document.mentions - richText.mentionsIn(existing.content), user)
         val comment = checkNotNull(comments.find(commentId)).withRights(user, access).withExtras(user)
         val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged, comment.attachments, reply = existing.parentId != null))
@@ -339,13 +342,13 @@ class IssueCommentService(
             if (attachment.uploadedBy != user.id) throw lookup.notFound()
             val number = lookup.accessById(user, attachment.issueId).issue.number
             extras.deleteAttachment(attachment.id)
-            fileStorage.delete(attachment.fileKey)
+            afterCommit.run { fileStorage.delete(attachment.fileKey) }
             return number
         }
         if (attachment.commentId != null) throw ForbiddenException("댓글에 붙은 파일은 댓글을 수정해서 지우세요")
         val issue = lookup.editable(lookup.accessById(user, attachment.issueId)).issue
         extras.deleteAttachment(attachment.id)
-        fileStorage.delete(attachment.fileKey)
+        afterCommit.run { fileStorage.delete(attachment.fileKey) }
         val event = IssueEvent(IssueActivityType.ATTACHMENT_REMOVED, mapOf("from" to attachment.fileName))
         activities.record(issue.id, user.id, listOf(event), clock.instant())
         return issue.number

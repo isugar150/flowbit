@@ -6,6 +6,7 @@ import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.common.richtext.RichTextDocument
+import com.flowbit.common.transaction.AfterCommit
 import com.flowbit.issue.application.IssueCommentService
 import com.flowbit.issue.application.ReactionSummary
 import com.flowbit.media.application.FileStorage
@@ -29,6 +30,7 @@ class ContentCommentService(
     private val subscriptions: DocumentSubscriptionStore,
     private val richText: RichText,
     private val fileStorage: FileStorage,
+    private val afterCommit: AfterCommit,
     private val clock: Clock,
 ) {
     /** The comments of a page for the person looking, with their emoji and files. */
@@ -121,7 +123,8 @@ class ContentCommentService(
         store.update(commentId, document, clock.instant())
         store.attachFiles(commentId, added.map { it.id })
         removed.forEach { store.deleteFile(it.id) }
-        removed.forEach { fileStorage.delete(it.fileKey) }
+        // The files go once this change is committed (D-172).
+        afterCommit.run { removed.forEach { fileStorage.delete(it.fileKey) } }
         // Only the people newly tagged by the change are told.
         val tagged = taggedPeople(context, document.mentions - richText.mentionsIn(existing.content), user.id)
         if (tagged.isNotEmpty()) {
@@ -216,7 +219,7 @@ class ContentCommentService(
             throw ForbiddenException("댓글에 붙은 파일은 댓글을 수정해서 지우세요")
         }
         store.deleteFile(file.id)
-        fileStorage.delete(file.fileKey)
+        afterCommit.run { fileStorage.delete(file.fileKey) }
         return context
     }
 

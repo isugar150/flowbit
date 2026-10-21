@@ -7,6 +7,8 @@ import com.flowbit.common.error.ValidationException
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.content.ContentTargetType
 import com.flowbit.media.application.FileStorage
+import com.flowbit.media.application.StorageInspector
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.reactor.awaitSingle
 import org.slf4j.LoggerFactory
 import org.springframework.r2dbc.core.DatabaseClient
@@ -80,13 +82,15 @@ data class PurgeResult(
 /**
  * Removes deleted issues, documents and comments for good once they have been deleted for longer
  * than the administrator chose (docs/features/admin-retention.md, D-132). Until then they are only
- * marked, can be opened read-only and restored (D-079, D-121).
+ * marked, can be opened read-only and restored (D-079, D-121). The pictures that were in them
+ * are removed with them (D-171).
  */
 @Service
 class RetentionService(
     private val databaseClient: DatabaseClient,
     private val transactionalOperator: TransactionalOperator,
     private val fileStorage: FileStorage,
+    private val storageInspector: StorageInspector,
     private val auditService: AuditService,
     private val clock: Clock,
 ) {
@@ -230,7 +234,22 @@ class RetentionService(
         if (!result.isEmpty) {
             log.info("Removed for good: {} issues, {} documents, {} comments", result.issues, result.documents, result.comments)
         }
+        if (!result.isEmpty || removedFiles.isNotEmpty()) cleanUpPictures()
         return result
+    }
+
+    /**
+     * What was just removed may have held pictures (put into a text, with their originals): nothing uses those now, so
+     * they go the same way (D-171). When it does not work nothing is removed and the next run, or the administrator's file page, tries again.
+     */
+    private suspend fun cleanUpPictures() {
+        try {
+            storageInspector.cleanOrphans(actorId = null, client = null, automatic = true)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.warn("Could not clean up the pictures of what was removed", e)
+        }
     }
 
     /**

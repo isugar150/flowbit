@@ -1,23 +1,32 @@
+import os from "node:os";
 import type { NextConfig } from "next";
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 
 const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8080";
 
 /**
- * Hosts other than localhost that may open the development server, for example the PC's address
- * on the office network: FLOWBIT_DEV_ORIGINS=192.168.0.75 (comma-separated; `*` wildcards work,
- * such as 192.168.0.*). Without this, `npm run dev` refuses the page's scripts to those hosts, the
- * page never becomes interactive, and forms do nothing useful. Production (`next start`) ignores it.
+ * Hosts other than localhost that may open the development server. Without this, `npm run dev`
+ * refuses the page's scripts to those hosts, the page never becomes interactive, and menus and
+ * forms do nothing. This PC's own names are always allowed, so opening it by 127.0.0.1, by the PC's
+ * address on the office network or by its computer name needs no setup. FLOWBIT_DEV_ORIGINS adds
+ * others, such as another PC (comma-separated; `*` wildcards work, such as 192.168.0.*).
  */
-const devOrigins = (process.env.FLOWBIT_DEV_ORIGINS ?? "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+function devOrigins(): string[] {
+  const own = Object.values(os.networkInterfaces())
+    .flatMap((addresses) => addresses ?? [])
+    .filter((address) => address.family === "IPv4" && !address.internal)
+    .map((address) => address.address);
+  const extra = (process.env.FLOWBIT_DEV_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return [...new Set(["127.0.0.1", os.hostname().toLowerCase(), ...own, ...extra])];
+}
 
 const nextConfig: NextConfig = {
   // A self-contained server (.next/standalone) for the Docker image; `next dev` and `next start` are unaffected.
   output: "standalone",
   cacheComponents: true,
-  allowedDevOrigins: devOrigins,
   partialPrefetching: true,
   turbopack: {
     rules: {
@@ -50,4 +59,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Only the development server reads the list, and computing it only there keeps this PC's addresses out of
+// the production build (and so out of the Docker image).
+export default function config(phase: string): NextConfig {
+  return {
+    ...nextConfig,
+    ...(phase === PHASE_DEVELOPMENT_SERVER ? { allowedDevOrigins: devOrigins() } : {}),
+  };
+}

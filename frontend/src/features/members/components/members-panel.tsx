@@ -118,19 +118,21 @@ export function MembersPanel({
     updateMember,
   );
   const members = mutation.value;
+  // People whose account is disabled go last, and drop there the moment they are turned off; the order is otherwise the server's.
+  const ordered = [...members].sort((a, b) => Number(a.status === "DISABLED") - Number(b.status === "DISABLED"));
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(currentUserId);
   const needle = query.trim().toLowerCase();
   const shown = needle
-    ? members.filter((member) =>
+    ? ordered.filter((member) =>
         [member.displayName, member.loginId, member.email].some((value) =>
           value?.toLowerCase().includes(needle),
         ),
       )
-    : members;
+    : ordered;
   // The chosen person stays open while the list is searched; a removed one falls back to the first.
   const selected =
-    members.find((member) => member.id === selectedId) ?? members[0];
+    members.find((member) => member.id === selectedId) ?? ordered[0];
 
   return (
     // data-wide: the administrator layout gives this page a wider column (admin/layout.tsx).

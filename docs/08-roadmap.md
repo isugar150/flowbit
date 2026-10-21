@@ -18,6 +18,7 @@
 | (마일스톤 밖) | 관리자 설정의 백업 및 복원: 워크스페이스·로그인 연동·알림 설정과 구성원을 파일로 (사용자 지정, D-112) | 구현됨 | [features/admin-backup.md](features/admin-backup.md) |
 | (마일스톤 밖) | 티켓·문서 검색: `Ctrl/⌘+K` 검색 창과 `/search` 결과 페이지 (사용자 지정, D-133) | 구현됨 | [features/search.md](features/search.md) |
 | (마일스톤 밖) | 관리자 설정의 데이터 보관: 삭제한 티켓·문서·댓글을 항목별로 정한 기간 뒤 영구 삭제 (사용자 지정, D-132) | 구현됨 | [features/admin-retention.md](features/admin-retention.md) |
+| (마일스톤 밖) | 관리자 설정의 파일 관리: 저장소 통계, 저장소와 DB 점검, 쓰지 않는 파일 정리, 영구 삭제 뒤 사진·원본 정리, 파일은 커밋 뒤에 지움 (사용자 요청, D-171·D-172) | 구현됨 (화면·실제 S3 확인 남음) | [features/admin-files.md](features/admin-files.md) |
 | (마일스톤 밖) | 온보딩 투어: 처음 로그인하면 뜨는 둘러보기, 예시 티켓으로 연습, 건너뛰기, 내 설정에서 다시 보기 (사용자 지정, D-120) | 구현됨 | [features/onboarding-tour.md](features/onboarding-tour.md) |
 | (마일스톤 밖) | Git 연동: Gitea·GitLab·GitHub 웹훅으로 티켓에 PR·브랜치·커밋 연결, 상태 자동 변경 (사용자 요청, D-141) | 구현됨 (Gitea·GitLab 웹훅, GitHub App, D-145~D-162) | [features/git-integration.md](features/git-integration.md) |
 | (마일스톤 밖) | 블록 댓글과 활동: 프로젝트 개요·문서·티켓 본문·목표의 블록마다 댓글(답글·해결), 프로젝트 개요·문서·목표에 티켓 같은 활동 (사용자 요청, D-165. 알림·구독 규칙, 문서 구독, 본문 검색은 D-166) | 구현됨 (새 백엔드·화면 확인 남음) | [features/content-comments.md](features/content-comments.md) |

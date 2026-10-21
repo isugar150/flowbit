@@ -16,13 +16,16 @@ import software.amazon.awssdk.services.s3.S3Configuration
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.time.Duration
+import java.time.Instant
 
 /** The kinds of thing kept: attached files as they came in, processed images, and the uploads those images were made from. */
 enum class StorageArea(
@@ -33,12 +36,32 @@ enum class StorageArea(
     ORIGINALS("originals"),
 }
 
+/** One thing in the storage as the storage itself knows it: its name in the area, its size and when it was last written. */
+data class StoredObject(
+    val key: String,
+    val size: Long,
+    val modifiedAt: Instant,
+)
+
+/** Where the files are kept, for the administrator's file page (D-171). Never holds a secret. */
+data class StorageDescription(
+    val type: String,
+    val location: String,
+    val region: String?,
+    val endpoint: String?,
+)
+
 /**
  * Where the bytes of uploaded files are kept: a folder on the server or an S3 bucket (D-167). The
  * keys are made by [FileStorage] and [ImageStorage] (a random UUID, never user input), which also
  * check them before they get here.
  */
 interface ObjectStore {
+    /** Everything in an area, for the administrator's file page. Fails when the store cannot be reached. */
+    suspend fun list(area: StorageArea): List<StoredObject>
+
+    fun describe(): StorageDescription
+
     suspend fun put(
         area: StorageArea,
         key: String,
@@ -63,13 +86,26 @@ class LocalObjectStore(
     root: Path,
 ) : ObjectStore {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val directories: Map<StorageArea, Path> =
-        StorageArea.entries.associateWith { root.toAbsolutePath().normalize().resolve(it.folder) }
+    private val root: Path = root.toAbsolutePath().normalize()
+    private val directories: Map<StorageArea, Path> = StorageArea.entries.associateWith { this.root.resolve(it.folder) }
 
     init {
         directories.values.forEach(Files::createDirectories)
-        log.info("Uploaded files are stored in {}", directories.getValue(StorageArea.FILES).parent)
+        log.info("Uploaded files are stored in {}", this.root)
     }
+
+    override fun describe() = StorageDescription("LOCAL", root.toString(), null, null)
+
+    override suspend fun list(area: StorageArea): List<StoredObject> =
+        withContext(Dispatchers.IO) {
+            Files.newDirectoryStream(directories.getValue(area)).use { stream ->
+                stream.mapNotNull { path ->
+                    // A file that goes away while the folder is being read is simply not there.
+                    val attributes = runCatching { Files.readAttributes(path, BasicFileAttributes::class.java) }.getOrNull()
+                    attributes?.takeIf { it.isRegularFile }?.let { StoredObject(path.fileName.toString(), it.size(), it.lastModifiedTime().toInstant()) }
+                }
+            }
+        }
 
     override suspend fun put(
         area: StorageArea,
@@ -125,10 +161,34 @@ class S3ObjectStore(
     private val client: S3Client,
     private val bucket: String,
     prefix: String,
+    private val region: String = "",
+    private val endpoint: String = "",
 ) : ObjectStore,
     AutoCloseable {
     private val log = LoggerFactory.getLogger(javaClass)
     private val base = prefix.trim('/').let { if (it.isEmpty()) "" else "$it/" }
+
+    override fun describe() = StorageDescription("S3", "$bucket/${base.trimEnd('/')}".trimEnd('/'), region.ifBlank { null }, endpoint.ifBlank { null })
+
+    override suspend fun list(area: StorageArea): List<StoredObject> =
+        withContext(Dispatchers.IO) {
+            val prefix = "$base${area.folder}/"
+            val objects = mutableListOf<StoredObject>()
+            val request =
+                ListObjectsV2Request
+                    .builder()
+                    .bucket(bucket)
+                    .prefix(prefix)
+                    .build()
+            client.listObjectsV2Paginator(request).forEach { page ->
+                page.contents().forEach { entry ->
+                    // The console's "folder" placeholders are objects whose name ends with a slash.
+                    val key = entry.key().removePrefix(prefix)
+                    if (key.isNotEmpty() && !key.endsWith("/")) objects += StoredObject(key, entry.size(), entry.lastModified())
+                }
+            }
+            objects
+        }
 
     init {
         log.info("Uploaded files are stored in the S3 bucket {}{}", bucket, if (base.isEmpty()) "" else " under $base")
@@ -228,7 +288,7 @@ class S3ObjectStore(
             // Without limits a store that is reached but never answers holds a thread of Dispatchers.IO for minutes (the SDK's
             // default is to wait on the socket for 30 seconds, three times). A file is at most FLOWBIT_MAX_UPLOAD_SIZE.
             builder.overrideConfiguration { it.apiCallTimeout(API_CALL_TIMEOUT).apiCallAttemptTimeout(API_ATTEMPT_TIMEOUT) }
-            return S3ObjectStore(builder.build(), s3.bucket, s3.prefix)
+            return S3ObjectStore(builder.build(), s3.bucket, s3.prefix, s3.region.ifBlank { DEFAULT_REGION }, s3.endpoint)
         }
     }
 }

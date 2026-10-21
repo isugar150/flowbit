@@ -160,6 +160,32 @@ class ProjectsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `비활성화된 구성원은 프로젝트 구성원 목록에 나오지 않고 다시 활성화하면 돌아온다`() {
+        createProject("PAY")
+        owner.put("/api/v1/projects/${p("PAY")}/members/$outsiderId", """{"role":"EDITOR"}""")
+        assertEquals(listOf("owner", "outsider"), owner.get("/api/v1/projects/${p("PAY")}/members").jsonList().map { it["loginId"] })
+
+        admin.patch("/api/v1/admin/members/$outsiderId", """{"status":"DISABLED"}""")
+
+        assertEquals(listOf("owner"), owner.get("/api/v1/projects/${p("PAY")}/members").jsonList().map { it["loginId"] })
+        admin.patch("/api/v1/admin/members/$outsiderId", """{"status":"ACTIVE"}""")
+        assertEquals(listOf("owner", "outsider"), owner.get("/api/v1/projects/${p("PAY")}/members").jsonList().map { it["loginId"] })
+    }
+
+    @Test
+    fun `비활성화된 관리 역할은 마지막 관리자를 셀 때 세지 않는다`() {
+        createProject("PAY")
+        owner.put("/api/v1/projects/${p("PAY")}/members/$outsiderId", """{"role":"MANAGER"}""")
+        admin.patch("/api/v1/admin/members/$outsiderId", """{"status":"DISABLED"}""")
+
+        // The only manager who can sign in cannot step down, though a disabled one is still in the project.
+        val demote = owner.put("/api/v1/projects/${p("PAY")}/members/$ownerId", """{"role":"VIEWER"}""")
+
+        assertEquals(409, demote.status)
+        assertEquals("LAST_MANAGER", demote.json()["code"])
+    }
+
+    @Test
     fun `이름과 설명을 고칠 수 있고 키는 바뀌지 않는다`() {
         createProject("PAY")
 

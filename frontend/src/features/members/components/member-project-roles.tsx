@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   NativeSelect,
@@ -21,6 +22,7 @@ const ROLES: ProjectRole[] = ["VIEWER", "EDITOR", "MANAGER"];
  * the first time through LDAP or single sign-on belongs to no project; this is where they get in.
  */
 export function MemberProjectRoles({ memberId }: { memberId: string }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const queryKey = ["member-projects", memberId];
   // Read again each time a member is opened: project roles also change elsewhere.
@@ -50,6 +52,12 @@ export function MemberProjectRoles({ memberId }: { memberId: string }) {
     },
     onError: (_error, _change, context) => {
       if (context?.before) queryClient.setQueryData(queryKey, context.before);
+    },
+    onSuccess: () => {
+      // What a project role lets someone into is drawn by the server: the sidebar's projects, the list of all projects
+      // and the project pages. The echo of this tab's own change is not heard (realtime skips it), so the page is
+      // refreshed here; otherwise whoever just gave themselves a role would find the project closed until a reload.
+      router.refresh();
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });

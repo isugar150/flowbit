@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Person } from "@/components/person";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { AccessWatcher } from "@/features/projects/components/access-watcher";
 import { RequestAccessButton } from "@/features/projects/components/request-access-button";
 import type { ProjectEntry } from "@/features/projects/types";
 import { serverGet } from "@/lib/current-user";
@@ -25,6 +26,8 @@ export default async function NoAccessPage({ params }: PageProps<"/no-access/[id
 
   return (
     <>
+      {/* Let in while this page is open (or kept behind another one): straight in, without a reload. */}
+      <AccessWatcher projectId={entry.id} />
       <PageHeader crumbs={[{ label: m.all, href: "/", icon: <LayoutGridIcon /> }, { label: entry.name, icon: <LockIcon /> }]} />
       <div className="flex flex-1 items-center justify-center p-6">
         <Empty>

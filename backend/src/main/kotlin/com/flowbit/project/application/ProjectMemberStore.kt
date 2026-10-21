@@ -276,23 +276,36 @@ class ProjectMemberStore(
         spec.fetch().rowsUpdated().awaitSingle()
     }
 
-    /** Managers of the project, locking their rows so a concurrent change cannot remove the last one. */
+    /**
+     * The managers of the project who can sign in (the ones the people see), locking their rows so a concurrent change
+     * cannot remove the last one. A manager whose account is disabled does not count: the project still needs someone
+     * who can manage it.
+     */
     suspend fun lockManagerIds(projectId: UUID): List<UUID> =
         databaseClient
-            .sql("select user_id from project_members where project_id = :projectId and role = 'MANAGER' for update")
-            .bind("projectId", projectId)
+            .sql(
+                """
+                select pm.user_id from project_members pm join users u on u.id = pm.user_id
+                where pm.project_id = :projectId and pm.role = 'MANAGER' and u.status = 'ACTIVE'
+                for update of pm
+                """.trimIndent(),
+            ).bind("projectId", projectId)
             .map { row -> checkNotNull(row.get("user_id", UUID::class.java)) }
             .all()
             .collectList()
             .awaitSingle()
 
+    /**
+     * The people of a project. Someone whose account is disabled is not listed (they cannot sign in, so they cannot be
+     * tagged or given an issue, and they would only be in the way); they stay members and come back when enabled again.
+     */
     suspend fun members(projectId: UUID): List<ProjectMemberRow> =
         databaseClient
             .sql(
                 """
                 select u.id, u.login_id, u.display_name, u.avatar_key, pm.role
                 from project_members pm join users u on u.id = pm.user_id
-                where pm.project_id = :projectId
+                where pm.project_id = :projectId and u.status = 'ACTIVE'
                 order by case pm.role when 'MANAGER' then 0 when 'EDITOR' then 1 else 2 end,
                          lower(coalesce(u.display_name, u.login_id))
                 """.trimIndent(),
@@ -335,7 +348,7 @@ class ProjectMemberStore(
                 .sql(
                     """
                     select p.id, p.name, p.description, p.icon_key, p.created_at, p.archived_at, pm.role as member_role,
-                           (select count(*) from project_members m where m.project_id = p.id) as member_count,
+                           (select count(*) from project_members m join users mu on mu.id = m.user_id where m.project_id = p.id and mu.status = 'ACTIVE') as member_count,
                            p.status, p.priority, p.start_date, p.target_date, p.labels,
                            l.id as lead_id, l.login_id as lead_login_id,
                            l.display_name as lead_display_name, l.avatar_key as lead_avatar_key,
