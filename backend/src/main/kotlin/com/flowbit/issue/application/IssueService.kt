@@ -118,6 +118,12 @@ data class CommentResult(
     val change: IssueChange,
 )
 
+/** The emoji left on a comment or an entry of the history after a press, and the issue it is on. */
+data class EntryReactions(
+    val issueNumber: Int,
+    val reactions: List<ReactionSummary>,
+)
+
 /** A document with what its page needs to know about the issue or the project it belongs to. */
 data class DocumentDetail(
     val document: DocumentSummary,
@@ -429,48 +435,93 @@ class IssueService(
         val access = access(user, number)
         val issue = access.issue
         val subscribers = activities.subscribers(issue.id)
-        val shown = comments.list(issue.id).map { it.withRights(user, access) }
-        return IssueActivityFeed(activities.list(issue.id), shown, subscribers, subscribers.any { it.id == user.id })
+        val commentReactions = extras.commentReactions(issue.id, user.id)
+        val commentFiles = extras.commentAttachments(issue.id)
+        val entryReactions = extras.activityReactions(issue.id, user.id)
+        val shown =
+            comments.list(issue.id).map {
+                it.withRights(user, access).copy(reactions = commentReactions[it.id].orEmpty(), attachments = commentFiles[it.id].orEmpty())
+            }
+        val items = activities.list(issue.id).map { it.copy(reactions = entryReactions[it.id].orEmpty()) }
+        return IssueActivityFeed(items, shown, subscribers, subscribers.any { it.id == user.id })
     }
 
     /**
      * Writes a comment on an issue; needs the right to edit it. The author and the people tagged
-     * in it with @ follow the issue from then on, and every follower is told.
+     * in it with @ follow the issue from then on, and every follower is told. `attachmentIds` are
+     * files the caller uploaded for the comment ([attachToDraft]); with files, the text may be empty.
      */
     @Transactional
     suspend fun addComment(
         user: AuthenticatedUser,
         number: Int,
         content: Any?,
+        attachmentIds: List<UUID> = emptyList(),
     ): CommentResult {
         val access = editable(access(user, number))
         val issue = access.issue
-        val document = commentDocument(content)
+        val files = pendingFiles(issue, user, attachmentIds)
+        val document = commentDocument(content, hasFiles = files.isNotEmpty())
         val now = clock.instant()
         val id = comments.add(issue.id, user.id, document, now)
+        extras.attachToComment(id, files.map { it.id })
         activities.subscribe(issue.id, user.id)
         val tagged = tag(issue, document.mentions, user)
-        val comment = checkNotNull(comments.find(id)).withRights(user, access)
-        return CommentResult(comment, IssueChange(checkNotNull(queries.find(number)), listOf(commentEvent(document, tagged)), recipients(issue.id, user)))
+        val comment = checkNotNull(comments.find(id)).withRights(user, access).withExtras(user)
+        val change = IssueChange(checkNotNull(queries.find(number)), listOf(commentEvent(document, tagged, files)), recipients(issue.id, user))
+        return CommentResult(comment, change)
     }
 
-    /** Only its author may change a comment. People newly tagged by the change are told; nobody else is told again. */
+    /**
+     * Only its author may change a comment. People newly tagged by the change are told; nobody else is told again.
+     * `attachmentIds`, when given, is the whole set of files the comment has afterwards: the ones
+     * of it that are left out are removed, new ones are files the caller uploaded for it.
+     */
     @Transactional
     suspend fun updateComment(
         user: AuthenticatedUser,
         commentId: UUID,
         content: Any?,
+        attachmentIds: List<UUID>? = null,
     ): CommentResult {
         val existing = comments.find(commentId) ?: throw commentNotFound()
         val access = editable(accessById(user, existing.issueId))
         if (existing.author.id != user.id) throw ForbiddenException("다른 사람의 댓글은 수정할 수 없습니다")
-        val document = commentDocument(content)
+        val current = extras.commentAttachmentsOf(commentId)
+        val keptIds = attachmentIds?.distinct() ?: current.map { it.id }
+        val added = pendingFiles(access.issue, user, keptIds.filter { id -> current.none { it.id == id } }, total = keptIds.size)
+        val removed = current.filter { it.id !in keptIds }
+        val document = commentDocument(content, hasFiles = keptIds.isNotEmpty())
         comments.update(commentId, document, clock.instant())
+        extras.attachToComment(commentId, added.map { it.id })
+        removed.forEach { extras.deleteAttachment(it.id) }
+        removed.forEach { fileStorage.delete(it.fileKey) }
         val tagged = tag(access.issue, document.mentions - richText.mentionsIn(existing.content), user)
-        val comment = checkNotNull(comments.find(commentId)).withRights(user, access)
-        val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged))
+        val comment = checkNotNull(comments.find(commentId)).withRights(user, access).withExtras(user)
+        val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged, comment.attachments))
         return CommentResult(comment, IssueChange(checkNotNull(queries.find(access.issue.number)), events, tagged.map { it.first }))
     }
+
+    /**
+     * The files `user` uploaded for a comment on `issue` and has not sent, for the ids given.
+     * `total` is how many files the comment will have in all (default: these).
+     */
+    private suspend fun pendingFiles(
+        issue: Issue,
+        user: AuthenticatedUser,
+        ids: List<UUID>,
+        total: Int = ids.size,
+    ): List<AttachmentView> {
+        if (total > MAX_COMMENT_FILES) throw ValidationException("attachmentIds", "TOO_MANY", "파일은 댓글마다 ${MAX_COMMENT_FILES}개까지 붙일 수 있습니다")
+        return ids.distinct().map { id ->
+            extras.findAttachment(id)?.takeIf { it.issueId == issue.id && it.pending && it.uploadedBy == user.id }
+                ?: throw ValidationException("attachmentIds", "INVALID", "올린 파일을 찾을 수 없습니다. 다시 올려 주세요")
+        }
+    }
+
+    /** The emoji and files of a comment, as the page shows them. */
+    private suspend fun CommentView.withExtras(user: AuthenticatedUser): CommentView =
+        copy(reactions = extras.commentReactionsOf(id, user.id), attachments = extras.commentAttachmentsOf(id))
 
     /** Its author or a workspace admin may delete a comment. Returns the number of the issue it was on. */
     @Transactional
@@ -493,21 +544,30 @@ class IssueService(
         return copy(canEdit = access.canEdit && mine, canDelete = access.canEdit && (mine || user.role == UserRole.ADMIN))
     }
 
-    private fun commentDocument(content: Any?): RichTextDocument {
+    private fun commentDocument(
+        content: Any?,
+        hasFiles: Boolean,
+    ): RichTextDocument {
         val document = content?.let { richText.parse(it) }
-        // A picture alone is a comment too.
-        if (document == null || (document.plainText.isBlank() && "\"image\"" !in document.json)) {
-            throw ValidationException("content", "REQUIRED", "댓글 내용을 입력하세요")
-        }
+        // A picture alone is a comment too, and so are files alone (D-164).
+        if (document == null) return if (hasFiles) EMPTY_COMMENT else throw commentRequired()
+        if (!hasFiles && document.plainText.isBlank() && "\"image\"" !in document.json) throw commentRequired()
         return document
     }
 
+    private fun commentRequired() = ValidationException("content", "REQUIRED", "댓글 내용을 입력하세요")
+
+    /** A comment made of files alone is announced by their names. */
     private fun commentEvent(
         document: RichTextDocument,
         tagged: List<Pair<UUID, String>>,
+        files: List<AttachmentView>,
     ) = IssueEvent(
         IssueActivityType.COMMENT_ADDED,
-        mapOf("text" to document.plainText.take(COMMENT_PREVIEW_LENGTH), "mentions" to tagged.map { it.second }),
+        mapOf(
+            "text" to document.plainText.ifBlank { files.joinToString(", ") { it.fileName } }.take(COMMENT_PREVIEW_LENGTH),
+            "mentions" to tagged.map { it.second },
+        ),
     )
 
     private fun mentionEvents(tagged: List<Pair<UUID, String>>): List<IssueEvent> =
@@ -548,10 +608,45 @@ class IssueService(
         number: Int,
         emoji: String,
     ): List<ReactionSummary> {
-        if (emoji !in REACTIONS) throw ValidationException("emoji", "INVALID", "쓸 수 없는 이모지입니다")
+        requireReaction(emoji)
         val issue = access(user, number).issue
         extras.toggleReaction(issue.id, user.id, emoji)
         return extras.reactions(issue.id, user.id)
+    }
+
+    /** Adds the caller's emoji to a comment or takes it back (D-164). Open to everyone who can see the issue. */
+    suspend fun toggleCommentReaction(
+        user: AuthenticatedUser,
+        commentId: UUID,
+        emoji: String,
+    ): EntryReactions {
+        requireReaction(emoji)
+        val comment = comments.find(commentId) ?: throw commentNotFound()
+        val issue = reactable(accessById(user, comment.issueId))
+        extras.toggleCommentReaction(commentId, user.id, emoji)
+        return EntryReactions(issue.number, extras.commentReactionsOf(commentId, user.id))
+    }
+
+    /** Adds the caller's emoji to an entry of the issue's history or takes it back (D-164). */
+    suspend fun toggleActivityReaction(
+        user: AuthenticatedUser,
+        activityId: UUID,
+        emoji: String,
+    ): EntryReactions {
+        requireReaction(emoji)
+        val issueId = activities.issueIdOf(activityId) ?: throw NotFoundException("ACTIVITY_NOT_FOUND", "활동 기록을 찾을 수 없습니다")
+        val issue = reactable(accessById(user, issueId))
+        extras.toggleActivityReaction(activityId, user.id, emoji)
+        return EntryReactions(issue.number, extras.activityReactionsOf(activityId, user.id))
+    }
+
+    private fun requireReaction(emoji: String) {
+        if (emoji !in REACTIONS) throw ValidationException("emoji", "INVALID", "쓸 수 없는 이모지입니다")
+    }
+
+    private fun reactable(access: IssueAccess): Issue {
+        if (access.issue.deletedAt != null) throw ForbiddenException("삭제된 티켓에는 이모지를 달 수 없습니다")
+        return access.issue
     }
 
     @Transactional
@@ -562,20 +657,36 @@ class IssueService(
         bytes: ByteArray,
     ): AttachmentView {
         val issue = editable(access(user, number)).issue
-        // Keep only the last path segment and no control characters: the name is shown and sent back in a header.
-        val fileName =
-            rawFileName
-                .substringAfterLast('/')
-                .substringAfterLast('\\')
-                .filterNot { it.isISOControl() }
-                .trim()
-                .take(FILE_NAME_MAX_LENGTH)
-                .ifEmpty { "file" }
+        val fileName = fileNameOf(rawFileName)
         val now = clock.instant()
         val attachment = extras.addAttachment(issue.id, fileStorage.store(bytes), fileName, bytes.size.toLong(), user.id, now)
         activities.record(issue.id, user.id, listOf(IssueEvent(IssueActivityType.ATTACHMENT_ADDED, mapOf("to" to fileName))), now)
         return attachment
     }
+
+    /**
+     * Stores a file for a comment that is being written (D-164). It belongs to no comment and shows
+     * nowhere until the comment is sent with its id; one never sent is removed after a day.
+     */
+    suspend fun attachToDraft(
+        user: AuthenticatedUser,
+        number: Int,
+        rawFileName: String,
+        bytes: ByteArray,
+    ): AttachmentView {
+        val issue = editable(access(user, number)).issue
+        return extras.addAttachment(issue.id, fileStorage.store(bytes), fileNameOf(rawFileName), bytes.size.toLong(), user.id, clock.instant(), pending = true)
+    }
+
+    /** Keeps only the last path segment and no control characters: the name is shown and sent back in a header. */
+    private fun fileNameOf(raw: String): String =
+        raw
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .filterNot { it.isISOControl() }
+            .trim()
+            .take(FILE_NAME_MAX_LENGTH)
+            .ifEmpty { "file" }
 
     /** The file of an attachment, for someone who may see its issue. */
     suspend fun attachmentFile(
@@ -584,6 +695,9 @@ class IssueService(
     ): AttachmentFile {
         val attachment = extras.findAttachment(attachmentId) ?: throw notFound()
         accessById(user, attachment.issueId)
+        // A file not yet sent is its uploader's alone; one on a deleted comment goes with the comment.
+        if (attachment.pending && attachment.uploadedBy != user.id) throw notFound()
+        if (attachment.commentId != null && comments.find(attachment.commentId) == null) throw notFound()
         val path = fileStorage.find(attachment.fileKey) ?: throw notFound()
         return AttachmentFile(attachment, path)
     }
@@ -595,6 +709,15 @@ class IssueService(
         attachmentId: UUID,
     ): Int {
         val attachment = extras.findAttachment(attachmentId) ?: throw notFound()
+        if (attachment.pending) {
+            // Taking back a file chosen for a comment that was never sent: nothing to record.
+            if (attachment.uploadedBy != user.id) throw notFound()
+            val number = accessById(user, attachment.issueId).issue.number
+            extras.deleteAttachment(attachment.id)
+            fileStorage.delete(attachment.fileKey)
+            return number
+        }
+        if (attachment.commentId != null) throw ForbiddenException("댓글에 붙은 파일은 댓글을 수정해서 지우세요")
         val issue = editable(accessById(user, attachment.issueId)).issue
         extras.deleteAttachment(attachment.id)
         fileStorage.delete(attachment.fileKey)
@@ -1091,6 +1214,12 @@ class IssueService(
         /** How many levels of sub-issues a top-level issue can have under it (D-118). */
         const val MAX_SUB_ISSUE_DEPTH = 10
         private const val FILE_NAME_MAX_LENGTH = 255
+
+        /** How many files one comment can hold (D-164). */
+        const val MAX_COMMENT_FILES = 10
+
+        /** The text of a comment that is only files. */
+        private val EMPTY_COMMENT = RichTextDocument("""{"type":"doc","content":[{"type":"paragraph"}]}""", "")
 
         /** How much of a comment a notification quotes. */
         private const val COMMENT_PREVIEW_LENGTH = 300

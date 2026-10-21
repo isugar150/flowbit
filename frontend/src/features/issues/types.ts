@@ -19,7 +19,7 @@ export type IssuePerson = {
   avatarUrl: string | null;
 };
 
-/** One emoji on an issue. */
+/** One emoji on an issue, a comment or a line of the history. */
 export type Reaction = {
   emoji: string;
   count: number;
@@ -215,7 +215,12 @@ export type IssueActivityItem = {
   /** Null when a Git server made the change for someone without an account here; `detail.via` names them. */
   actor: IssuePerson | null;
   createdAt: string;
+  /** The emoji on this line of the history (D-164). */
+  reactions: Reaction[];
 };
+
+/** How many files one comment can hold (IssueService.MAX_COMMENT_FILES). */
+export const MAX_COMMENT_FILES = 10;
 
 /** A comment on an issue. */
 export type IssueComment = {
@@ -229,6 +234,9 @@ export type IssueComment = {
   canEdit: boolean;
   /** Whether the signed-in person may delete it (its author or a workspace admin). */
   canDelete: boolean;
+  reactions: Reaction[];
+  /** The files sent with it, in the order they were added. */
+  attachments: Attachment[];
 };
 
 /** GET /api/v1/issues/{number}/activity */

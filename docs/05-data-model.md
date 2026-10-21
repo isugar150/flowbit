@@ -320,7 +320,9 @@ notifications (수신함)
 | `issues.number` | 워크스페이스 전체에서 유일(`issues_number_key`) |
 | `issues.parent_id` | 상위 티켓(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다. 하위 티켓은 최상위 티켓 아래로 10단계까지이고, DB 제약이 아니라 서버가 검사한다 (D-118) |
 | `issue_reactions` | `issue_id`, `user_id`, `emoji` (셋이 PK). 이모지는 서버가 정한 8개만 |
-| `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at` |
+| `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at`, `comment_id` null(댓글에 붙은 파일이면 그 댓글, 지워지면 함께 지워진다. D-164), `pending`(댓글을 쓰는 중에 올라가 아직 보내지 않은 파일. 올린 사람만 보고, 하루 뒤 보관 작업이 지운다). 티켓의 "첨부 파일" 목록은 `comment_id is null and not pending` 인 것만이다 |
+| `issue_comment_reactions` | `comment_id`(`issue_comments`, `ON DELETE CASCADE`), `user_id`, `emoji` (셋이 PK). 댓글의 이모지, 같은 8개 (D-164) |
+| `issue_activity_reactions` | `activity_id`(`issue_activities`, `ON DELETE CASCADE`), `user_id`, `emoji` (셋이 PK). 활동 기록 줄의 이모지 (D-164). 본문·제목 수정이 앞의 줄에 합쳐져도 줄의 id 는 그대로라 이모지가 남는다 |
 | `documents` | `id`, `issue_id` null, `project_id` null, `parent_id` null(안에 들어 있는 상위 문서. 프로젝트 문서만, 5단계까지, 상위가 지워지면 함께 지워진다. D-083), `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 티켓이나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |
 | `issues.start_date` | 티켓이 기간을 가질 때의 첫날. `due_date` 가 있어야 하고 그보다 늦을 수 없다(`issues_dates_order`) (D-077) |
 | `issues.deleted_at`, `issues.deleted_by` | 삭제 표시. 삭제된 티켓은 목록·집계에서 빠지지만 행은 남는다 (D-079). 관리자가 보관 기간을 정했으면 그 기간이 지난 뒤 행을 지운다 (D-132, `retention_policies`) |

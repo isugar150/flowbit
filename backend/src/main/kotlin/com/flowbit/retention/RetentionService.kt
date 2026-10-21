@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.reactive.TransactionalOperator
 import org.springframework.transaction.reactive.executeAndAwait
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -162,25 +163,35 @@ class RetentionService(
         val removedFiles = mutableListOf<String>()
         val result =
             transactionalOperator.executeAndAwait {
-                val comments = settings.comments?.let { deleteOlder("issue_comments", it.cutoff(now)) } ?: 0
+                val comments =
+                    settings.comments?.let { period ->
+                        // The files sent with a comment go with it.
+                        removedFiles +=
+                            fileKeys(
+                                "select a.file_key from issue_attachments a join issue_comments c on c.id = a.comment_id where c.deleted_at is not null and c.deleted_at < :cutoff",
+                                period.cutoff(now),
+                            )
+                        deleteOlder("issue_comments", period.cutoff(now))
+                    } ?: 0
                 val documents = settings.documents?.let { deleteOlder("documents", it.cutoff(now)) } ?: 0
                 val issues =
                     settings.issues?.let { period ->
-                        val cutoff = at(period.cutoff(now))
                         removedFiles +=
-                            databaseClient
-                                .sql(
-                                    """
-                                    select a.file_key from issue_attachments a join issues i on i.id = a.issue_id
-                                    where i.deleted_at is not null and i.deleted_at < :cutoff
-                                    """.trimIndent(),
-                                ).bind("cutoff", cutoff)
-                                .map { row -> checkNotNull(row.get("file_key", String::class.java)) }
-                                .all()
-                                .collectList()
-                                .awaitSingle()
+                            fileKeys(
+                                "select a.file_key from issue_attachments a join issues i on i.id = a.issue_id where i.deleted_at is not null and i.deleted_at < :cutoff",
+                                period.cutoff(now),
+                            )
                         deleteOlder("issues", period.cutoff(now))
                     } ?: 0
+                // Not a setting: files uploaded for a comment that was never sent (D-164) are removed after a day.
+                val abandoned = now.minus(PENDING_FILE_LIFETIME)
+                removedFiles += fileKeys("select a.file_key from issue_attachments a where a.pending and a.created_at < :cutoff", abandoned)
+                databaseClient
+                    .sql("delete from issue_attachments where pending and created_at < :cutoff")
+                    .bind("cutoff", at(abandoned))
+                    .fetch()
+                    .rowsUpdated()
+                    .awaitSingle()
                 val result = PurgeResult(issues = issues, documents = documents, comments = comments)
                 if (!result.isEmpty) {
                     auditService.record(
@@ -210,6 +221,19 @@ class RetentionService(
             .rowsUpdated()
             .awaitSingle()
 
+    /** The storage keys of the files the query (one `:cutoff` parameter) selects. */
+    private suspend fun fileKeys(
+        sql: String,
+        cutoff: Instant,
+    ): List<String> =
+        databaseClient
+            .sql(sql)
+            .bind("cutoff", at(cutoff))
+            .map { row -> checkNotNull(row.get("file_key", String::class.java)) }
+            .all()
+            .collectList()
+            .awaitSingle()
+
     private suspend fun execute(sql: String) {
         databaseClient
             .sql(sql)
@@ -221,4 +245,9 @@ class RetentionService(
     private fun at(instant: Instant) = OffsetDateTime.ofInstant(instant, ZoneOffset.UTC)
 
     private fun fieldOf(item: RetentionItem) = item.name.lowercase()
+
+    private companion object {
+        /** How long a file uploaded for a comment waits for the comment to be sent. */
+        val PENDING_FILE_LIFETIME: Duration = Duration.ofDays(1)
+    }
 }

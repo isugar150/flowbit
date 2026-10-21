@@ -68,6 +68,8 @@ data class IssueActivityView(
     /** Null when a Git server made the change for someone who has no account here. */
     val actor: IssuePerson?,
     val createdAt: Instant,
+    /** The emoji on it (D-164). */
+    val reactions: List<ReactionSummary> = emptyList(),
 )
 
 /**
@@ -206,6 +208,15 @@ class IssueActivityStore(
                 .awaitSingle()
         return updated > 0
     }
+
+    /** The issue an entry of the history belongs to. */
+    suspend fun issueIdOf(activityId: UUID): UUID? =
+        databaseClient
+            .sql("select issue_id from issue_activities where id = :id")
+            .bind("id", activityId)
+            .map { row -> checkNotNull(row.get("issue_id", UUID::class.java)) }
+            .one()
+            .awaitSingleOrNull()
 
     suspend fun list(issueId: UUID): List<IssueActivityView> =
         databaseClient

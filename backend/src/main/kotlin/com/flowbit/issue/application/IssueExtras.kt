@@ -25,7 +25,22 @@ data class AttachmentView(
     val fileName: String,
     val sizeBytes: Long,
     val createdAt: Instant,
+    val uploadedBy: UUID,
+    /** The comment the file is on (D-164); null for a file of the issue itself or one not yet sent. */
+    val commentId: UUID? = null,
+    /** Uploaded for a comment that has not been sent yet; only who uploaded it sees it. */
+    val pending: Boolean = false,
 )
+
+/** The three kinds of thing an emoji can be put on, with where each is kept. */
+private enum class ReactionTable(
+    val table: String,
+    val column: String,
+) {
+    ISSUE("issue_reactions", "issue_id"),
+    COMMENT("issue_comment_reactions", "comment_id"),
+    ACTIVITY("issue_activity_reactions", "activity_id"),
+}
 
 /** A document; it belongs to an issue or to a project, so exactly one of the two ids is set. */
 data class DocumentSummary(
@@ -76,59 +91,78 @@ class IssueExtrasStore(
     suspend fun reactions(
         issueId: UUID,
         userId: UUID,
-    ): List<ReactionSummary> =
-        databaseClient
-            .sql(
-                """
-                select r.emoji, count(*) as n, bool_or(r.user_id = :userId) as reacted,
-                       string_agg(coalesce(u.display_name, u.login_id), ', ' order by r.created_at) as names
-                from issue_reactions r join users u on u.id = r.user_id
-                where r.issue_id = :issueId
-                group by r.emoji
-                order by min(r.created_at)
-                """.trimIndent(),
-            ).bind("issueId", issueId)
-            .bind("userId", userId)
-            .map { row ->
-                ReactionSummary(
-                    emoji = checkNotNull(row.get("emoji", String::class.java)),
-                    count = checkNotNull(row.get("n", Long::class.javaObjectType)).toInt(),
-                    reacted = checkNotNull(row.get("reacted", Boolean::class.javaObjectType)),
-                    names = checkNotNull(row.get("names", String::class.java)).split(", "),
-                )
-            }.all()
-            .collectList()
-            .awaitSingle()
+    ): List<ReactionSummary> = reactionsOf(ReactionTable.ISSUE, issueId, userId)
 
     /** Adds the person's reaction, or takes it back when it is already there. */
     suspend fun toggleReaction(
         issueId: UUID,
         userId: UUID,
         emoji: String,
+    ) = toggle(ReactionTable.ISSUE, issueId, userId, emoji)
+
+    /** The emoji on the comments of an issue, by comment; a comment without any is not in the map. */
+    suspend fun commentReactions(
+        issueId: UUID,
+        userId: UUID,
+    ): Map<UUID, List<ReactionSummary>> =
+        summaries(ReactionTable.COMMENT, "join issue_comments t on t.id = r.comment_id where t.issue_id = :id", issueId, userId)
+
+    suspend fun commentReactionsOf(
+        commentId: UUID,
+        userId: UUID,
+    ): List<ReactionSummary> = reactionsOf(ReactionTable.COMMENT, commentId, userId)
+
+    suspend fun toggleCommentReaction(
+        commentId: UUID,
+        userId: UUID,
+        emoji: String,
+    ) = toggle(ReactionTable.COMMENT, commentId, userId, emoji)
+
+    /** The emoji on the entries of an issue's history, by entry. */
+    suspend fun activityReactions(
+        issueId: UUID,
+        userId: UUID,
+    ): Map<UUID, List<ReactionSummary>> =
+        summaries(ReactionTable.ACTIVITY, "join issue_activities t on t.id = r.activity_id where t.issue_id = :id", issueId, userId)
+
+    suspend fun activityReactionsOf(
+        activityId: UUID,
+        userId: UUID,
+    ): List<ReactionSummary> = reactionsOf(ReactionTable.ACTIVITY, activityId, userId)
+
+    suspend fun toggleActivityReaction(
+        activityId: UUID,
+        userId: UUID,
+        emoji: String,
+    ) = toggle(ReactionTable.ACTIVITY, activityId, userId, emoji)
+
+    /** The files of the issue itself; the ones on its comments are listed with the comments. */
+    suspend fun attachments(issueId: UUID): List<AttachmentView> =
+        attachmentsWhere("issue_id = :id and comment_id is null and not pending order by created_at, id", issueId)
+
+    suspend fun findAttachment(id: UUID): AttachmentView? = attachmentsWhere("id = :id", id).firstOrNull()
+
+    /** The files on the comments of an issue, by comment, in the order they were sent. */
+    suspend fun commentAttachments(issueId: UUID): Map<UUID, List<AttachmentView>> =
+        attachmentsWhere("issue_id = :id and comment_id is not null order by created_at, id", issueId).groupBy { checkNotNull(it.commentId) }
+
+    suspend fun commentAttachmentsOf(commentId: UUID): List<AttachmentView> = attachmentsWhere("comment_id = :id order by created_at, id", commentId)
+
+    /** Puts the (pending) files on the comment. */
+    suspend fun attachToComment(
+        commentId: UUID,
+        attachmentIds: Collection<UUID>,
     ) {
-        val removed =
+        for (id in attachmentIds) {
             databaseClient
-                .sql("delete from issue_reactions where issue_id = :issueId and user_id = :userId and emoji = :emoji")
-                .bind("issueId", issueId)
-                .bind("userId", userId)
-                .bind("emoji", emoji)
+                .sql("update issue_attachments set comment_id = :commentId, pending = false where id = :id")
+                .bind("commentId", commentId)
+                .bind("id", id)
                 .fetch()
                 .rowsUpdated()
                 .awaitSingle()
-        if (removed > 0) return
-        databaseClient
-            .sql("insert into issue_reactions (issue_id, user_id, emoji) values (:issueId, :userId, :emoji) on conflict do nothing")
-            .bind("issueId", issueId)
-            .bind("userId", userId)
-            .bind("emoji", emoji)
-            .fetch()
-            .rowsUpdated()
-            .awaitSingle()
+        }
     }
-
-    suspend fun attachments(issueId: UUID): List<AttachmentView> = attachmentsWhere("issue_id = :id order by created_at, id", issueId)
-
-    suspend fun findAttachment(id: UUID): AttachmentView? = attachmentsWhere("id = :id", id).firstOrNull()
 
     suspend fun addAttachment(
         issueId: UUID,
@@ -137,13 +171,15 @@ class IssueExtrasStore(
         sizeBytes: Long,
         userId: UUID,
         now: Instant,
+        /** For a comment that is not sent yet (D-164). */
+        pending: Boolean = false,
     ): AttachmentView {
         val id = UuidV7.generate(now)
         databaseClient
             .sql(
                 """
-                insert into issue_attachments (id, issue_id, file_key, file_name, size_bytes, uploaded_by, created_at)
-                values (:id, :issueId, :fileKey, :fileName, :sizeBytes, :userId, :now)
+                insert into issue_attachments (id, issue_id, file_key, file_name, size_bytes, uploaded_by, created_at, pending)
+                values (:id, :issueId, :fileKey, :fileName, :sizeBytes, :userId, :now, :pending)
                 """.trimIndent(),
             ).bind("id", id)
             .bind("issueId", issueId)
@@ -152,10 +188,11 @@ class IssueExtrasStore(
             .bind("sizeBytes", sizeBytes)
             .bind("userId", userId)
             .bind("now", now)
+            .bind("pending", pending)
             .fetch()
             .rowsUpdated()
             .awaitSingle()
-        return AttachmentView(id, issueId, fileKey, fileName, sizeBytes, now)
+        return AttachmentView(id, issueId, fileKey, fileName, sizeBytes, now, userId, pending = pending)
     }
 
     suspend fun deleteAttachment(id: UUID) = deleteById("issue_attachments", id)
@@ -393,8 +430,9 @@ class IssueExtrasStore(
         id: UUID,
     ): List<AttachmentView> =
         databaseClient
-            .sql("select id, issue_id, file_key, file_name, size_bytes, created_at from issue_attachments where $where")
-            .bind("id", id)
+            .sql(
+                "select id, issue_id, file_key, file_name, size_bytes, created_at, uploaded_by, comment_id, pending from issue_attachments where $where",
+            ).bind("id", id)
             .map { row ->
                 AttachmentView(
                     id = checkNotNull(row.get("id", UUID::class.java)),
@@ -403,10 +441,77 @@ class IssueExtrasStore(
                     fileName = checkNotNull(row.get("file_name", String::class.java)),
                     sizeBytes = checkNotNull(row.get("size_bytes", Long::class.javaObjectType)),
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
+                    uploadedBy = checkNotNull(row.get("uploaded_by", UUID::class.java)),
+                    commentId = row.get("comment_id", UUID::class.java),
+                    pending = checkNotNull(row.get("pending", Boolean::class.javaObjectType)),
                 )
             }.all()
             .collectList()
             .awaitSingle()
+
+    private suspend fun reactionsOf(
+        reactionTable: ReactionTable,
+        targetId: UUID,
+        userId: UUID,
+    ): List<ReactionSummary> = summaries(reactionTable, "where r.${reactionTable.column} = :id", targetId, userId)[targetId].orEmpty()
+
+    /** The reactions grouped by emoji for every target that the clause (what follows the join of `r`) picks. */
+    private suspend fun summaries(
+        reactionTable: ReactionTable,
+        clause: String,
+        id: UUID,
+        userId: UUID,
+    ): Map<UUID, List<ReactionSummary>> =
+        databaseClient
+            .sql(
+                """
+                select r.${reactionTable.column} as target_id, r.emoji, count(*) as n, bool_or(r.user_id = :userId) as reacted,
+                       string_agg(coalesce(u.display_name, u.login_id), ', ' order by r.created_at) as names
+                from ${reactionTable.table} r join users u on u.id = r.user_id
+                $clause
+                group by r.${reactionTable.column}, r.emoji
+                order by min(r.created_at)
+                """.trimIndent(),
+            ).bind("id", id)
+            .bind("userId", userId)
+            .map { row ->
+                checkNotNull(row.get("target_id", UUID::class.java)) to
+                    ReactionSummary(
+                        emoji = checkNotNull(row.get("emoji", String::class.java)),
+                        count = checkNotNull(row.get("n", Long::class.javaObjectType)).toInt(),
+                        reacted = checkNotNull(row.get("reacted", Boolean::class.javaObjectType)),
+                        names = checkNotNull(row.get("names", String::class.java)).split(", "),
+                    )
+            }.all()
+            .collectList()
+            .awaitSingle()
+            .groupBy({ it.first }, { it.second })
+
+    private suspend fun toggle(
+        reactionTable: ReactionTable,
+        targetId: UUID,
+        userId: UUID,
+        emoji: String,
+    ) {
+        val removed =
+            databaseClient
+                .sql("delete from ${reactionTable.table} where ${reactionTable.column} = :id and user_id = :userId and emoji = :emoji")
+                .bind("id", targetId)
+                .bind("userId", userId)
+                .bind("emoji", emoji)
+                .fetch()
+                .rowsUpdated()
+                .awaitSingle()
+        if (removed > 0) return
+        databaseClient
+            .sql("insert into ${reactionTable.table} (${reactionTable.column}, user_id, emoji) values (:id, :userId, :emoji) on conflict do nothing")
+            .bind("id", targetId)
+            .bind("userId", userId)
+            .bind("emoji", emoji)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
 
     private suspend fun documentsWhere(
         where: String,

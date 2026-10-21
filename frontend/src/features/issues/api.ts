@@ -43,13 +43,39 @@ export function setIssueSubscribed(input: { number: number; subscribed: boolean 
   });
 }
 
-/** Writes a comment; the people tagged in it with "@" are told through their notification channels. */
-export function createComment(input: { number: number; content: RichDoc }): Promise<IssueComment> {
-  return apiFetch<IssueComment>(`/api/v1/issues/${input.number}/comments`, { method: "POST", body: { content: input.content } });
+/**
+ * Writes a comment; the people tagged in it with "@" are told through their notification channels.
+ * `content` may be null when the comment is files alone; `attachmentIds` are files uploaded with
+ * `uploadCommentFile` beforehand.
+ */
+export function createComment(input: { number: number; content: RichDoc | null; attachmentIds: string[] }): Promise<IssueComment> {
+  return apiFetch<IssueComment>(`/api/v1/issues/${input.number}/comments`, {
+    method: "POST",
+    body: { content: input.content, attachmentIds: input.attachmentIds },
+  });
 }
 
-export function updateComment(input: { id: string; content: RichDoc }): Promise<IssueComment> {
-  return apiFetch<IssueComment>(`/api/v1/comments/${input.id}`, { method: "PATCH", body: { content: input.content } });
+/** `attachmentIds` is the whole set of files the comment keeps; the ones left out are removed. */
+export function updateComment(input: { id: string; content: RichDoc | null; attachmentIds: string[] }): Promise<IssueComment> {
+  return apiFetch<IssueComment>(`/api/v1/comments/${input.id}`, {
+    method: "PATCH",
+    body: { content: input.content, attachmentIds: input.attachmentIds },
+  });
+}
+
+/** Stores a file for a comment that is being written; it belongs to the comment once that is sent with its id. */
+export function uploadCommentFile(input: { number: number; file: File }): Promise<Attachment> {
+  return apiFetch<Attachment>(`/api/v1/issues/${input.number}/comment-files`, { method: "POST", body: fileForm(input.file) });
+}
+
+/** Puts the signed-in person's emoji on a comment, or takes it back when it is already there. */
+export function toggleCommentReaction(input: { id: string; emoji: string }): Promise<Reaction[]> {
+  return apiFetch<Reaction[]>(`/api/v1/comments/${input.id}/reactions`, { method: "POST", body: { emoji: input.emoji } });
+}
+
+/** The same for a line of the history. */
+export function toggleActivityReaction(input: { id: string; emoji: string }): Promise<Reaction[]> {
+  return apiFetch<Reaction[]>(`/api/v1/activities/${input.id}/reactions`, { method: "POST", body: { emoji: input.emoji } });
 }
 
 export function deleteComment(id: string): Promise<void> {

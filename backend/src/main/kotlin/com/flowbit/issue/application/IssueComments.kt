@@ -23,6 +23,10 @@ data class CommentView(
     val canEdit: Boolean = false,
     /** Whether the caller may delete it: its author or a workspace admin, while the issue can be edited. */
     val canDelete: Boolean = false,
+    /** The emoji on it (D-164). */
+    val reactions: List<ReactionSummary> = emptyList(),
+    /** The files sent with it, in the order they were added (D-164). */
+    val attachments: List<AttachmentView> = emptyList(),
 )
 
 /** Comments on issues (`issue_comments`). A deleted comment stays as a row and is never read. */

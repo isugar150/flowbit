@@ -224,6 +224,7 @@ data class IssueActivityItemResponse(
     /** Null when a Git server made the change for someone without an account; `detail.via.name` names them. */
     val actor: IssuePersonResponse?,
     val createdAt: Instant,
+    val reactions: List<ReactionSummary>,
 )
 
 data class CommentResponse(
@@ -235,6 +236,9 @@ data class CommentResponse(
     val updatedAt: Instant,
     val canEdit: Boolean,
     val canDelete: Boolean,
+    val reactions: List<ReactionSummary>,
+    /** The files sent with the comment. */
+    val attachments: List<AttachmentResponse>,
 ) {
     companion object {
         fun from(comment: CommentView) =
@@ -246,12 +250,19 @@ data class CommentResponse(
                 comment.updatedAt,
                 comment.canEdit,
                 comment.canDelete,
+                comment.reactions,
+                comment.attachments.map(AttachmentResponse::from),
             )
     }
 }
 
+/**
+ * `content` may be left out when the comment is made of files alone. `attachmentIds` are files
+ * uploaded for it beforehand; on a change they are the whole set the comment keeps (left out: no change).
+ */
 data class CommentRequest(
     val content: Map<String, Any?>? = null,
+    val attachmentIds: List<UUID>? = null,
 )
 
 data class IssueActivityResponse(
@@ -265,7 +276,7 @@ data class IssueActivityResponse(
             IssueActivityResponse(
                 items =
                     feed.items.map {
-                        IssueActivityItemResponse(it.id, it.type, it.detail, it.actor?.let(IssuePersonResponse::from), it.createdAt)
+                        IssueActivityItemResponse(it.id, it.type, it.detail, it.actor?.let(IssuePersonResponse::from), it.createdAt, it.reactions)
                     },
                 comments = feed.comments.map(CommentResponse::from),
                 subscribers = feed.subscribers.map(IssuePersonResponse::from),
@@ -643,6 +654,18 @@ class IssueController(
         return DocumentSummaryResponse.from(document)
     }
 
+    /**
+     * Stores a file for a comment that is being written (D-164). It shows nowhere until the comment
+     * is sent with its id in `attachmentIds`.
+     */
+    @PostMapping("/{number}/comment-files", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @ResponseStatus(HttpStatus.CREATED)
+    suspend fun attachToDraft(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+        @RequestPart("file") file: FilePart,
+    ): AttachmentResponse = AttachmentResponse.from(issueService.attachToDraft(user, number, file.filename(), uploadReader.read(file)))
+
     /** Writes a comment (`content` is an editor document). It is read back with the activity. */
     @PostMapping("/{number}/comments")
     @ResponseStatus(HttpStatus.CREATED)
@@ -651,7 +674,7 @@ class IssueController(
         @PathVariable number: Int,
         @RequestBody body: CommentRequest,
     ): CommentResponse {
-        val result = issueService.addComment(user, number, body.content)
+        val result = issueService.addComment(user, number, body.content, body.attachmentIds.orEmpty())
         announcer.commented(user, result.change)
         return CommentResponse.from(result.comment)
     }
@@ -791,9 +814,21 @@ class CommentController(
         @PathVariable id: UUID,
         @RequestBody body: CommentRequest,
     ): CommentResponse {
-        val result = issueService.updateComment(user, id, body.content)
+        val result = issueService.updateComment(user, id, body.content, body.attachmentIds)
         announcer.commented(user, result.change)
         return CommentResponse.from(result.comment)
+    }
+
+    /** Adds the caller's emoji to the comment, or takes it back when it is already there (D-164). */
+    @PostMapping("/{id}/reactions")
+    suspend fun react(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+        @RequestBody body: ReactionRequest,
+    ): List<ReactionSummary> {
+        val result = issueService.toggleCommentReaction(user, id, body.emoji)
+        announcer.touched(user, result.issueNumber)
+        return result.reactions
     }
 
     @DeleteMapping("/{id}")
@@ -803,6 +838,25 @@ class CommentController(
         @PathVariable id: UUID,
     ) {
         announcer.touched(user, issueService.removeComment(user, id))
+    }
+}
+
+/** The entries of an issue's history ("활동"). Anyone who can see the issue can put an emoji on one. */
+@RestController
+@RequestMapping("/api/v1/activities")
+class ActivityController(
+    private val issueService: IssueService,
+    private val announcer: IssueAnnouncer,
+) {
+    @PostMapping("/{id}/reactions")
+    suspend fun react(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+        @RequestBody body: ReactionRequest,
+    ): List<ReactionSummary> {
+        val result = issueService.toggleActivityReaction(user, id, body.emoji)
+        announcer.touched(user, result.issueNumber)
+        return result.reactions
     }
 }
 

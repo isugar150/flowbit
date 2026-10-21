@@ -762,7 +762,117 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals(403, editor.post("/api/v1/issues/1/comments", commentJson("늦은 댓글")).status)
     }
 
-    private fun commentJson(text: String) = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"$text"}]}]}}"""
+    @Test
+    fun `댓글과 활동 기록의 줄에 이모지를 달고 다시 누르면 지워진다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"이모지 확인"}""")
+        val commentId = editor.post("/api/v1/issues/1/comments", commentJson("확인했습니다")).json()["id"]
+        val entryId = activityOf(editor.get("/api/v1/issues/1/activity").json()).first()["id"]
+
+        editor.post("/api/v1/comments/$commentId/reactions", """{"emoji":"👍"}""")
+        // Everyone who can see the issue may react, the view-only role included.
+        val twice = viewer.post("/api/v1/comments/$commentId/reactions", """{"emoji":"👍"}""").jsonList().single()
+        assertEquals(2, twice["count"])
+        assertEquals(true, twice["reacted"])
+        assertEquals(200, viewer.post("/api/v1/activities/$entryId/reactions", """{"emoji":"🎉"}""").status)
+
+        val feed = editor.get("/api/v1/issues/1/activity").json()
+        val onComment = reactionsOf(commentsOf(feed).single())
+        assertEquals(2, onComment.single()["count"])
+        assertEquals(true, onComment.single()["reacted"])
+        val onEntry = reactionsOf(activityOf(feed).first())
+        assertEquals("🎉", onEntry.single()["emoji"])
+        assertEquals(false, onEntry.single()["reacted"])
+
+        assertEquals(1, editor.post("/api/v1/comments/$commentId/reactions", """{"emoji":"👍"}""").jsonList().single()["count"])
+        assertEquals(422, editor.post("/api/v1/comments/$commentId/reactions", """{"emoji":"<script>"}""").status)
+        assertEquals(404, outsider.post("/api/v1/comments/$commentId/reactions", """{"emoji":"👍"}""").status)
+        assertEquals(404, outsider.post("/api/v1/activities/$entryId/reactions", """{"emoji":"👍"}""").status)
+        assertEquals(404, editor.post("/api/v1/activities/00000000-0000-0000-0000-000000000000/reactions", """{"emoji":"👍"}""").status)
+
+        // A deleted issue can be read but not reacted to.
+        editor.delete("/api/v1/issues/1")
+        assertEquals(403, editor.post("/api/v1/comments/$commentId/reactions", """{"emoji":"❤️"}""").status)
+        assertEquals(403, editor.post("/api/v1/activities/$entryId/reactions", """{"emoji":"❤️"}""").status)
+    }
+
+    @Test
+    fun `댓글에 파일을 붙이면 활동의 댓글에 보이고 티켓의 첨부 파일에는 나오지 않는다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"파일 확인"}""")
+        val content = "보고서".toByteArray()
+
+        val uploaded = editor.postFile("/api/v1/issues/1/comment-files", "../보고서.pdf", "application/pdf", content)
+        assertEquals(201, uploaded.status)
+        assertEquals("보고서.pdf", uploaded.json()["fileName"])
+        val fileId = uploaded.json()["id"] as String
+        val url = uploaded.json()["url"] as String
+
+        // Until the comment is sent, the file is its uploader's alone and not part of the issue.
+        assertEquals(200, editor.get(url).status)
+        assertEquals(404, viewer.get(url).status)
+        assertEquals(emptyList<Any>(), editor.get("/api/v1/issues/1").json()["attachments"])
+        assertTrue(activityOf(editor.get("/api/v1/issues/1/activity").json()).none { it["type"] == "ATTACHMENT_ADDED" })
+        assertEquals(403, viewer.postFile("/api/v1/issues/1/comment-files", "a.txt", "text/plain", content).status)
+        assertEquals(422, admin.post("/api/v1/issues/1/comments", """{"attachmentIds":["$fileId"]}""").status)
+
+        // A comment may be nothing but files.
+        val sent = editor.post("/api/v1/issues/1/comments", """{"attachmentIds":["$fileId"]}""")
+        assertEquals(201, sent.status)
+        val files = filesOf(sent.json())
+        assertEquals("보고서.pdf", files.single()["fileName"])
+        assertTrue(viewer.get(url).bytes.contentEquals(content))
+        assertEquals(404, outsider.get(url).status)
+        assertEquals(emptyList<Any>(), editor.get("/api/v1/issues/1").json()["attachments"])
+        // The same file cannot be sent twice, and a file on a comment is taken off through the comment.
+        assertEquals(422, editor.post("/api/v1/issues/1/comments", """{"attachmentIds":["$fileId"]}""").status)
+        assertEquals(403, editor.delete(url).status)
+
+        // Changing the comment: keep the file, add another, then leave the first out.
+        val commentId = sent.json()["id"]
+        val second = editor.postFile("/api/v1/issues/1/comment-files", "표.xlsx", "application/octet-stream", content).json()
+        val both = editor.patch("/api/v1/comments/$commentId", commentWithFiles("표도 붙입니다", fileId, second["id"] as String))
+        assertEquals(200, both.status)
+        assertEquals(2, filesOf(both.json()).size)
+        assertEquals(200, editor.patch("/api/v1/comments/$commentId", """{"attachmentIds":["${second["id"]}"]}""").status)
+        val left = filesOf(commentsOf(editor.get("/api/v1/issues/1/activity").json()).single())
+        assertEquals(listOf("표.xlsx"), left.map { it["fileName"] })
+        assertEquals(404, editor.get(url).status)
+        // Without files the text is required again.
+        assertEquals(422, editor.patch("/api/v1/comments/$commentId", """{"attachmentIds":[]}""").status)
+
+        // A deleted comment takes its files out of reach.
+        assertEquals(204, editor.delete("/api/v1/comments/$commentId").status)
+        assertEquals(404, editor.get(second["url"] as String).status)
+    }
+
+    @Test
+    fun `보내지 않은 파일은 올린 사람이 지울 수 있고 댓글에는 열 개까지만 붙는다`() {
+        editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"파일 개수"}""")
+        val bytes = "a".toByteArray()
+        val ids = (1..11).map { editor.postFile("/api/v1/issues/1/comment-files", "f$it.txt", "text/plain", bytes).json()["id"] as String }
+
+        assertEquals(422, editor.post("/api/v1/issues/1/comments", """{"attachmentIds":[${ids.joinToString(",") { "\"$it\"" }}]}""").status)
+        assertEquals(201, editor.post("/api/v1/issues/1/comments", """{"attachmentIds":[${ids.take(10).joinToString(",") { "\"$it\"" }}]}""").status)
+
+        // The eleventh was never sent; its uploader takes it back, nobody else can.
+        assertEquals(404, admin.delete("/api/v1/attachments/${ids.last()}").status)
+        assertEquals(204, editor.delete("/api/v1/attachments/${ids.last()}").status)
+        assertEquals(404, editor.get("/api/v1/attachments/${ids.last()}").status)
+    }
+
+    private fun commentWithFiles(
+        text: String,
+        vararg fileIds: String,
+    ) = """{"content":${commentDocument(text)},"attachmentIds":[${fileIds.joinToString(",") { "\"$it\"" }}]}"""
+
+    private fun commentDocument(text: String) = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"$text"}]}]}"""
+
+    private fun commentJson(text: String) = """{"content":${commentDocument(text)}}"""
+
+    @Suppress("UNCHECKED_CAST")
+    private fun reactionsOf(entry: Map<String, Any?>): List<Map<String, Any?>> = entry["reactions"] as List<Map<String, Any?>>
+
+    @Suppress("UNCHECKED_CAST")
+    private fun filesOf(comment: Map<String, Any?>): List<Map<String, Any?>> = comment["attachments"] as List<Map<String, Any?>>
 
     @Suppress("UNCHECKED_CAST")
     private fun commentsOf(feed: Map<String, Any?>): List<Map<String, Any?>> = feed["comments"] as List<Map<String, Any?>>

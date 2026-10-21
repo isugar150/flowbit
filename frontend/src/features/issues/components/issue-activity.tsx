@@ -4,15 +4,17 @@ import { BellIcon, BellOffIcon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import type { MentionPerson } from "@/components/editor/mention";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { repositoryName } from "@/features/git/components/issue-git-links";
-import { setIssueSubscribed } from "../api";
+import { setIssueSubscribed, toggleActivityReaction } from "../api";
 import { priorityLabel, statusLabel } from "../meta";
 import { PersonAvatar, personName } from "@/components/person";
-import type { IssueActivityFeed, IssueActivityItem, IssueComment, IssuePriority, IssueStatus } from "../types";
+import type { IssueActivityFeed, IssueActivityItem, IssueComment, IssuePerson, IssuePriority, IssueStatus } from "../types";
 import { CommentComposer, CommentItem } from "./issue-comments";
+import { ReactionPicker, ReactionPills, useReactions } from "./issue-reactions";
 
 const m = messages.issues.activity;
 
@@ -123,6 +125,161 @@ function entriesOf(feed: IssueActivityFeed): Entry[] {
   return entries.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 }
 
+/** How many followers get an avatar of their own beside the heading; the rest are behind "+N". */
+const MAX_SUBSCRIBER_AVATARS = 5;
+
+/**
+ * Who follows the issue: one avatar each, overlapping by about half. The one under the pointer (or
+ * with focus) comes forward and the others part around it (`avatar-fan`, globals.css), and it
+ * names its own person: the name, and the login id under it when the name is a display name.
+ * Followers past the first few are behind "+N", whose hint lists them.
+ */
+function SubscriberAvatars({ people }: { people: IssuePerson[] }) {
+  const shown = people.slice(0, MAX_SUBSCRIBER_AVATARS);
+  const hidden = people.slice(MAX_SUBSCRIBER_AVATARS);
+  return (
+    <span role="group" aria-label={m.subscribers(people.map(personName).join(", "))} className="avatar-fan flex items-center -space-x-3">
+      {shown.map((person) => (
+        <Tooltip key={person.id}>
+          <TooltipTrigger
+            // Said at once: the avatar is all there is to read here.
+            delay={0}
+            render={
+              <span
+                tabIndex={0}
+                aria-label={personName(person)}
+                // Positioned like the avatar inside it, so that the later one is the one on top.
+                className="relative flex rounded-full ring-2 ring-background outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            }
+          >
+            <PersonAvatar person={person} />
+          </TooltipTrigger>
+          <TooltipContent className="flex flex-col items-center">
+            <span className="font-medium">{personName(person)}</span>
+            {person.displayName ? <span className="opacity-80">{person.loginId}</span> : null}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+      {hidden.length > 0 ? (
+        <Tooltip>
+          <TooltipTrigger
+            delay={0}
+            render={
+              <span
+                tabIndex={0}
+                aria-label={m.moreSubscribers(hidden.length)}
+                className="relative flex size-6 items-center justify-center rounded-full bg-muted text-[0.625rem] leading-none text-muted-foreground ring-2 ring-background outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            }
+          >
+            +{hidden.length}
+          </TooltipTrigger>
+          <TooltipContent className="flex flex-col">
+            {hidden.map((person) => (
+              <span key={person.id}>
+                <span className="font-medium">{personName(person)}</span>
+                {person.displayName ? <span className="opacity-80"> · {person.loginId}</span> : null}
+              </span>
+            ))}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * One line of the history. Anyone who sees it can put an emoji on it: the chosen ones show under
+ * the line, and the button to add one appears when the pointer is on the line (always on a touch
+ * screen). `readOnly` (a deleted issue) only shows them.
+ */
+function ActivityEvent({ item, readOnly }: { item: IssueActivityItem; readOnly: boolean }) {
+  const reactions = useReactions(item.reactions, (emoji) => toggleActivityReaction({ id: item.id, emoji }));
+  const described = describe(item);
+  const { change, href, commits } = described;
+  // A Git server's change (D-153): a Git user without an account here is named as the server
+  // knows them, and when the event named nobody the server itself is ("GitHub에서 …").
+  const via = item.detail.via;
+  const source = via ? (via.provider ?? m.gitSource) : null;
+  const nobody = !item.actor && via != null && !via.name;
+  const actor = item.actor ?? { loginId: (nobody ? source : via?.name) ?? m.gitSource, displayName: null, avatarUrl: null };
+  const action = nobody ? m.fromServer(described.action) : described.action;
+  return (
+    <li className="group/entry flex items-start gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
+      <span className="flex h-5 shrink-0 items-center">
+        <PersonAvatar person={actor} />
+      </span>
+      <div className="min-w-0 flex-1 break-words">
+        <p>
+          <span className="font-medium text-foreground" title={!item.actor && !nobody && source ? m.gitUnmatched(source) : undefined}>
+            {personName(actor)}
+          </span>
+          {nobody ? "" : " "}
+          {action}
+          {change ? (
+            <>
+              {" "}
+              {href ? (
+                <a href={href} target="_blank" rel="noreferrer" className="text-foreground underline-offset-2 hover:underline">
+                  {change}
+                </a>
+              ) : (
+                <span className="text-foreground">{change}</span>
+              )}
+            </>
+          ) : null}
+          {source && !nobody ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              {source}
+            </>
+          ) : null}
+          <span aria-hidden="true"> · </span>
+          <TimeAgo iso={item.createdAt} />
+        </p>
+        {commits && commits.length > 0 ? (
+          <details className="group mt-0.5">
+            <summary className="w-fit cursor-pointer list-none rounded-sm outline-none select-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+              <span aria-hidden="true" className="mr-1 inline-block transition-transform group-open:rotate-90">
+                ›
+              </span>
+              {m.gitCommitsShow}
+            </summary>
+            <ul className="mt-1 flex flex-col gap-0.5 pl-3">
+              {commits.map((commit) => (
+                <li key={commit.sha} className="flex min-w-0 gap-2">
+                  <a
+                    href={commit.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0 font-mono text-xs leading-5 underline-offset-2 hover:text-foreground hover:underline"
+                  >
+                    {commit.sha.slice(0, 7)}
+                  </a>
+                  <span className="min-w-0 truncate text-foreground">{commit.message}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+        {reactions.reactions.length > 0 ? (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <ReactionPills reactions={reactions.reactions} onToggle={reactions.toggle} readOnly={readOnly} small />
+          </div>
+        ) : null}
+      </div>
+      {readOnly ? null : (
+        <ReactionPicker
+          variant="icon"
+          onPick={reactions.toggle}
+          className="size-6 shrink-0 opacity-0 group-hover/entry:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"
+        />
+      )}
+    </li>
+  );
+}
+
 /**
  * The history of an issue and its comments, mixed by time, oldest first, with who follows it and,
  * for people who may edit the issue, where to write a comment. The author, the assignee, whoever
@@ -134,12 +291,15 @@ export function IssueActivity({
   feed,
   canComment,
   mentionables,
+  readOnly = false,
 }: {
   number: number;
   feed: IssueActivityFeed;
   canComment: boolean;
   /** The people "@" offers in a comment. */
   mentionables: MentionPerson[];
+  /** The issue is deleted: emoji are shown but not changed. */
+  readOnly?: boolean;
 }) {
   const mutation = useOptimisticMutation(
     feed.subscribed,
@@ -147,7 +307,6 @@ export function IssueActivity({
     setIssueSubscribed,
   );
   const subscribed = mutation.value;
-  const subscriberNames = feed.subscribers.map(personName).join(", ");
 
   return (
     <section data-presence-id="activity" aria-labelledby="issue-activity-title" className="flex flex-col gap-3 border-t pt-5">
@@ -155,19 +314,7 @@ export function IssueActivity({
         <h3 id="issue-activity-title" className="mr-auto text-[0.9375rem] leading-[1.375rem] font-semibold">
           {m.heading}
         </h3>
-        {feed.subscribers.length > 0 ? (
-          <span
-            title={m.subscribers(subscriberNames)}
-            className="flex items-center -space-x-1"
-          >
-            {feed.subscribers.slice(0, 5).map((person) => (
-              <PersonAvatar key={person.id} person={person} />
-            ))}
-            <span className="sr-only">
-              {m.subscribers(subscriberNames)}
-            </span>
-          </span>
-        ) : null}
+        {feed.subscribers.length > 0 ? <SubscriberAvatars people={feed.subscribers} /> : null}
         <Button
           type="button"
           variant="ghost"
@@ -185,80 +332,13 @@ export function IssueActivity({
         </p>
       ) : null}
       <ol className="flex flex-col gap-2.5">
-        {entriesOf(feed).map((entry) => {
-          if (entry.comment) return <CommentItem key={entry.comment.id} comment={entry.comment} mentionables={mentionables} />;
-          const item = entry.event;
-          const described = describe(item);
-          const { change, href, commits } = described;
-          // A Git server's change (D-153): a Git user without an account here is named as the server
-          // knows them, and when the event named nobody the server itself is ("GitHub에서 …").
-          const via = item.detail.via;
-          const source = via ? (via.provider ?? m.gitSource) : null;
-          const nobody = !item.actor && via != null && !via.name;
-          const actor = item.actor ?? { loginId: (nobody ? source : via?.name) ?? m.gitSource, displayName: null, avatarUrl: null };
-          const action = nobody ? m.fromServer(described.action) : described.action;
-          return (
-            <li key={item.id} className="flex items-start gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
-              <span className="flex h-5 shrink-0 items-center">
-                <PersonAvatar person={actor} />
-              </span>
-              <div className="min-w-0 flex-1 break-words">
-                <p>
-                  <span className="font-medium text-foreground" title={!item.actor && !nobody && source ? m.gitUnmatched(source) : undefined}>
-                    {personName(actor)}
-                  </span>
-                  {nobody ? "" : " "}
-                  {action}
-                  {change ? (
-                    <>
-                      {" "}
-                      {href ? (
-                        <a href={href} target="_blank" rel="noreferrer" className="text-foreground underline-offset-2 hover:underline">
-                          {change}
-                        </a>
-                      ) : (
-                        <span className="text-foreground">{change}</span>
-                      )}
-                    </>
-                  ) : null}
-                  {source && !nobody ? (
-                    <>
-                      <span aria-hidden="true"> · </span>
-                      {source}
-                    </>
-                  ) : null}
-                  <span aria-hidden="true"> · </span>
-                  <TimeAgo iso={item.createdAt} />
-                </p>
-                {commits && commits.length > 0 ? (
-                  <details className="group mt-0.5">
-                    <summary className="w-fit cursor-pointer list-none rounded-sm outline-none select-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
-                      <span aria-hidden="true" className="mr-1 inline-block transition-transform group-open:rotate-90">
-                        ›
-                      </span>
-                      {m.gitCommitsShow}
-                    </summary>
-                    <ul className="mt-1 flex flex-col gap-0.5 pl-3">
-                      {commits.map((commit) => (
-                        <li key={commit.sha} className="flex min-w-0 gap-2">
-                          <a
-                            href={commit.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="shrink-0 font-mono text-xs leading-5 underline-offset-2 hover:text-foreground hover:underline"
-                          >
-                            {commit.sha.slice(0, 7)}
-                          </a>
-                          <span className="min-w-0 truncate text-foreground">{commit.message}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
+        {entriesOf(feed).map((entry) =>
+          entry.comment ? (
+            <CommentItem key={entry.comment.id} number={number} comment={entry.comment} mentionables={mentionables} readOnly={readOnly} />
+          ) : (
+            <ActivityEvent key={entry.event.id} item={entry.event} readOnly={readOnly} />
+          ),
+        )}
       </ol>
       {canComment ? <CommentComposer number={number} mentionables={mentionables} /> : null}
     </section>

@@ -34,6 +34,8 @@
 - **편집기에 Figma·Google(문서·스프레드시트·프레젠테이션)·Office·Outline 임베드가 생겼다** (D-139, 2026-10-15). 링크만 붙여 넣거나 `/임베드`. 블록 `embed`, 서버 검증 `RichText.EMBED_URLS`. **백엔드를 다시 띄워야 저장된다**(전 서버는 `embed` 를 422 로 거부한다). 편집기 안에서의 화면은 아무도 확인하지 않았다.
 - **사용 방법을 모은 "도움말" 페이지(`/help`)가 생겼다** (D-154, 2026-10-16, [features/help.md](features/help.md)). 사용자 메뉴의 "관리자 설정" 아래(구성원은 "내 설정" 아래). 내용은 `frontend/src/features/help/content.ts` 이고 **구현된 기능만** 쓴다. 기능을 더하거나 바꾸면 이 파일의 해당 절도 함께 고친다.
 
+- **댓글·활동 기록 줄마다 이모지를 달 수 있고, 댓글에 사진·파일을 올릴 수 있다** (D-164, 2026-10-21, [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "지금 구현된 범위"). 마이그레이션 `V23`. **백엔드를 다시 띄워야 적용된다. 컴파일·ktlint·타입 검사·eslint 만 했고 테스트는 돌리지 않았다.**
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
@@ -182,6 +184,39 @@
 
 ## 작업 기록
 
+### 2026-10-21 — 화면 오른쪽 위 "보는 사람" 아바타도 같은 방식으로 (D-164 이어서)
+
+- 사용자 지시: 티켓 상세와 프로젝트에서 활동(보는 사람) 아바타를 보이는 모든 곳을 구독자 아바타처럼. 두 곳 모두 `PresenceAvatars` 하나(프로젝트 `PageHeader` 의 `actions`, 티켓 창 맨 위 줄)라 그 컴포넌트만 고쳤다. D-044 때 "겹치면 구분이 안 된다"며 나란히 두었던 사용자 판단은 이번 지시로 바뀌었다(올리면 벌어져서 구분된다).
+- `presence-avatars.tsx`: `AvatarGroup` 을 `avatar-fan -space-x-3` 로(예전 `space-x-0 gap-1`), 아바타의 `hover:scale-150` 과 전환 클래스를 없애고(`.avatar-fan` 이 1.25배·±15px 로 한다), 말풍선 거리 12 → 8(커지는 폭이 줄어서). **지금 안 보는 사람의 흐림은 아바타 전체의 `opacity-40` 이 아니라 안쪽(`*:opacity-40 *:grayscale`)과 `bg-background`** 로 바꿨다: 겹쳐 있으면 전체를 흐리게 했을 때 아래 아바타가 비친다. 올리면 안쪽이 원래대로 돌아온다. "+N" 도 같이 벌어진다.
+- 헤더 오른쪽 여백이 16px(`px-4`)라 맨 오른쪽 아바타가 밀려도 15px 로 안 잘린다. 티켓 창에서는 닫기 버튼 쪽으로 7px 쯤 겹쳐 보일 수 있다.
+- 바꾸지 않은 곳: 담당자 칩·티켓 목록 줄·목표 창의 담당자 아바타(`PeopleAvatars`/`PeopleMarks`)는 이미 겹쳐 있고 단추 안의 장식이라 그대로다(올림 효과를 주려면 사람마다 툴팁이 먼저 필요하다).
+- 검사: `typecheck`·바꾼 파일 eslint. 실제 `PresenceAvatars` 는 웹소켓·사람 목록이 있어야 해서, 같은 마크업·클래스를 복사해 그린 임시 페이지(지웠다)에서 겹침, 안 보는 사람이 안쪽만 흐려지는 것(`*:` 변형이 쓰임), 올린 것이 앞으로 나오고 흐림이 풀리며 앞뒤가 ∓15px 로 벌어지는 것을 확인했다. **실제 화면은 보지 못했다**(로그인할 수 없다).
+
+### 2026-10-21 — 활동의 구독자 아바타: 사람마다 툴팁, 반쯤 겹치고 올리면 양옆으로 벌어짐 (D-164 이어서)
+
+- 사용자 지시: 구독 중 표시를 한 덩어리 툴팁이 아니라 사람마다 따로 나오게(누가 누구인지 구분이 안 된다). 이어서: 겹치지 않게 했더니, Notion 처럼 **절반쯤 겹치고, 마우스를 올리면 그 사람만 강조되면서 나머지는 양옆으로 밀려나게**.
+- `issue-activity.tsx` 의 `SubscriberAvatars`: 24px 아바타가 12px 겹치게(`-space-x-3`, 배경색 링 `ring-2`), 아바타마다 자기 툴팁(이름, 표시 이름이 있으면 아래 줄에 아이디 — 이름이 같은 두 사람도 구분된다). 5명까지만 아바타이고 나머지는 "+N", 거기에 올리면 나머지 사람들이 "이름 · 아이디"로 한 줄씩. 묶음은 `role="group"` 으로 전체 이름을 스크린 리더에 읽어 준다. `messages.issues.activity`: `moreSubscribers`.
+- 벌어지는 효과는 순수 CSS 다(`globals.css` 의 `.avatar-fan`): 올린(또는 키보드 포커스한) 것은 `scale: 1.25` 로 앞으로 나오고, 그 앞의 형제는 `translate: -15px`, 뒤의 형제는 `15px`. 15px = 겹침 12px + 커지는 3px 이라 올린 것 밑에 틈이 생기지 않는다(틈이 생기면 올림이 풀려 줄이 계속 흔들린다). 아바타 크기·겹침을 바꾸면 이 값도 같이 바꾼다. 아바타 폭은 `PersonAvatar` 의 `size-4.5` 가 아니라 `Avatar size="sm"` 의 24px 로 그려진다(이미 있던 일). `prefers-reduced-motion` 에서는 움직임 없이 바뀐다.
+- 알아둘 것: 절반이 겹치면 글자 아바타(사진 없는 사람)는 글자의 오른쪽 절반이 다음 사람에 가려진다. 올리면 보인다. 사진이 있는 사람은 영향이 적다.
+- 알아둘 것(개발): `globals.css` 를 `sed -i` 처럼 파일을 바꿔치는 도구로 고치면 Windows 의 `next dev` 가 변경을 놓쳐 CSS 가 옛것으로 남는다. 편집기(제자리 저장)로 고치면 반영된다.
+- 검사: `typecheck`·바꾼 파일 eslint 통과. 샘플 데이터를 그린 임시 페이지(지웠다)에서 7명(5 + "+2")을 놓고 겹침, 올린 것의 scale·z-index, 앞뒤 형제의 ∓15px, 사람마다 자기 이름·아이디만 뜨는 것, "+N" 이 맨 위로 보이는 것을 확인했다.
+
+### 2026-10-21 — 이모지·구독자의 마우스 올림 설명을 커스텀 툴팁으로 (D-164 이어서)
+
+- 사용자 지시: 이모지에 마우스를 올릴 때 브라우저 기본 설명(`title`)을 띄우지 말고 커스텀으로, 활동의 구독자 목록도 같게. 이모지 반응에 알림은 필요 없음(원래 없다: `toggle*Reaction` 은 `IssueAnnouncer.touched` 로 실시간 갱신만 부르고 `commented`·알림은 부르지 않는다. 바꾼 것 없음).
+- `issue-reactions.tsx`: 이모지 알약은 `Tooltip`(누른 사람 이름, 바로 뜸, 이름이 아직 없는 방금 단 이모지는 안 뜸), 이모지 추가 버튼은 `TooltipTrigger` 위에 `PopoverTrigger` 를 겹쳐 "이모지 달기" 툴팁. 읽기 전용(삭제된 티켓)은 `disabled` 대신 `aria-disabled` 로 해서 이름이 계속 보인다. `issue-activity.tsx`: 구독자 아바타에 툴팁("구독 중" + 이름을 줄마다, 키보드 포커스에서도 뜸), `messages.issues.activity.subscribing`. [04-frontend-guide.md](04-frontend-guide.md) 에 규칙 한 줄.
+- 검사: `typecheck`·바꾼 파일 eslint 통과. 샘플 데이터를 그린 임시 페이지(지웠다)에서 알약·추가 버튼·구독자 툴팁이 뜨고 `title` 이 남지 않은 것, 추가 버튼을 눌러 이모지 목록이 열리는 것, 읽기 전용에서 이름 툴팁과 버튼 숨김을 확인했다. 다른 곳의 `title`(댓글 수정·삭제, 클립·파일 빼기 버튼 등)은 그대로다.
+
+### 2026-10-21 — 댓글·활동 기록 줄의 이모지, 댓글의 사진·파일 (D-164)
+
+- 사용자 요청: 티켓 활동에서 댓글마다 또는 작업(활동 줄)마다 이모지로 표시할 수 있게, 사진·문서 같은 것도 댓글에 올릴 수 있게.
+- 백엔드: `V23__comment_reactions_and_files.sql`(`issue_comment_reactions`, `issue_activity_reactions`, `issue_attachments.comment_id`·`pending`). `IssueExtras.kt` 의 이모지 쿼리를 세 표 공통으로 합쳤다(`ReactionTable`). `IssueService`: `toggleCommentReaction`·`toggleActivityReaction`(볼 수 있으면 누구나, 삭제된 티켓은 403), `attachToDraft`(댓글 쓰는 중 올린 파일, `pending`), `addComment`·`updateComment` 가 `attachmentIds` 를 받음(파일만 있는 댓글은 빈 문단 본문, 10개 한도, 남의 파일·이미 보낸 파일은 422), 수정 때 `attachmentIds` 는 남길 파일 전체. 피드(`GET …/activity`)의 `comments[]` 에 `reactions`·`attachments`, `items[]` 에 `reactions`. 새 API: `POST /api/v1/issues/{n}/comment-files`, `POST /api/v1/comments/{id}/reactions`, `POST /api/v1/activities/{id}/reactions`(`ActivityController`). 내려받기(`/api/v1/attachments/{id}`)는 보내지 않은 파일이면 올린 사람만, 지운 댓글의 파일은 404. `RetentionService.purge` 가 댓글 영구 삭제 때 그 파일을, 그리고 하루 지난 `pending` 파일을 저장소에서 지운다.
+- 프런트: `issue-reactions.tsx` 를 `useReactions`·`ReactionPills`·`ReactionPicker` 로 쪼개 티켓·댓글·활동 줄이 함께 쓴다. `comment-files.tsx`(`useCommentFiles`: 고르는 즉시 올리기·빼기·취소, `useFileTransfer`: 끌어다 놓기·붙여 넣기, `AttachButton`, 파일 칩). 사진(JPEG·PNG·WebP·GIF)은 편집기의 이미지로(`RichTextEditor` 에 `ref` 로 `insertImages`), 나머지는 파일 칩. `issue-comments.tsx`(작성 칸·댓글 수정에 클립 버튼, 이모지 버튼, 파일만 있는 댓글은 본문 없이), `issue-activity.tsx`(`ActivityEvent`: 줄에 마우스를 올리면 이모지 버튼), `IssueActivity` 에 `readOnly`(삭제된 티켓).
+- 도움말: "댓글과 활동"에 두 소절, "첨부 파일과 이모지"에 안내 한 줄.
+- 검사: 백엔드 `compileKotlin`·`compileTestKotlin`·ktlint(`FLOWBIT_BUILD_DIR=build-comment`), 프런트 `typecheck`·바꾼 파일 eslint 통과. **테스트는 돌리지 않았다**(`IssuesIntegrationTest` 에 이모지 1개·댓글 파일 2개를 더했다). 화면: 로그인할 수 없고 Docker 가 꺼져 있어 새 백엔드로는 못 봤다. 같은 컴포넌트를 샘플 데이터로 그린 임시 페이지(지웠다)에서 활동 줄·댓글의 이모지 버튼과 알약, 파일 칩, 파일 끌어다 놓기(안내 문구 → 올리는 칩 → 실패 시 칩이 빠지고 오류), 댓글 수정 모드, 이모지 요청 주소(`POST /api/v1/activities/{id}/reactions`)를 확인했다. **올리기·보내기·내려받기·이모지가 서버에 저장되는 것은 아직 아무도 확인하지 않았다.**
+- 볼 곳: 새 백엔드에서 ① 활동 줄·댓글에 이모지(두 계정으로 서로 보이는지, 실시간) ② 클립·끌어다 놓기·붙여 넣기로 파일 올리고 보내기, 파일만 있는 댓글, 11번째 파일 거절 ③ 댓글 수정에서 파일 빼기·더하기, 수정 취소 시 새로 올린 파일이 지워지는지 ④ 보기 역할이 이모지는 달고 파일은 못 올리는지 ⑤ 삭제된 티켓에서 이모지가 보기만 되는지 ⑥ 좁은 화면(375px)에서 파일 칩과 버튼.
+- 열린 질문(필요하면): 이미지가 아닌 파일 미리 보기(지금은 칩만), 댓글 파일을 알림에 어떻게 보일지(지금은 글이 없을 때만 파일 이름), 이모지 8개 제한 풀기.
+
 ### 2026-10-19 — Git 연결 해제, 독립 티켓의 브랜치 만들기 숨김, GitHub 권한 토큰 다시 받기 (D-161, D-162)
 
 - 사용자 지시: 티켓에서 연동된 브랜치 해제, 프로젝트를 정하지 않은 티켓에서는 Git 저장소 고르는 부분을 보이지 않게, Contents 를 Read and write 로 바꿨는데도 "쓰기 권한이 없습니다"가 뜸.
@@ -190,7 +225,7 @@
 - 권한: 앱 설정에서 바꾼 뒤 조직 소유자가 "Review request" 로 승인해야 하고, 설치 토큰이 1시간 동안 옛 권한을 가지므로 403·404 면 새 토큰으로 한 번 더 시도하게 했다.
 - 마이그레이션 번호: 목표 상태가 `V21` 을 먼저 커밋해서 이것은 `V22` 다(Flyway 순서).
 - 테스트: `GitHubIntegrationTest` 의 브랜치 만들기 테스트에 해제·독립 티켓을 더했다. **돌리지 않았다**(컴파일·ktlint·타입 검사·eslint 만). 브라우저로도 보지 않았다. 백엔드를 다시 띄워야 적용된다.
-- 활동 이모지(사용자 요청 2번)는 따로 세션으로 제안해 두었다(시작 전).
+- 활동 이모지(사용자 요청 2번)는 2026-10-21 에 만들었다(D-164, 아래 작업 기록).
 
 ### 2026-10-19 — 목표 상태, 완료·취소 목표 숨기기 (D-163)
 

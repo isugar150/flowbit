@@ -66,8 +66,10 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
   const hidden = people.slice(MAX_SHOWN);
 
   return (
-    // Side by side, not overlapping (the user's call, 2026-10-13: overlapped they could not be told apart).
-    <AvatarGroup role="group" className="space-x-0 gap-1" aria-label={viewers.length > 0 ? m.viewersLabel(viewers.map(personName).join(", ")) : m.peopleLabel}>
+    // Overlapping by half, as in Notion (the user's call, 2026-10-21; on 2026-10-13 it was side by side
+    // because overlapped they could not be told apart): pointing at one brings it forward and the
+    // others part around it (`avatar-fan`, globals.css), which is what tells them apart.
+    <AvatarGroup role="group" className="avatar-fan -space-x-3" aria-label={viewers.length > 0 ? m.viewersLabel(viewers.map(personName).join(", ")) : m.peopleLabel}>
       {shown.map((person) => (
         <Tooltip key={person.id}>
           <TooltipTrigger
@@ -79,8 +81,10 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
                 tabIndex={0}
                 aria-label={person.online ? `${personName(person)} · ${m.viewingNow}` : personName(person)}
                 className={cn(
-                  "transition-[scale,opacity,filter] duration-150 ease-out outline-none hover:z-10 hover:scale-150 focus-visible:z-10 focus-visible:scale-150 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-                  !person.online && "opacity-40 grayscale hover:opacity-100 hover:grayscale-0 focus-visible:opacity-100 focus-visible:grayscale-0",
+                  "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  // Dimmed inside, not as a whole: a faded avatar would show the one under it through.
+                  !person.online &&
+                    "bg-background *:opacity-40 *:grayscale *:transition-[opacity,filter] *:duration-150 hover:*:opacity-100 hover:*:grayscale-0 focus-visible:*:opacity-100 focus-visible:*:grayscale-0 motion-reduce:*:transition-none",
                 )}
               />
             }
@@ -89,7 +93,7 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
             <AvatarFallback>{initials(personName(person))}</AvatarFallback>
           </TooltipTrigger>
           {/* Below the avatar at its full size. */}
-          <TooltipContent sideOffset={12} className="flex flex-col items-center">
+          <TooltipContent sideOffset={8} className="flex flex-col items-center">
             <span className="font-medium">{personName(person)}</span>
             <span className="opacity-80">
               {person.online || !person.lastSeenAt ? (

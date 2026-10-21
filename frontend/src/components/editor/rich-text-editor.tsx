@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -40,6 +40,12 @@ const m = messages.editor;
 
 /** An editor document as stored by the backend (Tiptap JSON). */
 export type RichDoc = Record<string, unknown>;
+
+/** What a parent can ask of an editor from outside. */
+export type RichTextEditorHandle = {
+  /** Uploads the pictures and puts them at the cursor, the same as pasting them in. */
+  insertImages: (files: File[]) => Promise<void>;
+};
 
 type SlashItem = {
   id: string;
@@ -250,8 +256,10 @@ export function RichTextEditor({
   onCreateDocument,
   documents,
   mentionables,
+  ref,
 }: {
   initialContent: RichDoc | null;
+  ref?: React.Ref<RichTextEditorHandle>;
   /**
    * Makes a new document with this title and says which. When given, the `/` menu offers "문서":
    * it asks for the title first, then puts the new document at the cursor as a block of its own.
@@ -346,6 +354,7 @@ export function RichTextEditor({
   useEffect(() => {
     insertImagesRef.current = insertImages;
   });
+  useImperativeHandle(ref, () => ({ insertImages: (files) => insertImagesRef.current(files) }), []);
   const createDocumentRef = useRef(onCreateDocument);
   useEffect(() => {
     createDocumentRef.current = onCreateDocument;

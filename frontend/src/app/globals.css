@@ -351,6 +351,37 @@
   }
 }
 
+/*
+ * Avatars that overlap by about half, as in Notion. The one under the pointer (or with focus) comes
+ * forward and grows, and the others part around it: those before it move left, those after it move
+ * right, by the overlap plus the growth, so no gap opens under the pointer (a gap would end the
+ * hover and the row would jump back and forth). Made for 24px avatars overlapping by 12px
+ * (`-space-x-3`) that grow by a quarter (3px a side): 12 + 3 = 15px. Used for the followers of an
+ * issue (`SubscriberAvatars`).
+ */
+@layer components {
+  .avatar-fan > * {
+    transition:
+      scale 150ms ease-out,
+      translate 150ms ease-out;
+  }
+  .avatar-fan > :is(:hover, :focus-visible) {
+    z-index: 10;
+    scale: 1.25;
+  }
+  .avatar-fan > :is(:hover, :focus-visible) ~ * {
+    translate: 15px 0;
+  }
+  .avatar-fan > :has(~ :is(:hover, :focus-visible)) {
+    translate: -15px 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .avatar-fan > * {
+      transition: none;
+    }
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
