@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MilestonePanel, MilestonePanelProvider, type MilestonePanelTarget } from "@/features/milestones/components/milestone-panel";
 import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
-import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 
 /**
@@ -25,10 +22,6 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
   // Moving on from the issue by a link inside the dialog leaves this slot showing what it last
   // showed. The address says whether the dialog still belongs on screen.
   const pathname = usePathname();
-  // The ticket's milestone, always shown in a panel beside the dialog while it has one (D-140).
-  const [panel, setPanel] = useState<MilestonePanelTarget | null>(null);
-  // The panel made wide and the ticket narrow, for reading the milestone (D-157).
-  const [wide, setWide] = useState(false);
   if (path ? decodeURIComponent(pathname) !== decodeURIComponent(path) : !pathname.startsWith("/issue/")) return null;
 
   return (
@@ -43,15 +36,7 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
       {/* Hung from the top rather than centred, so it does not jump as its content grows or shrinks. */}
       <DialogContent
         showCloseButton={false}
-        className={cn(
-          "top-[6dvh] translate-y-0 gap-0 p-0 pb-3 sm:max-w-2xl lg:max-w-5xl",
-          // Room for the panel on the right: the pair is centred together. The panel's width is
-          // set here, as both of them need it.
-          panel &&
-            (wide
-              ? "xl:left-[calc(50%-(var(--milestone-panel-width)+0.75rem)/2)] xl:max-w-[28rem] xl:[--milestone-panel-width:min(56rem,calc(100vw-30.75rem))]"
-              : "xl:left-[calc(50%-11.875rem)] xl:max-w-[min(64rem,calc(100vw-26rem))] xl:[--milestone-panel-width:23rem]"),
-        )}
+        className="top-[6dvh] translate-y-0 gap-0 p-0 pb-3 sm:max-w-2xl lg:max-w-5xl"
       >
         {/*
           A bar of its own above the scroll box: who else is on the issue, as on a project's
@@ -70,14 +55,8 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
         <div className="max-h-[calc(88dvh-3.5rem)] min-h-64 overflow-y-auto overscroll-contain">
           {/* The ticket lays itself out by its own width, which the wide panel makes narrow. */}
           <div className="@container">
-            <MilestonePanelProvider value={setPanel}>{children}</MilestonePanelProvider>
+            {children}
           </div>
-          {/*
-            Inside the scroll box so that on a narrow screen it comes after the ticket. On a wide
-            one it is placed against the dialog (this box is not positioned), beside it and
-            outside this box's clipping.
-          */}
-          {panel ? <MilestonePanel key={panel.milestoneId} target={panel} wide={wide} onWideChange={setWide} /> : null}
         </div>
       </DialogContent>
     </Dialog>

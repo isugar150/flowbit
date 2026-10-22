@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
-import { CircleSlashIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRightIcon, CircleSlashIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import { useMilestonePanel } from "@/features/milestones/components/milestone-panel";
+import { milestoneHref } from "@/features/milestones/components/milestone-card";
 import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
@@ -99,6 +99,8 @@ export function IssuePropertyFields({
     option.value === NONE ? { value: option.value, label: m.emptyMilestone, muted: true } : option,
   );
 
+  const chosen = milestones.find((item) => item.id === values.milestoneId);
+
   return (
     <div className="flex flex-col gap-6">
       <Section title={messages.projects.properties}>
@@ -169,14 +171,27 @@ export function IssuePropertyFields({
               className="mr-1 ml-1.5 h-4 w-3 shrink-0 self-start rounded-bl-md border-b border-l border-foreground/25"
             />
             {milestones.length > 0 ? (
-              <ChipSelect
-                plain
-                label={m.milestone}
-                value={values.milestoneId ?? NONE}
-                options={milestoneChoices}
-                disabled={disabled || followsParent}
-                onChange={(value) => onChange({ milestoneId: value === NONE ? null : value })}
-              />
+              <>
+                <ChipSelect
+                  plain
+                  label={m.milestone}
+                  value={values.milestoneId ?? NONE}
+                  options={milestoneChoices}
+                  disabled={disabled || followsParent}
+                  onChange={(value) => onChange({ milestoneId: value === NONE ? null : value })}
+                />
+                {/* Goes to the milestone itself (its page over the project's overview). */}
+                {chosen ? (
+                  <Link
+                    href={milestoneHref(values.projectId, chosen.id)}
+                    aria-label={messages.milestones.openInProject(chosen.name)}
+                    title={messages.milestones.openInProjectHint}
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-md:size-9"
+                  >
+                    <ArrowUpRightIcon className="size-4" aria-hidden="true" />
+                  </Link>
+                ) : null}
+              </>
             ) : (
               <span className="flex h-8 items-center text-[0.8125rem] leading-5 text-muted-foreground">{m.emptyMilestone}</span>
             )}
@@ -236,18 +251,6 @@ export function IssueProperties({
   // The milestones on hand are those of the saved project; another project's arrive with the
   // refresh, so until then the milestone row has nothing to pick from.
   const projectSaved = values.projectId === saved.projectId;
-
-  // The ticket's milestone stays open beside the ticket (below it on a narrow screen) for as long
-  // as the ticket has one (D-140). The dialog draws it; this says which.
-  const milestone = projectSaved && values.projectId ? milestones.find((item) => item.id === values.milestoneId) : undefined;
-  const showMilestone = useMilestonePanel();
-  const panelProjectId = milestone ? values.projectId : null;
-  const panelMilestoneId = milestone?.id ?? null;
-  useEffect(() => {
-    if (!showMilestone) return;
-    showMilestone(panelProjectId && panelMilestoneId ? { projectId: panelProjectId, milestoneId: panelMilestoneId } : null);
-    return () => showMilestone(null);
-  }, [showMilestone, panelProjectId, panelMilestoneId]);
 
   return (
     <div className="flex flex-col gap-3">

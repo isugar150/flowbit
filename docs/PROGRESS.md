@@ -86,6 +86,8 @@
 
 - **목표 상세 창 오른쪽 위에 "본 사람" 아바타가 생겼다** (D-188, 2026-10-22, 사용자 요청: "누가 언제 봤는지 아바타 남겨줘 오른쪽위에"). 새 장치가 아니라 프로젝트·티켓·문서에 있던 프레즌스(D-119)를 목표 창에 붙인 것이다: 지금 보고 있는 사람이 먼저, 그다음은 마지막으로 본 때 순서, 올리면 이름과 "마지막 확인: N분 전". **백엔드**: `PagePresence` 가 프레즌스 키 `milestone:<id>` 를 안다(그 목표의 프로젝트 구성원이 구성원, 못 들어가는 사람은 404). **프런트**: `milestone-detail-dialog.tsx` 맨 위에 티켓 창처럼 막대(아바타 + 닫기 버튼)를 두고 `RealtimeScope presence="milestone:<id>"`(priority 1)를 등록했다. 내장 닫기 버튼은 껐고, 닫기가 본문에 얹히던 자리를 비우던 오른쪽 여백(목표 이름·속성 제목의 `pr-8`)을 걷었다. 티켓 옆 읽기 전용 목표 패널에는 붙이지 않는다. **프로젝트·티켓·문서 화면에도 있던 버그를 고쳤다**: `PresenceAvatars` 가 목록을 30초 동안 신선하다고 둬서 사람이 떠난 뒤 "혼자 있을 때"와 같은 키로 돌아오면 서버에 다시 묻지 않고, 방문자의 시각이 없던 낡은 목록 때문에 떠난 사람의 아바타가 안 나왔다 → `staleTime: 0`. 확인: 백엔드 `RealtimeIntegrationTest` 5개(새 1개: `milestone:` 키로 구성원·시각·404), 일회용 Postgres + 새 jar + 임시 복사본 프런트(프로덕션 빌드)에서 E2E `features.spec.ts` 11개 전부(새 `D-188`: 두 사람이 같은 목표를 열면 "지금 보는 중", 한 명이 닫기 버튼으로 닫으면 흐린 아바타와 "마지막 확인") 통과, `tour.spec.ts` 2개와 `flows.spec.ts` 10개 중 9개, `changes.spec.ts` 15개 중 14개 통과, typecheck·eslint. **실패하는 기존 E2E 둘(이 변경과 무관)**: `changes.spec.ts` "project overview: status and following show at once"(D-176 이후 "구독" 버튼이 피드를 읽은 뒤에야 생김), `flows.spec.ts` "files are attached and removed"(D-183 이 지운 `data-presence-id="attachments"` 영역을 찾는다). 둘 다 테스트가 낡았고 고치지 않았다. **백엔드를 다시 띄워야 `milestone:` 키가 받아들여진다**(새 프런트와 옛 백엔드면 목표 창의 아바타는 비어 있다).
 
+- **티켓 상세의 목표 패널을 없애고 목표 옆에 바로가기 아이콘을 둠** (D-187, 2026-10-22). `milestone-panel.tsx` 삭제, `issue-dialog.tsx`·`issue-properties.tsx` 수정. `typecheck`·eslint 통과, 화면은 확인하지 못했다.
+
 ## 다음 작업
 
 **PDF 미리보기를 무엇으로 붙일지 정해야 한다**(아래 "열린 질문"의 후보 비교). 정해지면 같은 창(`FileViewer`)에 `pdf` 종류를 더한다.
