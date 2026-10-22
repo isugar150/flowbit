@@ -12,11 +12,13 @@
 
 ## 파일의 종류
 
+새로 올리는 파일은 올린 날짜 폴더(`yyyy/MM/dd`, UTC) 안에 쌓이고, 예전 파일은 영역 폴더 바로 아래에 있다(D-182). 점검은 둘 다 훑고 키(마지막 이름)로 비교한다.
+
 저장소(로컬 폴더 또는 S3, D-167)에는 세 영역이 있다.
 
 | 영역 | 폴더 | 무엇 | 누가 가리키나 |
 |---|---|---|---|
-| 첨부 | `files/<uuid>` | 티켓 첨부, 티켓 댓글 파일, 문서·프로젝트·목표 댓글 파일. 올린 그대로 | `issue_attachments.file_key`, `content_files.file_key` |
+| 첨부 | `files/<uuid>` (D-182 이후는 `files/2026/10/22/<uuid>`) | 티켓 첨부, 티켓 댓글 파일, 문서·프로젝트·목표 댓글 파일, 편집기 본문의 파일 블록. 올린 그대로 | `issue_attachments.file_key`, `content_files.file_key`, 본문(`content` jsonb)의 `/api/v1/editor-files/<uuid>` |
 | 사진 | `images/<uuid>.webp` | 프로필 사진, 로고, 프로젝트 아이콘, 편집기·댓글에 넣은 사진의 WebP 사본 | `users.avatar_key`, `instance_settings.logo_key`, `projects.icon_key`, 본문(`content` jsonb)의 `/api/v1/files/<uuid>.webp` |
 | 원본 | `originals/<uuid>` | 사진을 올린 그대로(D-169). 사본의 키에서 `.webp` 를 뺀 이름 | 사본이 쓰이는 동안 |
 

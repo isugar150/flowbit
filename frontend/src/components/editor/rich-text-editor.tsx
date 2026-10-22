@@ -20,24 +20,27 @@ import {
   ListIcon,
   ListOrderedIcon,
   MinusIcon,
+  PaperclipIcon,
   QuoteIcon,
   TableIcon,
   XIcon,
 } from "lucide-react";
-import { fileProblem, settingsErrorMessage } from "@/features/settings/error-message";
+import { ACCEPTED_IMAGE_TYPES, fileProblem, settingsErrorMessage } from "@/features/settings/error-message";
 import { useUploadLimit } from "@/features/settings/upload-limit-provider";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { BlockDragHandle } from "./block-drag-handle";
 import { BlockId } from "./block-id";
 import { Embed, MAX_EMBED_URL_LENGTH, embedFor } from "./embed";
+import { FileBlock } from "./file-block";
 import { fixedOrigin } from "./fixed-origin";
+import { ImageViewer, type ViewerImage } from "./image-viewer";
 import { LinkCard, cardPlace, clickedLink, openLink, pressOn, type LinkCardState, type Press } from "./link-card";
 import { Mention, MentionPeopleContext, type MentionPerson } from "./mention";
 import { PageLink } from "./page-link";
 import { tableExtensions } from "./table-extensions";
 import { TableToolbar } from "./table-toolbar";
-import { uploadEditorImage } from "./upload-image";
+import { uploadEditorFile, uploadEditorImage } from "./upload-image";
 
 const m = messages.editor;
 
@@ -49,8 +52,8 @@ export type EditorOverlayContext = { editor: Editor; container: HTMLElement | nu
 
 /** What a parent can ask of an editor from outside. */
 export type RichTextEditorHandle = {
-  /** Uploads the pictures and puts them at the cursor, the same as pasting them in. */
-  insertImages: (files: File[]) => Promise<void>;
+  /** Uploads the files and puts them at the cursor, the same as pasting them in: pictures as pictures, every other file as a file block. */
+  insertFiles: (files: File[]) => Promise<void>;
 };
 
 type SlashItem = {
@@ -65,7 +68,7 @@ type SlashItem = {
 };
 
 /** What a block needs from the editor component beyond the document itself. */
-type SlashActions = { pickImage: () => void; createDocument: () => void; addEmbed: () => void };
+type SlashActions = { pickImage: () => void; pickFile: () => void; createDocument: () => void; addEmbed: () => void };
 
 const block = (editor: Editor, range: { from: number; to: number }) => editor.chain().focus().deleteRange(range);
 
@@ -97,6 +100,17 @@ const SLASH_ITEMS: SlashItem[] = [
     run: (e, r, actions) => {
       block(e, r).run();
       actions.pickImage();
+    },
+  },
+  {
+    id: "file",
+    label: m.file,
+    hint: m.fileHint,
+    keywords: "file attach attachment upload 파일 첨부 업로드",
+    icon: <PaperclipIcon />,
+    run: (e, r, actions) => {
+      block(e, r).run();
+      actions.pickFile();
     },
   },
   {
@@ -163,8 +177,10 @@ const MENU_HEIGHT = 320;
 /** The width of the block menu (w-56), and the least the people menu is ever squeezed to. */
 const MENU_MIN_WIDTH = 224;
 
-const imageFiles = (list: FileList | null | undefined): File[] =>
-  Array.from(list ?? []).filter((file) => file.type.startsWith("image/"));
+const isPicture = (file: File) => ACCEPTED_IMAGE_TYPES.includes(file.type);
+
+/** Everything that was dropped or pasted as a file; a picture becomes a picture, any other file a file block (D-182). */
+const droppedFiles = (list: FileList | null | undefined): File[] => Array.from(list ?? []);
 
 function matchingItems(query: string, withDocuments: boolean): SlashItem[] {
   const needle = query.toLowerCase();
@@ -308,6 +324,9 @@ export function RichTextEditor({
   const [uploading, setUploading] = useState(0);
   const [imageError, setImageError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const anyFileInputRef = useRef<HTMLInputElement>(null);
+  // The picture of the text that was clicked, enlarged over the page (D-182).
+  const [viewer, setViewer] = useState<{ images: ViewerImage[]; index: number } | null>(null);
   const editorRef = useRef<Editor | null>(null);
   // The key handler below is created once, so it reads the latest menu state through refs.
   const slashRef = useRef<SlashState | null>(null);
@@ -339,43 +358,56 @@ export function RichTextEditor({
     setSlash(visible);
   };
 
-  /** Uploads the pictures one by one and places each at `position` (the cursor when not given). */
-  const insertImages = async (files: File[], position?: number) => {
+  /**
+   * Uploads the files one by one and places each at `position` (the cursor when not given): a picture as a picture, any
+   * other file as a block that shows its name and size.
+   */
+  const insertFiles = async (files: File[], position?: number) => {
     const current = editorRef.current;
     if (!current || files.length === 0) return;
     interactedRef.current = true;
     setImageError(null);
     let at = position;
     for (const file of files) {
-      const problem = fileProblem(file, uploadLimit.bytes);
+      const picture = isPicture(file);
+      const problem = picture
+        ? fileProblem(file, uploadLimit.bytes)
+        : file.size > uploadLimit.bytes
+          ? messages.issues.attachments.tooLarge(file.name, uploadLimit.label)
+          : null;
       if (problem) {
         setImageError(problem);
         continue;
       }
       setUploading((count) => count + 1);
       try {
-        const src = await uploadEditorImage(file);
+        let node: Record<string, unknown>;
+        if (picture) {
+          node = { type: "image", attrs: { src: await uploadEditorImage(file), alt: file.name } };
+        } else {
+          const stored = await uploadEditorFile(file);
+          node = { type: "fileBlock", attrs: { src: stored.url, name: stored.name, size: stored.size } };
+        }
         if (current.isDestroyed) return;
-        const image = { type: "image", attrs: { src, alt: file.name } };
         if (at === undefined) {
-          current.chain().focus().insertContent(image).run();
+          current.chain().focus().insertContent(node).run();
         } else {
           at = Math.min(at, current.state.doc.content.size);
-          current.chain().focus().insertContentAt(at, image).run();
+          current.chain().focus().insertContentAt(at, node).run();
           at += 1;
         }
       } catch (error) {
-        setImageError(`${m.imageFailed} ${settingsErrorMessage(error)}`);
+        setImageError(`${picture ? m.imageFailed : m.fileFailed} ${settingsErrorMessage(error)}`);
       } finally {
         setUploading((count) => count - 1);
       }
     }
   };
-  const insertImagesRef = useRef(insertImages);
+  const insertFilesRef = useRef(insertFiles);
   useEffect(() => {
-    insertImagesRef.current = insertImages;
+    insertFilesRef.current = insertFiles;
   });
-  useImperativeHandle(ref, () => ({ insertImages: (files) => insertImagesRef.current(files) }), []);
+  useImperativeHandle(ref, () => ({ insertFiles: (files) => insertFilesRef.current(files) }), []);
   const createDocumentRef = useRef(onCreateDocument);
   useEffect(() => {
     createDocumentRef.current = onCreateDocument;
@@ -441,6 +473,7 @@ export function RichTextEditor({
   });
   const slashActions: SlashActions = {
     pickImage: () => fileInputRef.current?.click(),
+    pickFile: () => anyFileInputRef.current?.click(),
     createDocument: () => askAtCursorRef.current("document"),
     addEmbed: () => askAtCursorRef.current("embed"),
   };
@@ -478,15 +511,16 @@ export function RichTextEditor({
           PageLink,
           Mention,
           Embed,
+          FileBlock,
           ...(blockIds ? [BlockId] : []),
         ],
     editorProps: {
       attributes: { "aria-label": ariaLabel, role: "textbox", "aria-multiline": "true" },
       handlePaste: (view, event) => {
         if (plain) return false;
-        const files = imageFiles(event.clipboardData?.files);
+        const files = droppedFiles(event.clipboardData?.files);
         if (files.length > 0) {
-          void insertImagesRef.current(files);
+          void insertFilesRef.current(files);
           return true;
         }
         // A Figma or Outline link pasted on its own is shown in place rather than as a link.
@@ -499,11 +533,11 @@ export function RichTextEditor({
       handleDrop: (view, event, _slice, moved) => {
         if (plain) return false;
         // `moved` is a block dragged within the document, which the editor handles itself.
-        const files = moved ? [] : imageFiles(event.dataTransfer?.files);
+        const files = moved ? [] : droppedFiles(event.dataTransfer?.files);
         if (files.length === 0) return false;
         event.preventDefault();
         const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
-        void insertImagesRef.current(files, position);
+        void insertFilesRef.current(files, position);
         return true;
       },
       handleKeyDown: (view, event) => {
@@ -534,6 +568,7 @@ export function RichTextEditor({
               { from: state.from, to: state.to },
               {
                 pickImage: () => fileInputRef.current?.click(),
+                pickFile: () => anyFileInputRef.current?.click(),
                 createDocument: () => askAtCursorRef.current("document"),
                 addEmbed: () => askAtCursorRef.current("embed"),
               },
@@ -599,12 +634,23 @@ export function RichTextEditor({
   const items = slash ? menuItems(slash, Boolean(onCreateDocument), mentionables ?? []) : [];
 
   return (
+    <>
     <div
       // "rich-text-editable": tables leave room above for their toolbar (globals.css).
       // An overlay (the comment markers of the blocks) stands in a margin of its own at the right.
       className={cn("rich-text relative", editable && "rich-text-editable", overlay && "pr-8", className)}
       ref={boxRef}
       onClick={(event) => {
+        // A picture of the text opens enlarged; it is also how a read-only text shows one in full.
+        const dom = editorRef.current?.view.dom;
+        const target = event.target;
+        if (dom && target instanceof HTMLImageElement && dom.contains(target) && target.getAttribute("src")) {
+          const pictures = Array.from(dom.querySelectorAll("img")).filter((picture) => picture.getAttribute("src"));
+          const images = pictures.map((picture) => ({ src: picture.getAttribute("src") ?? "", alt: picture.alt }));
+          setViewer({ images, index: Math.max(0, pictures.indexOf(target)) });
+          setLinkCard(null);
+          return;
+        }
         const anchor = clickedLink(event.target, editorRef.current?.view.dom, pressRef.current, event.clientX, event.clientY);
         pressRef.current = null;
         const href = anchor?.getAttribute("href");
@@ -661,9 +707,22 @@ export function RichTextEditor({
         tabIndex={-1}
         aria-hidden="true"
         onChange={(event) => {
-          const files = imageFiles(event.target.files);
+          const files = droppedFiles(event.target.files);
           event.target.value = "";
-          void insertImages(files);
+          void insertFiles(files);
+        }}
+      />
+      <input
+        ref={anyFileInputRef}
+        type="file"
+        multiple
+        hidden
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(event) => {
+          const files = droppedFiles(event.target.files);
+          event.target.value = "";
+          void insertFiles(files);
         }}
       />
       {uploading > 0 ? (
@@ -761,5 +820,14 @@ export function RichTextEditor({
         </div>
       ) : null}
     </div>
+    {viewer ? (
+      <ImageViewer
+        images={viewer.images}
+        index={viewer.index}
+        onIndexChange={(index) => setViewer((current) => (current ? { ...current, index } : current))}
+        onClose={() => setViewer(null)}
+      />
+    ) : null}
+    </>
   );
 }

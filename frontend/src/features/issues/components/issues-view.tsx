@@ -222,8 +222,7 @@ export function IssuesView({
   // memoized by hand: that is under a millisecond, and the hand-written dependency list could not be kept by the
   // React Compiler lint (it reads `searchParams`, which it cannot prove is not changed later).
   const matches = (filter: string, value: string | null | undefined) => filter === ALL || (value ?? NONE) === filter;
-  const issues = allIssues.filter(
-    (issue) =>
+  const passesFilters = (issue: Issue) =>
       matches(project, issue.project?.id) &&
       matches(status, issue.status) &&
       // "No priority" is a priority of its own (NONE), not a missing value.
@@ -234,8 +233,22 @@ export function IssuesView({
       (labelFilter.length === 0 ||
         (issue.labels.length === 0 ? labelFilter.includes(NONE) : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
       matches(milestone, issue.milestone?.id) &&
-      (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle)),
-  );
+      (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle));
+  const issues = allIssues.filter(passesFilters);
+  const clearFilters = () => {
+    setSearch("");
+    replaceQuery((params) => {
+      for (const key of [...FILTER_KEYS, SEARCH_KEY]) params.delete(key);
+    });
+  };
+  // A ticket just made must show up. The filters are remembered across visits and across the three lists, so one left over
+  // from earlier could hide it: they are cleared then (the list says so).
+  const [filtersCleared, setFiltersCleared] = useState(false);
+  const showCreated = (issue: Issue) => {
+    if (passesFilters(issue)) return;
+    clearFilters();
+    setFiltersCleared(true);
+  };
   const all = (label: string, icon: React.ReactNode): ChipOption<string> => ({ value: ALL, label, icon });
   const filterChips: { key: ChipKey; label: string; options: ChipOption<string>[] }[] = [
     // Inside a project every issue has that project, so the filter is only on the list of all issues.
@@ -485,12 +498,7 @@ export function IssuesView({
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground max-md:h-11"
-                  onClick={() => {
-                    setSearch("");
-                    replaceQuery((params) => {
-                      for (const key of [...FILTER_KEYS, SEARCH_KEY]) params.delete(key);
-                    });
-                  }}
+                  onClick={clearFilters}
                 >
                   <XIcon data-icon="inline-start" />
                   {m.clearFilter}
@@ -519,6 +527,11 @@ export function IssuesView({
           ) : null}
           {deleted ? (
             <p className="border-t bg-muted/50 px-5 py-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedNotice}</p>
+          ) : null}
+          {filtersCleared ? (
+            <p role="status" className="border-t bg-muted/50 px-5 py-2 text-[0.8125rem] leading-5 text-muted-foreground">
+              {m.filtersClearedForCreated}
+            </p>
           ) : null}
           {issues.length === 0 ? (
             <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">
@@ -610,6 +623,7 @@ export function IssuesView({
           defaultMilestoneId={milestoneFilter === ALL || milestoneFilter === NONE ? null : milestoneFilter}
           defaultAssigneeId={defaultAssigneeId}
           defaultDates={dialogDates}
+          onCreated={showCreated}
         />
       ) : null}
     </>

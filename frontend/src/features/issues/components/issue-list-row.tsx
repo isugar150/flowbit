@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import { useRouter } from "next/navigation";
 import { DiamondIcon } from "lucide-react";
 import type { ProjectMember } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,9 @@ const LAYOUTS = {
 } as const;
 
 export type IssueListLayout = keyof typeof LAYOUTS;
+
+/** What on a line does something of its own when pressed, so pressing it must not also open the issue. */
+const OWN_ACTION = "a, button, input, textarea, select, label, summary, [role=button], [role=combobox], [role=menuitem], [role=option], [contenteditable=true]";
 
 /**
  * The names of the columns, laid out exactly as a line is. `sticky` is the class that keeps it
@@ -126,12 +130,24 @@ export const IssueListRow = memo(function IssueListRow({
   const columns = LAYOUTS[layout];
   const edit = editable ? editing : undefined;
   const members = edit?.members(issue) ?? null;
+  const router = useRouter();
+  // The whole line opens the issue, not just its title (D-182); the controls on it keep their own action.
+  const open = (event: React.MouseEvent<HTMLLIElement>) => {
+    const target = event.target as Element;
+    // A menu opened from the line lives in a portal: its clicks reach here through React, but not through the document.
+    if (event.defaultPrevented || event.button !== 0 || !event.currentTarget.contains(target) || target.closest(OWN_ACTION)) return;
+    if (window.getSelection()?.toString()) return;
+    const href = `/issue/${issue.key}`;
+    if (event.metaKey || event.ctrlKey || event.shiftKey) window.open(href, "_blank", "noopener");
+    else router.push(href);
+  };
 
   return (
     <li
       data-presence-id={`${presence}:${issue.number}`}
       data-tour={presence === "issue-row" ? "issue-row" : undefined}
-      className={cn("flex h-10 items-center gap-2 border-b hover:bg-muted max-md:h-12", className)}
+      onClick={open}
+      className={cn("flex h-10 cursor-pointer items-center gap-2 border-b hover:bg-muted max-md:h-12", className)}
     >
       <SubIssueIndent depth={depth} />
       {editable ? (

@@ -3,7 +3,6 @@ package com.flowbit.media.application
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.Resource
 import org.springframework.stereotype.Component
-import java.util.UUID
 
 /**
  * Keeps attached files as they were uploaded, in the [ObjectStore] (the storage folder or an S3
@@ -16,7 +15,7 @@ class FileStorage(
     private val log = LoggerFactory.getLogger(javaClass)
 
     suspend fun store(bytes: ByteArray): String {
-        val key = UUID.randomUUID().toString()
+        val key = StorageKeys.newId()
         objects.put(StorageArea.FILES, key, bytes)
         return key
     }

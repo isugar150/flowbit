@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRightIcon } from "lucide-react";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
+import { ConfirmDiscardDialog } from "@/components/confirm-discard-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -19,7 +20,7 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createIssue } from "../api";
-import type { Label, NewIssueInput } from "../types";
+import type { Issue, Label, NewIssueInput } from "../types";
 import { IssuePropertyFields } from "./issue-properties";
 
 const m = messages.issues;
@@ -53,6 +54,7 @@ export function NewIssueDialog({
   defaultMilestoneId = null,
   defaultAssigneeId = null,
   defaultDates = null,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -73,6 +75,8 @@ export function NewIssueDialog({
   defaultAssigneeId?: string | null;
   /** Dates to start with, when the dialog is opened from a day or a span of days on the calendar. */
   defaultDates?: { startDate: string | null; dueDate: string } | null;
+  /** Told about the ticket that was made, so the list behind can make sure it shows. */
+  onCreated?: (issue: Issue) => void;
 }) {
   const [title, setTitle] = useState("");
   const [properties, setProperties] = useState<Properties>(DEFAULT_PROPERTIES);
@@ -82,6 +86,9 @@ export function NewIssueDialog({
   const [createMore, setCreateMore] = useState(false);
   const [titleError, setTitleError] = useState(false);
   const [lastCreated, setLastCreated] = useState<string | null>(null);
+  // Closing with a title or a body that was not made into a ticket asks first (D-182).
+  const [hasBody, setHasBody] = useState(false);
+  const [asking, setAsking] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   // The title wraps instead of scrolling sideways: the field grows with what is typed.
   useEffect(() => {
@@ -93,6 +100,7 @@ export function NewIssueDialog({
 
   const resetBody = () => {
     content.current = null;
+    setHasBody(false);
     setRevision((current) => current + 1);
   };
 
@@ -119,6 +127,7 @@ export function NewIssueDialog({
   }
 
   const mutation = useRefreshingMutation(createIssue, (issue) => {
+    onCreated?.(issue);
     setTitle("");
     if (createMore) {
       // Keep what the next issue is likely to share (status, labels, assignees); start a fresh body.
@@ -173,13 +182,33 @@ export function NewIssueDialog({
     mutation.mutate({ title, content: content.current, ...properties });
   };
 
+  const startAgain = () => {
+    setTitle("");
+    resetBody();
+    setProperties({
+      ...DEFAULT_PROPERTIES,
+      projectId: initialProjectId ?? defaultProjectId,
+      assigneeIds: defaultAssigneeId ? [defaultAssigneeId] : [],
+    });
+  };
+  // Closing (the X, Esc, a click outside) with something typed asks first; "닫고 내용 버리기" starts the next one empty.
+  const dirty = title.trim() !== "" || hasBody;
+  const requestOpenChange = (next: boolean) => {
+    if (next || !dirty) {
+      if (!next) setAsking(false);
+      onOpenChange(next);
+      return;
+    }
+    if (!mutation.isPending) setAsking(true);
+  };
+
   const resetMutation = mutation.reset;
   useEffect(() => {
     if (open) resetMutation();
   }, [open, resetMutation]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={requestOpenChange}>
       {/* The dialog exists to type a title: put the cursor there as it opens. */}
       <DialogContent className="gap-0 p-0 sm:max-w-2xl md:max-w-4xl" initialFocus={titleRef}>
         <DialogTitle className="sr-only">{m.newTitle}</DialogTitle>
@@ -248,6 +277,7 @@ export function NewIssueDialog({
               className="-ml-4 max-h-[45dvh] min-h-28 overflow-y-auto overscroll-contain pl-4 md:max-h-[55dvh] md:min-h-64"
               onChange={(doc) => {
                 content.current = doc;
+                setHasBody(doc !== null);
               }}
             />
           </div>
@@ -298,6 +328,15 @@ export function NewIssueDialog({
             </Button>
           </div>
         </form>
+        <ConfirmDiscardDialog
+          open={asking}
+          onKeep={() => setAsking(false)}
+          onDiscard={() => {
+            setAsking(false);
+            startAgain();
+            onOpenChange(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
