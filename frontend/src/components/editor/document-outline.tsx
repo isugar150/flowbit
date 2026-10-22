@@ -13,15 +13,10 @@ type Entry = { level: number; text: string };
 const FULL_FROM = 1280;
 /** Narrower than that only a mark per heading is shown, down to this width; below it nothing (a phone has no room beside the text). */
 const MARKS_FROM = 640;
-/** How far below the top of the scroll box the outline stays: under the page's header (a page) or a little off the edge (a dialog, whose bar is outside its scroll box). */
-const STICKY_TOP_PAGE = 56;
-const STICKY_TOP_DIALOG = 16;
-/**
- * A heading counts as the one being read once it has reached this far below the top of the scroll box. Past where a
- * heading stops when it is jumped to (64px, `scroll-margin-top` in globals.css), so the heading that was chosen is the one picked out.
- */
-const READING_LINE_PAGE = 96;
-const READING_LINE_DIALOG = 72;
+/** Room kept between what stays at the top of the scroll box (the page header, the tabs) and the outline, or a heading that was jumped to. */
+const GAP = 12;
+/** A heading counts as the one being read once it is this far below the stay-put things: the one jumped to (at GAP) is picked out. */
+const READING_LINE_BELOW = GAP + 12;
 /** About a frame; a timer, not requestAnimationFrame, because a page in the background gets no frames. */
 const DELAY_MS = 16;
 
@@ -37,6 +32,26 @@ function scrollParentOf(element: HTMLElement | null): HTMLElement | null {
     if (overflowY === "auto" || overflowY === "scroll") return node;
   }
   return null;
+}
+
+/**
+ * How much of the top of the scroll box is covered by things that stay there while the page scrolls: the page's header
+ * and the tabs under it (a dialog has none). Found by looking at what is there, so the outline and the headings jumped to
+ * stay clear of whatever a page puts at its top. `near` is a box in the page's text column, to look at its height.
+ */
+function coveredTop(scroller: HTMLElement, near: HTMLElement): number {
+  const edge = scroller.getBoundingClientRect().top;
+  const x = near.getBoundingClientRect().left + 8;
+  let covered = 0;
+  // One bar under the other (the header, then the tabs): look again under each one found.
+  for (let step = 0; step < 4; step++) {
+    const bar = document
+      .elementsFromPoint(x, edge + covered + 2)
+      .find((element) => element !== scroller && scroller.contains(element) && getComputedStyle(element).position === "sticky");
+    if (!bar) break;
+    covered = Math.max(covered, bar.getBoundingClientRect().bottom - edge);
+  }
+  return Math.ceil(covered);
 }
 
 /** The headings of the document that have text, in order. They are read from the page, where they are also scrolled to. */
@@ -88,6 +103,42 @@ function useWidth(scroller: HTMLElement | null): number {
   );
 }
 
+/** Where the outline stands: how far down the scroll box it stays, and how far down the page it reaches. */
+type Place = { inset: number; span: number | null };
+
+/**
+ * Measures where the outline goes, again at every scroll and resize: below whatever stays at the top of the scroll box
+ * (`inset`), and as far down as the page goes (`span`, the height from the top of the text to the end of what scrolls), so
+ * that it keeps following the scroll through what comes after the text (the rest of a ticket, the activity), not only
+ * while the text itself is on the screen.
+ */
+function usePlace(scroller: HTMLElement | null, box: HTMLElement | null): Place {
+  const [place, setPlace] = useState<Place>({ inset: 0, span: null });
+  useEffect(() => {
+    if (!scroller || !box) return;
+    const measure = () => {
+      const inset = coveredTop(scroller, box);
+      const top = box.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+      // A little short of the end, so that its own height can never be what makes the page longer.
+      const span = Math.max(0, Math.floor(scroller.scrollHeight - top) - 4);
+      setPlace((previous) => (previous.inset === inset && previous.span === span ? previous : { inset, span }));
+    };
+    const timer = setTimeout(measure, DELAY_MS);
+    scroller.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    observer.observe(box);
+    return () => {
+      clearTimeout(timer);
+      scroller.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+      observer.disconnect();
+    };
+  }, [scroller, box]);
+  return place;
+}
+
 /** Which heading is being read: the last one that has reached the reading line, or the last one at the end of the page. */
 function useActive(editor: Editor, scroller: HTMLElement | null, entries: Entry[], readingLine: number): [number, (index: number) => void] {
   const [active, setActive] = useState(0);
@@ -119,7 +170,8 @@ function useActive(editor: Editor, scroller: HTMLElement | null, entries: Entry[
  * The headings of a document listed beside it, to jump to them (D-170). Wide pages show the list itself, like Notion's;
  * narrower ones show a mark for each heading at the edge of the text and open the list when the pointer (or focus) is
  * on them; phones show nothing. The one being read is picked out. Given the editor and the box it sits in (the overlay
- * of `RichTextEditor`), it lays itself in the margin to the right of that box and stays in view while the page scrolls.
+ * of `RichTextEditor`), it lays itself in the margin to the right of that box and follows the scroll down the page, below
+ * the header and tabs that stay at the top; a heading that is jumped to stops just under them too (D-180).
  */
 export function DocumentOutline({
   editor,
@@ -138,11 +190,10 @@ export function DocumentOutline({
   // The page scrolls in the <main> of the app's frame (a ticket or a milestone, in the scroll box of its dialog), and the
   // width left beside the text is what that box has to spare.
   const scroller = useMemo(() => scrollParentOf(container), [container]);
-  const onPage = scroller?.tagName === "MAIN";
-  const stickyTop = onPage ? STICKY_TOP_PAGE : STICKY_TOP_DIALOG;
   const entries = useEntries(editor);
   const width = useWidth(scroller);
-  const [active, setActive] = useActive(editor, scroller, entries, onPage ? READING_LINE_PAGE : READING_LINE_DIALOG);
+  const place = usePlace(scroller, container);
+  const [active, setActive] = useActive(editor, scroller, entries, place.inset + READING_LINE_BELOW);
   const list = useRef<HTMLOListElement>(null);
   const full = !compact && width >= FULL_FROM;
 
@@ -158,20 +209,30 @@ export function DocumentOutline({
   if (entries.length === 0 || width < MARKS_FROM) return null;
 
   const go = (index: number, button: HTMLElement) => {
-    headingsIn(editor)[index]?.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-      block: "start",
-    });
+    const heading = headingsIn(editor)[index];
+    if (!heading) return;
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    if (scroller && container) {
+      // Under whatever stays at the top as it is now (the tabs may have come or gone), not as it was measured.
+      const stop = scroller.getBoundingClientRect().top + coveredTop(scroller, container) + GAP;
+      scroller.scrollTo({ top: scroller.scrollTop + heading.getBoundingClientRect().top - stop, behavior });
+    } else {
+      heading.scrollIntoView({ behavior, block: "start" });
+    }
     setActive(index);
     // Where only the marks are shown the list closes when it no longer has the focus.
     if (!full) button.blur();
   };
 
   return (
-    <div className="pointer-events-none absolute inset-y-0 left-full z-20">
+    <div
+      // As tall as the page goes from the top of the text, so that the outline can follow the scroll all the way down it.
+      style={place.span === null ? undefined : { height: place.span }}
+      className={cn("pointer-events-none absolute left-full z-20", place.span === null ? "inset-y-0" : "top-0")}
+    >
       <nav
         aria-label={m.outline}
-        style={{ top: stickyTop }}
+        style={{ top: place.inset + GAP }}
         className={cn("group/outline pointer-events-auto sticky", full ? "ml-6 w-56" : "ml-0.5 w-4")}
       >
         {full ? null : (
