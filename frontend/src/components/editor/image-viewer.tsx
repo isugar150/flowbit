@@ -42,6 +42,8 @@ export function ImageViewer({
   // Where the lightbox is drawn: a box inside the dialog's popup.
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const zoom = useRef<ZoomRef>(null);
+  // Where the press began, and whether it moved: the click that follows the end of a drag is not a click on the picture.
+  const press = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
   return (
     <DialogPrimitive.Root
@@ -52,7 +54,17 @@ export function ImageViewer({
     >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop className="fixed inset-0 z-[70] bg-black/90" />
-        <DialogPrimitive.Popup aria-label={m.imageViewer} className="fixed inset-0 z-[70] outline-none">
+        <DialogPrimitive.Popup
+          aria-label={m.imageViewer}
+          className="fixed inset-0 z-[70] outline-none"
+          onPointerDownCapture={(event) => {
+            press.current = { x: event.clientX, y: event.clientY, moved: false };
+          }}
+          onPointerMoveCapture={(event) => {
+            const start = press.current;
+            if (start && !start.moved && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 4) start.moved = true;
+          }}
+        >
           <DialogPrimitive.Title className="sr-only">{m.imageViewer}</DialogPrimitive.Title>
           <div ref={setRoot} />
           {root ? (
@@ -74,8 +86,9 @@ export function ImageViewer({
               render={images.length <= 1 ? { buttonPrev: () => null, buttonNext: () => null } : undefined}
               on={{
                 view: ({ index: next }) => onIndexChange(next),
-                // A click on the picture zooms in, another one back out (a drag to move a zoomed picture is not a click).
+                // A click on the picture zooms in, another one back out. Moving a zoomed picture only moves it.
                 click: () => {
+                  if (press.current?.moved) return;
                   const current = zoom.current;
                   if (current) current.changeZoom(current.zoom > 1 ? 1 : 2.5);
                 },
