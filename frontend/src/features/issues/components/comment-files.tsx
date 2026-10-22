@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import type { CommentApi } from "../comment-api";
 import { MAX_COMMENT_FILES, type Attachment } from "../types";
-import { formatSize } from "./issue-attachments";
+import { formatSize } from "@/lib/format-size";
 
 const m = messages.issues.comments;
 

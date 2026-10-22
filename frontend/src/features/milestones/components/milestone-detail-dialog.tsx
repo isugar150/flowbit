@@ -281,46 +281,6 @@ export function MilestoneDetailBody({
                   </Link>
                 ) : null}
               </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5">
-                {canEdit ? (
-                  <ChipSelect
-                    label={m.status}
-                    value={milestone.status}
-                    options={projectStatusOptions}
-                    onChange={(status) => onChange?.({ status })}
-                  />
-                ) : (
-                  <span className="flex items-center gap-1.5">
-                    <ProjectStatusIcon status={milestone.status} />
-                    {projectStatusLabel(milestone.status)}
-                  </span>
-                )}
-                <span className="flex items-center gap-2">
-                  <span
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={percent}
-                    aria-label={m.progress(percent)}
-                    className="h-1.5 w-28 overflow-hidden rounded-full bg-muted"
-                  >
-                    <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
-                  </span>
-                  <span className="tabular-nums">{percent}%</span>
-                </span>
-                <span className="text-muted-foreground tabular-nums">{m.issues(milestone.doneCount, milestone.issueCount)}</span>
-                {canEdit || milestone.targetDate ? (
-                  <DateChip
-                    label={m.targetDate}
-                    placeholder={m.noTargetDate}
-                    value={milestone.targetDate}
-                    disabled={!canEdit}
-                    onChange={(targetDate) => onChange?.({ targetDate })}
-                  />
-                ) : (
-                  <span className="text-muted-foreground">{m.noTarget}</span>
-                )}
-              </div>
             </div>
             <section className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-3">
@@ -365,6 +325,46 @@ export function MilestoneDetailBody({
               !stacked && "lg:w-96 lg:border-t-0 lg:border-l lg:pt-6",
             )}
           >
+            <div role="group" aria-label={m.propertiesLabel} className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5", !stacked && "lg:pr-8")}>
+              {canEdit ? (
+                <ChipSelect
+                  label={m.status}
+                  value={milestone.status}
+                  options={projectStatusOptions}
+                  onChange={(status) => onChange?.({ status })}
+                />
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <ProjectStatusIcon status={milestone.status} />
+                  {projectStatusLabel(milestone.status)}
+                </span>
+              )}
+              <span className="flex items-center gap-2">
+                <span
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={percent}
+                  aria-label={m.progress(percent)}
+                  className="h-1.5 w-28 overflow-hidden rounded-full bg-muted"
+                >
+                  <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+                </span>
+                <span className="tabular-nums">{percent}%</span>
+              </span>
+              <span className="text-muted-foreground tabular-nums">{m.issues(milestone.doneCount, milestone.issueCount)}</span>
+              {canEdit || milestone.targetDate ? (
+                <DateChip
+                  label={m.targetDate}
+                  placeholder={m.noTargetDate}
+                  value={milestone.targetDate}
+                  disabled={!canEdit}
+                  onChange={(targetDate) => onChange?.({ targetDate })}
+                />
+              ) : (
+                <span className="text-muted-foreground">{m.noTarget}</span>
+              )}
+            </div>
             <section aria-labelledby="milestone-issues-title" className="flex flex-col gap-2">
               <div className={cn("flex items-center justify-between gap-2", !stacked && "lg:pr-8")}>
                 <h3 id="milestone-issues-title" className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">

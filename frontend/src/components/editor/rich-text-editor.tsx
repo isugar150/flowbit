@@ -681,6 +681,18 @@ export function RichTextEditor({
       onDropCapture={() => {
         interactedRef.current = true;
       }}
+      // A file dropped on the box but beside the text (the padding, the empty part under a short text) is not the editor's own
+      // drop: without this the browser opens or downloads it. It goes to the end of the text.
+      onDragOver={(event) => {
+        if (editable && !plain && event.dataTransfer.types.includes("Files")) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (!editable || plain || event.defaultPrevented) return;
+        const files = droppedFiles(event.dataTransfer.files);
+        if (files.length === 0) return;
+        event.preventDefault();
+        void insertFilesRef.current(files, editorRef.current?.state.doc.content.size);
+      }}
     >
       <MentionPeopleContext value={mentionPeople}>
         <EditorContent editor={editor} />
