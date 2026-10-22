@@ -323,12 +323,17 @@ class StorageInspector(
         val icons = keys("select icon_key as key from projects where icon_key is not null")
         val own = setOf("users" to "avatar_key", "instance_settings" to "logo_key", "projects" to "icon_key")
         val contentImages = mutableSetOf<String>()
+        // A file placed in a document is named by its address there (D-182), not by a column of its own.
+        val blockFiles = mutableSetOf<String>()
         val textTypes = "c.data_type in ('text', 'character varying', 'json', 'jsonb')"
         for ((table, column) in columns("$textTypes and c.table_name not in ('audit_events', 'flyway_schema_history')")) {
             if (table to column in own) continue
             contentImages +=
                 keys("select distinct m[1] as key from \"$table\", regexp_matches(\"$table\".\"$column\"::text, '$IMAGE_PATTERN', 'g') as m")
+            blockFiles +=
+                keys("select distinct m[1] as key from \"$table\", regexp_matches(\"$table\".\"$column\"::text, '$BLOCK_FILE_PATTERN', 'g') as m")
         }
+        fileKeys += blockFiles
         return References(fileKeys, avatars, logos, icons, contentImages)
     }
 
@@ -363,6 +368,7 @@ class StorageInspector(
 
         /** A picture's file name inside a text, as the SQL regular expression that finds it. */
         private const val IMAGE_PATTERN = "($UUID_PATTERN)\\.webp"
+        private const val BLOCK_FILE_PATTERN = "/api/v1/editor-files/($UUID_PATTERN)"
         private val UUID_KEY = Regex("^$UUID_PATTERN$")
         private val IMAGE_KEY = Regex("^$UUID_PATTERN\\.webp$")
 

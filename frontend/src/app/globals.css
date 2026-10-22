@@ -194,20 +194,24 @@
     align-items: flex-start;
     gap: 0.5rem;
   }
+  /* The box is as tall as one line of the text beside it (whatever size the editor is used at), centred on it. */
   .rich-text .tiptap ul[data-type="taskList"] > li > label {
     display: flex;
-    height: 1.375rem;
+    height: 1lh;
     flex-shrink: 0;
     align-items: center;
   }
   .rich-text .tiptap ul[data-type="taskList"] > li > label input {
     width: 1rem;
     height: 1rem;
+    margin: 0;
     accent-color: var(--primary);
   }
   .rich-text .tiptap ul[data-type="taskList"] > li > div {
     min-width: 0;
     flex: 1;
+    /* Not the gap `li > * + *` puts between a list item's blocks: here the box and the text are side by side, and that gap pushed the text 4px below the box. */
+    margin-top: 0;
   }
   .rich-text .tiptap ul[data-type="taskList"] > li[data-checked="true"] > div {
     color: var(--muted-foreground);
@@ -245,11 +249,21 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+  /* A wide picture or file name shrinks to the room the text has; it never widens the box around the editor. */
+  .rich-text {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .rich-text .tiptap {
+    max-width: 100%;
+  }
   .rich-text .tiptap img {
     display: block;
     max-width: 100%;
     height: auto;
     border-radius: 0.5rem;
+    /* Clicking a picture opens it enlarged (image-viewer.tsx). */
+    cursor: zoom-in;
   }
   .rich-text .tiptap img.ProseMirror-selectednode {
     outline: 2px solid var(--ring);

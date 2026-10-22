@@ -83,7 +83,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
           branch={git?.enabled ? branchName(user.loginId, issue.key, issue.title) : null}
           repository={git?.enabled ? (issue.gitRepository ?? (issue.gitRepositoryOptions?.length === 1 ? issue.gitRepositoryOptions[0] : null)) : null}
         />
-        <IssueAttachments number={issue.number} attachments={issue.attachments} canEdit={canEdit} />
+        <IssueAttachments attachments={issue.attachments} canEdit={canEdit} />
         <IssueReactions number={issue.number} reactions={issue.reactions} readOnly={Boolean(issue.deletedAt)} />
         <IssueSubIssues issue={issue} canEdit={canEdit} members={members ?? []} />
         {activity ? (

@@ -8,7 +8,6 @@ import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import { DocumentOutline } from "@/components/editor/document-outline";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
-import { milestoneTemplate } from "../outline";
 import { SaveStatus } from "@/components/editor/save-status";
 import { PeopleMarks } from "@/components/person";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -236,6 +235,8 @@ export function MilestoneDetailBody({
   };
 
   const commitName = (input: HTMLInputElement) => {
+    // The system's emoji panel (Win+. / Ctrl+Cmd+Space) takes focus from the field while it is open: that is not leaving it.
+    if (!document.hasFocus()) return;
     const name = input.value.trim();
     if (!name) input.value = milestone.name;
     else if (name !== milestone.name) onChange?.({ name });
@@ -328,8 +329,7 @@ export function MilestoneDetailBody({
               </div>
               {canEdit || milestone.content ? (
                 <RichTextEditor
-                  // An empty document starts from the template so it is clear what to write (D-137).
-                  initialContent={milestone.content ?? (canEdit ? milestoneTemplate(m.template) : null)}
+                  initialContent={milestone.content}
                   editable={canEdit}
                   placeholder={m.notesPlaceholder}
                   ariaLabel={m.notesLabel}

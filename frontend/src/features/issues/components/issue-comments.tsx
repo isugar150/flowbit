@@ -5,6 +5,7 @@ import { MessageSquareReplyIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc, type RichTextEditorHandle } from "@/components/editor/rich-text-editor";
+import { ConfirmDiscardDialog } from "@/components/confirm-discard-dialog";
 import { ModKey } from "@/components/mod-key";
 import { PersonAvatar, personName } from "@/components/person";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import type { CommentApi } from "../comment-api";
 import type { IssueComment } from "../types";
-import { AttachButton, CommentFiles, DraftFiles, splitFiles, useCommentFiles, useFileTransfer } from "./comment-files";
+import { AttachButton, CommentFiles, DraftFiles, useCommentFiles, useFileTransfer } from "./comment-files";
 import { ReactionPicker, ReactionPills, useReactions } from "./issue-reactions";
 
 const m = messages.issues.comments;
@@ -66,27 +67,28 @@ export function CommentComposer({
   const [empty, setEmpty] = useState(true);
   // A new key empties the editor after the comment is sent.
   const [revision, setRevision] = useState(0);
-  const files = useCommentFiles(api);
   const mutation = useRefreshingMutation(api.create, () => {
     draft.current = null;
     setEmpty(true);
     setRevision((current) => current + 1);
-    files.clear();
     onSent?.();
   });
-  const sendable = (!empty || files.ids.length > 0) && !files.busy && !mutation.isPending;
+  // Files are blocks of the text now (D-182), so a comment is its text alone.
+  const sendable = !empty && !mutation.isPending;
   const submit = () => {
-    if (sendable) mutation.mutate({ content: empty ? null : draft.current, attachmentIds: files.ids, parentId });
+    if (sendable) mutation.mutate({ content: draft.current, attachmentIds: [], parentId });
   };
+  // A reply with something written asks before it is given up (D-182).
+  const [asking, setAsking] = useState(false);
   const giveUp = () => {
-    files.cancel([]);
+    setAsking(false);
     onCancel?.();
   };
-  const takeFiles = (list: File[]) => {
-    const { pictures, others } = splitFiles(list);
-    if (pictures.length > 0) void editor.current?.insertImages(pictures);
-    if (others.length > 0) void files.add(others);
+  const tryGiveUp = () => {
+    if (!empty) setAsking(true);
+    else giveUp();
   };
+  const takeFiles = (list: File[]) => void editor.current?.insertFiles(list);
   const transfer = useFileTransfer(takeFiles);
 
   return (
@@ -120,10 +122,9 @@ export function CommentComposer({
           {m.dropFiles}
         </p>
       ) : null}
-      <DraftFiles files={files.files} onRemove={files.remove} />
-      {files.error || mutation.isError ? (
+      {mutation.isError ? (
         <p role="alert" className="text-[0.8125rem] leading-5 text-destructive">
-          {files.error ?? apiErrorMessage(mutation.error)}
+          {apiErrorMessage(mutation.error)}
         </p>
       ) : null}
       <div className="flex items-center gap-2">
@@ -133,7 +134,7 @@ export function CommentComposer({
           +Enter
         </span>
         {reply ? (
-          <Button type="button" variant="ghost" size="sm" disabled={mutation.isPending} className="max-md:h-11" onClick={giveUp}>
+          <Button type="button" variant="ghost" size="sm" disabled={mutation.isPending} className="max-md:h-11" onClick={tryGiveUp}>
             {m.cancel}
           </Button>
         ) : null}
@@ -142,6 +143,7 @@ export function CommentComposer({
           {mutation.isPending ? m.submitting : reply ? m.replySubmit : m.submit}
         </Button>
       </div>
+      {reply ? <ConfirmDiscardDialog open={asking} onKeep={() => setAsking(false)} onDiscard={giveUp} /> : null}
     </div>
   );
 }
@@ -180,13 +182,22 @@ export function CommentItem({
   // A new key puts the stored comment back when editing starts or is given up.
   const [revision, setRevision] = useState(0);
   const [empty, setEmpty] = useState(false);
+  // Whether the comment being changed differs from the saved one; giving up then asks first (D-182).
+  const [changed, setChanged] = useState(false);
+  const [asking, setAsking] = useState(false);
   // The first press asks, the second one deletes (the same as deleting an issue).
   const [confirming, setConfirming] = useState(false);
   const files = useCommentFiles(api, comment.attachments);
   const reactions = useReactions(comment.reactions, (emoji) => api.react({ id: comment.id, emoji }));
   const stopEditing = () => {
     setEditing(false);
+    setChanged(false);
+    setAsking(false);
     setRevision((current) => current + 1);
+  };
+  const giveUpEditing = () => {
+    files.cancel(comment.attachments);
+    stopEditing();
   };
   const saving = useRefreshingMutation(api.update, stopEditing);
   const removal = useRefreshingMutation(api.remove);
@@ -194,11 +205,7 @@ export function CommentItem({
   const save = () => {
     if (savable) saving.mutate({ id: comment.id, content: empty ? null : draft.current, attachmentIds: files.ids });
   };
-  const takeFiles = (list: File[]) => {
-    const { pictures, others } = splitFiles(list);
-    if (pictures.length > 0) void editor.current?.insertImages(pictures);
-    if (others.length > 0) void files.add(others);
-  };
+  const takeFiles = (list: File[]) => void editor.current?.insertFiles(list);
   const transfer = useFileTransfer(takeFiles);
   const failure = saving.error ?? removal.error;
   const error = files.error ?? (failure ? apiErrorMessage(failure) : null);
@@ -261,6 +268,7 @@ export function CommentItem({
                 onClick={() => {
                   draft.current = comment.content;
                   setEmpty(isBlankDoc(comment.content));
+                  setChanged(false);
                   files.reset(comment.attachments);
                   setEditing(true);
                   setRevision((current) => current + 1);
@@ -312,6 +320,7 @@ export function CommentItem({
             onChange={(doc) => {
               draft.current = doc;
               setEmpty(doc === null || isBlankDoc(doc));
+              setChanged(true);
             }}
           />
           {editing && transfer.dragging ? (
@@ -343,8 +352,8 @@ export function CommentItem({
             disabled={saving.isPending}
             className="ml-auto max-md:h-11"
             onClick={() => {
-              files.cancel(comment.attachments);
-              stopEditing();
+              if (changed || files.ids.join() !== comment.attachments.map((file) => file.id).join()) setAsking(true);
+              else giveUpEditing();
             }}
           >
             {m.cancel}
@@ -353,6 +362,7 @@ export function CommentItem({
             {saving.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}
             {saving.isPending ? m.saving : m.save}
           </Button>
+          <ConfirmDiscardDialog open={asking} onKeep={() => setAsking(false)} onDiscard={giveUpEditing} />
         </div>
       ) : null}
     </li>

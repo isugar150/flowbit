@@ -81,7 +81,10 @@ interface ObjectStore {
     ): Resource?
 }
 
-/** The storage folder (FLOWBIT_STORAGE_PATH): `files/`, `images/` and `originals/` under it. */
+/**
+ * The storage folder (FLOWBIT_STORAGE_PATH): `files/`, `images/` and `originals/` under it. Files stored since D-182 are in a
+ * folder per day inside those (`files/2026/10/22/<key>`); older ones stay directly in them.
+ */
 class LocalObjectStore(
     root: Path,
 ) : ObjectStore {
@@ -98,12 +101,15 @@ class LocalObjectStore(
 
     override suspend fun list(area: StorageArea): List<StoredObject> =
         withContext(Dispatchers.IO) {
-            Files.newDirectoryStream(directories.getValue(area)).use { stream ->
-                stream.mapNotNull { path ->
-                    // A file that goes away while the folder is being read is simply not there.
-                    val attributes = runCatching { Files.readAttributes(path, BasicFileAttributes::class.java) }.getOrNull()
-                    attributes?.takeIf { it.isRegularFile }?.let { StoredObject(path.fileName.toString(), it.size(), it.lastModifiedTime().toInstant()) }
-                }
+            // The day folders (D-182) are walked as well as the area's own folder, where older files stay.
+            Files.walk(directories.getValue(area)).use { stream ->
+                stream
+                    .toList()
+                    .mapNotNull { path ->
+                        // A file that goes away while the folder is being read is simply not there.
+                        val attributes = runCatching { Files.readAttributes(path, BasicFileAttributes::class.java) }.getOrNull()
+                        attributes?.takeIf { it.isRegularFile }?.let { StoredObject(path.fileName.toString(), it.size(), it.lastModifiedTime().toInstant()) }
+                    }
             }
         }
 
@@ -112,13 +118,15 @@ class LocalObjectStore(
         key: String,
         bytes: ByteArray,
     ) {
-        val directory = directories.getValue(area)
+        val target = pathOf(area, key) ?: throw IllegalArgumentException("Not a storage key: $key")
+        val directory = target.parent
         withContext(Dispatchers.IO) {
+            Files.createDirectories(directory)
             // Write under a temporary name first so a half-written file is never served.
             val temporary = Files.createTempFile(directory, "upload-", ".tmp")
             try {
                 Files.write(temporary, bytes)
-                Files.move(temporary, directory.resolve(key), StandardCopyOption.ATOMIC_MOVE)
+                Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE)
             } finally {
                 Files.deleteIfExists(temporary)
             }
@@ -146,13 +154,15 @@ class LocalObjectStore(
         key: String,
     ): Path? {
         val directory = directories.getValue(area)
-        return directory.resolve(key).normalize().takeIf { it.parent == directory }
+        val path = directory.resolve(StorageKeys.pathOf(key)).normalize()
+        // A key is one name; where it is kept follows from the key (StorageKeys), never from a path in it.
+        return path.takeIf { it.fileName.toString() == key && it.startsWith(directory) }
     }
 }
 
 /**
  * An S3 bucket, or any store that speaks S3 (MinIO, Ceph, …; set the endpoint): objects are
- * `<prefix>/files/<key>`, `<prefix>/images/<key>` and `<prefix>/originals/<key>`. The files are served by this application, not
+ * `<prefix>/files/<key>`, `<prefix>/images/<key>` and `<prefix>/originals/<key>` (newer ones in a day folder inside: `files/2026/10/22/<key>`). The files are served by this application, not
  * by the bucket, so the bucket can stay private. The SDK client is blocking: every call runs on
  * Dispatchers.IO, like the folder's file access. An upload is held in memory anyway (up to
  * FLOWBIT_MAX_UPLOAD_SIZE), and so is a download.
@@ -183,8 +193,9 @@ class S3ObjectStore(
             client.listObjectsV2Paginator(request).forEach { page ->
                 page.contents().forEach { entry ->
                     // The console's "folder" placeholders are objects whose name ends with a slash.
-                    val key = entry.key().removePrefix(prefix)
-                    if (key.isNotEmpty() && !key.endsWith("/")) objects += StoredObject(key, entry.size(), entry.lastModified())
+                    // Newer files are in day folders (D-182); the key is the name at the end.
+                    val key = entry.key().removePrefix(prefix).substringAfterLast('/')
+                    if (key.isNotEmpty() && !entry.key().endsWith("/")) objects += StoredObject(key, entry.size(), entry.lastModified())
                 }
             }
             objects
@@ -204,7 +215,7 @@ class S3ObjectStore(
     private fun objectKey(
         area: StorageArea,
         key: String,
-    ) = "$base${area.folder}/$key"
+    ) = "$base${area.folder}/${StorageKeys.pathOf(key)}"
 
     override suspend fun put(
         area: StorageArea,

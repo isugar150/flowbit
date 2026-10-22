@@ -111,6 +111,8 @@ export function MilestonesSection({
                   }
                 }}
                 onBlur={(event) => {
+                  // Not while the system's emoji panel (Win+. / Ctrl+Cmd+Space) has the focus: the field is still being written in.
+                  if (!document.hasFocus()) return;
                   if (!event.currentTarget.value.trim() && !create.isPending) setAdding(false);
                 }}
                 className="min-w-0 flex-1 bg-transparent font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground"

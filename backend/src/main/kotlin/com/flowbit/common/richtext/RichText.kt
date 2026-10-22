@@ -102,6 +102,7 @@ class RichText(
                 "mention" -> text.append('@').append((map["attrs"] as? Map<*, *>)?.get("label") as? String ?: "")
                 "hardBreak" -> text.append(' ')
                 "pageLink" -> text.append((map["attrs"] as? Map<*, *>)?.get("title") as? String ?: "")
+                "fileBlock" -> text.append((map["attrs"] as? Map<*, *>)?.get("name") as? String ?: "")
             }
             (map["content"] as? List<*>)?.forEach { child ->
                 collect(child)
@@ -199,6 +200,15 @@ class RichText(
                 val pattern = EMBED_URLS[attrs["provider"]] ?: throw invalid(field)
                 if (url.length > MAX_EMBED_URL_LENGTH || !pattern.matches(url)) throw invalid(field)
             }
+            "fileBlock" -> {
+                val src = attrs?.get("src") as? String ?: throw invalid(field)
+                if (!STORED_FILE.matches(src)) throw invalid(field)
+                val name = attrs["name"] as? String ?: throw invalid(field)
+                if (name.isEmpty() || name.length > MAX_FILE_NAME_LENGTH) throw invalid(field)
+                val size = attrs["size"]
+                if (size != null && (size !is Number || size.toLong() < 0)) throw invalid(field)
+                text.append(name)
+            }
             "mention" -> {
                 val id = attrs?.get("id") as? String ?: throw invalid(field)
                 if (!DOCUMENT_ID.matches(id)) throw invalid(field)
@@ -244,11 +254,11 @@ class RichText(
         const val MAX_NODES = 5_000
 
         val BLOCK_TYPES =
-            setOf("paragraph", "heading", "codeBlock", "listItem", "taskItem", "blockquote", "horizontalRule")
+            setOf("paragraph", "heading", "codeBlock", "listItem", "taskItem", "blockquote", "horizontalRule", "fileBlock")
         val NODE_TYPES =
             BLOCK_TYPES +
                 setOf("doc", "text", "bulletList", "orderedList", "taskList", "hardBreak") +
-                setOf("image", "table", "tableRow", "tableHeader", "tableCell", "pageLink", "mention", "embed")
+                setOf("image", "table", "tableRow", "tableHeader", "tableCell", "pageLink", "mention", "embed", "fileBlock")
         val MARK_TYPES = setOf("bold", "italic", "strike", "code", "underline", "link")
 
         /** What a comment on a block holds (D-165): text and people. */
@@ -263,6 +273,7 @@ class RichText(
             mapOf(
                 "image" to "이미지",
                 "embed" to "임베드",
+                "fileBlock" to "파일",
                 "horizontalRule" to "구분선",
                 "table" to "표",
                 "pageLink" to "문서",
@@ -271,6 +282,10 @@ class RichText(
 
         /** Only images uploaded here (ImageStorage keys); an outside address could track readers. */
         val STORED_IMAGE = Regex("^/api/v1/files/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp$")
+
+        /** Only files uploaded here (EditorFileController); the name in the block is only what to show and to save the file as. */
+        val STORED_FILE = Regex("^/api/v1/editor-files/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+        const val MAX_FILE_NAME_LENGTH = 255
 
         /** A page block points at a document by its id; the title in it is only what to show until the real one loads. */
         val DOCUMENT_ID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")

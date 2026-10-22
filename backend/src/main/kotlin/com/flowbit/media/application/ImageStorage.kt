@@ -3,7 +3,6 @@ package com.flowbit.media.application
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.Resource
 import org.springframework.stereotype.Component
-import java.util.UUID
 
 /**
  * Keeps processed images in the [ObjectStore] (the storage folder or an S3 bucket, D-167), and next to
@@ -23,7 +22,7 @@ class ImageStorage(
         webp: ByteArray,
         original: ByteArray,
     ): String {
-        val id = UUID.randomUUID().toString()
+        val id = StorageKeys.newId()
         // The original first: a picture that could not be kept in full is not kept at all.
         objects.put(StorageArea.ORIGINALS, id, original)
         try {

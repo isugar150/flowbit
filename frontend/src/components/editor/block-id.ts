@@ -15,6 +15,7 @@ const BLOCK_TYPES = [
   "table",
   "pageLink",
   "embed",
+  "fileBlock",
 ];
 
 /** A random id; `crypto.randomUUID` only exists on secure pages, and a self-hosted site may be served over plain http. */

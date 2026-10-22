@@ -5,6 +5,7 @@ import com.flowbit.media.application.ImageStorage
 import com.flowbit.media.application.LocalObjectStore
 import com.flowbit.media.application.S3ObjectStore
 import com.flowbit.media.application.StorageArea
+import com.flowbit.media.application.StorageKeys
 import com.flowbit.media.application.StorageProperties
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll
@@ -23,10 +24,12 @@ import software.amazon.awssdk.services.s3.S3Configuration
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 import java.net.URI
 import java.nio.file.Path
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** The storage folder keeps files as it always did (D-167). */
 class LocalObjectStoreTest {
@@ -52,7 +55,7 @@ class LocalObjectStoreTest {
                 byteArrayOf(4, 5, 6),
                 root
                     .resolve("originals")
-                    .resolve(imageKey.removeSuffix(".webp"))
+                    .resolve(StorageKeys.pathOf(imageKey.removeSuffix(".webp")))
                     .toFile()
                     .readBytes(),
             )
@@ -69,8 +72,57 @@ class LocalObjectStoreTest {
         root
             .resolve(folder)
             .toFile()
-            .listFiles()!!
-            .size
+            .walkTopDown()
+            .count { it.isFile }
+
+    @Test
+    fun `새 파일은 올린 날의 폴더에 쌓이고 예전 파일은 있던 자리에서 그대로 읽힌다`() =
+        runBlocking {
+            val objects = LocalObjectStore(root)
+            val files = FileStorage(objects)
+            // A file from before the day folders: a random UUID, directly in the area's folder.
+            val legacy = UUID.randomUUID().toString()
+            root
+                .resolve("files")
+                .resolve(legacy)
+                .toFile()
+                .writeBytes(byteArrayOf(1))
+
+            val key = files.store(byteArrayOf(2))
+            val folder = StorageKeys.folderOf(key)!!
+            assertTrue(
+                root
+                    .resolve("files")
+                    .resolve(folder)
+                    .resolve(key)
+                    .toFile()
+                    .isFile,
+            )
+
+            assertContentEquals(byteArrayOf(1), files.find(legacy)!!.inputStream.readBytes())
+            assertContentEquals(byteArrayOf(2), files.find(key)!!.inputStream.readBytes())
+            assertEquals(setOf(legacy, key), objects.list(StorageArea.FILES).map { it.key }.toSet())
+
+            files.delete(legacy)
+            files.delete(key)
+            assertNull(files.find(legacy))
+            assertNull(files.find(key))
+        }
+
+    @Test
+    fun `키가 가리키는 폴더는 키 속 시각에서 나온다`() {
+        val at = Instant.parse("2026-10-22T23:59:59.999Z")
+        val key = StorageKeys.newId(at)
+        assertEquals("2026/10/22", StorageKeys.folderOf(key))
+        assertEquals("2026/10/22/$key", StorageKeys.pathOf(key))
+        assertEquals("2026/10/22", StorageKeys.folderOf("$key.webp"))
+        // A random UUID (the old keys) and anything else is kept directly in the area's folder.
+        val old = UUID.randomUUID().toString()
+        assertNull(StorageKeys.folderOf(old))
+        assertEquals(old, StorageKeys.pathOf(old))
+        assertNull(StorageKeys.folderOf("../x"))
+        assertTrue(UUID.fromString(key).version() == 7)
+    }
 
     @Test
     fun `모양이 다른 키는 찾지도 지우지도 않는다`() =
@@ -144,7 +196,15 @@ class S3ObjectStoreTest {
                             .build(),
                     ).contents()
                     .map { it.key() }
-            assertEquals(setOf("flowbit/files/$fileKey", "flowbit/images/$imageKey", "flowbit/originals/$imageId"), keys.toSet())
+            assertEquals(
+                setOf(
+                    "flowbit/files/${StorageKeys.pathOf(fileKey)}",
+                    "flowbit/images/${StorageKeys.pathOf(imageKey)}",
+                    "flowbit/originals/${StorageKeys.pathOf(imageId)}",
+                ),
+                keys.toSet(),
+            )
+            assertEquals(setOf(fileKey), objects.list(StorageArea.FILES).map { it.key }.toSet())
 
             files.delete(fileKey)
             images.delete(imageKey)

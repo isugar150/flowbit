@@ -70,6 +70,8 @@
 
 - **올린 파일을 어디에 둘지 `.env` 의 `FLOWBIT_STORAGE_TYPE=local` 또는 `amazon-s3` 로 정한다** (D-181, 2026-10-22, 사용자 요청, [02-architecture.md](02-architecture.md) "파일 저장소"·[10-install.md](10-install.md) 5절). 전에는 `s3` 라는 값이 주석 처리된 "강제용"이었고 실제로는 버킷이 있는지로 정해졌다. 이제 `local` · `amazon-s3`(`s3` 도 받음)를 받고, 템플릿(`.env.example`, `deploy.sh` 가 만드는 `.env`)에 이 줄이 항상 있으며, 비워 두면 예전처럼 버킷이 있을 때 `amazon-s3`(버킷만 적어 쓰던 서버가 안 바뀌게). `local` 인데 버킷이 있으면 시작할 때 경고, 시작 로그에 `File storage: …` 가 남는다. **백엔드를 다시 시작해야 적용된다. 컴파일·ktlint 만 했고 테스트(`StoragePropertiesTest`)는 돌리지 않았다.** 로컬 파일을 S3 로 옮기는 도구는 만들지 않았다.
 
+- **쓰던 글 닫기 확인, 본문 안의 파일 블록, 이미지 크게 보기, 줄 전체 클릭, 날짜 폴더 저장** (D-182, 2026-10-22, 사용자 요청 여덟 가지). 자세한 것은 [09-decisions.md](09-decisions.md) D-182. 백엔드: `EditorFileController`(`/api/v1/editor-files`), `RichText` 의 `fileBlock`, `StorageKeys`(UUID v7)와 `ObjectStore` 의 날짜 폴더, `StorageInspector` 가 본문의 파일 주소를 쓰는 것으로 센다. 프런트: `confirm-discard-dialog.tsx`, `components/editor/file-block.ts`·`image-viewer.tsx`, `RichTextEditor`(`insertFiles`, 이미지 클릭), 목록 줄 클릭(`issue-list-row.tsx`), 체크리스트 CSS, 목표 문서 기본 틀 제거, 대화상자 격자 열. **백엔드를 다시 띄워야 한다**(새 엔드포인트, 새 블록). `compileKotlin`·`ktlintCheck`·`LocalObjectStoreTest` 통과. **화면은 아무도 확인하지 않았다**(이 PC 에 백엔드·DB 가 없었다). 새 통합 테스트(편집기 파일 업로드, `fileBlock` 검증)는 쓰지 못했고 Docker 도 꺼져 있어 통합 테스트는 돌리지 못했다. **열린 질문**: ① 목표의 "이모지"가 이름 칸에 이모지를 못 넣는다는 뜻이었는지, 목표에 이모지 아이콘 칸을 달라는 뜻이었는지(전자로 보고 Windows 이모지 창이 입력 칸을 닫던 것을 고쳤다) ② "내 티켓에서 나로 할당한 새 티켓이 안 보임"은 서버 코드에서 원인을 찾지 못했고, 남아 있던 필터가 가린 경우를 고쳤다. 그래도 안 보이면 재현 순서를 알려 달라.
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.

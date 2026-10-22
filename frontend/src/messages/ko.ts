@@ -152,6 +152,13 @@ export const ko = {
     projectRoleIn: (project: string) => `${project}에서의 권한`,
     projectRoleNone: "권한 없음",
   },
+  // Asked before a dialog or an edit is closed with text that is not saved yet (D-182).
+  discard: {
+    title: "작성 중인 내용이 사라집니다",
+    description: "저장하지 않은 내용은 닫으면 사라지고 되돌릴 수 없습니다. 그래도 닫을까요?",
+    keep: "계속 작성",
+    confirm: "닫고 내용 버리기",
+  },
   editor: {
     // The headings of a document, listed beside it to jump to them (D-170).
     outline: "문서 목차",
@@ -189,6 +196,26 @@ export const ko = {
     dragBlock: "끌어서 블록 옮기기",
     imageUploading: "이미지를 올리는 중…",
     imageFailed: "이미지를 올리지 못했습니다.",
+    // A file placed in the text as a block of its own (D-182).
+    file: "파일",
+    fileHint: "문서에 파일 넣기",
+    fileUploading: "파일을 올리는 중…",
+    fileFailed: "파일을 올리지 못했습니다.",
+    fileDownload: (name: string) => `${name} 내려받기`,
+    fileSize: (bytes: number) =>
+      bytes < 1024 ? `${bytes}B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)}KB` : `${(bytes / 1024 / 1024).toFixed(1)}MB`,
+    // The picture of a text, enlarged on top of the page (D-182).
+    imageViewer: "이미지 크게 보기",
+    imageOpen: "이미지 크게 보기",
+    imageClose: "닫기",
+    imageZoomIn: "확대",
+    imageZoomOut: "축소",
+    imageZoomReset: "원래 크기로",
+    imageDownload: "이미지 내려받기",
+    imageOpenTab: "새 탭에서 열기",
+    imagePrevious: "이전 이미지",
+    imageNext: "다음 이미지",
+    imageCount: (index: number, total: number) => `${index} / ${total}`,
     dismiss: "닫기",
     // What a click on a link shows: its address and a way to open it (D-175).
     linkAddress: "링크 주소",
@@ -313,7 +340,6 @@ export const ko = {
     cardLabel: (name: string) => `${name} 목표`,
     noOutline: "목표 문서에 목적과 완료 조건을 적으면 여기에 보입니다.",
     openMilestone: "목표 열기",
-    template: { purpose: "목적", criteria: "완료 조건", scope: "범위", notes: "참고" },
     showDone: (count: number) => `완료·취소 ${count}개`,
     hideDone: "완료·취소 접기",
     doneToggle: (count: number) => `완료·취소된 목표 ${count}개`,
@@ -370,6 +396,7 @@ export const ko = {
     creating: "만드는 중",
     createMore: "계속 만들기",
     created: (key: string) => `${key} 티켓을 만들었습니다.`,
+    filtersClearedForCreated: "방금 만든 티켓이 보이도록 필터를 풀었습니다.",
     titleRequired: "티켓 제목을 입력하세요.",
     status: "상태",
     priority: "우선순위",

@@ -83,24 +83,3 @@ export function milestoneOutline(doc: RichDoc | null | undefined): MilestoneOutl
 export function hasOutline(outline: MilestoneOutline): boolean {
   return outline.purpose !== null || outline.criteria.length > 0;
 }
-
-/**
- * What a new milestone's document starts with, so it is clear what to write (D-137). Headings only
- * and empty lines; nothing is saved until someone types.
- */
-export function milestoneTemplate(headings: { purpose: string; criteria: string; scope: string; notes: string }): RichDoc {
-  const heading = (text: string): Node => ({ type: "heading", attrs: { level: 3 }, content: [{ type: "text", text }] });
-  return {
-    type: "doc",
-    content: [
-      heading(headings.purpose),
-      { type: "paragraph" },
-      heading(headings.criteria),
-      { type: "taskList", content: [{ type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph" }] }] },
-      heading(headings.scope),
-      { type: "paragraph" },
-      heading(headings.notes),
-      { type: "paragraph" },
-    ],
-  } as RichDoc;
-}
