@@ -44,6 +44,9 @@ class ImageStorage(
     /** The image for a key, or null when the key is malformed or nothing is stored under it. */
     suspend fun find(key: String): Resource? = if (KEY_PATTERN.matches(key)) objects.get(StorageArea.IMAGES, key) else null
 
+    /** The picture as it was uploaded, or null when none was kept (pictures from before D-169) or the key is malformed. */
+    suspend fun findOriginal(key: String): Resource? = if (KEY_PATTERN.matches(key)) objects.get(StorageArea.ORIGINALS, key.removeSuffix(EXTENSION)) else null
+
     private suspend fun remove(
         area: StorageArea,
         key: String,

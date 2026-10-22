@@ -14,7 +14,7 @@ const m = messages.editor;
 
 export type ViewerImage = { src: string; alt: string };
 
-/** The name a picture is saved under: the file name it was uploaded with, as a WebP (that is what the server keeps). */
+/** The name to offer for the download; the server's own (with the right extension) wins. */
 function downloadName(alt: string): string {
   const base = alt.replace(/\.[A-Za-z0-9]{1,5}$/, "").trim();
   return `${base || "image"}.webp`;
@@ -79,7 +79,8 @@ export function ImageViewer({
               slides={images.map((image) => ({
                 src: image.src,
                 alt: image.alt,
-                download: { url: image.src, filename: downloadName(image.alt) },
+                // The picture as it was uploaded; the server falls back to the WebP copy when none was kept.
+                download: { url: `${image.src}/original?name=${encodeURIComponent(image.alt)}`, filename: downloadName(image.alt) },
               }))}
               // The arrows stay out when there is only one picture.
               carousel={{ finite: images.length <= 1 }}
