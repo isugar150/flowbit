@@ -411,25 +411,25 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `하위 티켓은 10단계까지만 만들 수 있다`() {
+    fun `하위 티켓은 5단계까지만 만들 수 있다`() {
         fun sub(parentId: Any?) = editor.post("/api/v1/issues", """{"title":"하위","parentId":"$parentId"}""")
         // levels[0] is the top-level issue, levels[n] the sub-issue n levels below it.
         val levels = mutableListOf(editor.post("/api/v1/issues", """{"title":"상위"}""").json())
-        repeat(10) { levels += sub(levels.last()["id"]).json() }
+        repeat(5) { levels += sub(levels.last()["id"]).json() }
 
-        val tooDeep = sub(levels[10]["id"])
+        val tooDeep = sub(levels[5]["id"])
         assertEquals(409, tooDeep.status)
         assertEquals("ISSUE_TOO_DEEP", tooDeep.json()["code"])
-        assertEquals(false, editor.get("/api/v1/issues/${levels[10]["number"]}").json()["canAddSubIssue"])
-        assertEquals(true, editor.get("/api/v1/issues/${levels[9]["number"]}").json()["canAddSubIssue"])
+        assertEquals(false, editor.get("/api/v1/issues/${levels[5]["number"]}").json()["canAddSubIssue"])
+        assertEquals(true, editor.get("/api/v1/issues/${levels[4]["number"]}").json()["canAddSubIssue"])
 
         // An issue moves with what hangs under it, so its own sub-issue counts.
         val other = editor.post("/api/v1/issues", """{"title":"따로"}""").json()
         sub(other["id"])
-        val moved = editor.patch("/api/v1/issues/${other["number"]}", """{"parentId":"${levels[9]["id"]}"}""")
+        val moved = editor.patch("/api/v1/issues/${other["number"]}", """{"parentId":"${levels[4]["id"]}"}""")
         assertEquals(409, moved.status)
         assertEquals("ISSUE_TOO_DEEP", moved.json()["code"])
-        assertEquals(200, editor.patch("/api/v1/issues/${other["number"]}", """{"parentId":"${levels[8]["id"]}"}""").status)
+        assertEquals(200, editor.patch("/api/v1/issues/${other["number"]}", """{"parentId":"${levels[3]["id"]}"}""").status)
     }
 
     @Test

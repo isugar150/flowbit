@@ -412,7 +412,7 @@ class IssueService(
         /** Stops walks up and down the tree should the data ever hold a loop. */
         private const val MAX_DEPTH = 50
 
-        /** How many levels of sub-issues a top-level issue can have under it (D-118). */
-        const val MAX_SUB_ISSUE_DEPTH = 10
+        /** How many levels of sub-issues a top-level issue can have under it (D-118, 5 since D-190). */
+        const val MAX_SUB_ISSUE_DEPTH = 5
     }
 }

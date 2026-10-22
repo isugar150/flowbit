@@ -119,7 +119,7 @@ data class IssueResponse(
     val canEdit: Boolean? = null,
     /** Whether the caller may restore the issue; only on a deleted one. */
     val canRestore: Boolean? = null,
-    /** Whether a sub-issue may be made under it; false at the deepest level (10 below a top-level issue). */
+    /** Whether a sub-issue may be made under it; false at the deepest level (5 below a top-level issue). */
     val canAddSubIssue: Boolean? = null,
     val subIssues: List<IssueResponse>? = null,
     val reactions: List<ReactionSummary>? = null,
