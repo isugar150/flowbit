@@ -15,7 +15,6 @@ import { messages } from "@/messages";
 import { issueNumberOf } from "../meta";
 import type { IssueActivityFeed, IssueDetail as IssueDetailData, Label } from "../types";
 import { IssueActivity } from "./issue-activity";
-import { IssueAttachments } from "./issue-attachments";
 import { IssueBody } from "./issue-body";
 import { IssueLeaveNotifier } from "./issue-leave-notifier";
 import { DeleteIssueButton, DeletedIssueBanner } from "./issue-deletion";
@@ -83,7 +82,6 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
           branch={git?.enabled ? branchName(user.loginId, issue.key, issue.title) : null}
           repository={git?.enabled ? (issue.gitRepository ?? (issue.gitRepositoryOptions?.length === 1 ? issue.gitRepositoryOptions[0] : null)) : null}
         />
-        <IssueAttachments attachments={issue.attachments} canEdit={canEdit} />
         <IssueReactions number={issue.number} reactions={issue.reactions} readOnly={Boolean(issue.deletedAt)} />
         <IssueSubIssues issue={issue} canEdit={canEdit} members={members ?? []} />
         {activity ? (

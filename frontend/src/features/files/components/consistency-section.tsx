@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { TimeAgo } from "@/components/dates";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import { formatSize } from "@/features/issues/components/issue-attachments";
+import { formatSize } from "@/lib/format-size";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
 import { cleanupFiles } from "../api";

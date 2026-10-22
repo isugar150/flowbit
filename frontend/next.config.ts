@@ -52,6 +52,12 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  experimental: {
+    // proxy.ts runs before every request, so Next reads each body into memory and cuts it at 10MB by default. An upload
+    // over that arrived at the backend as a truncated form: the upload hung until the connection broke (500, "Connection has
+    // been closed"). The backend refuses a part over 20MB itself (application.yml), so this is a little more than that.
+    proxyClientMaxBodySize: "25mb",
+  },
   // The browser only ever talks to this server; /api is handed to the backend so that
   // cookies are same-origin and no CORS setup is needed (docs/02-architecture.md).
   async rewrites() {

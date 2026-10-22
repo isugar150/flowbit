@@ -338,6 +338,7 @@ export const ko = {
     criterionOpen: "미완료: ",
     moreCriteria: (count: number) => `외 ${count}개`,
     cardLabel: (name: string) => `${name} 목표`,
+    propertiesLabel: "목표 속성",
     noOutline: "목표 문서에 목적과 완료 조건을 적으면 여기에 보입니다.",
     openMilestone: "목표 열기",
     showDone: (count: number) => `완료·취소 ${count}개`,
