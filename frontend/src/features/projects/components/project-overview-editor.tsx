@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { DocumentOutline } from "@/components/editor/document-outline";
 import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
@@ -59,14 +60,18 @@ export function ProjectOverviewEditor({
             // Each block can be commented on, by anyone who may enter the project (D-165).
             blockIds
             overlay={({ editor, container }) => (
-              <BlockComments
-                editor={editor}
-                container={container}
-                target={target}
-                threads={feed.data?.threads ?? []}
-                canComment={feed.data?.canComment ?? false}
-                mentionables={mentionables}
-              />
+              <>
+                <BlockComments
+                  editor={editor}
+                  container={container}
+                  target={target}
+                  threads={feed.data?.threads ?? []}
+                  canComment={feed.data?.canComment ?? false}
+                  mentionables={mentionables}
+                />
+                {/* The headings, as marks between the description and the cards at its right; the list opens over the text (D-177). */}
+                <DocumentOutline editor={editor} container={container} compact />
+              </>
             )}
             // "/문서" in the description makes a document on this project and puts it there as a block.
             documents={documents}
