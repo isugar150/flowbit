@@ -67,13 +67,13 @@ volumes:
 | `FLOWBIT_DB_PASSWORD` | `flowbit` | 비밀번호. **반드시 지정합니다** |
 | `FLOWBIT_PUBLIC_URL` | (없음) | 사람들이 Flowbit을 여는 주소. 알림 메일과 API 알림의 티켓 링크에 쓰입니다 |
 | `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 파일 하나의 최대 크기(이미지와 첨부 파일 모두. 화면의 안내도 이 값을 따릅니다) |
-| `FLOWBIT_S3_BUCKET` | (없음) | **적으면 올린 모든 파일(이미지, 첨부 파일, 댓글 파일)이 Amazon S3 에 올라갑니다.** 비워 두면 `uploads` 볼륨에 둡니다(기본) |
+| `FLOWBIT_STORAGE_TYPE` | (자동) | **올린 파일(이미지, 첨부 파일, 댓글 파일)을 어디에 둘지: `local`(`uploads` 볼륨) 또는 `amazon-s3`.** 비우면 버킷이 있을 때 `amazon-s3`, 없으면 `local`. 바꾼 뒤에는 컨테이너를 다시 띄워야 합니다 |
+| `FLOWBIT_S3_BUCKET` | (없음) | `amazon-s3` 일 때 버킷 이름 |
 | `FLOWBIT_S3_REGION` | (없음) | 버킷의 리전. 예: `ap-northeast-2` |
 | `FLOWBIT_S3_ACCESS_KEY`, `FLOWBIT_S3_SECRET_KEY` | (없음) | 접근 키. 둘 다 적거나 둘 다 비웁니다. 비우면 서버에 붙은 IAM 역할이나 `AWS_ACCESS_KEY_ID` 같은 환경 변수를 씁니다 |
 | `FLOWBIT_S3_PREFIX` | (없음) | 버킷 안에서 쓸 폴더(선택) |
 | `FLOWBIT_S3_ENDPOINT` | (없음) | MinIO 같은 S3 호환 저장소의 주소(AWS 는 적지 않습니다) |
 | `FLOWBIT_S3_PATH_STYLE` | (자동) | `true`/`false`. 비우면 주소를 적었을 때 `true` 입니다 |
-| `FLOWBIT_STORAGE_TYPE` | (자동) | `local` 이나 `s3`. 비우면 버킷이 있을 때 S3, 없으면 로컬 |
 
 S3 로 바꾸기 전에 `uploads` 볼륨에 올라간 파일은 S3 로 옮겨지지 않습니다(S3 에 없으면 없는 것으로 봅니다). 버킷은 비공개여도 됩니다. 파일은 Flowbit 이 대신 읽어 내려 줍니다.
 

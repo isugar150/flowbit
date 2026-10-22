@@ -31,9 +31,24 @@ class StoragePropertiesTest {
     }
 
     @Test
-    fun `종류를 s3 로 정하면 버킷이 있어야 한다`() {
-        assertEquals(StorageKind.S3, StorageProperties(type = "s3", s3 = s3()).kind)
+    fun `종류를 amazon-s3 로 정하면 버킷이 있어야 한다`() {
+        assertEquals(StorageKind.S3, StorageProperties(type = "amazon-s3", s3 = s3()).kind)
+        assertFailsWith<IllegalArgumentException> { StorageProperties(type = "amazon-s3") }
+    }
+
+    @Test
+    fun `amazon-s3 는 대소문자와 구분 기호가 달라도 s3 도 같은 뜻이다`() {
+        for (spelling in listOf("s3", "S3", " Amazon-S3 ", "amazon_s3", "Amazon S3", "AMAZONS3")) {
+            assertEquals(StorageKind.S3, StorageProperties(type = spelling, s3 = s3()).kind, spelling)
+        }
         assertFailsWith<IllegalArgumentException> { StorageProperties(type = "s3") }
+    }
+
+    @Test
+    fun `종류를 적었는지 버킷으로 알아냈는지 구분한다`() {
+        assertEquals(true, StorageProperties(type = "local").explicit)
+        assertEquals(false, StorageProperties(s3 = s3()).explicit)
+        assertEquals(false, StorageProperties(type = "  ").explicit)
     }
 
     @Test

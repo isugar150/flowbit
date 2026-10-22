@@ -110,17 +110,21 @@ docker run -d --name flowbit --restart unless-stopped \
 | `FLOWBIT_WEB_BIND` | `0.0.0.0` | 그 포트를 여는 주소. 앞에 nginx 를 두고 이 서버 안에서만 열려면 `127.0.0.1` |
 | `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 파일 하나의 최대 크기(백엔드가 한 파트를 20MB 에서 끊으므로 그 이상으로는 올릴 수 없다). 프록시를 두면 그 쪽 본문 제한(`client_max_body_size`)도 맞춘다. 화면에 보이는 "N MB까지"와 올리기 전의 크기 검사도 이 값을 따르고, 관리자 설정 > 파일 관리에서 현재 값을 볼 수 있다 |
 | `FLOWBIT_VERSION`, `FLOWBIT_IMAGE` | `latest`, `isugar150/flowbit` | 받을 이미지의 버전과 저장소 |
-| `FLOWBIT_S3_*`, `FLOWBIT_STORAGE_TYPE` | (없음) | 파일을 S3 에 둘 때([5](#5-파일-저장소-로컬-또는-s3)) |
+| `FLOWBIT_STORAGE_TYPE` | `local` | **올린 파일을 어디에 둘지: `local` 또는 `amazon-s3`**([5](#5-파일-저장소-로컬-또는-s3)). 처음 만들어지는 `.env` 에 `local` 로 적혀 있다 |
+| `FLOWBIT_S3_*` | (없음) | `amazon-s3` 일 때 버킷·리전·키 |
 
 LDAP, SSO, 메일(SMTP), 웹 푸시, API 알림, Git 연동은 환경 변수가 아니라 **로그인한 뒤 관리자 설정 화면**에서 정한다.
 
 ## 5. 파일 저장소: 로컬 또는 S3
 
-**기본은 로컬이다**: 컨테이너의 `/var/lib/flowbit/uploads` 볼륨(compose 의 `flowbit_uploads`). 이 볼륨은 **DB 와 함께 백업 대상**이다.
+`.env` 의 **`FLOWBIT_STORAGE_TYPE`** 이 어디에 둘지 정한다: `local` 또는 `amazon-s3`.
 
-**Amazon S3 에 두려면** `.env` 에 버킷 정보만 적고 `./deploy.sh` 를 다시 실행한다. 모든 파일이 자동으로 S3 에 올라간다(`FLOWBIT_S3_BUCKET` 이 있으면 S3, 없으면 로컬).
+**`local`(기본)** 은 컨테이너의 `/var/lib/flowbit/uploads` 볼륨(compose 의 `flowbit_uploads`)이다. 이 볼륨은 **DB 와 함께 백업 대상**이다.
+
+**Amazon S3 에 두려면** `.env` 에서 `FLOWBIT_STORAGE_TYPE=amazon-s3` 로 바꾸고 버킷 정보를 적은 뒤 `./deploy.sh` 를 다시 실행한다. 모든 파일이 S3 에 올라간다. (이 줄을 비워 두면 `FLOWBIT_S3_BUCKET` 이 있을 때 `amazon-s3`, 없으면 `local` 로 본다. 예전에 버킷만 적어 쓰던 서버가 그대로 동작하게 한 것이고, 새로 만드는 `.env` 에는 항상 적혀 있다. `local` 인데 버킷이 적혀 있으면 시작할 때 경고가 남는다.)
 
 ```ini
+FLOWBIT_STORAGE_TYPE=amazon-s3
 FLOWBIT_S3_BUCKET=my-flowbit-files
 FLOWBIT_S3_REGION=ap-northeast-2
 FLOWBIT_S3_ACCESS_KEY=AKIA...        # 서버에 IAM 역할을 붙였다면 둘 다 비운다
@@ -142,6 +146,7 @@ FLOWBIT_S3_SECRET_KEY=...
   }
   ```
 - **처음 설치할 때 정한다.** 이미 로컬에 올라간 파일은 S3 로 옮겨지지 않고, S3 로 바꾸면 S3 에서만 읽으므로 그 파일은 열리지 않는다. 쓰던 서버를 바꿔야 하면 볼륨의 `files/`·`images/`·`originals/` 를 버킷의 같은 이름 아래로 올린다(`aws s3 sync`).
+- **저장소 설정은 서버를 시작할 때 한 번만 읽는다.** `.env` 에 `amazon-s3` 를 적어도 이미 떠 있는 서버는 다시 시작하기 전까지 로컬 폴더에 저장한다. 같은 DB 를 쓰는 서버가 둘(예: 개발 PC 에서 직접 띄운 것과 서버의 컨테이너)이면 **둘의 저장소 설정이 같아야 한다.** 다르면 한쪽이 올린 사진의 이름이 DB 에는 있고 파일은 다른 쪽 저장소에만 있어, 그 사진이 404 로 열리지 않는다. 어느 쪽에 저장하는지는 시작 로그의 `File storage: …`(그 아래 `Uploaded files are stored in …` 에 폴더나 버킷)로 안다. 이미 어긋났다면 관리자 > 파일 관리의 "없는 파일"에 나온다.
 - 버킷에 닿지 않으면 시작할 때 로그에 `Cannot reach the S3 bucket …` 가 남지만 앱은 뜬다. 그동안 파일 올리기·내려받기가 이유와 함께 실패한다.
 - 백업은 버킷의 버전 관리·복제로 한다. 이 경우 `uploads` 볼륨은 쓰이지 않는다.
 

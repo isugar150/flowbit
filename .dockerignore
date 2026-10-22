@@ -21,6 +21,10 @@ frontend/.next
 frontend/out
 frontend/tsconfig.tsbuildinfo
 frontend/npm-debug.log*
+# Playwright output (traces and screenshots can hold login cookies) and the e2e specs: not part of the image
+frontend/test-results
+frontend/playwright-report
+frontend/e2e
 
 **/.env
 **/.env.*

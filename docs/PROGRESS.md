@@ -68,6 +68,8 @@
 
 - **목차가 페이지 끝까지 따라 내려오고, 머리글·탭 아래에 붙고, 제목 이동이 그 아래에 멈춘다** (D-180, 2026-10-22, 사용자 지적 두 가지). 목차가 글 상자 안에서만 `sticky` 라 글이 짧은 화면에서는 같이 올라갔고, 프로젝트 화면의 머리글(44px) 아래 알약 탭(36px) 뒤에 가려졌고 제목 이동도 탭 뒤에 숨었다. `document-outline.tsx` 를 다시 썼다: `coveredTop`(스크롤 상자 위에 붙은 sticky 요소를 직접 잼), `usePlace`(붙는 위치 `inset` 과 목차 상자 높이 `span`), 제목 이동은 `scrollTo`. `globals.css` 의 `scroll-margin-top` 을 지웠다. 프로젝트 화면 샘플(머리글·탭·짧은 설명·긴 뒷부분)로 확인: 맨 끝까지 탭 아래 92px 에 붙고, 제목을 누르면 92px 에 멈추며 강조. `typecheck`·eslint 통과. **실제 화면으로는 보지 못했고, 대화상자·문서 화면은 이번에 다시 확인하지 않았다**(같은 코드, 붙은 것이 없으면 0px).
 
+- **올린 파일을 어디에 둘지 `.env` 의 `FLOWBIT_STORAGE_TYPE=local` 또는 `amazon-s3` 로 정한다** (D-181, 2026-10-22, 사용자 요청, [02-architecture.md](02-architecture.md) "파일 저장소"·[10-install.md](10-install.md) 5절). 전에는 `s3` 라는 값이 주석 처리된 "강제용"이었고 실제로는 버킷이 있는지로 정해졌다. 이제 `local` · `amazon-s3`(`s3` 도 받음)를 받고, 템플릿(`.env.example`, `deploy.sh` 가 만드는 `.env`)에 이 줄이 항상 있으며, 비워 두면 예전처럼 버킷이 있을 때 `amazon-s3`(버킷만 적어 쓰던 서버가 안 바뀌게). `local` 인데 버킷이 있으면 시작할 때 경고, 시작 로그에 `File storage: …` 가 남는다. **백엔드를 다시 시작해야 적용된다. 컴파일·ktlint 만 했고 테스트(`StoragePropertiesTest`)는 돌리지 않았다.** 로컬 파일을 S3 로 옮기는 도구는 만들지 않았다.
+
 ## 다음 작업
 
 **다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
@@ -216,6 +218,21 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-22 — 파일 저장소를 `.env` 에서 `local` / `amazon-s3` 로 지정 (D-181)
+
+- 사용자 요청: 새 사용자가 들어왔는데 프로젝트 이미지가 안 나옴(404) → 원인 확인 → "env 파일에 어떤 식으로 파일을 관리할지 지정할 수 있게 해줘 local 또는 amazon-s3".
+- 원인(확인함): 직접 띄운 서버(IntelliJ, `script/.env` 를 읽음)가 08:20 에 시작해 로컬 폴더에 저장했고, `.env` 에 S3 를 적은 건 08:31 이라 그 뒤 08:34~08:56 에 올린 사진 6개(+원본 5개)가 로컬에만 있었다. 같은 원격 DB 를 쓰는 도커 서버는 S3 만 읽어 404. 설정은 시작할 때 한 번만 읽는다. 로컬 파일은 `amazon/aws-cli` 컨테이너로 `data/uploads/{images,originals}` 를 버킷의 같은 이름 아래에 올려 해결했다(버킷 목록으로 확인).
+- 고친 것: `StorageProperties`(`amazon-s3`·`s3` 표기, `explicit`), `StorageConfig`(시작 로그 `File storage: …`, `local` 인데 버킷이 있으면 경고), `application.yml` 주석, `.env.example`·`script/deploy.sh` 템플릿에 `FLOWBIT_STORAGE_TYPE` 줄을 항상 두기, `script/docker-compose.yml` 주석, `script/dockerhub-readme.md`, `docs/02`·`10`, `StoragePropertiesTest`. 사용자 PC 의 `script/.env`(git 에 없음)에도 `FLOWBIT_STORAGE_TYPE=amazon-s3` 를 적었다.
+- 확인: `compileKotlin`·`compileTestKotlin`·`ktlintCheck` 통과. 테스트는 돌리지 않았다. 서버를 띄워 시작 로그를 보지는 못했다.
+- 알아둘 것: 이미 어긋난 서버는 관리자 > 파일 관리의 "없는 파일"에 나온다. `data/images`·`data/files`(10월 12일의 옛 폴더 구조)는 올리지 않았다.
+
+### 2026-10-22 — git·도커 민감정보 점검, 도커 컨텍스트에서 Playwright 산출물 제외
+
+- 사용자 요청: 지금 상태로 git 에 올리거나 도커로 빌드해 올려도 민감정보가 나갈 일이 없는지 확인.
+- 확인한 것: 모든 브랜치의 히스토리 121개 커밋에 키·토큰·`.env` 가 없다(과거에 있던 `script/app.env` 는 실행 옵션뿐이었다). `script/.env` 의 실제 값(DB 비밀번호·S3 키 등)은 git 히스토리, 추적 파일, 도커 컨텍스트 어디에도 없다. 도커 컨텍스트를 실제로 내보내 보니 `script/`, `.git/`, `docs/`, `data/`, `.env*` 는 들어가지 않는다.
+- 고친 것: 루트 `.dockerignore` 에 `frontend/test-results`, `frontend/playwright-report`, `frontend/e2e` 를 더했다. Playwright 추적 파일에 로그인 쿠키가 남을 수 있어서다. `src` 는 `e2e` 를 가져다 쓰지 않아 `next build` 에 영향이 없다.
+- 알아둘 것: `script/.env` 는 `.gitignore` 의 `.env` 규칙과 `.dockerignore` 의 `script`, `**/.env` 가 막아 준다. 이름을 바꾸거나 `git add -f` 로 올리면 막지 못한다.
 
 ### 2026-10-22 — 개발 서버를 이 PC 의 주소로 열어도 동작하게 (D-171)
 

@@ -23,7 +23,7 @@ services:
       FLOWBIT_DB_PASSWORD: ${FLOWBIT_DB_PASSWORD:?Set FLOWBIT_DB_PASSWORD in .env}
       FLOWBIT_MAX_UPLOAD_SIZE: ${FLOWBIT_MAX_UPLOAD_SIZE:-5MB}
       FLOWBIT_PUBLIC_URL: ${FLOWBIT_PUBLIC_URL:-}
-      # Uploaded files: in the volume below, or in S3 when FLOWBIT_S3_BUCKET is set in .env (D-167).
+      # Uploaded files: FLOWBIT_STORAGE_TYPE in .env says where, local (the volume below) or amazon-s3 (the bucket) (D-167, D-181).
       FLOWBIT_STORAGE_TYPE: ${FLOWBIT_STORAGE_TYPE:-}
       FLOWBIT_S3_BUCKET: ${FLOWBIT_S3_BUCKET:-}
       FLOWBIT_S3_REGION: ${FLOWBIT_S3_REGION:-}

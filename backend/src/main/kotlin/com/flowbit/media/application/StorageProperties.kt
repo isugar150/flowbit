@@ -14,8 +14,8 @@ data class StorageProperties(
     /** Largest upload accepted, before any processing. */
     val maxUploadSize: DataSize = DataSize.ofMegabytes(5),
     /**
-     * `local` or `s3` (FLOWBIT_STORAGE_TYPE). Left out: S3 when a bucket is given (FLOWBIT_S3_BUCKET),
-     * the storage folder otherwise.
+     * Where the files go (FLOWBIT_STORAGE_TYPE): `local` or `amazon-s3` (`s3` is taken too). Left out: Amazon S3 when a
+     * bucket is given (FLOWBIT_S3_BUCKET), the storage folder otherwise. The settings files always say it (D-181).
      */
     val type: String = "",
     val s3: S3 = S3(),
@@ -36,12 +36,16 @@ data class StorageProperties(
         val pathStyle: String = "",
     )
 
+    /** True when FLOWBIT_STORAGE_TYPE says it, false when it was worked out from the bucket. */
+    val explicit: Boolean = type.isNotBlank()
+
     val kind: StorageKind =
-        when (type.trim().lowercase()) {
+        // `Amazon S3`, `amazon_s3` and `AMAZON-S3` are all the same word.
+        when (type.lowercase().filterNot { it == '-' || it == '_' || it.isWhitespace() }) {
             "" -> if (s3.bucket.isNotBlank()) StorageKind.S3 else StorageKind.LOCAL
             "local" -> StorageKind.LOCAL
-            "s3" -> StorageKind.S3
-            else -> throw IllegalArgumentException("FLOWBIT_STORAGE_TYPE must be local or s3 (it is \"$type\")")
+            "amazons3", "s3" -> StorageKind.S3
+            else -> throw IllegalArgumentException("FLOWBIT_STORAGE_TYPE must be local or amazon-s3 (it is \"$type\")")
         }
 
     init {
@@ -52,7 +56,7 @@ data class StorageProperties(
             "FLOWBIT_STORAGE_PATH lost its backslashes ($path). Write a Windows path with forward slashes: C:/data/uploads"
         }
         if (kind == StorageKind.S3) {
-            require(s3.bucket.isNotBlank()) { "FLOWBIT_STORAGE_TYPE is s3, so FLOWBIT_S3_BUCKET must name the bucket" }
+            require(s3.bucket.isNotBlank()) { "FLOWBIT_STORAGE_TYPE is amazon-s3, so FLOWBIT_S3_BUCKET must name the bucket" }
             require((s3.accessKey.isBlank()) == (s3.secretKey.isBlank())) {
                 "FLOWBIT_S3_ACCESS_KEY and FLOWBIT_S3_SECRET_KEY go together: give both, or neither to use the server's own credentials"
             }

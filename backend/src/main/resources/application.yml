@@ -57,7 +57,8 @@ flowbit:
   storage:
     # Where uploaded files are kept. Relative paths are resolved against the working directory.
     path: ${FLOWBIT_STORAGE_PATH:./data/uploads}
-    # local (the storage folder above, the default) or s3. Left out: s3 when FLOWBIT_S3_BUCKET is given (D-167).
+    # Where the files go: local (the storage folder above) or amazon-s3 (the bucket below). Read once, at start (D-181).
+    # Left out: amazon-s3 when FLOWBIT_S3_BUCKET is given, local otherwise (D-167).
     type: ${FLOWBIT_STORAGE_TYPE:}
     s3:
       bucket: ${FLOWBIT_S3_BUCKET:}

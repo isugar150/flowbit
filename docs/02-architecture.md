@@ -145,7 +145,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 
 올린 파일(프로필·로고·프로젝트 아이콘·편집기와 댓글에 넣는 사진은 WebP 로 바꾼 사본을 `images/` 에, 올린 원본을 `originals/` 에, 티켓 첨부·댓글 파일은 `files/` 에. D-169)은 **로컬 폴더 또는 Amazon S3** 에 둔다. 사용자 지정(2026-10-21): 기본은 로컬이고 지금과 같다, S3 는 환경 변수만 넣으면 모든 파일이 올라간다.
 
-- **고르는 법**: `FLOWBIT_S3_BUCKET` 이 있으면 S3, 없으면 `FLOWBIT_STORAGE_PATH` 의 폴더. `FLOWBIT_STORAGE_TYPE=local` 이면 버킷이 적혀 있어도 폴더, `=s3` 인데 버킷이 없으면 시작할 때 멈춘다. 설정이 앞뒤가 안 맞으면(접근 키만 있고 비밀 키가 없다 등) 시작할 때 멈추고 이유를 알린다(`StorageProperties`).
+- **고르는 법** (D-181): `.env` 의 **`FLOWBIT_STORAGE_TYPE=local` 또는 `amazon-s3`** 가 정한다(`s3` 도 받고 대소문자·`-`·`_` 는 가리지 않는다). 설정 파일 템플릿(`.env.example`, `script/deploy.sh` 가 만드는 `.env`)에는 이 줄이 항상 있다. 비워 두면 예전처럼 `FLOWBIT_S3_BUCKET` 이 있을 때 S3, 없으면 `FLOWBIT_STORAGE_PATH` 의 폴더(이미 버킷만 적어 쓰는 서버가 그대로 동작하도록). `local` 인데 버킷이 적혀 있으면 시작할 때 경고를 남기고(버킷은 쓰이지 않는다), `amazon-s3` 인데 버킷이 없으면 시작할 때 멈춘다. 설정이 앞뒤가 안 맞으면(접근 키만 있고 비밀 키가 없다 등) 시작할 때 멈추고 이유를 알린다(`StorageProperties`). **시작할 때 한 번만 읽는다**: 설정을 바꾸면 서버를 다시 시작해야 하고, 시작 로그의 `File storage: …` 가 어느 쪽인지 말해 준다(`StorageConfig`). 같은 DB 를 쓰는 서버끼리는 같은 값을 써야 한다.
 - **코드**: `media/application/ObjectStore`(`put`·`delete`·`get`) 하나를 `FileStorage`(첨부·댓글 파일)와 `ImageStorage`(이미지)가 쓴다. 구현은 `LocalObjectStore`(예전과 같은 폴더·임시 파일 뒤 옮기기)와 `S3ObjectStore`(AWS SDK v2 의 동기 클라이언트를 `Dispatchers.IO` 에서 부른다. 비동기 Netty 클라이언트는 빼서 Reactor Netty 와 겹치지 않게 했다). 어느 쪽인지는 `StorageConfig` 가 정한다. 키(UUID 와 `.webp`)·DB 의 열·주소(`/api/v1/files/{키}`, `/api/v1/attachments/{id}`, `/api/v1/content-files/{id}`)는 그대로다.
 - **S3 의 모양**: 객체 이름은 `<접두어>/images/<키>`, `<접두어>/files/<키>`, `<접두어>/originals/<uuid>`. **사진은 사본과 원본 둘 다 올린다**(D-169): `ImageStorage.store(webp, original)` 가 원본을 먼저 올리고 사본을 올리며, 어느 쪽이든 실패하면 요청이 실패하고 올라간 쪽은 지운다. 원본의 이름은 사본 키(`<uuid>.webp`)에서 `.webp` 를 뺀 것이고 확장자가 없다(`files/` 와 같다. 내려 줄 때는 쓰지 않고 복구용이다). 사진을 바꾸거나 지우면 원본도 지운다. D-169 이전에 올린 사진의 원본은 없다. **파일은 Flowbit 이 대신 읽어 내려 준다**(권한 확인과 `Content-Disposition: attachment`·`nosniff` 가 그대로 지켜진다). 그래서 버킷은 비공개여도 되고 미리 서명한 주소는 쓰지 않는다. 올릴 때와 내려 줄 때 모두 파일 하나를 메모리에 올린다(`FLOWBIT_MAX_UPLOAD_SIZE`, 기본 5MB).
 - **자격 증명**: `FLOWBIT_S3_ACCESS_KEY`·`FLOWBIT_S3_SECRET_KEY` 를 주면 그것, 비우면 SDK 의 기본(`AWS_ACCESS_KEY_ID` 같은 환경 변수, 서버에 붙은 IAM 역할). `FLOWBIT_S3_ENDPOINT` 를 주면 MinIO 같은 S3 호환 저장소이고 주소 방식은 경로 방식(`FLOWBIT_S3_PATH_STYLE` 로 바꿀 수 있다). 리전은 `FLOWBIT_S3_REGION`, 없으면 `us-east-1`(호환 저장소는 아무 값이나 받는다).
@@ -153,7 +153,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 - **지우기**: 파일·이미지를 바꾸거나 지울 때(그리고 보관 작업 D-132 가 지울 때)의 삭제도 같은 저장소로 간다. 삭제가 실패해도 요청은 실패하지 않고 로그만 남긴다. **`@Transactional` 안에서는 커밋 뒤에 지운다**(`AfterCommit`, D-172): 롤백되면 파일은 남는다. 보관 배치가 영구 삭제를 한 회에는 쓰는 곳이 없어진 사진(사본과 원본)도 지운다(D-171). 실패나 중간에 멈춘 요청이 남긴 파일은 **관리자 설정의 "파일 관리"**(`/admin/files`, `StorageInspector`)가 저장소 목록(`ObjectStore.list`)과 DB 가 쓰는 키를 맞춰 보고 정리한다([features/admin-files.md](features/admin-files.md)).
 - **로컬에서 S3 로 바꿀 때**: 이미 폴더에 있던 파일은 **옮겨지지 않는다.** S3 로 바꾼 뒤에는 S3 에서만 읽으므로 그 파일은 열리지 않는다(사용자 선택: 옮기는 도구는 만들지 않는다). 쓰던 서버를 바꾸려면 폴더의 `files/`·`images/`·`originals/` 를 버킷의 같은 이름 아래로 올려야 한다(`aws s3 sync uploads/files s3://버킷/<접두어>/files`).
 - **배포**: `script/docker-compose.yml`·루트 `docker-compose.yml` 이 `FLOWBIT_S3_*`·`FLOWBIT_STORAGE_TYPE` 을 `.env` 에서 컨테이너로 넘기므로, 서버의 `.env` 에 적고 `./deploy.sh` 만 다시 실행하면 된다. S3 를 쓰면 `uploads` 볼륨은 쓰이지 않는다.
-- 테스트: `StoragePropertiesTest`(고르는 규칙), `LocalObjectStoreTest`, `S3ObjectStoreTest`(MinIO 컨테이너로 접두어·읽기·지우기). **돌려 보지 않았다**(컴파일만). 실제 AWS S3 로도 시험하지 않았다.
+- 테스트: `StoragePropertiesTest`(고르는 규칙, `amazon-s3`·`s3` 표기), `LocalObjectStoreTest`, `S3ObjectStoreTest`(MinIO 컨테이너로 접두어·읽기·지우기). **돌려 보지 않았다**(컴파일만). 실제 AWS S3 로도 시험하지 않았다.
 
 ## 환경과 설정
 
@@ -164,8 +164,8 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch(Iss
 | `FLOWBIT_DB_NAME` | docker-compose, backend | `flowbit` | DB 이름 |
 | `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD` | docker-compose, backend | `flowbit` | DB 계정. 기본값은 로컬 개발용이다 |
 | `FLOWBIT_STORAGE_PATH` | backend | `./data/uploads` | 올린 파일(이미지·첨부·댓글 파일)을 저장할 폴더. 상대 경로는 백엔드를 실행한 폴더 기준. **백업 대상**(S3 를 쓰면 쓰이지 않는다) |
-| `FLOWBIT_STORAGE_TYPE` | backend | (자동) | `local` 또는 `s3`. 비우면 `FLOWBIT_S3_BUCKET` 이 있을 때 S3, 없으면 로컬 (D-167) |
-| `FLOWBIT_S3_BUCKET` | backend | (없음) | **적으면 올린 모든 파일이 Amazon S3 에 올라간다.** 위의 폴더는 쓰이지 않는다 |
+| `FLOWBIT_STORAGE_TYPE` | backend | (자동) | **`local` 또는 `amazon-s3`: 올린 파일을 어디에 둘지.** 템플릿에는 항상 적혀 있다. 비우면 `FLOWBIT_S3_BUCKET` 이 있을 때 `amazon-s3`, 없으면 `local` (D-167, D-181). 시작할 때 한 번만 읽는다 |
+| `FLOWBIT_S3_BUCKET` | backend | (없음) | 버킷 이름. `amazon-s3` 일 때 필요하다(`FLOWBIT_STORAGE_TYPE` 을 비웠다면 이것만 적어도 `amazon-s3`). 이때 위의 폴더는 쓰이지 않는다 |
 | `FLOWBIT_S3_REGION` | backend | (없음) | 버킷의 리전(`ap-northeast-2`). 엔드포인트를 쓰는 호환 저장소는 비워도 된다 |
 | `FLOWBIT_S3_ACCESS_KEY`, `FLOWBIT_S3_SECRET_KEY` | backend | (없음) | 접근 키. 둘 다 주거나 둘 다 비운다. 비우면 SDK 의 기본 자격 증명(`AWS_ACCESS_KEY_ID` 같은 환경 변수, 서버에 붙은 IAM 역할 등) |
 | `FLOWBIT_S3_PREFIX` | backend | (없음) | 버킷 안에서 쓸 폴더. 비우면 버킷 맨 위 |
