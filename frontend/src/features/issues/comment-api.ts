@@ -4,7 +4,7 @@ import type { Attachment, Reaction } from "./types";
 
 /**
  * What the comment components do to the server. An issue's comments and the comments under the
- * activity of a project, a document or a milestone (D-165) look and behave alike, so the same
+ * activity of a project or a document (D-165) look and behave alike, so the same
  * components serve both; each page gives them its own calls.
  */
 export type CommentApi = {

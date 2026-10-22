@@ -93,7 +93,6 @@ export function NewIssueProvider({ projects, children }: { projects: ProjectSumm
           defaultProjectId={null}
           initialProjectId={initialProjectId}
           members={choices.data?.members ?? []}
-          milestones={[]}
           labels={choices.data?.labels ?? []}
         />
       ) : null}

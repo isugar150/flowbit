@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 private const val PASSWORD = "correct-horse-battery"
 
-/** Comments on blocks and the activity of projects, documents and milestones (D-165). */
+/** Comments on blocks and the activity of projects and documents (D-165). */
 class ContentCommentsIntegrationTest : IntegrationTest() {
     private lateinit var admin: ApiClient
     private lateinit var editor: ApiClient
@@ -159,7 +159,7 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `티켓 본문과 프로젝트 문서와 목표에도 블록 댓글을 단다`() {
+    fun `티켓 본문과 프로젝트 문서에도 블록 댓글을 단다`() {
         val issue =
             editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패","content":${doc(paragraph("본문"))}}""").json()
         val issueId = issue["id"] as String
@@ -174,15 +174,6 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
         val documentThread = """{"blockId":"$documentBlock","content":${comment("문서 댓글")}}"""
         assertEquals(201, viewer.post("/api/v1/content/document/$documentId/threads", documentThread).status)
 
-        val milestone = editor.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"1차"}""").json()
-        val milestoneId = milestone["id"] as String
-        editor.patch("/api/v1/projects/${p("PAY")}/milestones/$milestoneId", """{"content":${doc(paragraph("목표 본문"))}}""")
-        val milestoneBlock = blockIds(editor.get("/api/v1/projects/${p("PAY")}/milestones").jsonList().single { it["id"] == milestoneId }).first()
-        assertEquals(
-            201,
-            viewer.post("/api/v1/content/milestone/$milestoneId/threads", """{"blockId":"$milestoneBlock","content":${comment("목표 댓글")}}""").status,
-        )
-
         // A deleted issue can be read but not commented on.
         editor.delete("/api/v1/issues/${issue["number"]}")
         assertEquals(403, viewer.post("/api/v1/content/issue/$issueId/threads", """{"blockId":"$issueBlock","content":${comment("늦은 댓글")}}""").status)
@@ -190,13 +181,11 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `프로젝트의 속성 변경과 본문 수정과 구성원 변경과 목표와 문서가 활동에 남고 본문 수정은 합쳐진다`() {
+    fun `프로젝트의 속성 변경과 본문 수정과 구성원 변경과 문서가 활동에 남고 본문 수정은 합쳐진다`() {
         editor.patch("/api/v1/projects/${p("PAY")}", """{"status":"IN_PROGRESS","priority":"HIGH","labels":["결제"]}""")
         saveOverview(paragraph("첫 글"))
         saveOverview(paragraph("첫 글을 이어서 고침"))
         admin.put("/api/v1/projects/${p("PAY")}/members/$viewerId", """{"role":"EDITOR"}""")
-        val milestone = editor.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"1차"}""").json()
-        editor.delete("/api/v1/projects/${p("PAY")}/milestones/${milestone["id"]}")
         editor.post("/api/v1/projects/${p("PAY")}/updates", """{"health":"AT_RISK","body":"조금 늦음"}""")
         val document = editor.post("/api/v1/projects/${p("PAY")}/documents", """{"title":"설계"}""").json()
         editor.delete("/api/v1/documents/${document["id"]}")
@@ -210,8 +199,6 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
             "PRIORITY_CHANGED",
             "LABELS_CHANGED",
             "MEMBER_ROLE_CHANGED",
-            "MILESTONE_ADDED",
-            "MILESTONE_REMOVED",
             "UPDATE_POSTED",
             "DOCUMENT_ADDED",
             "DOCUMENT_REMOVED",
@@ -220,7 +207,7 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `문서와 목표의 활동에는 이름과 본문 수정이 남고 문서를 품은 쪽에는 하위 문서가 남는다`() {
+    fun `문서의 활동에는 이름과 본문 수정이 남고 문서를 품은 쪽에는 하위 문서가 남는다`() {
         val document = editor.post("/api/v1/projects/${p("PAY")}/documents", """{"title":"설계"}""").json()
         val documentId = document["id"] as String
         editor.patch("/api/v1/documents/$documentId", """{"title":"설계 문서"}""")
@@ -231,12 +218,6 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
         val own = types(feed(viewer, "document", documentId).json())
         assertTrue("NAME_CHANGED" in own && "CONTENT_EDITED" in own)
         assertTrue("DOCUMENT_ADDED" in own && "DOCUMENT_REMOVED" in own)
-
-        val milestone = editor.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"1차"}""").json()
-        val milestoneId = milestone["id"]
-        editor.patch("/api/v1/projects/${p("PAY")}/milestones/$milestoneId", """{"name":"1차 출시","status":"IN_PROGRESS","targetDate":"2026-12-31"}""")
-        val milestoneTypes = types(feed(viewer, "milestone", milestoneId as String).json())
-        assertTrue(milestoneTypes.containsAll(listOf("NAME_CHANGED", "STATUS_CHANGED", "TARGET_DATE_CHANGED")))
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -266,11 +247,11 @@ class ContentCommentsIntegrationTest : IntegrationTest() {
         viewer.delete("$path/subscription")
         assertEquals(listOf<Any?>("editor"), followers(feed(editor, "document", documentId).json()))
 
-        // Someone who cannot open the project cannot follow; a milestone is not followed on its own.
+        // Someone who cannot open the project cannot follow; an issue is not followed through its activity feed.
         assertEquals(404, outsider.put("$path/subscription", "{}").status)
-        val milestoneId = editor.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"1차"}""").json()["id"] as String
-        assertEquals(404, viewer.put("/api/v1/content/milestone/$milestoneId/subscription", "{}").status)
-        assertEquals(null, feed(viewer, "milestone", milestoneId).json()["subscription"])
+        val issueId = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"결제 실패"}""").json()["id"] as String
+        assertEquals(404, viewer.put("/api/v1/content/issue/$issueId/subscription", "{}").status)
+        assertEquals(null, feed(viewer, "issue", issueId).json()["subscription"])
     }
 
     @Test

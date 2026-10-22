@@ -18,11 +18,9 @@ import { wordsOf } from "../highlight";
 import {
   DocumentHitContent,
   IssueHitContent,
-  MilestoneHitContent,
   ProjectHitContent,
   documentHref,
   issueHref,
-  milestoneHref,
   projectHref,
 } from "./hit-content";
 
@@ -116,7 +114,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   });
   const data = debounced ? result.data : undefined;
   const words = wordsOf(debounced);
-  // Tickets, then documents, then projects and milestones; the arrow keys walk through them in this order.
+  // Tickets, then documents, then projects; the arrow keys walk through them in this order.
   const groups: Group[] = data
     ? [
         {
@@ -133,11 +131,6 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           kind: "p",
           label: m.projects,
           entries: data.projects.map((hit) => ({ id: hit.id, href: projectHref(hit), node: <ProjectHitContent hit={hit} words={words} /> })),
-        },
-        {
-          kind: "m",
-          label: m.milestones,
-          entries: data.milestones.map((hit) => ({ id: hit.id, href: milestoneHref(hit), node: <MilestoneHitContent hit={hit} words={words} /> })),
         },
       ].filter((group) => group.entries.length > 0)
     : [];
@@ -258,7 +251,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           onClick={onClose}
           className="rounded-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          {data && (data.issuesMore || data.documentsMore || data.projectsMore || data.milestonesMore) ? m.seeAllMore : m.seeAll}
+          {data && (data.issuesMore || data.documentsMore || data.projectsMore) ? m.seeAllMore : m.seeAll}
         </Link>
       </div>
     </>

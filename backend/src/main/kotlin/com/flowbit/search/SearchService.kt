@@ -7,11 +7,18 @@ import com.flowbit.issue.domain.IssueStatus
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Service
+import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
 
 enum class IssueMatch { KEY, TITLE, DESCRIPTION, COMMENT }
+
+/** An issue above a found one, as the query reads it; the key is added from the workspace's issue key. */
+private data class AncestorRow(
+    val number: Int = 0,
+    val title: String = "",
+)
 
 data class SearchProject(
     val id: UUID,
@@ -28,6 +35,8 @@ data class IssueHit(
     val key: String,
     val number: Int,
     val title: String,
+    /** Every issue above this one, the top-level one first; empty for a top-level issue. */
+    val ancestors: List<SearchIssueRef>,
     val status: IssueStatus,
     val priority: IssuePriority,
     val project: SearchProject?,
@@ -54,37 +63,27 @@ data class ProjectHit(
     val snippet: String?,
 )
 
-/** A milestone, found by its name or by what is written in it (D-166). */
-data class MilestoneHit(
-    val id: UUID,
-    val name: String,
-    val project: SearchProject,
-    val updatedAt: Instant,
-    val snippet: String?,
-)
-
 data class SearchResult(
     val issues: List<IssueHit>,
     val documents: List<DocumentHit>,
     val projects: List<ProjectHit>,
-    val milestones: List<MilestoneHit>,
     val issuesMore: Boolean,
     val documentsMore: Boolean,
     val projectsMore: Boolean,
-    val milestonesMore: Boolean,
 )
 
 /**
- * Finds the issues, documents, projects and milestones a person may see (docs/features/search.md,
- * D-133, D-166). Every word of the query must appear; a query of Korean initial consonants only is
+ * Finds the issues, documents and projects a person may see (docs/features/search.md, D-133,
+ * D-166). Every word of the query must appear; a query of Korean initial consonants only is
  * matched against the initials of titles. What is written in the editors is searched too: the body
- * of an issue, a document, a project's overview and a milestone. No index: plain ILIKE, sized for
- * one organisation's installation.
+ * of an issue, a document and a project's overview. No index: plain ILIKE, sized for one
+ * organisation's installation.
  */
 @Service
 class SearchService(
     private val databaseClient: DatabaseClient,
     private val instanceService: InstanceService,
+    private val jsonMapper: JsonMapper,
 ) {
     suspend fun search(
         userId: UUID,
@@ -98,11 +97,9 @@ class SearchService(
                 emptyList(),
                 emptyList(),
                 emptyList(),
-                emptyList(),
                 issuesMore = false,
                 documentsMore = false,
                 projectsMore = false,
-                milestonesMore = false,
             )
         }
         val size = limit.coerceIn(1, MAX_LIMIT)
@@ -113,16 +110,13 @@ class SearchService(
         val issues = issues(userId, terms, initials, number, workspaceKey, size + 1)
         val documents = documents(userId, terms, initials, workspaceKey, size + 1)
         val projects = projects(userId, terms, initials, size + 1)
-        val milestones = milestones(userId, terms, initials, size + 1)
         return SearchResult(
             issues.take(size),
             documents.take(size),
             projects.take(size),
-            milestones.take(size),
             issuesMore = issues.size > size,
             documentsMore = documents.size > size,
             projectsMore = projects.size > size,
-            milestonesMore = milestones.size > size,
         )
     }
 
@@ -148,6 +142,14 @@ class SearchService(
             """
             select i.id, i.number, i.title, i.status, i.priority, i.updated_at, i.description,
                    p.id as project_id, p.name as project_name,
+                   (with recursive up (parent_id, number, title, lvl) as (
+                        select a.parent_id, a.number, a.title, 1 from issues a where a.id = i.parent_id
+                        union all
+                        select a.parent_id, a.number, a.title, up.lvl + 1
+                        from issues a join up on a.id = up.parent_id
+                        where up.lvl < 20)
+                    select coalesce(json_agg(json_build_object('number', number, 'title', title) order by lvl desc), '[]')::text
+                    from up) as ancestors,
                    ${if (initials) "null" else "(select c.body from issue_comments c where c.issue_id = i.id and c.deleted_at is null and c.body ilike :t0 order by c.created_at desc limit 1)"} as comment_hit,
                    (i.number = :number) as key_hit,
                    ${if (initials) "true" else "($titleHit)"} as title_hit
@@ -188,6 +190,10 @@ class SearchService(
                     key = "$workspaceKey-$number",
                     number = number,
                     title = title,
+                    ancestors =
+                        jsonMapper
+                            .readValue(checkNotNull(row.get("ancestors", String::class.java)), Array<AncestorRow>::class.java)
+                            .map { SearchIssueRef("$workspaceKey-${it.number}", it.title) },
                     status = IssueStatus.valueOf(checkNotNull(row.get("status", String::class.java))),
                     priority = IssuePriority.valueOf(checkNotNull(row.get("priority", String::class.java))),
                     project =
@@ -297,52 +303,6 @@ class SearchService(
                 ProjectHit(
                     id = checkNotNull(row.get("id", UUID::class.java)),
                     name = checkNotNull(row.get("name", String::class.java)),
-                    updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
-                    snippet = if (initials) null else snippetOfText(row, terms),
-                )
-            }.all()
-            .collectList()
-            .awaitSingle()
-    }
-
-    /** The milestones of the projects the person is a member of, found by name or by what is written in them. */
-    private suspend fun milestones(
-        userId: UUID,
-        terms: List<String>,
-        initials: Boolean,
-        limit: Int,
-    ): List<MilestoneHit> {
-        val termConditions =
-            terms.indices.joinToString(" and ") { index ->
-                if (initials) {
-                    "replace(hangul_initials(m.name), ' ', '') like :t$index"
-                } else {
-                    "(m.name ilike :t$index or b.body ilike :t$index or b.flat ilike :t$index)"
-                }
-            }
-        val nameHit = if (initials) "true" else terms.indices.joinToString(" and ") { "m.name ilike :t$it" }
-        val sql =
-            """
-            select m.id, m.name, m.updated_at, b.body, b.flat, ($nameHit) as title_hit, p.id as project_id, p.name as project_name
-            from milestones m
-            join projects p on p.id = m.project_id
-            cross join lateral (${textOf("m")}) b
-            where p.archived_at is null
-              and exists (select 1 from project_members pm where pm.project_id = p.id and pm.user_id = :viewerId)
-              and $termConditions
-            order by title_hit desc, m.updated_at desc
-            limit $limit
-            """.trimIndent()
-        return bind(databaseClient.sql(sql), userId, terms, initials)
-            .map { row ->
-                MilestoneHit(
-                    id = checkNotNull(row.get("id", UUID::class.java)),
-                    name = checkNotNull(row.get("name", String::class.java)),
-                    project =
-                        SearchProject(
-                            checkNotNull(row.get("project_id", UUID::class.java)),
-                            checkNotNull(row.get("project_name", String::class.java)),
-                        ),
                     updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
                     snippet = if (initials) null else snippetOfText(row, terms),
                 )

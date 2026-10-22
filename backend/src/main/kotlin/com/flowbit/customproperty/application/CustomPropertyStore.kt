@@ -143,7 +143,6 @@ class CustomPropertyStore(
     private fun rowOf(row: io.r2dbc.spi.Readable): CustomPropertyRow {
         val owner =
             row.get("project_id", UUID::class.java)?.let { CustomPropertyOwner(CustomPropertyOwnerKind.PROJECT, it) }
-                ?: row.get("milestone_id", UUID::class.java)?.let { CustomPropertyOwner(CustomPropertyOwnerKind.MILESTONE, it) }
                 ?: CustomPropertyOwner(CustomPropertyOwnerKind.ISSUE, checkNotNull(row.get("issue_id", UUID::class.java)))
         return CustomPropertyRow(
             id = checkNotNull(row.get("id", UUID::class.java)),
@@ -155,6 +154,6 @@ class CustomPropertyStore(
     }
 
     private companion object {
-        const val SELECT = "select id, project_id, milestone_id, issue_id, label, type, value::text as value_text from custom_properties"
+        const val SELECT = "select id, project_id, issue_id, label, type, value::text as value_text from custom_properties"
     }
 }

@@ -23,7 +23,6 @@ data class NewIssue(
      */
     val assigneeIds: List<UUID>?,
     val dueDate: LocalDate?,
-    val milestoneId: UUID? = null,
     val labelIds: List<UUID> = emptyList(),
     /** The project to link the issue to; null leaves it on its own. */
     val projectId: String? = null,

@@ -19,7 +19,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** A stored entry of the activity of a project, a document or a milestone. */
+/** A stored entry of the activity of a project or a document. */
 data class ContentActivityView(
     val id: UUID,
     val type: String,
@@ -31,7 +31,7 @@ data class ContentActivityView(
 )
 
 /**
- * The activity of projects, documents and milestones (`content_activities`), the way
+ * The activity of projects and documents (`content_activities`), the way
  * `IssueActivityStore` keeps an issue's, and the telling of the people who follow them. Every
  * service that changes one of those pages writes what it did here, in its own transaction.
  */

@@ -1,12 +1,11 @@
 "use client";
 
-import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   BoxIcon,
   CircleDashedIcon,
-  DiamondIcon,
   FileTextIcon,
   PlusIcon,
   SearchIcon,
@@ -19,12 +18,11 @@ import {
   LayersIcon,
 } from "lucide-react";
 
-import { useShownAt, useThisYear } from "@/components/dates";
+import { useShownAt } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Kbd } from "@/components/ui/kbd";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
@@ -33,8 +31,7 @@ import { isTyping } from "@/lib/is-typing";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
 import { STATUS_ORDER } from "../meta";
-import { MilestoneStrip } from "@/features/milestones/components/milestone-strip";
-import { NONE, assigneeOptions, milestoneOptions, priorityOptions, statusOptions } from "../options";
+import { NONE, assigneeOptions, priorityOptions, statusOptions } from "../options";
 import { DEFAULT_ISSUE_GROUPING, ISSUE_GROUPS, groupIssues, type IssueGrouping } from "../grouping";
 import { useRememberedListQuery } from "../list-memory";
 import { arrangeBySubIssues } from "../sub-issue-tree";
@@ -54,15 +51,15 @@ const m = messages.issues;
 // The list is what nearly everyone comes for, so only the list is in the page's own script. The
 // other two views arrive when they are chosen, and the new-issue dialog (which carries the whole
 // document editor) when it is first opened, or a moment earlier when its button is pointed at.
-const IssueMilestoneChart = dynamic(() => import("./issue-timeline").then((module) => module.IssueMilestoneChart));
+const IssueTimeline = dynamic(() => import("./issue-timeline").then((module) => module.IssueTimeline));
 const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module) => module.IssueCalendarView));
 const loadNewIssueDialog = () => import("./new-issue-dialog");
 const NewIssueDialog = dynamic(() => loadNewIssueDialog().then((module) => module.NewIssueDialog), { ssr: false });
 const preloadNewIssueDialog = () => void loadNewIssueDialog();
 
-/** "Every …" in a filter; NONE is "nobody" / "no milestone" / "no label". */
+/** "Every …" in a filter; NONE is "nobody" / "no label". */
 const ALL = "__all__";
-const FILTER_KEYS = ["project", "status", "priority", "assignee", "label", "milestone"] as const;
+const FILTER_KEYS = ["project", "status", "priority", "assignee", "label"] as const;
 /** The filters with one value, drawn as a menu. Labels take several and have their own chip. */
 type ChipKey = Exclude<FilterKey, "label">;
 const CHIP_KEYS = FILTER_KEYS.filter((key): key is ChipKey => key !== "label");
@@ -101,27 +98,25 @@ const GROUP_ICON = <LayersIcon className="size-4 text-muted-foreground" aria-hid
 /** The title search in the address: `?q=`. */
 const SEARCH_KEY = "q";
 const ALL_ICON = { className: "size-4 text-muted-foreground", "aria-hidden": true } as const;
-/** `?milestone=none`, `?assignee=none` in the address stand for NONE. */
+/** `?assignee=none` in the address stands for NONE. */
 const NONE_PARAM = "none";
 
 /**
  * A list of issues (a project's, all of them, or one person's) grouped by status, with the
- * new-issue dialog and its `C` shortcut. It can also be shown as a timeline chart or a calendar.
- * The list can be narrowed by status, priority, assignee, label and milestone, and by words in
+ * new-issue dialog and its `C` shortcut. It can also be shown as a timeline or a calendar.
+ * The list can be narrowed by status, priority, assignee and label, and by words in
  * the title; what is chosen lives in the address.
  */
 export function IssuesView({
   projectId,
   issues: savedIssues,
   members,
-  milestones,
   labels,
   projects,
   canEdit,
   deleted = false,
   empty,
   underTabs = false,
-  milestoneProjectId = null,
   defaultAssigneeId = null,
   rememberFilters = true,
   assigneeFilter = true,
@@ -140,8 +135,6 @@ export function IssuesView({
    * the document, hidden, and its tabs would be counted.
    */
   underTabs?: boolean;
-  /** The project `milestones` belong to; the row of milestones shows while the list is filtered to it (D-136). */
-  milestoneProjectId?: string | null;
   /** What to say when there are no issues at all, where the usual words do not fit ("내 티켓"). */
   empty?: { title: string; description: string };
   /** The project whose issues these are; null on the list of every issue. */
@@ -150,7 +143,6 @@ export function IssuesView({
   projects: ProjectSummary[];
   issues: Issue[];
   members: ProjectMember[];
-  milestones: Milestone[];
   /** Every label in the workspace. */
   labels: Label[];
   /** False for the view-only role: the list is read-only and nothing can be created. */
@@ -168,7 +160,7 @@ export function IssuesView({
   const [dialogOpen, setDialogOpen] = useState(false);
   // The dialog is not rendered (or downloaded) until it is first asked for; after that it stays.
   const [dialogUsed, setDialogUsed] = useState(false);
-  // The filters live in the address (`?status=TODO&milestone=<id>&q=…`), so the links on the
+  // The filters live in the address (`?status=TODO&project=<id>&q=…`), so the links on the
   // project overview open the list already narrowed, and back/forward and sharing keep it.
   // An issue open in a dialog changes the browser's address, not the list's (useListAddress).
   const { pathname, searchParams } = useListAddress();
@@ -194,8 +186,7 @@ export function IssuesView({
   const status = readFilter("status", (value) => STATUS_ORDER.some((known) => known === value));
   const priority = readFilter("priority", (value) => priorityOptions.some((option) => option.value === value));
   const assignee = assigneeFilter ? readFilter("assignee", (value) => members.some((member) => member.userId === value)) : ALL;
-  const milestone = readFilter("milestone", (value) => milestones.some((option) => option.id === value));
-  const filters = { project, status, priority, assignee, milestone };
+  const filters = { project, status, priority, assignee };
   // Labels are the one filter with several values at once: "?label=<id>,<id>,none".
   const labelParam = searchParams.get("label") ?? "";
   const labelFilter = useMemo(
@@ -211,7 +202,6 @@ export function IssuesView({
       if (value.length === 0) params.delete("label");
       else params.set("label", value.map((item) => (item === NONE ? NONE_PARAM : item)).join(","));
     });
-  const milestoneFilter = filters.milestone;
   // Typed text is kept here and copied to the address: an input driven by the address alone would
   // lag a step behind and break Korean composition.
   const [search, setSearch] = useState(() => searchParams.get(SEARCH_KEY) ?? "");
@@ -232,7 +222,6 @@ export function IssuesView({
         (assignee === NONE ? issue.assignees.length === 0 : issue.assignees.some((person) => person.id === assignee))) &&
       (labelFilter.length === 0 ||
         (issue.labels.length === 0 ? labelFilter.includes(NONE) : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
-      matches(milestone, issue.milestone?.id) &&
       (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle));
   const issues = allIssues.filter(passesFilters);
   const clearFilters = () => {
@@ -280,15 +269,6 @@ export function IssuesView({
             key: "assignee" as const,
             label: m.assigneeFilter,
             options: [all(m.allAssignees, <UsersIcon {...ALL_ICON} />), ...assigneeOptions(members)],
-          },
-        ]
-      : []),
-    ...(milestones.length > 0
-      ? [
-          {
-            key: "milestone" as const,
-            label: m.milestoneFilter,
-            options: [all(m.allMilestones, <DiamondIcon {...ALL_ICON} />), ...milestoneOptions(milestones, filters.milestone)],
           },
         ]
       : []),
@@ -340,8 +320,7 @@ export function IssuesView({
       setDialogUsed(true);
       setDialogOpen(true);
     };
-    // The sidebar's "새 티켓" opens this list's dialog, so the new ticket starts in this project
-    // and under the milestone the list is filtered to.
+    // The sidebar's "새 티켓" opens this list's dialog, so the new ticket starts in this project.
     const onNewIssue = (event: Event) => {
       event.preventDefault();
       setDialogDates(null);
@@ -406,9 +385,8 @@ export function IssuesView({
   // "Long ago" is measured from when the list was opened, so lines do not drop out while it is looked at.
   // The server may not read the clock: until the browser takes over, nothing counts as long ago.
   const now = useShownAt();
-  const thisYear = useThisYear();
   const groups = useMemo(() => {
-    return groupIssues(issues, grouping, projects, milestones, thisYear).map((group) => {
+    return groupIssues(issues, grouping, projects).map((group) => {
       // Issues finished long ago leave the lines but are still counted, so the group can offer them.
       const shown = group.issues.filter((issue) => (now === null || !finishedLongAgo(issue, completed, now)));
       const items = sortIssues(shown, sort);
@@ -416,13 +394,12 @@ export function IssuesView({
         key: group.key,
         label: group.label,
         icon: group.icon,
-        meta: group.meta,
         count: items.length,
         hidden: group.issues.length - shown.length,
         rows: arrangeBySubIssues(items),
       };
     });
-  }, [issues, grouping, projects, milestones, sort, completed, now, thisYear]);
+  }, [issues, grouping, projects, sort, completed, now]);
 
   // The last filters, order and grouping are shared by the three lists and kept across visits.
   useRememberedListQuery({
@@ -453,8 +430,7 @@ export function IssuesView({
         <div className="flex flex-col">
           {/*
             One line at every width: the view switch stays at the right end, and what does not fit
-            beside it scrolls sideways (as the milestone strip does) instead of wrapping onto lines
-            of its own. The padding inside the scroller keeps the focus rings from being cut off.
+            beside it scrolls sideways instead of wrapping onto lines of its own. The padding inside the scroller keeps the focus rings from being cut off.
           */}
           <div data-tour="issue-toolbar" className="flex items-center gap-2 px-4 pb-2">
             <div className="-m-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain p-1 [scrollbar-width:thin]">
@@ -481,18 +457,16 @@ export function IssuesView({
                 />
               </div>
               {filterChips.map((chip) => (
-                <Fragment key={chip.key}>
-                  {/* Labels come after the assignee, before the milestone. */}
-                  {chip.key === "milestone" ? labelChip : null}
-                  <ChipSelect
-                    label={chip.label}
-                    value={filters[chip.key]}
-                    options={chip.options}
-                    onChange={(value) => setFilter(chip.key, value)}
-                  />
-                </Fragment>
+                <ChipSelect
+                  key={chip.key}
+                  label={chip.label}
+                  value={filters[chip.key]}
+                  options={chip.options}
+                  onChange={(value) => setFilter(chip.key, value)}
+                />
               ))}
-              {filterChips.some((chip) => chip.key === "milestone") ? null : labelChip}
+              {/* Labels come after the assignee. */}
+              {labelChip}
               {filtered ? (
                 <Button
                   variant="ghost"
@@ -506,7 +480,7 @@ export function IssuesView({
               ) : null}
               <span className="flex-1" />
               {deletedToggle}
-              {/* The chart and the calendar have an order of their own (by milestone, by day). */}
+              {/* The timeline and the calendar have an order of their own (by project, by day). */}
               {view === "list" ? (
                 <>
                   <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />
@@ -517,14 +491,6 @@ export function IssuesView({
             </div>
             <IssueViewSwitch view={view} onChange={setView} />
           </div>
-          {milestoneProjectId !== null && (projectId ?? filters.project) === milestoneProjectId && !deleted ? (
-            <MilestoneStrip
-              projectId={milestoneProjectId}
-              milestones={milestones}
-              selected={filters.milestone === ALL || filters.milestone === NONE ? null : filters.milestone}
-              onSelect={(id) => setFilter("milestone", id ?? ALL)}
-            />
-          ) : null}
           {deleted ? (
             <p className="border-t bg-muted/50 px-5 py-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedNotice}</p>
           ) : null}
@@ -543,8 +509,8 @@ export function IssuesView({
               <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert>
             </div>
           ) : null}
-          {view === "milestone" ? (
-            <IssueMilestoneChart issues={issues} />
+          {view === "timeline" ? (
+            <IssueTimeline issues={issues} />
           ) : view === "calendar" ? (
             <IssueCalendarView
               issues={issues}
@@ -561,9 +527,6 @@ export function IssuesView({
                 {group.icon}
                 <span className="truncate">{group.label}</span>
                 <span className="font-normal text-muted-foreground tabular-nums">{group.count}</span>
-                {group.meta ? (
-                  <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground tabular-nums">{group.meta}</span>
-                ) : null}
               </h2>
               <ul>
                 {group.rows.map((row) =>
@@ -618,9 +581,7 @@ export function IssuesView({
           projects={projects}
           defaultProjectId={projectId}
           members={members}
-          milestones={milestones}
           labels={labels}
-          defaultMilestoneId={milestoneFilter === ALL || milestoneFilter === NONE ? null : milestoneFilter}
           defaultAssigneeId={defaultAssigneeId}
           defaultDates={dialogDates}
           onCreated={showCreated}

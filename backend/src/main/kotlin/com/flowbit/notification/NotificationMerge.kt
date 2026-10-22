@@ -15,14 +15,12 @@ object NotificationMerge {
             "PRIORITY_CHANGED",
             "ASSIGNEE_CHANGED",
             "DUE_DATE_CHANGED",
-            "MILESTONE_CHANGED",
             "PROJECT_CHANGED",
             "PARENT_CHANGED",
-            // What a project, a document or a milestone has (D-165).
+            // What a project or a document has (D-165).
             "NAME_CHANGED",
             "LEAD_CHANGED",
             "DATES_CHANGED",
-            "TARGET_DATE_CHANGED",
         )
     private val ONCE = setOf("CREATED", "DESCRIPTION_CHANGED", "CONTENT_EDITED")
     private val OPPOSITES = mapOf("DELETED" to "RESTORED", "RESTORED" to "DELETED")
@@ -37,7 +35,7 @@ object NotificationMerge {
         return later.copy(events = events, recipientIds = (earlier.recipientIds + later.recipientIds).distinct())
     }
 
-    /** The same for what is done to a project, a document or a milestone. */
+    /** The same for what is done to a project or a document. */
     fun merge(
         earlier: ContentNotification,
         later: ContentNotification,

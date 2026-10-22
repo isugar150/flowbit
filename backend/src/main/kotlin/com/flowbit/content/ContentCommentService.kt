@@ -17,7 +17,7 @@ import java.time.Clock
 import java.util.UUID
 
 /**
- * General comments under the activity of a project, a document or a milestone (D-165): the same
+ * General comments under the activity of a project or a document (D-165): the same
  * as an issue's, with emoji and files, but open to everyone who can see the page. An issue keeps
  * its own comments. A deleted document can only be read.
  */

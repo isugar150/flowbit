@@ -47,7 +47,7 @@ function FollowButton({ subscribed, hint, onClick }: { subscribed: boolean; hint
 }
 
 /**
- * The activity of a project, a document or a milestone, the same as an issue's (D-165): its
+ * The activity of a project or a document, the same as an issue's (D-165): its
  * changes, the comments under it (with their replies) and the threads on its blocks, mixed by time,
  * newest first with a box for a comment at the top (D-167). Open to everyone who can see the page; on a deleted document it
  * can only be read. A document and a project also say who follows them, with a button to follow or stop (D-166, D-176).

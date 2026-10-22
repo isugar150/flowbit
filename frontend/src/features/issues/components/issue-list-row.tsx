@@ -2,7 +2,6 @@
 
 import { memo } from "react";
 import { useRouter } from "next/navigation";
-import { DiamondIcon } from "lucide-react";
 import type { ProjectMember } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -27,14 +26,12 @@ const LAYOUTS = {
   page: {
     project: "hidden w-28 shrink-0 overflow-hidden md:block xl:w-32",
     labels: "hidden w-44 shrink-0 overflow-hidden xl:flex",
-    milestone: "hidden w-32 shrink-0 overflow-hidden lg:flex",
     due: "hidden w-16 shrink-0 sm:block",
     assignee: "w-14 shrink-0",
   },
   panel: {
     project: "hidden",
     labels: "hidden w-44 shrink-0 overflow-hidden @3xl:flex",
-    milestone: "hidden w-32 shrink-0 overflow-hidden @xl:flex",
     due: "hidden w-16 shrink-0 @md:block",
     assignee: "w-14 shrink-0",
   },
@@ -81,7 +78,6 @@ export function IssueListHeader({
       <span className="min-w-0 flex-1">{m.columns.title}</span>
       {showProject ? <span className={columns.project}>{m.project}</span> : null}
       <span className={columns.labels}>{m.labels}</span>
-      <span className={columns.milestone}>{m.milestone}</span>
       <span className={columns.due}>{m.dueDate}</span>
       <span className={cn(columns.assignee, "overflow-hidden whitespace-nowrap")}>{m.assignee}</span>
     </div>
@@ -187,14 +183,6 @@ export const IssueListRow = memo(function IssueListRow({
       ) : null}
       <span className={columns.labels}>
         <IssueLabels issue={issue} max={2} />
-      </span>
-      <span className={cn(columns.milestone, "items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground")}>
-        {issue.milestone ? (
-          <>
-            <DiamondIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate">{issue.milestone.name}</span>
-          </>
-        ) : null}
       </span>
       <span className={columns.due}>
         {edit ? (

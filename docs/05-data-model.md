@@ -75,7 +75,7 @@
 |---|---|---|
 | `users.notify_email` | `boolean` 기본 true | 메일 알림을 받을지. 주소는 `users.email` |
 | `notification_settings` | `smtp_enabled`, `smtp_host`, `smtp_port`, `smtp_security`(`NONE`\|`STARTTLS`\|`SSL`), `smtp_username`, `smtp_password`, `smtp_from_address`, `smtp_from_name`, `push_enabled`, `fcm_service_account`, `fcm_api_key`, `fcm_messaging_sender_id`, `fcm_app_id`, `fcm_vapid_key`, `updated_at` | 행 하나(`id = 1`). `smtp_password`, `fcm_service_account` 는 평문이고 API 로 내보내지 않는다 |
-| `page_views` | `page_key`(프레즌스 키: `project:<id>`, `issue:<번호>`, `document:<id>`, `milestone:<id>`) + `user_id` FK → `users`(함께 삭제) PK, `seen_at` | 그 사람이 그 화면을 마지막으로 본 때. 화면 오른쪽 위 아바타의 순서와 "마지막 확인"에 쓴다. 행이 없거나(본 적 없음) 30일보다 오래된 사람은 아바타에 나오지 않는다 (`V3__page_views.sql`, D-119). 실시간 연결이 화면에 들어올 때와 떠날 때 쓴다 |
+| `page_views` | `page_key`(프레즌스 키: `project:<id>`, `issue:<번호>`, `document:<id>`) + `user_id` FK → `users`(함께 삭제) PK, `seen_at` | 그 사람이 그 화면을 마지막으로 본 때. 화면 오른쪽 위 아바타의 순서와 "마지막 확인"에 쓴다. 행이 없거나(본 적 없음) 30일보다 오래된 사람은 아바타에 나오지 않는다 (`V3__page_views.sql`, D-119). 실시간 연결이 화면에 들어올 때와 떠날 때 쓴다 |
 | `push_tokens` | `token` PK, `user_id` FK → `users`(함께 삭제), `user_agent`, `created_at`, `last_seen_at` | 푸시를 켠 브라우저 하나당 한 행. 같은 토큰을 다른 계정이 등록하면 주인이 바뀐다 |
 | `webhooks` | `id`, `name`, `enabled`, `url`, `method`(`GET`\|`POST`\|`PUT`\|`PATCH`\|`DELETE`, `V4`), `content_type`, `headers`, `body_template`, `signing_secret`, `event_types`, `last_status`, `last_error`, `last_attempt_at`, `created_at`, `updated_at` | `headers` 는 JSON 객체를 담은 `text`(엔티티에 그대로 매핑하려고 `jsonb` 를 쓰지 않았다). `event_types` 는 쉼표로 이은 `IssueActivityType` 이름, 빈 값은 전부. 항상 받는 사람마다 부르므로 `per_recipient` 컬럼은 없다(D-102) |
 
@@ -158,203 +158,22 @@
 | `body` | `text` | 평문, 5000자 이하, 기본 빈 문자열 |
 | `created_at` | `timestamptz` | |
 
-### `milestones`
+### ~~`milestones`, `milestone_assignees`~~ — 없앴다 (D-189)
 
-프로젝트 안의 단계. 티켓을 묶어 단계별 진행률을 본다 ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "마일스톤").
-
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `project_id` | `uuid` FK → `projects` (함께 삭제) | |
-| `name` | `text` | 1~80자 |
-| `target_date` | `date` null | 목표일 |
-| `status` | `text` | `BACKLOG`\|`PLANNED`\|`IN_PROGRESS`\|`COMPLETED`\|`CANCELED`, 기본 `PLANNED`(`V21`, D-163). `COMPLETED`·`CANCELED` 는 목록에서 접힌다 |
-| `created_at`, `updated_at` | `timestamptz` | |
-
-`milestones.content`(`V2__milestone_content.sql`, D-113): `jsonb` null. 목표의 "정리" 문서(편집기 JSON, `RichText` 가 검증). 엔티티(`Milestone`)에는 싣지 않고 `RichText.store`/목록 조회의 SQL 로 읽고 쓴다(프로젝트·티켓의 `content` 와 같다).
-
-`issues.milestone_id`(`V7`): `uuid` null FK → `milestones`. 마일스톤을 지우면 null 이 된다. 같은 프로젝트의 마일스톤인지는 서비스가 확인한다.
+프로젝트 안의 단계였던 목표(마일스톤)의 표 `milestones`(`milestones.content` 포함)와 `milestone_assignees`, 그리고 `issues.milestone_id` 는 `V4__remove_milestones.sql` 이 지운다. 같은 마이그레이션이 목표의 댓글·스레드·활동·파일(`content_*` 의 `target_type = 'MILESTONE'`), 목표에 더한 사용자 속성(`custom_properties.milestone_id`), 티켓 활동의 `MILESTONE_CHANGED`, 프로젝트 활동의 `MILESTONE_ADDED`·`MILESTONE_REMOVED`, 프레즌스 기록(`page_views` 의 `milestone:…`)을 지우고, API 알림이 `MILESTONE_CHANGED` 만 받던 것은 끈다. 목표의 댓글 파일과 본문 사진은 파일 저장소에 남아 있다가 관리자 설정 > 파일 관리의 "쓰지 않는 파일 정리"로 지워진다.
 
 ### `custom_properties`
 
-사용자가 프로젝트·목표·티켓 하나에 직접 더한 속성 (`V3__custom_properties.sql`, D-186, [features/custom-properties.md](features/custom-properties.md)). 정의를 공유하지 않고 **그 항목에만** 속한다.
+사용자가 프로젝트·티켓 하나에 직접 더한 속성 (`V3__custom_properties.sql`, D-186, [features/custom-properties.md](features/custom-properties.md)). 정의를 공유하지 않고 **그 항목에만** 속한다.
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `id` | `uuid` PK | UUID v7 |
-| `project_id`, `milestone_id`, `issue_id` | `uuid` null FK → `projects`·`milestones`·`issues` (함께 삭제) | **셋 중 정확히 하나만** 채운다(`CHECK num_nonnulls(...) = 1`) |
-| `label` | `text` | 1~30자. 같은 항목 안에서 대소문자 없이 유일(부분 유일 인덱스 세 개) |
+| `project_id`, `issue_id` | `uuid` null FK → `projects`·`issues` (함께 삭제) | **둘 중 정확히 하나만** 채운다(`CHECK num_nonnulls(...) = 1`, `V4` 가 `milestone_id` 를 뺐다) |
+| `label` | `text` | 1~30자. 같은 항목 안에서 대소문자 없이 유일(부분 유일 인덱스 둘) |
 | `type` | `text` | `TEXT`\|`NUMBER`\|`DATE`\|`CHECKBOX`\|`LINK`\|`PERSON`. 만든 뒤 바꾸지 않는다 |
 | `value` | `jsonb` null | 값 없음은 SQL NULL. 텍스트·링크는 문자열, 숫자는 숫자, 날짜는 `"YYYY-MM-DD"`, 체크박스는 불리언, 사람은 사용자 id 문자열 |
 | `created_at`, `updated_at` | `timestamptz` | 화면 순서는 `created_at`, `id` |
 
 한 항목에 20개까지(서비스가 확인). 사람 값이 가리키는 사용자는 외래 키가 아니라 서비스가 프로젝트 구성원인지 확인한다(담당자처럼, 구성원에서 빠져도 값은 남는다).
-
-### `milestone_assignees`
-
-목표의 담당자 (`V2__milestone_assignees.sql`, D-185). 티켓의 `issue_assignees` 와 같은 모양이다.
-
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| `milestone_id` | `uuid` FK → `milestones` (함께 삭제) | PK 의 일부 |
-| `user_id` | `uuid` FK → `users` (함께 삭제) | PK 의 일부. 인덱스 `milestone_assignees_user_id_idx` |
-| `created_at` | `timestamptz` | 담당자가 된 시각. 이 순서가 화면의 순서다 |
-
-한 목표에 최대 10명. 지정할 때는 그 프로젝트의 활성 구성원이어야 하고, 이미 담당자인 사람은 프로젝트에서 빠졌어도 다시 검사하지 않는다(티켓과 같다).
-
-### `issues`, 문서 컬럼
-
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| `id` | `uuid` PK | |
-| `project_id` | `uuid` FK → `projects` (함께 삭제) | |
-| `number` | `int` | 워크스페이스 전체의 일련번호. 유일(`issues_number_key`). `instance_settings.next_issue_number` 를 한 문장으로 증가시켜 발급 |
-| `title` | `text` | 1~200자 |
-| `content` | `jsonb` null | 본문. 편집기 문서(JSON). `V5` |
-| `description` | `text` | 본문에서 뽑은 글자. 미리 보기와 검색용. 서버가 채운다 |
-| `status` | `text` | `BACKLOG` \| `READY` \| `IN_PROGRESS` \| `DONE` \| `CANCELED` |
-| `priority` | `text` | `NONE` \| `URGENT` \| `HIGH` \| `MEDIUM` \| `LOW` |
-| `due_date` | `date` null | |
-| `created_by` | `uuid` FK → `users` | |
-| `version` | `int` | 바뀔 때마다 1 증가. 충돌 감지와 실시간 순서 판단에 쓸 예정 |
-
-`projects.content jsonb` (`V5`): 프로젝트 개요의 설명 문서. `projects.description` 은 한 줄 요약이었고 D-134 로 화면에서 뺐다(컬럼만 남음).
-
-`content` 컬럼은 엔티티에 매핑하지 않는다. `RichText` 가 SQL 로 직접 읽고 쓴다(목록 조회에 큰 문서가 딸려 오지 않게 하려는 것이기도 하다).
-
-### `retention_policies` (`V9`, D-132)
-
-삭제한 것을 얼마 뒤에 영구 삭제할지. 항목당 한 행이고, **행이 없는 항목은 영구 삭제하지 않는다**(기본). [features/admin-retention.md](features/admin-retention.md)
-
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| `item` | text PK | `ISSUES`·`DOCUMENTS`·`COMMENTS` |
-| `amount` | integer | 1~999 |
-| `unit` | text | `DAYS`·`WEEKS`·`MONTHS` |
-| `updated_at` | timestamptz | |
-
-`issues.deleted_at`·`documents.deleted_at`·`issue_comments.deleted_at` 이 이 기간보다 오래되면 정리 작업이 행을 지운다. 지운 티켓의 하위 데이터는 외래 키의 `CASCADE` 로 함께 사라진다.
-
-### Git 연동 (`V11`, D-141)
-
-관리자가 연결한 Git 서버와, 티켓 키로 티켓에 연결된 브랜치·PR·커밋. [features/git-integration.md](features/git-integration.md)
-
-| 테이블 | 컬럼 | 설명 |
-|---|---|---|
-| `git_connections` | `id`, `name`(1~80자), `provider`(`GITEA`\|`GITLAB`\|`GITHUB`), `base_url`, `secret`, `enabled`, `status_rules`(`V19`, D-158: 단계 → 상태 JSON 을 담은 text. 전의 `auto_in_progress`·`auto_done` 을 옮기고 지웠다), `last_received_at`, `last_event`, `last_result`, `last_error`, `created_at`, `updated_at` | `secret` 은 평문(D-090), 32바이트 무작위 값의 16진수 64자. `last_result` 는 JSON 을 담은 `text`(`{linkedIssues, statusChanged, skipped}`, 엔티티에 그대로 매핑하려고 `jsonb` 를 쓰지 않았다) |
-| ~~`git_connection_projects`~~ | | `V15` 에서 지웠다(D-149). `git_connections.all_projects` 도 함께 |
-| `issue_git_links` | `id`, `issue_id`(CASCADE), `connection_id`(CASCADE), `kind`(`BRANCH`\|`PULL_REQUEST`), `repository`, `branch`, `pr_number`, `title`, `url`, `pr_state`(`OPEN`\|`DRAFT`\|`MERGED`\|`CLOSED`), `closes`, `created_at`, `updated_at` | 유일 인덱스 `(issue_id, connection_id, repository, kind, coalesce(pr_number, 0), coalesce(branch, ''))`. PR 줄의 `branch` 는 PR 을 올린 브랜치 |
-| `issue_git_commits` | `issue_id`(CASCADE), `connection_id`(CASCADE), `repository`, `sha`, `message`(첫 줄), `url`, `author_name`, `committed_at` | PK `(issue_id, sha)`: 다시 온 배달과 다른 브랜치로 옮긴 커밋을 두 번 기록하지 않는다 |
-
-`V12`(D-146): `git_connections` 에 `receive_mode`(`WEBHOOK`\|`POLL`), GitHub App 의 `github_organization`, `github_app_id`, `github_app_slug`, `github_client_id`, `github_client_secret`, `github_private_key`(PEM, 평문 D-090), `github_installation_id`, `github_repository_selection`, `github_setup_state`(매니페스트 왕복용 일회용 값, 유일), 가져오기의 `last_synced_at`, `sync_error`, `rate_limit_remaining`. 새 표 `git_sync_cursors`(`connection_id` CASCADE, `repository`, `pulls_etag`, `pulls_updated_at`, `branches_etag`, `branch_heads`(브랜치 → 머리 커밋 JSON 을 담은 text), PK `(connection_id, repository)`).
-
-`V13`(D-147): `git_user_accounts`(`user_id` PK·CASCADE, `username` 소문자·유일): 관리자가 적은 구성원의 Git 아이디. `V18`(D-152)에서 지웠다.
-
-`V14`(D-148): `project_git_repositories`(`project_id`·`connection_id` CASCADE, `repository` 소문자, PK 셋 모두): 프로젝트의 저장소. `issue_git_repositories`(`issue_id` PK·CASCADE, `connection_id` CASCADE, `repository` 소문자): 티켓에서 고른 저장소.
-
-`V16`(D-150): `git_github_accounts`(`user_id` PK·CASCADE, `connection_id` CASCADE, `github_login` 소문자, `github_user_id`, `linked_at`, 유일 `(connection_id, github_user_id)`): 각자 내 설정에서 연결한 GitHub 계정.
-
-`V17`(D-151): `git_repositories`(`connection_id` CASCADE, `repository` 소문자, `url`, `seen_at`, PK 둘): 연결마다 알고 있는 저장소. GitHub App 은 설치된 저장소로 통째로 바꾸고, Gitea·GitLab 은 이벤트를 보낸 저장소가 쌓인다.
-
-`V18`(D-152): `git_user_accounts` 를 지운다(관리자의 사람 맞추기를 없앴다). 티켓의 저장소(`issue_git_repositories`)는 처음 연결된 브랜치·PR 의 저장소로 저절로 채워질 수 있다.
-
-`V22`(D-161): `issue_git_links.unlinked_at`(timestamptz, null 이면 연결됨): 사람이 티켓에서 해제한 브랜치·PR. 지우지 않고 남겨 Git 이 다시 연결하지 않게 한다. 화면·상태 규칙은 이 값이 null 인 것만 본다.
-
-`V11` 은 `issue_activities.actor_id` 의 NOT NULL 도 뺀다. Git 이 한 일은 `detail.via = {"source":"git","name":"<Git 사용자 이름>"}` 를 달고, Flowbit 계정이 맞으면 `actor_id` 도 채운다.
-
-### 검색 함수 `hangul_initials(text)` (`V10`, D-133)
-
-한글 음절을 초성으로 바꾼 글자를 돌려준다(`결제 개편` → `ㄱㅈ ㄱㅍ`). 한글 음절이 아닌 글자는 그대로. `IMMUTABLE`. 검색이 초성만으로 된 검색어를 티켓·문서 제목과 맞출 때 쓴다 ([features/search.md](features/search.md)).
-
-## 이후 마일스톤의 모델 (초안)
-
-방향만 적어 둔다. 각 마일스톤을 시작할 때 기능 명세에서 확정하고 이 문서에 반영한다.
-
-티켓·프리셋·상태·댓글의 모델 초안은 [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) 의 "데이터 모델"이 기준이다. 아래 그림은 팀 개념이 있던 때의 것이고, **`teams` 는 `projects` 로 읽는다** (D-032).
-
-```
-teams ──< team_members >── users
-  │
-  ├──< statuses (범주: backlog / unstarted / started / completed / canceled)
-  ├──< cycles (번호, 시작일, 종료일)
-  ├──< labels
-  └──< issues ──< comments, issue_history, issue_relations
-          │ └── parent_issue_id (하위 티켓, 10단계까지)
-          ├── status_id, assignee_id, cycle_id, project_id
-          └──< issue_labels
-
-projects ──< project_updates          views (저장한 필터)
-notifications (수신함)
-```
-
-- 티켓 키: `teams.key` + 팀별 일련번호 (`FLOW-123`). 번호는 팀 행의 카운터를 잠그고 증가시켜 발급한다.
-- 목록·보드의 순서: 사이에 끼워 넣기가 쉬운 순위 문자열(LexoRank 계열)을 쓴다.
-- 티켓에는 `version`(증가하는 정수)을 둔다. 낙관적 업데이트의 중복 제거와 실시간 이벤트의 순서 판단에 쓴다.
-- 티켓 변경 이력은 필드 단위로 남긴다. 실행 취소와 활동 기록이 이것을 쓴다.
-- 삭제는 `deleted_at` 으로 표시하고 일정 기간 뒤에 실제로 지운다(실행 취소가 가능해야 한다).
-
-### `labels`, `issue_labels` (D-060)
-
-워크스페이스 전체가 함께 쓰는 티켓 라벨. 티켓 하나에 여러 개 붙는다(최대 10개).
-
-| 테이블 | 컬럼 | 설명 |
-|---|---|---|
-| `labels` | `id` uuid PK, `name` text(1~30자, 대소문자 무시하고 유일), `color` text(`#rrggbb`), `created_at` | 처음부터 `버그`, `기능`, `중요` 세 개가 들어 있다. 목록은 만든 순서 |
-| `issue_labels` | `issue_id`, `label_id` (둘이 PK, 둘 다 `ON DELETE CASCADE`) | 티켓과 라벨의 연결 |
-
-### `issue_assignees` (`V6`, D-125)
-
-티켓의 담당자. 한 티켓에 여러 명(최대 10명). `V6` 이 `issues.assignee_id` 의 값을 여기로 옮기고 그 컬럼을 지웠다.
-
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| `issue_id` | `uuid` FK → `issues` (CASCADE) | `(issue_id, user_id)` 가 PK |
-| `user_id` | `uuid` FK → `users` (CASCADE) | 연결된 프로젝트의 활성 구성원(독립 티켓은 모든 활성 사용자). 인덱스 `issue_assignees_user_id_idx`(내 티켓) |
-| `created_at` | `timestamptz` | 지정한 때. 화면은 이 순서로 보여 준다 |
-
-
-### `issue_activities`, `issue_subscriptions` (D-061)
-
-| 테이블 | 컬럼 | 설명 |
-|---|---|---|
-| `issue_activities` | `id` uuid PK, `seq` bigint(자동 증가, 기록 순서), `issue_id`(CASCADE), `actor_id`(Git 이 한 일이고 계정이 맞지 않으면 null, `V11`), `type` text, `detail` jsonb, `created_at` | 티켓의 변경 이력. `type` 은 `CREATED`, `TITLE_CHANGED`, `DESCRIPTION_CHANGED`, `STATUS_CHANGED`, `PRIORITY_CHANGED`, `ASSIGNEE_CHANGED`, `DUE_DATE_CHANGED`, `MILESTONE_CHANGED`, `LABELS_CHANGED`. `detail` 은 `{from,to}`(라벨·담당자는 `{added,removed}`. 담당자의 D-125 전 기록은 `{from,to}`)이고 사람·목표·라벨은 **그때의 이름**을 적는다 |
-| `issue_subscriptions` | `issue_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 티켓을 구독하는 사람. 알림의 받는 사람 |
-| `project_subscriptions` (D-102) | `project_id`, `user_id`(둘이 PK, 둘 다 CASCADE), `created_at` | 프로젝트를 구독하는 사람. 그 프로젝트에 연결된 모든 티켓의 알림을 받는다. 프로젝트에서 빠져도 행은 남지만, 받는 사람을 고를 때 지금 구성원(또는 워크스페이스 관리자)인지 확인한다 |
-
-### `issue_comments` (`V5`, D-101)
-
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| `id` | uuid PK | |
-| `issue_id` | uuid, CASCADE | |
-| `author_id` | uuid → `users` | |
-| `content` | jsonb | 편집기 문서. 태그된 사람은 이 안의 `mention` 블록(`attrs.id` = 사용자 id, `attrs.label` = 그때의 이름)이다. 따로 표를 두지 않는다 |
-| `body` | text | `content` 에서 뽑은 글자(알림 문구, 검색용). 태그는 `@이름` |
-| `created_at`, `updated_at` | timestamptz | 고치면 `updated_at` 만 바뀐다(화면의 "수정됨") |
-| `deleted_at` | timestamptz null | 지운 댓글. 행은 남고 읽지 않는다 |
-
-인덱스 `(issue_id, created_at, id)`. `COMMENT_ADDED`·`MENTIONED` 는 알림에만 쓰는 종류이고 `issue_activities` 에는 쌓이지 않는다.
-
-마이그레이션이 기존 티켓마다 `CREATED` 한 줄을 넣고, 만든 사람과 담당자를 구독시켰다.
-
-### 독립 티켓, 하위 티켓, 리액션, 첨부, 문서 (D-062~D-066)
-
-| 대상 | 내용 |
-|---|---|
-| `instance_settings.workspace_key` | 모든 티켓 키의 앞부분(기본 `FB`). 관리자가 바꾼다. 형식은 프로젝트 키와 같다 |
-| `instance_settings.next_issue_number` | 다음 티켓 번호. 워크스페이스 전체에서 하나의 일련번호 |
-| `issues.project_id` | **null 허용**. 티켓이 연결된 프로젝트(없으면 독립 티켓). 바꿔도 번호는 그대로 |
-| `issues.number` | 워크스페이스 전체에서 유일(`issues_number_key`) |
-| `issues.parent_id` | 상위 티켓(`ON DELETE SET NULL`). 서로 물리는 관계는 서버가 막는다. 하위 티켓은 최상위 티켓 아래로 10단계까지이고, DB 제약이 아니라 서버가 검사한다 (D-118) |
-| `issue_reactions` | `issue_id`, `user_id`, `emoji` (셋이 PK). 이모지는 서버가 정한 8개만 |
-| `issue_attachments` | `id`, `issue_id`, `file_key`(저장소 `files/` 아래의 파일 이름, UUID), `file_name`(원래 이름), `size_bytes`, `uploaded_by`, `created_at`, `comment_id` null(댓글에 붙은 파일이면 그 댓글, 지워지면 함께 지워진다. D-164), `pending`(댓글을 쓰는 중에 올라가 아직 보내지 않은 파일. 올린 사람만 보고, 하루 뒤 보관 작업이 지운다). 티켓의 "첨부 파일" 목록은 `comment_id is null and not pending` 인 것만이다 |
-| `issue_comment_reactions` | `comment_id`(`issue_comments`, `ON DELETE CASCADE`), `user_id`, `emoji` (셋이 PK). 댓글의 이모지, 같은 8개 (D-164) |
-| `content_threads` | 블록 댓글의 스레드 (D-165): `id`, `target_type`(`PROJECT`·`ISSUE`·`DOCUMENT`·`MILESTONE`), `target_id`(외래 키 없음: 보관 작업이 정리), `block_id`(본문의 `attrs.blockId`), `quote`(블록 글 앞 200자), `created_by`, `created_at`, `resolved_at`, `resolved_by` |
-| `content_thread_comments` | 스레드의 댓글: `thread_id`(`ON DELETE CASCADE`), `author_id`, `content`(문단·글·태그만), `body`, `created_at`, `updated_at`, `deleted_at` |
-| `content_activities`, `content_comments`, `content_comment_reactions`, `content_activity_reactions`, `content_files` | 프로젝트·문서·목표의 활동과 일반 댓글, 이모지, 파일 (D-165). `issue_activities`·`issue_comments`·`issue_*_reactions`·`issue_attachments` 와 같은 모양에 `target_type`(`PROJECT`·`DOCUMENT`·`MILESTONE`)·`target_id` |
-| `document_subscriptions` | `document_id`(`documents`, `ON DELETE CASCADE`), `user_id`(`ON DELETE CASCADE`), `created_at` (앞의 둘이 PK). 문서를 구독한 사람 (D-166, `V25`). 만든 사람은 문서를 만들 때, 댓글에서 태그된 사람은 태그될 때 들어가고, 누구나 직접 켜고 끈다. 문서 활동의 알림 대상이다 |
-| (본문 JSON) | `projects`·`issues`·`documents`·`milestones` 의 `content` 의 최상위 블록마다 `attrs.blockId`(안 바뀌는 번호). 서버가 저장할 때 붙이고 `V24` 가 있던 본문에 붙였다 |
-| `issue_activity_reactions` | `activity_id`(`issue_activities`, `ON DELETE CASCADE`), `user_id`, `emoji` (셋이 PK). 활동 기록 줄의 이모지 (D-164). 본문·제목 수정이 앞의 줄에 합쳐져도 줄의 id 는 그대로라 이모지가 남는다 |
-| `documents` | `id`, `issue_id` null, `project_id` null, `parent_id` null(안에 들어 있는 상위 문서. 프로젝트 문서만, 5단계까지, 상위가 지워지면 함께 지워진다. D-083), `title`, `content` jsonb(편집기 문서), `created_by`, `created_at`, `updated_at`. 티켓이나 프로젝트 **둘 중 하나에만** 속한다(`documents_one_owner`). 주인이 지워지면 함께 지워진다 (D-075) |
-| `issues.start_date` | 티켓이 기간을 가질 때의 첫날. `due_date` 가 있어야 하고 그보다 늦을 수 없다(`issues_dates_order`) (D-077) |
-| `issues.deleted_at`, `issues.deleted_by` | 삭제 표시. 삭제된 티켓은 목록·집계에서 빠지지만 행은 남는다 (D-079). 관리자가 보관 기간을 정했으면 그 기간이 지난 뒤 행을 지운다 (D-132, `retention_policies`) |
+

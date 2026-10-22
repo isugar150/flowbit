@@ -34,8 +34,6 @@ data class ProjectSummaryRow(
     /** Issues of the project, canceled ones not counted. */
     val issueCount: Int,
     val doneCount: Int,
-    /** The first milestone (in milestone order) that is not finished yet. */
-    val currentMilestone: String?,
     /** Health of the latest project update, and when it was posted; null before the first update. */
     val health: ProjectHealth?,
     val healthUpdatedAt: Instant?,
@@ -354,14 +352,6 @@ class ProjectMemberStore(
                            l.display_name as lead_display_name, l.avatar_key as lead_avatar_key,
                            (select count(*) from issues i where i.project_id = p.id and i.deleted_at is null and i.status <> 'CANCELED') as issue_count,
                            (select count(*) from issues i where i.project_id = p.id and i.deleted_at is null and i.status = 'DONE') as done_count,
-                           (
-                               -- The first milestone not yet closed by its status (D-163).
-                               select ms.name from milestones ms
-                               where ms.project_id = p.id
-                                 and ms.status not in ('COMPLETED', 'CANCELED')
-                               order by ms.target_date nulls last, ms.created_at
-                               limit 1
-                           ) as current_milestone,
                            latest.health, latest.created_at as health_updated_at,
                            exists (select 1 from project_subscriptions ps where ps.project_id = p.id and ps.user_id = :userId) as subscribed
                     from projects p
@@ -405,7 +395,6 @@ class ProjectMemberStore(
                     labels = row.get("labels", Array<String>::class.java)?.toList().orEmpty(),
                     issueCount = checkNotNull(row.get("issue_count", Long::class.javaObjectType)).toInt(),
                     doneCount = checkNotNull(row.get("done_count", Long::class.javaObjectType)).toInt(),
-                    currentMilestone = row.get("current_milestone", String::class.java),
                     health = row.get("health", String::class.java)?.let(ProjectHealth::valueOf),
                     healthUpdatedAt = row.get("health_updated_at", OffsetDateTime::class.java)?.toInstant(),
                     subscribed = checkNotNull(row.get("subscribed", Boolean::class.javaObjectType)),

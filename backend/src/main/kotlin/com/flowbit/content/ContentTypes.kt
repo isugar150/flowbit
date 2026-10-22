@@ -3,7 +3,7 @@ package com.flowbit.content
 import com.flowbit.common.richtext.RichText
 import java.util.UUID
 
-/** The four kinds of page the editor's blocks can be commented on (D-165). */
+/** The three kinds of page the editor's blocks can be commented on (D-165). */
 enum class ContentTargetType(
     /** The word in the address: `/api/v1/content/{type}/{id}/…`. */
     val path: String,
@@ -12,7 +12,6 @@ enum class ContentTargetType(
     PROJECT("project", RichText.ContentTable.PROJECTS),
     ISSUE("issue", RichText.ContentTable.ISSUES),
     DOCUMENT("document", RichText.ContentTable.DOCUMENTS),
-    MILESTONE("milestone", RichText.ContentTable.MILESTONES),
     ;
 
     /** Whether it has activity and general comments of its own: an issue keeps its own (`issue_activities`). */
@@ -29,7 +28,7 @@ data class ContentTarget(
     val id: UUID,
 )
 
-/** One thing that happened to a project, a document or a milestone, before it is stored. */
+/** One thing that happened to a project or a document, before it is stored. */
 data class ContentEvent(
     val type: String,
     val detail: Map<String, Any?> = emptyMap(),
@@ -62,12 +61,10 @@ object ContentEventType {
     const val STATUS_CHANGED = "STATUS_CHANGED"
     const val PRIORITY_CHANGED = "PRIORITY_CHANGED"
     const val LEAD_CHANGED = "LEAD_CHANGED"
-    const val ASSIGNEE_CHANGED = "ASSIGNEE_CHANGED"
 
-    /** A property a person added to a project or a milestone was added, changed, renamed or deleted (D-186). */
+    /** A property a person added to a project was added, changed, renamed or deleted (D-186). */
     const val CUSTOM_PROPERTY_CHANGED = "CUSTOM_PROPERTY_CHANGED"
     const val DATES_CHANGED = "DATES_CHANGED"
-    const val TARGET_DATE_CHANGED = "TARGET_DATE_CHANGED"
     const val LABELS_CHANGED = "LABELS_CHANGED"
     const val ICON_CHANGED = "ICON_CHANGED"
     const val ARCHIVED = "ARCHIVED"
@@ -76,8 +73,6 @@ object ContentEventType {
     const val MEMBER_REMOVED = "MEMBER_REMOVED"
     const val MEMBER_ROLE_CHANGED = "MEMBER_ROLE_CHANGED"
     const val UPDATE_POSTED = "UPDATE_POSTED"
-    const val MILESTONE_ADDED = "MILESTONE_ADDED"
-    const val MILESTONE_REMOVED = "MILESTONE_REMOVED"
     const val DOCUMENT_ADDED = "DOCUMENT_ADDED"
     const val DOCUMENT_REMOVED = "DOCUMENT_REMOVED"
     const val DOCUMENT_RESTORED = "DOCUMENT_RESTORED"

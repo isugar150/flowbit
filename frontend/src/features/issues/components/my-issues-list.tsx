@@ -26,7 +26,6 @@ export async function MyIssuesList({ scope, deleted = false }: { scope: "assigne
       underTabs
       issues={issues ?? []}
       members={usersAsMembers(users)}
-      milestones={[]}
       labels={labels ?? []}
       projects={projects}
       canEdit

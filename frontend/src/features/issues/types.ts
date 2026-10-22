@@ -85,7 +85,6 @@ export type Issue = {
   dueDate: string | null;
   /** The project the issue is linked to; null when it is on its own. */
   project: { id: string; name: string } | null;
-  milestone: { id: string; name: string; /** YYYY-MM-DD */ targetDate?: string | null } | null;
   /** The issue this one is a sub-issue of. */
   parent: { number: number; key: string; title: string } | null;
   /** Every issue above this one, the top-level one first and `parent` last; empty for a top-level issue. */
@@ -134,7 +133,6 @@ export type NewIssueInput = {
   /** Only together with `dueDate`, and never after it. */
   startDate: string | null;
   dueDate: string | null;
-  milestoneId: string | null;
   labelIds: string[];
   /** The project to link the issue to; null leaves it on its own. */
   projectId: string | null;
@@ -143,15 +141,15 @@ export type NewIssueInput = {
 };
 
 /**
- * A sub-issue made under an issue (D-129): its project and milestone are always its parent's,
+ * A sub-issue made under an issue (D-129): its project is always its parent's,
  * and without `assigneeIds` it starts with its parent's assignees.
  */
-export type NewSubIssueInput = Omit<NewIssueInput, "projectId" | "milestoneId" | "assigneeIds" | "parentId"> & {
+export type NewSubIssueInput = Omit<NewIssueInput, "projectId" | "assigneeIds" | "parentId"> & {
   parentId: string;
   assigneeIds?: string[];
 };
 
-/** Only the fields present are changed; null clears the due date or milestone. `labelIds` and `assigneeIds` replace all labels and assignees. */
+/** Only the fields present are changed; null clears the due date. `labelIds` and `assigneeIds` replace all labels and assignees. */
 export type IssueChanges = Partial<{
   title: string;
   content: RichDoc | null;
@@ -161,9 +159,8 @@ export type IssueChanges = Partial<{
   /** Only together with `dueDate`, and never after it. */
   startDate: string | null;
   dueDate: string | null;
-  milestoneId: string | null;
   labelIds: string[];
-  /** Links the issue to another project, or to none with null. Its milestone is dropped. */
+  /** Links the issue to another project, or to none with null. */
   projectId: string | null;
   parentId: string | null;
 }>;
@@ -179,7 +176,6 @@ export type IssueActivityType =
   | "PRIORITY_CHANGED"
   | "ASSIGNEE_CHANGED"
   | "DUE_DATE_CHANGED"
-  | "MILESTONE_CHANGED"
   | "LABELS_CHANGED"
   | "PROJECT_CHANGED"
   | "PARENT_CHANGED"

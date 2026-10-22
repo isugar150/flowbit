@@ -40,7 +40,7 @@ com.flowbit
 │   └─ config/          SecurityConfig, SessionSecurityContextRepository
 ├─ project/           프로젝트, 프로젝트 구성원과 역할 (접근 판단은 ProjectService 가 한다)
 ├─ issue/             티켓 (D-168: 한 클래스였던 IssueService 를 일에 따라 나눴다. `IssueService` 티켓 만들기·고치기·지우기·목록, `IssueLookup` 누가 볼 수 있고 고칠 수 있나와 조회의 출발점, `IssueTagging` @ 태그, `IssueCommentService` 활동·댓글·답글·이모지·파일, `IssueDocumentService` 문서, `IssueGitService` Git 서버가 하는 일. 조회용 IssueQueries, 요청·결과 모양은 IssueModels)
-├─ content/           프로젝트·문서·목표·티켓 본문의 블록 댓글, 활동, 일반 댓글, 문서 구독 (D-165~D-167). 파일마다 클래스 하나: Store(저장소)·Service(규칙)·Controller·Dtos
+├─ content/           프로젝트·문서·티켓 본문의 블록 댓글, 활동, 일반 댓글, 문서 구독 (D-165~D-167). 파일마다 클래스 하나: Store(저장소)·Service(규칙)·Controller·Dtos
 ├─ notification/      알림 통로(메일, 웹 푸시, API 알림)와 그 설정. 계층을 나누지 않은 작은 모듈
 ├─ setup/             초기 설정
 ├─ git/               Git 서버 연결, 들어오는 웹훅(제공자별 서명·파싱), 티켓 키 인식, 티켓에 브랜치·PR·커밋 연결 (D-141). 계층을 나누지 않은 작은 모듈

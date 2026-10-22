@@ -82,9 +82,7 @@ test("the tour opens on the first visit, the example issues can be worked on, an
   await expect(heading).toHaveText("내 프로젝트");
   await onward();
   await expect(heading).toHaveText("프로젝트 개요");
-  await expect(demo).toContainText("베타 출시");
-  await onward();
-  await expect(heading).toHaveText("목표");
+  await expect(demo).toContainText("예시 프로젝트");
   await onward();
   await expect(heading).toHaveText("프로젝트 업데이트");
   await onward();
@@ -128,7 +126,7 @@ test("skipping is remembered too, and the settings show the tour again without m
   await page.setViewportSize(viewport);
   await page.getByRole("button", { name: "둘러보기 다시 보기" }).click();
   const tour = page.getByRole("dialog");
-  for (let step = 0; step < 14; step += 1) {
+  for (let step = 0; step < 13; step += 1) {
     await expect(tour).toBeVisible();
     await expect(tour).not.toHaveClass(/opacity-0/);
     const box = (await tour.boundingBox())!;

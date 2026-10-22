@@ -182,12 +182,12 @@ export function DocumentOutline({
   container: HTMLElement | null;
   /**
    * Only the marks, however wide the page: for a page with something else beside the text, where the whole list would lie
-   * over it (the project overview, whose cards stand right of the description; a ticket and a milestone, whose panel stands
+   * over it (the project overview, whose cards stand right of the description; a ticket, whose panel stands
    * right of the text; D-177, D-179). The list opens over the text.
    */
   compact?: boolean;
 }) {
-  // The page scrolls in the <main> of the app's frame (a ticket or a milestone, in the scroll box of its dialog), and the
+  // The page scrolls in the <main> of the app's frame (a ticket, in the scroll box of its dialog), and the
   // width left beside the text is what that box has to spare.
   const scroller = useMemo(() => scrollParentOf(container), [container]);
   const entries = useEntries(editor);

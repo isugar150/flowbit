@@ -32,7 +32,7 @@ data class PagePerson(
 )
 
 /**
- * The pages a realtime connection can be on (`project:<id>`, `issue:<number>`, `document:<id>`, `milestone:<id>`):
+ * The pages a realtime connection can be on (`project:<id>`, `issue:<number>`, `document:<id>`):
  * who may be there, who belongs there, and when each of them last looked.
  */
 @Component
@@ -135,11 +135,6 @@ class PagePresence(
             // A document belongs with the people of its project; one on an issue, of the issue's project (D-166).
             val id = key.removePrefix("document:").takeIf { PAGE_ID.matches(it) }?.let(UUID::fromString) ?: throw notFound()
             return contentAccess.resolve(user, ContentTarget(ContentTargetType.DOCUMENT, id)).projectId
-        }
-        if (key.startsWith("milestone:")) {
-            // A milestone's dialog belongs with the people of its project (D-188).
-            val id = key.removePrefix("milestone:").takeIf { PAGE_ID.matches(it) }?.let(UUID::fromString) ?: throw notFound()
-            return contentAccess.resolve(user, ContentTarget(ContentTargetType.MILESTONE, id)).projectId
         }
         if (!key.startsWith("project:")) throw notFound()
         return projectService.access(user, key.removePrefix("project:")).project.id

@@ -305,7 +305,6 @@ class NotificationSettingsService(
                 "PRIORITY_CHANGED",
                 "ASSIGNEE_CHANGED",
                 "DUE_DATE_CHANGED",
-                "MILESTONE_CHANGED",
                 "LABELS_CHANGED",
                 "PROJECT_CHANGED",
                 "PARENT_CHANGED",

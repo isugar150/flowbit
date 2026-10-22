@@ -62,8 +62,6 @@ export function describe(item: IssueActivityItem): Described {
         : { action: m.assignee, change: arrow(text(from), text(to)) };
     case "DUE_DATE_CHANGED":
       return { action: m.dueDate, change: arrow(text(from), text(to)) };
-    case "MILESTONE_CHANGED":
-      return { action: m.milestone, change: arrow(text(from), text(to)) };
     case "LABELS_CHANGED":
       return { action: m.labels, change: addedRemoved(added, removed) };
     case "PROJECT_CHANGED":

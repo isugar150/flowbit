@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 private const val PASSWORD = "correct-horse-battery"
 
-/** The properties people add to a project, a milestone or an issue (D-186, docs/features/custom-properties.md). */
+/** The properties people add to a project or an issue (D-186, docs/features/custom-properties.md). */
 class CustomPropertiesIntegrationTest : IntegrationTest() {
     private lateinit var admin: ApiClient
     private lateinit var editor: ApiClient
@@ -19,7 +19,6 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
     private lateinit var editorId: String
     private lateinit var outsiderId: String
     private lateinit var projectId: String
-    private lateinit var milestoneId: String
     private lateinit var issueId: String
 
     @BeforeEach
@@ -34,13 +33,12 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
         editor = client().also { it.login("editor", PASSWORD) }
         viewer = client().also { it.login("viewer", PASSWORD) }
         outsider = client().also { it.login("outsider", PASSWORD) }
-        milestoneId = admin.post("/api/v1/projects/$projectId/milestones", """{"name":"베타"}""").json()["id"] as String
         issueId = admin.post("/api/v1/projects/$projectId/issues", """{"title":"결제 버튼"}""").json()["id"] as String
     }
 
     private fun member(loginId: String) = admin.post("/api/v1/admin/members", """{"loginId":"$loginId","password":"$PASSWORD"}""").json()["id"] as String
 
-    private val targets get() = listOf("project" to projectId, "milestone" to milestoneId, "issue" to issueId)
+    private val targets get() = listOf("project" to projectId, "issue" to issueId)
 
     private fun path(
         type: String,
@@ -60,7 +58,7 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
     ) = client.post(path(type, id), """{"label":"$label","type":"$kind"${value?.let { ""","value":$it""" } ?: ""}}""")
 
     @Test
-    fun `프로젝트 목표 티켓마다 여섯 가지 형식의 속성을 추가하고 값을 읽는다`() {
+    fun `프로젝트와 티켓마다 여섯 가지 형식의 속성을 추가하고 값을 읽는다`() {
         for ((type, id) in targets) {
             assertEquals(emptyList<Any?>(), items(admin.get(path(type, id)).json()))
 
@@ -86,7 +84,7 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
 
     @Test
     fun `값을 바꾸고 지우고 이름을 바꿀 수 있고 형식은 바꿀 수 없다`() {
-        val id = add(editor, "milestone", milestoneId, "예산", "NUMBER", "10").json()["id"] as String
+        val id = add(editor, "project", projectId, "예산", "NUMBER", "10").json()["id"] as String
 
         assertEquals(20, editor.patch("/api/v1/custom-properties/$id", """{"value":20}""").json()["value"])
         assertEquals(2500000000L, editor.patch("/api/v1/custom-properties/$id", """{"value":2500000000}""").json()["value"])
@@ -99,7 +97,7 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
         assertEquals("NUMBER", editor.patch("/api/v1/custom-properties/$id", """{"type":"TEXT"}""").json()["type"])
 
         assertEquals(204, editor.delete("/api/v1/custom-properties/$id").status)
-        assertEquals(emptyList<Any?>(), items(admin.get(path("milestone", milestoneId)).json()))
+        assertEquals(emptyList<Any?>(), items(admin.get(path("project", projectId)).json()))
         assertEquals(404, editor.delete("/api/v1/custom-properties/$id").status)
     }
 
@@ -115,7 +113,7 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
         assertEquals(409, editor.patch("/api/v1/custom-properties/$id", """{"label":"OTHER"}""").status)
         // Its own label in another case is fine; the same label on another item is fine.
         assertEquals(200, editor.patch("/api/v1/custom-properties/$id", """{"label":"DUE"}""").status)
-        assertEquals(201, add(editor, "milestone", milestoneId, "Due", "TEXT").status)
+        assertEquals(201, add(editor, "issue", issueId, "Due", "TEXT").status)
 
         for (n in 4..20) assertEquals(201, add(editor, "project", projectId, "속성 $n", "TEXT").status)
         assertEquals(422, add(editor, "project", projectId, "하나 더", "TEXT").status)
@@ -163,7 +161,6 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
     @Test
     fun `보기 역할은 읽기만 하고 프로젝트 밖의 사람은 볼 수 없다`() {
         val id = add(editor, "project", projectId, "배포예정일", "DATE", "\"2026-11-01\"").json()["id"] as String
-        add(editor, "milestone", milestoneId, "비고", "TEXT", "\"a\"")
         add(editor, "issue", issueId, "비고", "TEXT", "\"a\"")
 
         for ((type, target) in targets) {
@@ -187,6 +184,7 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
         assertEquals(404, admin.get(path("document", projectId)).status)
         assertEquals(404, admin.get(path("project", "00000000-0000-0000-0000-000000000000")).status)
         assertEquals(404, admin.get(path("issue", "00000000-0000-0000-0000-000000000000")).status)
+        // Milestones are gone (D-189): the kind is unknown now.
         assertEquals(404, admin.get(path("milestone", projectId)).status)
     }
 
@@ -206,7 +204,7 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
 
     @Test
     @Suppress("UNCHECKED_CAST")
-    fun `추가 변경 이름 바꾸기 삭제가 목표와 프로젝트와 티켓의 활동에 남는다`() {
+    fun `추가 변경 이름 바꾸기 삭제가 프로젝트와 티켓의 활동에 남는다`() {
         for ((type, id) in targets.filter { it.first != "issue" }) {
             val property = add(editor, type, id, "배포예정일", "DATE", "\"2026-11-01\"").json()["id"] as String
             editor.patch("/api/v1/custom-properties/$property", """{"value":"2026-12-01"}""")

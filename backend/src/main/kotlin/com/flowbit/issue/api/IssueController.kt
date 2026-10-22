@@ -81,9 +81,8 @@ class IssueController(
     ): IssueResponse = IssueResponse.from(issueService.get(user, number))
 
     /**
-     * Only the fields present in the body change; `null` clears `dueDate`, `milestoneId`,
-     * `projectId` and `parentId`, and `labelIds` and `assigneeIds` replace the whole set of labels
-     * and of assignees.
+     * Only the fields present in the body change; `null` clears `dueDate`, `projectId` and
+     * `parentId`, and `labelIds` and `assigneeIds` replace the whole set of labels and of assignees.
      */
     @PatchMapping("/{number}")
     suspend fun update(

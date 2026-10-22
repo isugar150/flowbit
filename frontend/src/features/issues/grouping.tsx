@@ -1,7 +1,6 @@
-import { BoxIcon, CircleSlashIcon, DiamondIcon, ListIcon, UserIcon } from "lucide-react";
+import { BoxIcon, ListIcon, UserIcon } from "lucide-react";
 import { PersonAvatar, personName } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
-import { milestoneSummary, type Milestone } from "@/features/milestones/types";
 import type { ProjectSummary } from "@/features/projects/types";
 import { messages } from "@/messages";
 import { PriorityIcon, STATUS_ORDER, StatusIcon, priorityLabel, statusLabel } from "./meta";
@@ -10,7 +9,7 @@ import type { Issue, IssuePerson, IssuePriority } from "./types";
 const m = messages.issues;
 
 /** What a list of issues is grouped by; `?group=` in the address. The first is the default. */
-export const ISSUE_GROUPS = ["status", "priority", "assignee", "project", "milestone", "none"] as const;
+export const ISSUE_GROUPS = ["status", "priority", "assignee", "project", "none"] as const;
 export type IssueGrouping = (typeof ISSUE_GROUPS)[number];
 export const DEFAULT_ISSUE_GROUPING: IssueGrouping = "status";
 
@@ -19,8 +18,6 @@ export type IssueGroup = {
   key: string;
   label: string;
   icon: React.ReactNode;
-  /** Beside the heading: how far a milestone is ("6/10 · 60% · 10-31"). */
-  meta?: string;
   issues: Issue[];
 };
 
@@ -30,17 +27,13 @@ const muted = "size-4 shrink-0 text-muted-foreground";
 
 /**
  * Splits the issues into the groups of `grouping`, empty groups left out. Groups with a natural
- * order keep it (status, priority); people, projects and milestones go by name, with "none" last.
+ * order keep it (status, priority); people and projects go by name, with "none" last.
  * An issue given to several people is in the group of each of them.
  */
 export function groupIssues(
   issues: Issue[],
   grouping: IssueGrouping,
   projects: ProjectSummary[],
-  /** Known milestones with their progress, for the milestone headings; may be empty. */
-  milestones: Milestone[] = [],
-  /** From `useThisYear()`, for the milestone headings' dates; null on the server. */
-  thisYear: number | null = null,
 ): IssueGroup[] {
   switch (grouping) {
     case "status":
@@ -78,23 +71,6 @@ export function groupIssues(
         ],
         issues,
         (issue) => [issue.project?.id ?? NONE_KEY],
-      );
-    }
-    case "milestone": {
-      const named = new Map<string, string>();
-      for (const issue of issues) if (issue.milestone) named.set(issue.milestone.id, issue.milestone.name);
-      return fixed(
-        [
-          ...byName(
-            [...named].map(([id, name]) => {
-              const known = milestones.find((milestone) => milestone.id === id);
-              return { key: id, label: name, icon: <DiamondIcon className={muted} aria-hidden="true" />, meta: known ? milestoneSummary(known, thisYear) : undefined };
-            }),
-          ),
-          { key: NONE_KEY, label: m.noMilestone, icon: <CircleSlashIcon className={muted} aria-hidden="true" /> },
-        ],
-        issues,
-        (issue) => [issue.milestone?.id ?? NONE_KEY],
       );
     }
     case "none":

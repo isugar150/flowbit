@@ -1,7 +1,5 @@
-import { CircleSlashIcon, DiamondIcon, UserIcon } from "lucide-react";
+import { UserIcon } from "lucide-react";
 import { PersonAvatar, personName, type PersonLike } from "@/components/person";
-import { milestoneOutline } from "@/features/milestones/outline";
-import { isMilestoneClosed, type Milestone } from "@/features/milestones/types";
 import type { ProjectMember } from "@/features/projects/types";
 import { messages } from "@/messages";
 import type { ChipOption } from "./components/chip-select";
@@ -50,27 +48,6 @@ export function assigneeOptions(members: ProjectMember[]): ChipOption<string>[] 
       value: member.userId,
       label: personName(member),
       icon: <PersonAvatar person={member} />,
-    })),
-  ];
-}
-
-/** The project's milestones, plus "none". */
-/**
- * The milestones to choose from. Completed and canceled ones are left out (D-163), except `keep`:
- * the one already chosen, which must still show.
- */
-export function milestoneOptions(
-  milestones: (Pick<Milestone, "id" | "name"> & Partial<Pick<Milestone, "status" | "content">>)[],
-  keep?: string | null,
-): ChipOption<string>[] {
-  return [
-    { value: NONE, label: m.noMilestone, icon: <CircleSlashIcon className="size-4 text-muted-foreground" aria-hidden /> },
-    ...milestones.filter((milestone) => milestone.id === keep || !isMilestoneClosed(milestone)).map((milestone) => ({
-      value: milestone.id,
-      label: milestone.name,
-      icon: <DiamondIcon className="size-4 text-muted-foreground" aria-hidden />,
-      // What the milestone is for, so similar names are told apart (D-137).
-      hint: milestoneOutline(milestone.content).purpose ?? undefined,
     })),
   ];
 }

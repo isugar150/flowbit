@@ -12,7 +12,6 @@ import { ModKey } from "@/components/mod-key";
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import type { Milestone } from "@/features/milestones/types";
 import type { UserSummary } from "@/features/members/types";
 import { mentionablesOf, usersAsMembers, type ProjectMember, type ProjectSummary } from "@/features/projects/types";
 import { apiFetch } from "@/lib/api/client";
@@ -32,7 +31,6 @@ const DEFAULT_PROPERTIES: Properties = {
   assigneeIds: [],
   startDate: null,
   dueDate: null,
-  milestoneId: null,
   labelIds: [],
   projectId: null,
 };
@@ -49,9 +47,7 @@ export function NewIssueDialog({
   defaultProjectId,
   initialProjectId = null,
   members: defaultMembers,
-  milestones: defaultMilestones,
   labels,
-  defaultMilestoneId = null,
   defaultAssigneeId = null,
   defaultDates = null,
   onCreated,
@@ -62,15 +58,12 @@ export function NewIssueDialog({
   projects: ProjectSummary[];
   /** The project the dialog was opened in; null on the list of every issue. */
   defaultProjectId: string | null;
-  /** A project to start with that `members` and `milestones` are not for; they are fetched. */
+  /** A project to start with that `members` is not for; they are fetched. */
   initialProjectId?: string | null;
-  /** Who can be assigned and the milestones, for `defaultProjectId` (everyone and none when it is null). */
+  /** Who can be assigned, for `defaultProjectId` (everyone when it is null). */
   members: ProjectMember[];
-  milestones: Milestone[];
   /** Every label in the workspace. */
   labels: Label[];
-  /** Pre-selected when the list is filtered to one milestone. */
-  defaultMilestoneId?: string | null;
   /** Pre-selected on a list of one person's issues ("내 티켓"), so the new issue shows up there. */
   defaultAssigneeId?: string | null;
   /** Dates to start with, when the dialog is opened from a day or a span of days on the calendar. */
@@ -104,7 +97,7 @@ export function NewIssueDialog({
     setRevision((current) => current + 1);
   };
 
-  // Every time the dialog opens (button, `C`), start from the list's current milestone filter and
+  // Every time the dialog opens (button, `C`), start from the list's project and
   // without the previous attempt's messages. Adjusted while rendering, since the dialog is opened
   // from outside and its own onOpenChange does not run for that.
   // Starts as closed even when the dialog is first rendered open (it is loaded on first use), so
@@ -116,7 +109,6 @@ export function NewIssueDialog({
       setProperties((current) => ({
         ...current,
         projectId: initialProjectId ?? defaultProjectId,
-        milestoneId: defaultMilestoneId,
         assigneeIds: current.assigneeIds.length > 0 || !defaultAssigneeId ? current.assigneeIds : [defaultAssigneeId],
         startDate: defaultDates?.startDate ?? null,
         dueDate: defaultDates?.dueDate ?? null,
@@ -145,31 +137,22 @@ export function NewIssueDialog({
     }
   });
 
-  // Who can be assigned and which milestones exist follow the chosen project. For the project the
+  // Who can be assigned follows the chosen project. For the project the
   // dialog was opened in they came with the page; for another one they are fetched.
   const projectId = properties.projectId;
   const other = projectId !== defaultProjectId;
   const fetched = useQuery({
     queryKey: ["new-issue-project", projectId],
     enabled: open && other,
-    queryFn: async (): Promise<{ members: ProjectMember[]; milestones: Milestone[] }> => {
-      if (projectId === null) {
-        const users = await apiFetch<UserSummary[]>("/api/v1/users");
-        return { members: usersAsMembers(users), milestones: [] };
-      }
-      const path = `/api/v1/projects/${encodeURIComponent(projectId)}`;
-      const [members, milestones] = await Promise.all([
-        apiFetch<ProjectMember[]>(`${path}/members`),
-        apiFetch<Milestone[]>(`${path}/milestones`),
-      ]);
-      return { members, milestones };
+    queryFn: async (): Promise<ProjectMember[]> => {
+      if (projectId === null) return usersAsMembers(await apiFetch<UserSummary[]>("/api/v1/users"));
+      return apiFetch<ProjectMember[]>(`/api/v1/projects/${encodeURIComponent(projectId)}/members`);
     },
   });
-  const members = other ? (fetched.data?.members ?? []) : defaultMembers;
-  const milestones = other ? (fetched.data?.milestones ?? []) : defaultMilestones;
-  // Assignees and a milestone belong to a project; changing the project starts those over.
+  const members = other ? (fetched.data ?? []) : defaultMembers;
+  // Assignees belong to a project; changing the project starts those over.
   const setProject = (key: string | null) =>
-    setProperties((current) => ({ ...current, projectId: key, assigneeIds: [], milestoneId: null }));
+    setProperties((current) => ({ ...current, projectId: key, assigneeIds: [] }));
 
   const submit = () => {
     if (mutation.isPending) return;
@@ -286,14 +269,13 @@ export function NewIssueDialog({
             <IssuePropertyFields
               values={properties}
               onChange={(changes) => {
-                // Assignees and a milestone belong to a project; changing the project starts those over.
+                // Assignees belong to a project; changing the project starts those over.
                 if ("projectId" in changes) setProject(changes.projectId ?? null);
                 else setProperties((current) => ({ ...current, ...changes }));
               }}
               members={members}
               labels={labels}
               projects={projects}
-              milestones={milestones}
             />
           </aside>
           </div>

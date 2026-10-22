@@ -36,11 +36,11 @@ data class IssueNotification(
 }
 
 /**
- * Something happened to a project, a document or a milestone, or someone commented on one (D-165):
+ * Something happened to a project or a document, or someone commented on one (D-165):
  * what [IssueNotification] is for an issue. The changes are held and merged the same way.
  */
 data class ContentNotification(
-    /** `PROJECT`, `DOCUMENT` or `MILESTONE`. */
+    /** `PROJECT` or `DOCUMENT`. */
     val targetType: String,
     val targetId: UUID,
     /** What the notification is headed with: `[결제 개편] 설계 문서`. */
@@ -53,8 +53,8 @@ data class ContentNotification(
     /** ContentEventType names, with the same details the activity list shows. */
     val events: List<IssueNotification.Event>,
     /**
-     * For a change, the people who follow the page (the document, or the project for a project or a
-     * milestone); for a comment, the people tagged in it (D-166). Without the actor.
+     * For a change, the people who follow the page (the document, or the project for a project);
+     * for a comment, the people tagged in it (D-166). Without the actor.
      */
     val recipientIds: List<UUID>,
 )
@@ -90,6 +90,6 @@ interface NotificationChannel {
     /** A request to join a project. A channel that has nothing to say about it leaves this out. */
     suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {}
 
-    /** A change to a project, a document or a milestone, or a comment on one (D-165). */
+    /** A change to a project or a document, or a comment on one (D-165). */
     suspend fun sendContent(notification: ContentNotification) {}
 }

@@ -12,7 +12,6 @@ import com.flowbit.issue.application.IssueDetail
 import com.flowbit.issue.application.IssueGitLinkView
 import com.flowbit.issue.application.IssueGitRepositoryView
 import com.flowbit.issue.application.IssueLabel
-import com.flowbit.issue.application.IssueMilestone
 import com.flowbit.issue.application.IssueParent
 import com.flowbit.issue.application.IssuePerson
 import com.flowbit.issue.application.IssueProject
@@ -100,8 +99,6 @@ data class IssueResponse(
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val project: IssueProject?,
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
-    val milestone: IssueMilestone?,
-    @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val parent: IssueParent?,
     /** Every issue above this one, the top-level one first and `parent` last. */
     val ancestors: List<IssueParent>,
@@ -151,7 +148,6 @@ data class IssueResponse(
                 startDate = issue.startDate,
                 dueDate = issue.dueDate,
                 project = issue.project,
-                milestone = issue.milestone,
                 parent = issue.parent,
                 ancestors = issue.ancestors,
                 labels = issue.labels,
@@ -312,7 +308,6 @@ data class CreateIssueRequest(
     /** The people to give the issue to, in order. Left out, a sub-issue starts with its parent's (D-129). */
     val assigneeIds: List<UUID>? = null,
     val dueDate: LocalDate? = null,
-    val milestoneId: UUID? = null,
     val labelIds: List<UUID>? = null,
     /** Links the issue to this project; without it the issue is on its own. */
     val projectId: String? = null,
@@ -330,7 +325,6 @@ data class CreateIssueRequest(
             priority,
             assigneeIds,
             dueDate,
-            milestoneId,
             labelIds.orEmpty(),
             projectId,
             parentId,

@@ -24,7 +24,6 @@ class ContentDirectory(
     suspend fun describe(target: ContentTarget): ContentContext? =
         when (target.type) {
             ContentTargetType.PROJECT -> project(target)
-            ContentTargetType.MILESTONE -> milestone(target)
             ContentTargetType.DOCUMENT -> document(target)
             ContentTargetType.ISSUE -> issue(target)
         }
@@ -45,31 +44,6 @@ class ContentDirectory(
                     issueId = null,
                     issueNumber = null,
                     topics = listOf("project:${target.id}"),
-                    readOnly = false,
-                )
-            }
-
-    private suspend fun milestone(target: ContentTarget): ContentContext? =
-        databaseClient
-            .sql("select m.name, m.project_id, p.name as project_name from milestones m join projects p on p.id = m.project_id where m.id = :id")
-            .bind("id", target.id)
-            .map { row ->
-                Triple(
-                    checkNotNull(row.get("name", String::class.java)),
-                    checkNotNull(row.get("project_id", UUID::class.java)),
-                    checkNotNull(row.get("project_name", String::class.java)),
-                )
-            }.one()
-            .awaitSingleOrNull()
-            ?.let { (name, projectId, projectName) ->
-                ContentContext(
-                    target = target,
-                    title = "[$projectName] $name",
-                    path = "/project/$projectId/milestone/${target.id}",
-                    projectId = projectId,
-                    issueId = null,
-                    issueNumber = null,
-                    topics = listOf("project:$projectId"),
                     readOnly = false,
                 )
             }
@@ -145,7 +119,7 @@ class ContentDirectory(
 
     /**
      * Who is told about what happens to the page: the people who follow the document itself (and may
-     * still open it, D-166); for a project or a milestone, the people who follow the project (and may
+     * still open it, D-166); for a project, the people who follow the project (and may
      * still enter it); for an issue, the people who follow it or its project. Active people only.
      * Comments are not told to followers, only to the people tagged in them.
      */

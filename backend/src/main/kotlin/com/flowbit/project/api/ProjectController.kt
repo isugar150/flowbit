@@ -57,7 +57,6 @@ data class ProjectResponse(
     val labels: List<String>,
     val issueCount: Int,
     val doneCount: Int,
-    val currentMilestone: String?,
     val health: ProjectHealth?,
     val healthUpdatedAt: Instant?,
     /** Whether the caller follows the project. */
@@ -89,7 +88,6 @@ data class ProjectResponse(
                 labels = view.labels,
                 issueCount = view.issueCount,
                 doneCount = view.doneCount,
-                currentMilestone = view.currentMilestone,
                 health = view.health,
                 healthUpdatedAt = view.healthUpdatedAt,
                 subscribed = view.subscribed,

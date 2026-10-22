@@ -1,22 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowUpRightIcon, CircleSlashIcon } from "lucide-react";
+import { CircleSlashIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import { milestoneHref } from "@/features/milestones/components/milestone-card";
-import type { Milestone } from "@/features/milestones/types";
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
-import { NONE, milestoneOptions, priorityOptions, statusOptions } from "../options";
+import { NONE, priorityOptions, statusOptions } from "../options";
 import type { Issue, IssueChanges, IssuePerson, IssuePriority, IssueStatus, Label } from "../types";
 import { AssigneeChip } from "./assignee-chip";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import { DateRangeChip } from "./date-chips";
+import { IssueParentField } from "./issue-parent-field";
 import { LabelChip } from "./label-chip";
 
 const m = messages.issues;
@@ -59,13 +57,12 @@ export type IssuePropertyValues = {
   dueDate: string | null;
   labelIds: string[];
   projectId: string | null;
-  milestoneId: string | null;
 };
 
 /**
- * The properties of an issue in three groups: its properties (status, priority, assignees, dates),
- * its labels, and the project it is linked to with the milestone inside that project. Every value
- * is a quiet row that opens a menu. The same panel is used where an issue is made and where it is
+ * The properties of an issue in three groups: its properties (status, priority, assignees, dates,
+ * and whatever people added to it), its labels, and the project it is linked to. Every value is a
+ * quiet row that opens a menu. The same panel is used where an issue is made and where it is
  * changed; it only reports what was picked and leaves saving to whoever shows it.
  */
 export function IssuePropertyFields({
@@ -74,9 +71,10 @@ export function IssuePropertyFields({
   members,
   labels,
   projects,
-  milestones,
   assignees,
   followsParent = false,
+  afterDueDate,
+  after,
   disabled,
 }: {
   values: IssuePropertyValues;
@@ -86,21 +84,16 @@ export function IssuePropertyFields({
   /** Every label in the workspace. */
   labels: Label[];
   projects: ProjectSummary[];
-  /** The milestones of the chosen project; empty when there is none. */
-  milestones: Milestone[];
   /** The saved assignees of an existing issue. */
   assignees?: IssuePerson[];
-  /** A sub-issue: its project and milestone are its parent's and cannot be changed here (D-129). */
+  /** A sub-issue: its project is its parent's and cannot be changed here (D-129). */
   followsParent?: boolean;
+  /** Right under the due date, in the same group: the properties people added to an existing issue and the way to add one (D-189). */
+  afterDueDate?: React.ReactNode;
+  /** A group of its own below the project: for an existing issue, the issue it hangs under. */
+  after?: React.ReactNode;
   disabled?: boolean;
 }) {
-  // No milestone chosen is shown as an empty field: grey words and no icon (the user's call).
-  const milestoneChoices = milestoneOptions(milestones, values.milestoneId).map((option) =>
-    option.value === NONE ? { value: option.value, label: m.emptyMilestone, muted: true } : option,
-  );
-
-  const chosen = milestones.find((item) => item.id === values.milestoneId);
-
   return (
     <div className="flex flex-col gap-6">
       <Section title={messages.projects.properties}>
@@ -146,6 +139,7 @@ export function IssuePropertyFields({
             onChange={({ start, end }) => onChange({ startDate: start, dueDate: end })}
           />
         </Row>
+        {afterDueDate}
       </Section>
       <Section title={m.labels}>
         <Row id={m.labels}>
@@ -163,44 +157,13 @@ export function IssuePropertyFields({
             onChange={(value) => onChange({ projectId: value === NONE ? null : value })}
           />
         </Row>
-        {/* The milestone hangs under its project: it only exists once a project is chosen. */}
-        {values.projectId ? (
-          <Row id={m.milestone}>
-            <span
-              aria-hidden="true"
-              className="mr-1 ml-1.5 h-4 w-3 shrink-0 self-start rounded-bl-md border-b border-l border-foreground/25"
-            />
-            {milestones.length > 0 ? (
-              <>
-                <ChipSelect
-                  plain
-                  label={m.milestone}
-                  value={values.milestoneId ?? NONE}
-                  options={milestoneChoices}
-                  disabled={disabled || followsParent}
-                  onChange={(value) => onChange({ milestoneId: value === NONE ? null : value })}
-                />
-                {/* Goes to the milestone itself (its page over the project's overview). */}
-                {chosen ? (
-                  <Link
-                    href={milestoneHref(values.projectId, chosen.id)}
-                    aria-label={messages.milestones.openInProject(chosen.name)}
-                    title={messages.milestones.openInProjectHint}
-                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-md:size-9"
-                  >
-                    <ArrowUpRightIcon className="size-4" aria-hidden="true" />
-                  </Link>
-                ) : null}
-              </>
-            ) : (
-              <span className="flex h-8 items-center text-[0.8125rem] leading-5 text-muted-foreground">{m.emptyMilestone}</span>
-            )}
-          </Row>
-        ) : followsParent ? null : (
+        {followsParent ? (
+          <p className="text-xs leading-4 text-muted-foreground">{m.followsParentHint}</p>
+        ) : values.projectId ? null : (
           <p className="text-xs leading-4 text-muted-foreground">{m.noProjectHint}</p>
         )}
-        {followsParent ? <p className="text-xs leading-4 text-muted-foreground">{m.followsParentHint}</p> : null}
       </Section>
+      {after}
     </div>
   );
 }
@@ -210,21 +173,21 @@ export function IssuePropertyFields({
  * shows right away and is saved behind it (useOptimisticMutation).
  *
  * The issue is its own thing and the project only a link, so the project can be changed or
- * removed at any time (the milestone goes with the project it belonged to).
+ * removed at any time. What people added to the issue on their own sits in the first group, with
+ * the way to add one right under the due date (D-186, D-189), and below the project is the issue
+ * it hangs under, found by searching.
  */
 export function IssueProperties({
   issue,
   members,
   labels,
   projects,
-  milestones,
   canEdit,
 }: {
   issue: Issue;
   members: ProjectMember[];
   labels: Label[];
   projects: ProjectSummary[];
-  milestones: Milestone[];
   canEdit: boolean;
 }) {
   const saved: IssuePropertyValues = {
@@ -235,43 +198,31 @@ export function IssueProperties({
     dueDate: issue.dueDate,
     labelIds: issue.labels.map((label) => label.id),
     projectId: issue.project?.id ?? null,
-    milestoneId: issue.milestone?.id ?? null,
   };
   const mutation = useOptimisticMutation(
     saved,
-    (values, { changes }: { number: number; changes: IssueChanges }) => ({
-      ...values,
-      ...changes,
-      // The milestone belongs to the project, so it goes when the project changes.
-      ...("projectId" in changes && changes.projectId !== values.projectId ? { milestoneId: null } : null),
-    }),
+    (values, { changes }: { number: number; changes: IssueChanges }) => ({ ...values, ...changes }),
     updateIssue,
   );
-  const values = mutation.value;
-  // The milestones on hand are those of the saved project; another project's arrive with the
-  // refresh, so until then the milestone row has nothing to pick from.
-  const projectSaved = values.projectId === saved.projectId;
 
   return (
     <div className="flex flex-col gap-3">
       {mutation.isError ? <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert> : null}
       <IssuePropertyFields
-        values={values}
+        values={mutation.value}
         onChange={(changes) => mutation.mutate({ number: issue.number, changes })}
         members={members}
         labels={labels}
         projects={projects}
-        milestones={projectSaved ? milestones : []}
         assignees={issue.assignees}
         followsParent={issue.parent !== null}
         disabled={!canEdit}
-      />
-      {/* What people added to this issue on their own (D-186): its own group under the rest. */}
-      <CustomProperties
-        owner={{ type: "issue", id: issue.id }}
-        members={members}
-        watch={issue}
-        layout="panel"
+        afterDueDate={<CustomProperties owner={{ type: "issue", id: issue.id }} members={members} watch={issue} layout="panel" />}
+        after={
+          <Section title={m.parentField.title}>
+            <IssueParentField issue={issue} canEdit={canEdit} />
+          </Section>
+        }
       />
     </div>
   );

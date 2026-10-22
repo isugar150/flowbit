@@ -15,7 +15,7 @@ const names = (value: unknown): string[] => (Array.isArray(value) ? value.filter
 const arrow = (before: string, after: string) => `${before} → ${after}`;
 const role = (value: unknown) => (typeof value === "string" ? (messages.roles[value as keyof typeof messages.roles] ?? value) : none);
 
-/** What a line of the activity of a project, a document or a milestone says, in words (D-165). */
+/** What a line of the activity of a project or a document says, in words (D-165). */
 export function describeContent(item: ContentActivityItem): Described {
   const { from, to, added, removed } = item.detail;
   switch (item.type) {
@@ -29,14 +29,10 @@ export function describeContent(item: ContentActivityItem): Described {
       return { action: m.priority, change: arrow(priorityLabel(from as IssuePriority), priorityLabel(to as IssuePriority)) };
     case "LEAD_CHANGED":
       return { action: m.lead, change: arrow(text(from), text(to)) };
-    case "ASSIGNEE_CHANGED":
-      return { action: m.assignee, change: [...names(added).map((name) => `+${name}`), ...names(removed).map((name) => `−${name}`)].join(", ") };
     case "CUSTOM_PROPERTY_CHANGED":
       return describeCustomProperty(item.detail, m);
     case "DATES_CHANGED":
       return { action: m.dates, change: arrow(text(from), text(to)) };
-    case "TARGET_DATE_CHANGED":
-      return { action: m.targetDate, change: arrow(text(from), text(to)) };
     case "LABELS_CHANGED":
       return { action: m.labels, change: [...names(added).map((name) => `+${name}`), ...names(removed).map((name) => `−${name}`)].join(", ") };
     case "ICON_CHANGED":
@@ -56,10 +52,6 @@ export function describeContent(item: ContentActivityItem): Described {
       const note = typeof item.detail.text === "string" ? item.detail.text : "";
       return { action: m.updatePosted, change: [health, note].filter(Boolean).join(" · ") || undefined };
     }
-    case "MILESTONE_ADDED":
-      return { action: m.milestoneAdded, change: text(item.detail.name) };
-    case "MILESTONE_REMOVED":
-      return { action: m.milestoneRemoved, change: text(item.detail.name) };
     case "DOCUMENT_ADDED":
       return { action: m.documentAdded, change: text(to) };
     case "DOCUMENT_REMOVED":

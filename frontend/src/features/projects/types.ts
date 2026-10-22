@@ -30,8 +30,6 @@ export type Project = {
   /** Issues of the project, canceled ones not counted. */
   issueCount: number;
   doneCount: number;
-  /** Name of the first milestone that is not finished yet. */
-  currentMilestone: string | null;
   /** Health of the latest project update and when it was posted; null before the first update. */
   health: ProjectHealth | null;
   healthUpdatedAt: string | null;

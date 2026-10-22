@@ -36,7 +36,7 @@ data class FileUses(
     val avatars: Tally,
     val logo: Tally,
     val projectIcons: Tally,
-    /** Pictures put into the text of tickets, documents, comments, goals and projects. */
+    /** Pictures put into the text of tickets, documents, comments and projects. */
     val contentImages: Tally,
     /** The attached files of what is marked deleted and waits for its time (D-132); already counted above. */
     val awaitingPurge: Tally,

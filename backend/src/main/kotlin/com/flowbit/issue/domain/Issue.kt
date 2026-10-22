@@ -29,7 +29,6 @@ class Issue(
     /** The first day of the span the issue covers; only together with [dueDate], and never after it. */
     var startDate: LocalDate?,
     var dueDate: LocalDate?,
-    var milestoneId: UUID?,
     val createdBy: UUID,
     var version: Int,
     val createdAt: Instant,

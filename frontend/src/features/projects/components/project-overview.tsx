@@ -4,8 +4,6 @@ import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { ContentActivity } from "@/features/content/components/content-activity";
 import { ProjectIssueSummary } from "@/features/issues/components/project-issue-summary";
 import type { Issue, IssueDocumentSummary } from "@/features/issues/types";
-import { MilestonesSection } from "@/features/milestones/components/milestones-section";
-import type { Milestone } from "@/features/milestones/types";
 import { ProjectMemberList } from "@/features/projects/components/project-member-list";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
@@ -25,22 +23,20 @@ function formatDate(iso: string, timeZone: string): string {
 
 /**
  * Project overview: what the project is in the middle, its facts and people in cards on the
- * right. On narrow screens the cards move below the description. The overview's own address
- * shows it, and so does a milestone's (D-160), with the milestone's dialog over it.
+ * right. On narrow screens the cards move below the description.
  */
 export async function ProjectOverview({ id }: { id: string }) {
   const path = `/api/v1/projects/${encodeURIComponent(id)}`;
-  const [user, project, members, projects, milestones, updates, documents, issues] = await Promise.all([
+  const [user, project, members, projects, updates, documents, issues] = await Promise.all([
     requireUser(),
     loadProject(id),
     serverGet<ProjectMember[]>(`${path}/members`),
     getProjects(),
-    serverGet<Milestone[]>(`${path}/milestones`),
     serverGet<ProjectUpdate[]>(`${path}/updates`),
     serverGet<IssueDocumentSummary[]>(`${path}/documents`),
     serverGet<Issue[]>(`${path}/issues`),
   ]);
-  if (!members || !milestones || !updates) notFound();
+  if (!members || !updates) notFound();
   const canManage = project.myRole === "MANAGER";
   const labelSuggestions = [...new Set(projects.flatMap((other) => other.labels))].sort((a, b) => a.localeCompare(b, "ko"));
   const created = formatDate(project.createdAt, user.timezone);
@@ -59,7 +55,6 @@ export async function ProjectOverview({ id }: { id: string }) {
           mentionables={mentionablesOf(members)}
         />
         <ProjectIssueSummary projectId={project.id} issues={issues ?? []} canEdit={project.myRole !== "VIEWER"} />
-        <MilestonesSection projectId={project.id} milestones={milestones} canEdit={project.myRole !== "VIEWER"} />
         <ProjectUpdates
           projectId={project.id}
           updates={updates}

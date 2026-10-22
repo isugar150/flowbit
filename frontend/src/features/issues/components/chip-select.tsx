@@ -16,8 +16,6 @@ export type ChipOption<T extends string> = {
   icon?: React.ReactNode;
   /** Drawn in grey on the chip: the value that stands for "nothing chosen". */
   muted?: boolean;
-  /** A short note in grey under the option in the list (a milestone's purpose). */
-  hint?: string;
 };
 
 export const chipClass =
@@ -83,14 +81,7 @@ export function ChipSelect<T extends string>({
               // Choosing is the whole point of opening the menu, so it closes (radio items stay open by default).
               <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
                 {option.icon}
-                {option.hint ? (
-                  <span className="flex min-w-0 flex-col">
-                    <span className="truncate">{option.label}</span>
-                    <span className="truncate text-xs text-muted-foreground">{option.hint}</span>
-                  </span>
-                ) : (
-                  <span className="truncate">{option.label}</span>
-                )}
+                <span className="truncate">{option.label}</span>
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>

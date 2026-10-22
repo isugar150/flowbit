@@ -30,7 +30,7 @@ data class CreateCustomPropertyRequest(
 )
 
 /**
- * The properties people add to a project, a milestone or an issue (D-186). Access is decided inside
+ * The properties people add to a project or an issue (D-186). Access is decided inside
  * [CustomPropertyService]; a change is announced after it is committed, so that whoever shows the
  * item reads again and whoever follows it is told.
  */

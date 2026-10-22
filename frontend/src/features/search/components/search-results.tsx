@@ -13,18 +13,16 @@ import { wordsOf } from "../highlight";
 import {
   DocumentHitContent,
   IssueHitContent,
-  MilestoneHitContent,
   ProjectHitContent,
   documentHref,
   issueHref,
-  milestoneHref,
   projectHref,
 } from "./hit-content";
 import { useDebounced } from "./search-dialog";
 
 const m = messages.search;
 
-export type SearchTab = "all" | "issues" | "documents" | "projects" | "milestones";
+export type SearchTab = "all" | "issues" | "documents" | "projects";
 
 const PAGE_LIMIT = 50;
 
@@ -61,18 +59,15 @@ export function SearchResults({ initialQuery, initialTab }: { initialQuery: stri
     { id: "issues", label: m.issues, count: data ? count(data.issues.length, data.issuesMore) : undefined },
     { id: "documents", label: m.documents, count: data ? count(data.documents.length, data.documentsMore) : undefined },
     { id: "projects", label: m.projects, count: data ? count(data.projects.length, data.projectsMore) : undefined },
-    { id: "milestones", label: m.milestones, count: data ? count(data.milestones.length, data.milestonesMore) : undefined },
   ];
   const shows = (kind: SearchTab) => tab === "all" || tab === kind;
   const issues = data && shows("issues") ? data.issues : [];
   const documents = data && shows("documents") ? data.documents : [];
   const projects = data && shows("projects") ? data.projects : [];
-  const milestones = data && shows("milestones") ? data.milestones : [];
   const more = data
     ? (shows("issues") && data.issuesMore) ||
       (shows("documents") && data.documentsMore) ||
-      (shows("projects") && data.projectsMore) ||
-      (shows("milestones") && data.milestonesMore)
+      (shows("projects") && data.projectsMore)
     : false;
 
   return (
@@ -115,7 +110,7 @@ export function SearchResults({ initialQuery, initialTab }: { initialQuery: stri
 
       {!debounced ? (
         <p className="py-10 text-center text-[0.8125rem] leading-5 text-muted-foreground">{m.emptyHint}</p>
-      ) : data && issues.length + documents.length + projects.length + milestones.length === 0 ? (
+      ) : data && issues.length + documents.length + projects.length === 0 ? (
         <div className="flex flex-col items-center gap-1.5 py-10 text-center">
           <p className="text-[0.875rem] font-medium">{m.noResults(debounced)}</p>
           <p className="text-[0.8125rem] text-muted-foreground">{m.noResultsHint}</p>
@@ -158,20 +153,6 @@ export function SearchResults({ initialQuery, initialTab }: { initialQuery: stri
                   <li key={hit.id}>
                     <Link href={projectHref(hit)} className={rowClass}>
                       <ProjectHitContent hit={hit} words={words} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-          {milestones.length > 0 ? (
-            <section aria-label={m.milestones} className="flex flex-col">
-              {tab === "all" ? <h2 className="px-3 pb-1.5 text-xs font-medium text-muted-foreground">{m.milestones}</h2> : null}
-              <ul className="flex flex-col">
-                {milestones.map((hit) => (
-                  <li key={hit.id}>
-                    <Link href={milestoneHref(hit)} className={rowClass}>
-                      <MilestoneHitContent hit={hit} words={words} />
                     </Link>
                   </li>
                 ))}

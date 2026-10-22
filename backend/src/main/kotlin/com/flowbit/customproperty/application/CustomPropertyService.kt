@@ -17,7 +17,6 @@ import com.flowbit.issue.application.IssueChange
 import com.flowbit.issue.application.IssueEvent
 import com.flowbit.issue.application.IssueLookup
 import com.flowbit.issue.application.IssueQueries
-import com.flowbit.milestone.domain.MilestoneRepository
 import com.flowbit.project.application.ProjectMemberStore
 import com.flowbit.project.application.ProjectService
 import org.springframework.stereotype.Service
@@ -31,7 +30,7 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * The properties people add to a project, a milestone or an issue on their own (D-186): a label, a
+ * The properties people add to a project or an issue on their own (D-186): a label, a
  * kind of value and the value, kept with that one item. Whoever may see the item sees them; whoever
  * may edit it (the editor role of its project, or anyone for an issue on its own) adds, changes and
  * deletes them. What was done is kept in the item's activity and told to those who follow it.
@@ -40,7 +39,6 @@ import java.util.UUID
 class CustomPropertyService(
     private val store: CustomPropertyStore,
     private val projectService: ProjectService,
-    private val milestones: MilestoneRepository,
     private val issueLookup: IssueLookup,
     private val issueQueries: IssueQueries,
     private val issueActivities: IssueActivityStore,
@@ -145,11 +143,6 @@ class CustomPropertyService(
                 val access = projectService.accessById(user, id) ?: throw notFound()
                 Target(CustomPropertyOwner(kind, id), access.role.canEdit, id, topics = listOf("project:$id"))
             }
-            CustomPropertyOwnerKind.MILESTONE -> {
-                val milestone = milestones.findById(id) ?: throw notFound()
-                val access = projectService.accessById(user, milestone.projectId) ?: throw notFound()
-                Target(CustomPropertyOwner(kind, id), access.role.canEdit, milestone.projectId, topics = listOf("project:${milestone.projectId}"))
-            }
             CustomPropertyOwnerKind.ISSUE -> {
                 val access = issueLookup.accessById(user, id)
                 val issue = access.issue
@@ -187,17 +180,7 @@ class CustomPropertyService(
             val change = IssueChange(issue, events, issueLookup.recipients(target.issueId, user))
             return CustomPropertyChange(item, change, emptyList())
         }
-        val content =
-            ContentTarget(
-                if (target.owner.kind ==
-                    CustomPropertyOwnerKind.PROJECT
-                ) {
-                    ContentTargetType.PROJECT
-                } else {
-                    ContentTargetType.MILESTONE
-                },
-                target.owner.id,
-            )
+        val content = ContentTarget(ContentTargetType.PROJECT, target.owner.id)
         contentLog.record(content, user.id, details.map { ContentEvent(ContentEventType.CUSTOM_PROPERTY_CHANGED, it) }, now)
         return CustomPropertyChange(item, null, target.topics)
     }

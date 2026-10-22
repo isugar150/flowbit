@@ -23,7 +23,7 @@ const SHOWN = 5;
  * first five show; "더 보기" opens the rest. Status, priority, due date and assignees are changed
  * right on a line, which shows the change at once. A sub-issue linked to another project than this
  * one is read-only here: its people and rights are that project's. A new one needs only a title;
- * it is always in its parent's project and milestone, starts with its parent's assignees, and is
+ * it is always in its parent's project, starts with its parent's assignees, and is
  * otherwise an ordinary issue (D-129).
  */
 export function IssueSubIssues({
@@ -65,7 +65,7 @@ export function IssueSubIssues({
 
   const submit = () => {
     if (!title.trim() || mutation.isPending) return;
-    // Project and milestone are the parent's, and the assignees start as the parent's (D-129).
+    // The project is the parent's, and the assignees start as the parent's (D-129).
     mutation.mutate({
       title,
       content: null,

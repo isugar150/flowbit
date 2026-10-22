@@ -1,7 +1,7 @@
 import type { Described } from "@/features/issues/components/activity-event";
 import { messages } from "@/messages";
 
-/** The lines both kinds of activity (an issue's and a project's or milestone's) say about a custom property. */
+/** The lines both kinds of activity (an issue's and a project's) say about a custom property. */
 type Words = {
   customAdded: string;
   customChanged: (label: string) => string;

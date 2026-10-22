@@ -26,7 +26,6 @@ async function newIssue(title: string, more: Record<string, unknown> = {}): Prom
     assigneeIds: [],
     startDate: null,
     dueDate: null,
-    milestoneId: null,
     labelIds: [],
     projectId: project.id,
     ...more,
@@ -99,42 +98,6 @@ test("a new project is made from the sidebar and opens", async () => {
   await expect(page.getByRole("dialog")).toBeHidden();
   // The sidebar has it too.
   await expect(page.getByRole("link", { name }).first()).toBeVisible();
-  await page.close();
-});
-
-test("milestones are added one after another, renamed from the menu and deleted", async () => {
-  const page = await newPage();
-  await page.goto(`/project/${project.id}`);
-  await page.getByRole("button", { name: "목표 추가" }).click();
-  const field = page.getByRole("textbox", { name: "새 목표 이름" });
-  await field.fill("알파");
-  await field.press("Enter");
-  await expect(page.getByRole("link", { name: "알파 열기" })).toBeVisible();
-  // The field starts over empty and stays, for the next one.
-  await expect(field).toHaveValue("");
-  await field.fill("베타");
-  await field.press("Enter");
-  await expect(page.getByRole("link", { name: "베타 열기" })).toBeVisible();
-  await field.press("Escape");
-
-  // "편집" in the line's menu opens the milestone, where its name is changed.
-  await page.getByRole("button", { name: "알파 메뉴" }).click();
-  await page.getByRole("menuitem", { name: "편집" }).click();
-  const name = page.getByRole("dialog").getByRole("textbox", { name: "목표 이름" });
-  await name.fill("알파 2");
-  await name.press("Enter");
-  // The line behind the dialog has the new name at once (it is hidden from assistive tech meanwhile).
-  await expect(page.locator("a[data-open-milestone]").filter({ hasText: "알파 2" })).toHaveCount(1);
-  await settled(page);
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "알파 2 열기" })).toBeVisible();
-
-  await page.getByRole("button", { name: "베타 메뉴" }).click();
-  await page.getByRole("menuitem", { name: /삭제/ }).click();
-  await expect(page.getByRole("link", { name: "베타 열기" })).toHaveCount(0);
-  const names = (await api<{ name: string }[]>(context, "GET", `/api/v1/projects/${project.id}/milestones`)).map((item) => item.name);
-  expect(names).toEqual(["알파 2"]);
   await page.close();
 });
 
@@ -225,25 +188,20 @@ test("a label is made on the spot and put on the issue", async () => {
   await page.close();
 });
 
-test("moving an issue to no project drops its milestone and keeps the rest", async () => {
-  const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, {
-    name: "옮기기 전 목표",
-    targetDate: null,
-  });
-  const issue = await newIssue("프로젝트 바꾸기", { milestoneId: milestone.id, priority: "HIGH" });
+test("moving an issue to no project keeps the rest", async () => {
+  const issue = await newIssue("프로젝트 바꾸기", { priority: "HIGH" });
   const page = await newPage();
   await openIssue(page, issue);
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("button", { name: "목표: 옮기기 전 목표" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^프로젝트: 흐름/ })).toBeVisible();
 
   await pick(page, dialog.getByRole("button", { name: /^프로젝트:/ }), "프로젝트 없음");
 
   await expect(dialog.getByRole("button", { name: "프로젝트: 프로젝트 없음" })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: /^목표:/ })).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "우선순위: 높음" })).toBeVisible();
   await settled(page);
-  const saved = await api<{ project: unknown; milestone: unknown }>(context, "GET", `/api/v1/issues/${issue.number}`);
-  expect(saved).toMatchObject({ project: null, milestone: null });
+  const saved = await api<{ project: unknown }>(context, "GET", `/api/v1/issues/${issue.number}`);
+  expect(saved).toMatchObject({ project: null });
   await page.close();
 });
 
@@ -266,7 +224,6 @@ test("the view role sees everything and can change nothing", async ({ browser, b
 
   await page.goto(`/project/${project.id}`);
   await expect(page.getByRole("button", { name: /^상태:/ })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "목표 추가" })).toHaveCount(0);
   await viewer.close();
 });
 

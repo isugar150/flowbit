@@ -62,8 +62,6 @@ data class ProjectView(
     /** Issues of the project, canceled ones not counted; progress is doneCount / issueCount. */
     val issueCount: Int,
     val doneCount: Int,
-    /** The first milestone that is not finished yet. */
-    val currentMilestone: String?,
     val health: ProjectHealth?,
     val healthUpdatedAt: Instant?,
     /** Whether this person follows the project: is told about every change to its issues. */
@@ -618,7 +616,6 @@ class ProjectService(
         labels = row.labels,
         issueCount = row.issueCount,
         doneCount = row.doneCount,
-        currentMilestone = row.currentMilestone,
         health = row.health,
         healthUpdatedAt = row.healthUpdatedAt,
         subscribed = row.subscribed,

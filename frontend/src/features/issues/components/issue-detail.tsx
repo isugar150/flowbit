@@ -5,7 +5,6 @@ import { DocumentTitle } from "@/components/document-title";
 import { Person } from "@/components/person";
 import { DialogTitle } from "@/components/ui/dialog";
 import type { UserSummary } from "@/features/members/types";
-import type { Milestone } from "@/features/milestones/types";
 import { mentionablesOf, usersAsMembers, type ProjectMember } from "@/features/projects/types";
 import { branchName } from "@/features/git/branch-name";
 import { IssueGitLinks } from "@/features/git/components/issue-git-links";
@@ -41,14 +40,10 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
     serverGet<{ enabled: boolean }>("/api/v1/git/status"),
   ]);
   if (!issue || !labels) notFound();
-  // Who can be assigned and which milestones exist depend on the project the issue is linked to.
-  const projectPath = issue.project ? `/api/v1/projects/${encodeURIComponent(issue.project.id)}` : null;
-  const [members, milestones] = await Promise.all([
-    projectPath
-      ? serverGet<ProjectMember[]>(`${projectPath}/members`)
-      : serverGet<UserSummary[]>("/api/v1/users").then(usersAsMembers),
-    projectPath ? serverGet<Milestone[]>(`${projectPath}/milestones`) : Promise.resolve([]),
-  ]);
+  // Who can be assigned depends on the project the issue is linked to.
+  const members = issue.project
+    ? await serverGet<ProjectMember[]>(`/api/v1/projects/${encodeURIComponent(issue.project.id)}/members`)
+    : await serverGet<UserSummary[]>("/api/v1/users").then(usersAsMembers);
   const created = new Intl.DateTimeFormat("sv-SE", { timeZone: user.timezone }).format(new Date(issue.createdAt));
   const canEdit = issue.canEdit;
   // Whoever could be given the issue can be tagged in it.
@@ -101,7 +96,6 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
           members={members ?? []}
           labels={labels}
           projects={projects}
-          milestones={milestones ?? []}
           canEdit={canEdit}
         />
         <IssueGitLinks

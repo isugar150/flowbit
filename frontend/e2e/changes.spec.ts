@@ -26,7 +26,6 @@ async function newIssue(title: string, more: Record<string, unknown> = {}): Prom
     assigneeIds: [],
     startDate: null,
     dueDate: null,
-    milestoneId: null,
     labelIds: [],
     projectId: project.id,
     ...more,
@@ -369,28 +368,6 @@ test("calendar: an issue dragged to another day is on that day at once", async (
   expect(await frames(page, "day")).toEqual(["15", "16"]);
   noReloads();
   expect((await api<{ dueDate: string }>(context, "GET", `/api/v1/issues/${issue.number}`)).dueDate).toBe(day(16));
-  await page.close();
-});
-
-test("milestone: a date picked in the opened milestone shows at once", async () => {
-  await api(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "첫 목표", targetDate: null });
-  const page = await newPage();
-  await page.goto(`/project/${project.id}`);
-  await page.getByRole("link", { name: "첫 목표 열기" }).click();
-  const chip = page.getByRole("dialog").getByRole("button", { name: /^목표일:/ });
-  await expect(chip).toBeVisible();
-  await settled(page);
-  await slowDown(page);
-  await recordFrames(page, "date", () => {
-    const found = document.querySelector<HTMLButtonElement>('[role=dialog] button[aria-label^="목표일:"]');
-    return `${found?.getAttribute("aria-label")?.replace(/\d{4}-\d{2}-/, "")}|${found?.disabled ? "disabled" : "enabled"}`;
-  });
-
-  await chip.click();
-  await page.locator("td button").filter({ hasText: /^20$/ }).first().click();
-  await settled(page);
-
-  expect(await frames(page, "date")).toEqual(["목표일: 목표일|enabled", "목표일: 20|enabled"]);
   await page.close();
 });
 

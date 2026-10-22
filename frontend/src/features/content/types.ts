@@ -1,8 +1,8 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
 import type { IssueActivityItem, IssueComment, IssuePerson, Reaction } from "@/features/issues/types";
 
-/** The four kinds of page whose blocks can be commented on: the word in the address (D-165). */
-export type ContentTargetType = "project" | "issue" | "document" | "milestone";
+/** The three kinds of page whose blocks can be commented on: the word in the address (D-165). */
+export type ContentTargetType = "project" | "issue" | "document";
 
 export type ContentTarget = { type: ContentTargetType; id: string };
 
@@ -41,10 +41,8 @@ export type ContentActivityType =
   | "STATUS_CHANGED"
   | "PRIORITY_CHANGED"
   | "LEAD_CHANGED"
-  | "ASSIGNEE_CHANGED"
   | "CUSTOM_PROPERTY_CHANGED"
   | "DATES_CHANGED"
-  | "TARGET_DATE_CHANGED"
   | "LABELS_CHANGED"
   | "ICON_CHANGED"
   | "ARCHIVED"
@@ -53,13 +51,11 @@ export type ContentActivityType =
   | "MEMBER_REMOVED"
   | "MEMBER_ROLE_CHANGED"
   | "UPDATE_POSTED"
-  | "MILESTONE_ADDED"
-  | "MILESTONE_REMOVED"
   | "DOCUMENT_ADDED"
   | "DOCUMENT_REMOVED"
   | "DOCUMENT_RESTORED";
 
-/** A line of the activity of a project, a document or a milestone. */
+/** A line of the activity of a project or a document. */
 export type ContentActivityItem = {
   id: string;
   type: ContentActivityType;
@@ -85,6 +81,6 @@ export type ContentFeed = {
   items: ContentActivityItem[];
   /** The general comments; empty for an issue. */
   comments: IssueComment[];
-  /** A document and a project are followed on their own; a milestone and an issue leave it out. */
+  /** A document and a project are followed on their own; an issue leaves it out. */
   subscription?: ContentSubscription;
 };

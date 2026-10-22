@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PersonAvatar, personName } from "@/components/person";
-import { PropertyListRow, PropertyPanelRow, PropertyRow } from "@/components/property-card";
+import { PropertyPanelRow, PropertyRow } from "@/components/property-card";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -42,11 +42,11 @@ const m = messages.customProperties;
 const LABEL_MAX_LENGTH = 30;
 
 /**
- * Where the properties sit, which says how a row and its value are drawn: the project's card (pills), the
- * list in a milestone's dialog, or an issue's side panel (these two with quiet rows). A word, not a
- * component, so that a page rendered on the server can ask for it.
+ * Where the properties sit, which says how a row and its value are drawn: the project's card (pills) or an issue's
+ * side panel (quiet rows, in the panel's first group, right under the due date). A word, not a component, so
+ * that a page rendered on the server can ask for it.
  */
-export type CustomPropertiesLayout = "card" | "list" | "panel";
+export type CustomPropertiesLayout = "card" | "panel";
 
 /** A text field that looks like the chips around it: a pill, or with `plain` a quiet row that shows its edge when pointed at. */
 const fieldClass = (plain: boolean) =>
@@ -72,27 +72,27 @@ const TYPE_OPTIONS: ChipOption<CustomPropertyType>[] = CUSTOM_PROPERTY_TYPES.map
 });
 
 /**
- * The properties people added to one project, milestone or issue (D-186), as rows of the list the page has: the label and its value, changed in place, with a menu to delete it, and a "속성 추가" at
+ * The properties people added to one project or issue (D-186), as rows of the list the page has: the label and its value, changed in place, with a menu to delete it, and a "속성 추가" at
  * the end. Whoever may edit the item adds, changes and deletes; everyone else reads. Nothing shows
  * for someone who only reads when there is none. `members` are who a "사람" property can be set to.
+ *
+ * In an issue's panel (`layout="panel"`) they continue the first group, so "속성 추가" stands right under the
+ * due date when there are none (D-189); in the project's card they continue the card's rows.
  */
 export function CustomProperties({
   owner,
   members,
   watch,
   layout,
-  readOnly = false,
 }: {
   owner: CustomPropertyOwner;
   members: ProjectMember[];
   /** What the server last rendered the page from; when it changes the properties are read again. */
   watch?: unknown;
   layout: CustomPropertiesLayout;
-  /** Only show them, whatever the person may do (the milestone beside a ticket). */
-  readOnly?: boolean;
 }) {
   const plain = layout !== "card";
-  const Row = layout === "card" ? PropertyRow : layout === "list" ? PropertyListRow : PropertyPanelRow;
+  const Row = layout === "card" ? PropertyRow : PropertyPanelRow;
   const { query, add, change, remove, error } = useCustomProperties(owner, watch);
   const list = query.data;
   if (!list) {
@@ -102,12 +102,11 @@ export function CustomProperties({
       </p>
     ) : null;
   }
-  const canEdit = list.canEdit && !readOnly;
+  const canEdit = list.canEdit;
   if (list.items.length === 0 && !canEdit) return null;
 
   const rows = (
     <>
-      {error ? <FormAlert>{apiErrorMessage(error)}</FormAlert> : null}
       {list.items.map((item) => (
         <Row key={item.id} label={item.label}>
           <div className="flex min-w-0 flex-1 items-center gap-1">
@@ -140,16 +139,26 @@ export function CustomProperties({
           </div>
         </Row>
       ))}
-      {canEdit ? <AddProperty add={add} /> : null}
     </>
   );
-  // The card and the list already are lists of properties; the panel has none to put them in, so they get a group of their own.
-  if (layout !== "panel") return rows;
+  const alert = error ? <FormAlert>{apiErrorMessage(error)}</FormAlert> : null;
+  // The card already is a list of properties, and its page puts them in a <dl>.
+  if (layout === "card") {
+    return (
+      <>
+        {alert}
+        {rows}
+        {canEdit ? <AddProperty add={add} /> : null}
+      </>
+    );
+  }
+  // The panel's other rows are not a list: the added ones, which have labels, are, and the way to add one follows them.
   return (
-    <section className="flex flex-col gap-1">
-      <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.title}</h3>
-      <dl className="flex flex-col">{rows}</dl>
-    </section>
+    <>
+      {alert}
+      {list.items.length > 0 ? <dl className="flex flex-col">{rows}</dl> : null}
+      {canEdit ? <AddProperty add={add} /> : null}
+    </>
   );
 }
 

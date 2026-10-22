@@ -100,7 +100,7 @@ class WebhookSender(
         )
     }
 
-    /** A change to a project, a document or a milestone, or a comment on one (D-165): no issue, the page that changed instead. */
+    /** A change to a project or a document, or a comment on one (D-165): no issue, the page that changed instead. */
     fun contentOf(notification: ContentNotification): WebhookContent {
         val message = texts.of(notification)
         val kind = notification.targetType.lowercase()

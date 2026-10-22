@@ -8,7 +8,7 @@ import { messages } from "@/messages";
 
 const m = messages.issues.views;
 
-export const ISSUE_VIEWS = ["list", "milestone", "calendar"] as const;
+export const ISSUE_VIEWS = ["list", "timeline", "calendar"] as const;
 export type IssueViewMode = (typeof ISSUE_VIEWS)[number];
 
 /**
@@ -54,9 +54,9 @@ export function useReplaceListQuery(): (pathname: string, params: URLSearchParam
 }
 
 /**
- * Which way a list of issues is shown: as the list, as a timeline chart by milestone
+ * Which way a list of issues is shown: as the list, as a timeline chart by project
  * (issue-timeline.tsx), or on a calendar (issue-calendar.tsx). Kept
- * in the address (`?view=milestone`), so a reload, the back button and a shared link keep it.
+ * in the address (`?view=timeline`), so a reload, the back button and a shared link keep it.
  */
 export function useIssueView(): [IssueViewMode, (view: IssueViewMode) => void] {
   const { pathname, searchParams } = useListAddress();
@@ -72,7 +72,7 @@ export function useIssueView(): [IssueViewMode, (view: IssueViewMode) => void] {
   return [view, setView];
 }
 
-const VIEW_ICONS = { list: ListIcon, milestone: ChartGanttIcon, calendar: CalendarIcon };
+const VIEW_ICONS = { list: ListIcon, timeline: ChartGanttIcon, calendar: CalendarIcon };
 
 /** The three buttons that switch between the views. */
 export function IssueViewSwitch({ view, onChange }: { view: IssueViewMode; onChange: (view: IssueViewMode) => void }) {

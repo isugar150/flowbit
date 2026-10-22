@@ -139,7 +139,7 @@ class ContentSubscriptionService(
     private val documents: DocumentSubscriptionStore,
     private val projects: ProjectSubscriptionStore,
 ) {
-    /** Null for a page that is not followed on its own: a milestone, an issue. */
+    /** Null for a page that is not followed on its own: an issue. */
     suspend fun of(
         user: AuthenticatedUser,
         context: ContentContext,

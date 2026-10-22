@@ -58,6 +58,13 @@ const nextConfig: NextConfig = {
     // been closed"). The backend refuses a part over 20MB itself (application.yml), so this is a little more than that.
     proxyClientMaxBodySize: "100mb",
   },
+  // A project has no ticket list of its own (D-135): its tickets are the list of all tickets filtered to the project. Old
+  // links land there with their other filters (the query is passed along). This is answered before any page renders; as a
+  // page that redirected, it ran after the project's header had started to appear, and a request that header started
+  // (who is on the page) was cut off by the redirect.
+  async redirects() {
+    return [{ source: "/project/:id/issues", destination: "/issues?project=:id", permanent: false }];
+  },
   // The browser only ever talks to this server; /api is handed to the backend so that
   // cookies are same-origin and no CORS setup is needed (docs/02-architecture.md).
   async rewrites() {

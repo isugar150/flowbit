@@ -23,7 +23,6 @@ export type TourStep = {
     | "issue-body"
     | "issue-properties"
     | "project-description"
-    | "milestones"
     | "project-updates";
   /** Shows this screen with example data, to try things on. Nothing done there is saved. */
   demo?: DemoScreen;
@@ -44,7 +43,6 @@ export const TOUR_STEPS: TourStep[] = [
   { ...m.issueProperties, demo: "issue", target: "issue-properties" },
   { ...m.projects, target: "projects" },
   { ...m.overview, demo: "overview", target: "project-description" },
-  { ...m.milestones, demo: "overview", target: "milestones" },
   { ...m.updates, demo: "overview", target: "project-updates" },
   { ...m.settings, target: "user-menu" },
   m.done,

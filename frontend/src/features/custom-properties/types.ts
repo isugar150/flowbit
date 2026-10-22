@@ -6,7 +6,7 @@ export type CustomPropertyType = "TEXT" | "NUMBER" | "DATE" | "CHECKBOX" | "LINK
 export const CUSTOM_PROPERTY_TYPES: CustomPropertyType[] = ["TEXT", "NUMBER", "DATE", "CHECKBOX", "LINK", "PERSON"];
 
 /** The item a property belongs to: the word in the address and the id of its row (an issue's `id`, not its number). */
-export type CustomPropertyOwner = { type: "project" | "milestone" | "issue"; id: string };
+export type CustomPropertyOwner = { type: "project" | "issue"; id: string };
 
 /** A string for TEXT, LINK, DATE (`YYYY-MM-DD`) and PERSON (the user's id), a number, a boolean; null while empty. */
 export type CustomPropertyValue = string | number | boolean | null;

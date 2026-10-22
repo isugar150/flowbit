@@ -14,7 +14,7 @@ type Uploaded = { url: string; name: string; size: number };
 
 const run = Date.now().toString(36);
 const FIXTURES = path.join(__dirname, "fixtures");
-const blank = { content: null, status: "BACKLOG", priority: "NONE", assigneeIds: [], startDate: null, dueDate: null, milestoneId: null, labelIds: [] };
+const blank = { content: null, status: "BACKLOG", priority: "NONE", assigneeIds: [], startDate: null, dueDate: null, labelIds: [] };
 
 let context: BrowserContext;
 let office: Issue;

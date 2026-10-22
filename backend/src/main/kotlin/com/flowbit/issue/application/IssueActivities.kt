@@ -18,7 +18,6 @@ enum class IssueActivityType {
     PRIORITY_CHANGED,
     ASSIGNEE_CHANGED,
     DUE_DATE_CHANGED,
-    MILESTONE_CHANGED,
     LABELS_CHANGED,
     PROJECT_CHANGED,
     PARENT_CHANGED,
@@ -139,9 +138,6 @@ class IssueActivityStore(
             // One date, or "first day ~ last day" for a span.
             fun dates(issue: IssueView) = issue.dueDate?.let { due -> issue.startDate?.let { "$it ~ $due" } ?: due.toString() }
             events += IssueEvent(IssueActivityType.DUE_DATE_CHANGED, mapOf("from" to dates(before), "to" to dates(after)))
-        }
-        if (before.milestone?.id != after.milestone?.id) {
-            events += IssueEvent(IssueActivityType.MILESTONE_CHANGED, mapOf("from" to before.milestone?.name, "to" to after.milestone?.name))
         }
         if (before.project?.id != after.project?.id) {
             events += IssueEvent(IssueActivityType.PROJECT_CHANGED, mapOf("from" to before.project?.name, "to" to after.project?.name))

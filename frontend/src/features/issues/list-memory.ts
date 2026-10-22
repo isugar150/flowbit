@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 /**
  * What the three issue lists (내 티켓, 전체 티켓, a project's issues) remember together: the last
- * filters, order and grouping the person used in any of them. The project and milestone filters
+ * filters, order and grouping the person used in any of them. The project filter
  * belong to one list and are not shared; nor is the search text.
  */
 const SHARED_KEYS = ["status", "priority", "assignee", "label", "sort", "group", "completed"] as const;

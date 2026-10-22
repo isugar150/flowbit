@@ -10,7 +10,6 @@ import com.flowbit.issue.domain.Issue
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueRepository
 import com.flowbit.issue.domain.IssueStatus
-import com.flowbit.milestone.application.MilestoneService
 import com.flowbit.project.application.ProjectService
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
@@ -38,7 +37,6 @@ class IssueService(
     private val queries: IssueQueries,
     private val entityTemplate: R2dbcEntityTemplate,
     private val richText: RichText,
-    private val milestoneService: MilestoneService,
     private val activities: IssueActivityStore,
     private val extras: IssueExtrasStore,
     private val clock: Clock,
@@ -141,15 +139,14 @@ class IssueService(
         input: NewIssue,
     ): IssueChange {
         val parent = input.parentId?.let { requireParent(user, it, null) }
-        // A sub-issue is always where its parent is: the same project and milestone (D-129). What
-        // the request says about them is not used.
+        // A sub-issue is always where its parent is: the same project (D-129). What the request
+        // says about it is not used.
         val project =
             if (parent != null) {
                 parent.projectId?.let { lookup.editableProjectById(user, it) }
             } else {
                 input.projectId?.let { lookup.editableProject(user, it) }
             }
-        val milestoneId = if (parent != null) parent.milestoneId else input.milestoneId
         val title = input.title.trim()
         val document = input.content?.let { richText.parse(it, blockIds = true) }
         val description = document?.plainText ?: input.description?.trim().orEmpty()
@@ -161,7 +158,6 @@ class IssueService(
             } else {
                 requireAssignees(project?.id, input.assigneeIds.orEmpty(), emptyList())
             }
-        if (parent == null) input.milestoneId?.let { requireMilestone(project?.id, it) }
         val labelIds = requireLabels(input.labelIds)
 
         val now = clock.instant()
@@ -177,7 +173,6 @@ class IssueService(
                 priority = input.priority ?: IssuePriority.NONE,
                 startDate = spanStart(input.startDate, input.dueDate),
                 dueDate = input.dueDate,
-                milestoneId = milestoneId,
                 createdBy = user.id,
                 version = 1,
                 createdAt = now,
@@ -215,7 +210,6 @@ class IssueService(
         val issue = lookup.editable(lookup.access(user, number)).issue
         val before = queries.find(number) ?: throw lookup.notFound()
         val oldProjectId = issue.projectId
-        val oldMilestoneId = issue.milestoneId
 
         if (patch.has("title")) issue.title = patch.string("title")?.trim().orEmpty()
         if (patch.has("description")) issue.description = patch.string("description")?.trim().orEmpty()
@@ -229,7 +223,7 @@ class IssueService(
         if (patch.has("dueDate")) issue.dueDate = patch.date("dueDate")
         if (patch.has("startDate")) issue.startDate = patch.date("startDate")
         issue.startDate = spanStart(issue.startDate, issue.dueDate)
-        // The parent first: a sub-issue's project and milestone are always its parent's (D-129).
+        // The parent first: a sub-issue's project is always its parent's (D-129).
         if (patch.has("parentId")) {
             val parentId = patch.uuid("parentId")
             // Sending the parent it already has changes nothing and is not checked again.
@@ -237,28 +231,15 @@ class IssueService(
         }
         val parent = issue.parentId?.let { repository.findById(it) }
         if (parent != null) {
-            // Its parent's values may be sent back; anything else cannot be set on a sub-issue.
-            val otherProject = patch.has("projectId") && patch.uuid("projectId") != parent.projectId
-            val otherMilestone = patch.has("milestoneId") && patch.uuid("milestoneId") != parent.milestoneId
-            if (otherProject || otherMilestone) throw ConflictException("FOLLOWS_PARENT", "하위 티켓의 프로젝트와 목표는 상위 티켓을 따릅니다")
+            // Its parent's project may be sent back; any other cannot be set on a sub-issue.
+            if (patch.has("projectId") && patch.uuid("projectId") != parent.projectId) {
+                throw ConflictException("FOLLOWS_PARENT", "하위 티켓의 프로젝트는 상위 티켓을 따릅니다")
+            }
             // Put under an issue of another project: it moves there, which needs the right to edit there.
             if (parent.projectId != issue.projectId) parent.projectId?.let { lookup.editableProjectById(user, it) }
             issue.projectId = parent.projectId
-            issue.milestoneId = parent.milestoneId
-        } else {
-            if (patch.has("projectId")) {
-                val projectId = patch.string("projectId")?.let { lookup.editableProject(user, it).id }
-                if (projectId != issue.projectId) {
-                    issue.projectId = projectId
-                    // A milestone belongs to one project; it cannot follow the issue to another.
-                    if (!patch.has("milestoneId")) issue.milestoneId = null
-                }
-            }
-            if (patch.has("milestoneId")) {
-                val milestoneId = patch.uuid("milestoneId")
-                if (milestoneId != null) requireMilestone(issue.projectId, milestoneId)
-                issue.milestoneId = milestoneId
-            }
+        } else if (patch.has("projectId")) {
+            issue.projectId = patch.string("projectId")?.let { lookup.editableProject(user, it).id }
         }
         val assigneeIds =
             if (patch.has("assigneeIds")) requireAssignees(issue.projectId, patch.uuids("assigneeIds"), before.assignees.map { it.id }) else null
@@ -279,7 +260,7 @@ class IssueService(
         val events = recorded + tagging.mentionEvents(tagged)
         // Whoever is given the issue follows it from then on.
         after.assignees.filter { person -> before.assignees.none { it.id == person.id } }.forEach { activities.subscribe(issue.id, it.id) }
-        if (issue.projectId != oldProjectId || issue.milestoneId != oldMilestoneId) moveSubIssuesAlong(user, issue, 0)
+        if (issue.projectId != oldProjectId) moveSubIssuesAlong(user, issue, 0)
         return IssueChange(
             after,
             events,
@@ -290,8 +271,8 @@ class IssueService(
     }
 
     /**
-     * A sub-issue is always where its parent is (D-129): when an issue's project or milestone
-     * changes, every issue below it follows, each with an entry in its own history.
+     * A sub-issue is always where its parent is (D-129): when an issue's project changes, every
+     * issue below it follows, each with an entry in its own history.
      */
     private suspend fun moveSubIssuesAlong(
         user: AuthenticatedUser,
@@ -300,10 +281,9 @@ class IssueService(
     ) {
         if (depth > MAX_DEPTH) return
         for (child in repository.findByParentId(parent.id)) {
-            if (child.projectId == parent.projectId && child.milestoneId == parent.milestoneId) continue
+            if (child.projectId == parent.projectId) continue
             val before = queries.find(child.number) ?: continue
             child.projectId = parent.projectId
-            child.milestoneId = parent.milestoneId
             child.version += 1
             child.updatedAt = parent.updatedAt
             repository.save(child)
@@ -387,16 +367,6 @@ class IssueService(
             }
         }
         return distinct
-    }
-
-    /** Only milestones of the project the issue is linked to. */
-    private suspend fun requireMilestone(
-        projectId: UUID?,
-        milestoneId: UUID,
-    ) {
-        if (projectId == null || !milestoneService.belongsTo(projectId, milestoneId)) {
-            throw ValidationException("milestoneId", "NOT_IN_PROJECT", "이 프로젝트의 목표가 아닙니다")
-        }
     }
 
     /** The ids without repeats, once every one of them is a label that exists. */

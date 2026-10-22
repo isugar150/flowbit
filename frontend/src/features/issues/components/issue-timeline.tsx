@@ -16,7 +16,7 @@ const DAY = 86_400_000;
 const DAY_WIDTH = 18;
 /** Width of the column with the names, left of the chart. */
 const NAME_WIDTH = 280;
-/** One colour per milestone, in turn; distinct on both themes. */
+/** One colour per project, in turn; distinct on both themes. */
 const COLORS = ["#30a46c", "#f2994a", "#3e8ee0", "#8e6ee0", "#d6409f", "#c9a400", "#0b7285", "#e5484d"];
 
 /** A calendar day as a number of days, so days can be subtracted. */
@@ -33,7 +33,7 @@ function todayDay(): number {
 }
 
 type Bar = { issue: Issue; start: number; end: number; open: boolean };
-type Group = { key: string; title: string; project: string | null; target: number | null; color: string; bars: Bar[] };
+type Group = { key: string; title: string; color: string; bars: Bar[] };
 
 /**
  * The span an issue covers: from its start date (or the day it was created) to its due date. Without a due date the
@@ -49,13 +49,13 @@ function barOf(issue: Issue, today: number): Bar {
 }
 
 /**
- * A timeline (Gantt) chart of issues grouped by milestone: one line per issue with a bar from the
- * day it was made to its due date, a summary bar and a diamond on the target date for each
- * milestone, and a line for today. Issues in no milestone form the last group. Inside a milestone
- * sub-issues sit under their parent, one step in for every level, as they do in the list; a parent
- * that is in another milestone (or not on this chart) gets a dimmed line of its own without a bar.
+ * A timeline (Gantt) chart of issues grouped by project: one line per issue with a bar from the
+ * day it was made to its due date, a summary bar for each project, and a line for today. Issues in
+ * no project form the last group. Inside a project sub-issues sit under their parent, one step in
+ * for every level, as they do in the list; a parent that is in another project (or not on this
+ * chart) gets a dimmed line of its own without a bar.
  */
-export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
+export function IssueTimeline({ issues }: { issues: Issue[] }) {
   // Where today falls depends on the clock, which only the browser may read while rendering.
   const inBrowser = useInBrowser();
   if (!inBrowser) return <div className="h-96" aria-hidden="true" />;
@@ -64,12 +64,10 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
   const today = todayDay();
   const byKey = new Map<string, Group>();
   for (const issue of issues) {
-    const key = issue.milestone?.id ?? "";
+    const key = issue.project?.id ?? "";
     const group = byKey.get(key) ?? {
       key,
-      title: issue.milestone?.name ?? m.noMilestone,
-      project: issue.milestone ? (issue.project?.name ?? null) : null,
-      target: issue.milestone?.targetDate ? dayOf(issue.milestone.targetDate) : null,
+      title: issue.project?.name ?? messages.issues.noProject,
       color: "",
       bars: [],
     };
@@ -79,7 +77,7 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
   const groups = [...byKey.values()]
     .sort((a, b) => {
       if (!a.key !== !b.key) return a.key ? -1 : 1;
-      return `${a.project ?? ""} ${a.title}`.localeCompare(`${b.project ?? ""} ${b.title}`, "ko");
+      return a.title.localeCompare(b.title, "ko");
     })
     .map((group, index) => ({
       ...group,
@@ -88,7 +86,7 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
       barOf: new Map(group.bars.map((bar) => [bar.issue.id, bar])),
     }));
 
-  const edges = groups.flatMap((group) => [...group.bars.flatMap((bar) => [bar.start, bar.end]), ...(group.target === null ? [] : [group.target])]);
+  const edges = groups.flatMap((group) => group.bars.flatMap((bar) => [bar.start, bar.end]));
   // A week of air on both sides, and never so narrow that today falls off the chart.
   const first = Math.min(...edges, today) - 7;
   const last = Math.max(...edges, today) + 14;
@@ -137,7 +135,7 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
           const done = counted.filter((bar) => bar.issue.status === "DONE").length;
           const percent = counted.length === 0 ? 0 : Math.round((done / counted.length) * 100);
           const from = Math.min(...group.bars.map((bar) => bar.start));
-          const to = Math.max(...group.bars.map((bar) => bar.end), group.target ?? -Infinity);
+          const to = Math.max(...group.bars.map((bar) => bar.end));
           return (
             <section key={group.key || "none"} aria-label={group.title} className="border-b">
               <div className="flex h-9 items-center">
@@ -146,13 +144,13 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
                   style={{ width: NAME_WIDTH }}
                 >
                   <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: group.color }} />
-                  <span className="truncate" title={group.project ? `${group.project} · ${group.title}` : group.title}>
+                  <span className="truncate" title={group.title}>
                     {group.title}
                   </span>
                   <span className="shrink-0 font-normal text-muted-foreground tabular-nums">{m.progress(done, counted.length, percent)}</span>
                 </h2>
                 <div className="relative h-full" style={{ width }}>
-                  {/* The whole span of the milestone, filled as far as its issues are done. */}
+                  {/* The whole span of the project's issues, filled as far as they are done. */}
                   <span
                     aria-hidden="true"
                     className="absolute top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full"
@@ -218,30 +216,6 @@ export function IssueMilestoneChart({ issues }: { issues: Issue[] }) {
                     </li>
                   );
                 })}
-                {group.target !== null ? (
-                  <li className="flex h-8 items-center">
-                    <span
-                      className="sticky left-0 z-20 flex h-full shrink-0 items-center bg-background pr-3 pl-10 text-[0.8125rem] leading-5 text-muted-foreground"
-                      style={{ width: NAME_WIDTH }}
-                    >
-                      {m.targetDate}
-                    </span>
-                    <div className="relative h-full" style={{ width }}>
-                      {/* The diamond sits on the day the milestone is due. */}
-                      <span
-                        aria-hidden="true"
-                        className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px]"
-                        style={{ left: left(group.target) + DAY_WIDTH / 2, backgroundColor: group.color }}
-                      />
-                      <span
-                        className="absolute top-1/2 -translate-y-1/2 pl-3 text-xs leading-4 whitespace-nowrap text-muted-foreground tabular-nums"
-                        style={{ left: left(group.target) + DAY_WIDTH }}
-                      >
-                        {dateOfDay(group.target).toISOString().slice(0, 10)}
-                      </span>
-                    </div>
-                  </li>
-                ) : null}
               </ul>
             </section>
           );

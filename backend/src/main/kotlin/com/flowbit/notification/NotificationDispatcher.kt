@@ -111,7 +111,7 @@ class NotificationDispatcher(
     }
 
     /**
-     * What one person does to a project, a document or a milestone is held and merged like what
+     * What one person does to a project or a document is held and merged like what
      * they do to an issue (D-126, D-165): one notification once they leave it alone for
      * [batchDelay], or [batchMaxDelay] after the first change at the latest.
      */

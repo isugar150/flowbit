@@ -26,7 +26,7 @@ data class ContentFileView(
     val createdAt: Instant,
 )
 
-/** A comment on a project, a document or a milestone, as the page shows it. */
+/** A comment on a project or a document, as the page shows it. */
 data class ContentCommentView(
     val id: UUID,
     val target: ContentTarget,

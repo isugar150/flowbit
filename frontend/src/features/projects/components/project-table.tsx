@@ -4,7 +4,6 @@ import { DueDate, TimeAgo } from "@/components/dates";
 import { PersonAvatar, personName } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
 import { PriorityIcon, priorityLabel } from "@/features/issues/meta";
-import { milestoneProgress } from "@/features/milestones/types";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { HealthBadge, ProjectStatusIcon, projectStatusLabel } from "../meta";
@@ -24,7 +23,7 @@ const wider = "max-lg:hidden";
 const widest = "max-xl:hidden";
 
 /**
- * Projects as a table, after Linear's project list: name with the current milestone, health from
+ * Projects as a table, after Linear's project list: name, health from
  * the latest update, priority, lead, target date, issue count, and status with progress. A whole
  * row opens the project. Projects the person has not been added to are listed too, with a lock;
  * opening one says whom to ask (D-047).
@@ -76,7 +75,8 @@ export function ProjectTable({ projects, archived = false }: { projects: Project
 }
 
 function ProjectRow({ project, archived }: { project: ProjectSummary; archived: boolean }) {
-  const percent = milestoneProgress(project);
+  // Share of the project's issues that are done, 0–100.
+  const percent = project.issueCount === 0 ? 0 : Math.round((project.doneCount / project.issueCount) * 100);
   const lead = project.lead;
   const locked = project.myRole === null;
   // An archived line is all grey; what it says is still there to read.

@@ -20,7 +20,6 @@ enum class CustomPropertyOwnerKind(
     internal val column: String,
 ) {
     PROJECT("project", "project_id"),
-    MILESTONE("milestone", "milestone_id"),
     ISSUE("issue", "issue_id"),
     ;
 

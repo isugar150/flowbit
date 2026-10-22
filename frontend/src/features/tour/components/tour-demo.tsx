@@ -4,7 +4,6 @@ import { ProjectIcon } from "@/components/project-icon";
 import { IssueBody } from "@/features/issues/components/issue-body";
 import { IssueProperties } from "@/features/issues/components/issue-properties";
 import { IssuesView } from "@/features/issues/components/issues-view";
-import { MilestonesSection } from "@/features/milestones/components/milestones-section";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
 import { ProjectUpdates } from "@/features/projects/components/project-updates";
 import { messages } from "@/messages";
@@ -62,7 +61,6 @@ export function TourDemo({
           issues={screen === "my" ? demo.issues.filter((item) => item.assignees.some((person) => person.id === me)) : demo.issues}
           defaultAssigneeId={screen === "my" ? me : null}
           members={demo.members}
-          milestones={demo.milestones}
           labels={demo.labels}
           projects={projects}
           canEdit
@@ -85,7 +83,6 @@ export function TourDemo({
               members={demo.members}
               labels={demo.labels}
               projects={projects}
-              milestones={demo.milestones}
               canEdit
             />
           </aside>
@@ -98,9 +95,6 @@ export function TourDemo({
               <h2 className="text-2xl leading-8 font-semibold">{demo.project.name}</h2>
             </div>
             <ProjectOverviewEditor project={demo.project} documents={[]} canEdit />
-          </div>
-          <div data-tour="milestones">
-            <MilestonesSection projectId={demo.project.id} milestones={demo.milestones} canEdit />
           </div>
           <div data-tour="project-updates">
             <ProjectUpdates projectId={demo.project.id} updates={demo.updates} canEdit canManage={false} currentUserId={me} />

@@ -12,6 +12,8 @@ export interface IssueHit {
   key: string;
   number: number;
   title: string;
+  /** Every issue above this one, the top-level one first; empty for a top-level issue. */
+  ancestors: { key: string; title: string }[];
   status: IssueStatus;
   priority: IssuePriority;
   project: SearchProject | null;
@@ -30,7 +32,6 @@ export interface DocumentHit {
   project: SearchProject | null;
   snippet: string | null;
 }
-
 /** A project found by its name or by what is written in its overview (D-166). */
 export interface ProjectHit {
   id: string;
@@ -39,23 +40,13 @@ export interface ProjectHit {
   snippet: string | null;
 }
 
-/** A milestone found by its name or by what is written in it (D-166). */
-export interface MilestoneHit {
-  id: string;
-  name: string;
-  project: SearchProject;
-  updatedAt: string;
-  snippet: string | null;
-}
 
 /** GET /api/v1/search (docs/features/search.md). */
 export interface SearchResult {
   issues: IssueHit[];
   documents: DocumentHit[];
   projects: ProjectHit[];
-  milestones: MilestoneHit[];
   issuesMore: boolean;
   documentsMore: boolean;
   projectsMore: boolean;
-  milestonesMore: boolean;
 }

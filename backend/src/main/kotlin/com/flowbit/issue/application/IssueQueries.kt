@@ -18,13 +18,6 @@ data class IssuePerson(
     val avatarKey: String?,
 )
 
-data class IssueMilestone(
-    val id: UUID,
-    val name: String,
-    /** When the milestone is meant to be reached, if a date was set. */
-    val targetDate: LocalDate? = null,
-)
-
 data class IssueLabel(
     val id: UUID,
     val name: String,
@@ -64,7 +57,6 @@ data class IssueView(
     /** Set when the issue covers a span of days ending on [dueDate]. */
     val startDate: LocalDate?,
     val dueDate: LocalDate?,
-    val milestone: IssueMilestone?,
     val labels: List<IssueLabel>,
     /** How many sub-issues the issue has, and how many of them are done. */
     val subIssueCount: Int,
@@ -287,7 +279,6 @@ class IssueQueries(
                         where ia.issue_id = i.id) as assignees,
                        c.id as creator_id, c.login_id as creator_login_id,
                        c.display_name as creator_display_name, c.avatar_key as creator_avatar_key,
-                       ms.id as milestone_id, ms.name as milestone_name, ms.target_date as milestone_target_date,
                        (select coalesce(json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color)
                                                  order by l.created_at, l.name), '[]')::text
                         from issue_labels il join labels l on l.id = il.label_id
@@ -296,7 +287,6 @@ class IssueQueries(
                 left join projects p on p.id = i.project_id
                 left join issues parent on parent.id = i.parent_id
                 join users c on c.id = i.created_by
-                left join milestones ms on ms.id = i.milestone_id
                 $tail
                 """.trimIndent(),
             ),
@@ -335,14 +325,6 @@ class IssueQueries(
                 assignees = jsonMapper.readValue(checkNotNull(row.get("assignees", String::class.java)), Array<IssuePerson>::class.java).toList(),
                 startDate = row.get("start_date", LocalDate::class.java),
                 dueDate = row.get("due_date", LocalDate::class.java),
-                milestone =
-                    row.get("milestone_id", UUID::class.java)?.let { id ->
-                        IssueMilestone(
-                            id,
-                            checkNotNull(row.get("milestone_name", String::class.java)),
-                            row.get("milestone_target_date", LocalDate::class.java),
-                        )
-                    },
                 labels = jsonMapper.readValue(checkNotNull(row.get("labels", String::class.java)), Array<IssueLabel>::class.java).toList(),
                 subIssueCount = checkNotNull(row.get("sub_total", Long::class.javaObjectType)).toInt(),
                 subIssueDoneCount = checkNotNull(row.get("sub_done", Long::class.javaObjectType)).toInt(),
