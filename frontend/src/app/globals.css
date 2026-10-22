@@ -269,6 +269,11 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  /* A file block that is selected shows its ring. The browser would also paint all the text of a document shown in it (D-187)
+     as selected, over the page, and over a slide's own colours. */
+  .rich-text .tiptap .rich-text-file.ProseMirror-selectednode ::selection {
+    background: transparent;
+  }
   /* Wide tables scroll sideways inside their own box instead of stretching the page. */
   .rich-text .tiptap .tableWrapper {
     overflow-x: auto;

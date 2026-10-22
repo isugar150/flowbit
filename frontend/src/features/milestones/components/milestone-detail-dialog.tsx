@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
+import { ArrowUpRightIcon, DiamondIcon, XIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import { DocumentOutline } from "@/components/editor/document-outline";
 import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
@@ -12,7 +12,8 @@ import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-edit
 import { SaveStatus } from "@/components/editor/save-status";
 import { PeopleMarks } from "@/components/person";
 import { PropertyListRow } from "@/components/property-card";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlockComments } from "@/features/content/components/block-comments";
 import { ContentActivity } from "@/features/content/components/content-activity";
@@ -22,6 +23,8 @@ import { updateIssue } from "@/features/issues/api";
 import { AssigneeChip } from "@/features/issues/components/assignee-chip";
 import { ChipSelect } from "@/features/issues/components/chip-select";
 import { PriorityMark, StatusMark } from "@/features/issues/components/issue-row";
+import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
+import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { SubIssueIndent } from "@/features/issues/components/sub-issue-rows";
 import { STATUSES, STATUS_ORDER, StatusIcon, statusLabel } from "@/features/issues/meta";
 import { arrangeBySubIssues, type IssueRow } from "@/features/issues/sub-issue-tree";
@@ -137,11 +140,24 @@ export function MilestoneDetailDialog({
       }}
     >
       {/* Hung from the top rather than centred, so it does not jump as the document grows. */}
-      <DialogContent className="top-[6dvh] translate-y-0 gap-0 p-0 sm:max-w-2xl lg:max-w-[min(84rem,calc(100vw-3rem))]">
+      <DialogContent showCloseButton={false} className="top-[6dvh] translate-y-0 gap-0 p-0 pb-3 sm:max-w-2xl lg:max-w-[min(84rem,calc(100vw-3rem))]">
         <DialogTitle className="sr-only">{milestone.name}</DialogTitle>
         <DialogDescription className="sr-only">{m.detailDescription}</DialogDescription>
+        {/* Presence on a milestone is about this milestone, not the project overview behind it (D-188). */}
+        <RealtimeScope topics={[]} presence={`milestone:${milestone.id}`} priority={1} />
+        {/*
+          A bar of its own above the scroll box, as on an issue: who has looked at the milestone and
+          when, and the close button, which then never sits over the scroll bar.
+        */}
+        <div className="flex h-11 shrink-0 items-center justify-end gap-2 pr-2 pl-4">
+          <PresenceAvatars page="milestone:" />
+          <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
+            <XIcon />
+            <span className="sr-only">{messages.issues.closeDialog}</span>
+          </DialogClose>
+        </div>
         {/* The scroll box is inside, not the dialog itself, so the editor's menus are not clipped. */}
-        <div className="max-h-[88dvh] min-h-64 overflow-y-auto overscroll-contain rounded-xl">
+        <div className="max-h-[calc(88dvh-3.5rem)] min-h-64 overflow-y-auto overscroll-contain">
           <MilestoneDetailBody projectId={projectId} milestone={milestone} canEdit={canEdit} onChange={onChange} notes={notes} />
         </div>
       </DialogContent>
@@ -250,7 +266,7 @@ export function MilestoneDetailBody({
         <div className={cn("flex flex-col", !stacked && "lg:flex-row")}>
           <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 pt-6">
             <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 pr-8">
+              <div className="flex items-center gap-2">
                 <DiamondIcon className={cn("size-5 shrink-0", done ? "fill-primary text-primary" : "text-muted-foreground")} aria-hidden="true" />
                 {canEdit ? (
                   <input
@@ -332,10 +348,7 @@ export function MilestoneDetailBody({
           >
             {/* Like the properties of a ticket: a label on the left, its value on the right, one line each. */}
             <section aria-label={m.propertiesLabel} className="flex flex-col gap-1">
-              {/* The close button of the dialog sits over the right end of this line. */}
-              <h3 className={cn("text-[0.8125rem] leading-5 font-medium text-muted-foreground", !stacked && "lg:pr-8")}>
-                {messages.projects.properties}
-              </h3>
+              <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{messages.projects.properties}</h3>
               <dl className="flex flex-col text-[0.8125rem] leading-5">
                 <PropertyListRow label={m.status}>
                   {canEdit ? (

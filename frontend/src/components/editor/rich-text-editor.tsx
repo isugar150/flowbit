@@ -654,12 +654,11 @@ export function RichTextEditor({
           setLinkCard(null);
           return;
         }
-        // A file block is no link to show a card for: a Word, Excel or PowerPoint file opens its preview, any other click on it
-        // (the download button, a file that cannot be previewed) is left to the browser, which saves the file.
+        // A file block is no link to show a card for. The preview button of a Word, Excel or PowerPoint file opens it large over the
+        // page; any other click on it (its download, a file that cannot be previewed, the document shown in it) is left alone.
         const block = target instanceof Element ? target.closest<HTMLElement>("[data-file-block]") : null;
         if (dom && block && dom.contains(block)) {
-          if (target instanceof Element && target.closest("a[data-file-preview]")) {
-            event.preventDefault();
+          if (target instanceof Element && target.closest("[data-file-preview]")) {
             setFilePreview({
               src: block.getAttribute("data-file-block") ?? "",
               name: block.getAttribute("data-name") ?? "",

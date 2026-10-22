@@ -192,6 +192,38 @@ test("a property added to a project by name and kind is filled in place, and rea
   await viewer.close();
 });
 
+test("a milestone's dialog shows, at its top right, who has it open now and who looked before (D-188)", async ({ browser, baseURL }) => {
+  const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "본 사람 목표", targetDate: null });
+  const guest = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
+  await logIn(guest, EDITOR);
+  const open = async (page: Page) => {
+    await page.goto(`/project/${project.id}`);
+    await page.locator(`li[data-presence-id="milestone:${milestone.id}"]`).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: /^상태:/ })).toBeVisible();
+    await settled(page);
+  };
+  const watching = await newPage();
+  await open(watching);
+  const dialog = watching.getByRole("dialog");
+  // Nobody else has been here: no one but the one looking, who is the dialog's own page.
+  await expect(dialog.getByLabel(`편집 ${run}`)).toHaveCount(0);
+
+  const visiting = await newPage(guest);
+  await open(visiting);
+  // Now, in the bar above the milestone, next to the close button.
+  await expect(dialog.getByRole("group", { name: /지금 보고 있는 사람/ }).getByLabel(`편집 ${run} · 지금 보는 중`)).toBeVisible();
+
+  // The visitor closes it with the close button; they stay, dimmed, with when they last looked.
+  await visiting.getByRole("dialog").getByRole("button", { name: "닫기" }).click();
+  await expect(visiting.getByRole("dialog")).toHaveCount(0);
+  const left = dialog.getByLabel(`편집 ${run}`, { exact: true });
+  await expect(left).toBeVisible();
+  await left.hover();
+  await expect(watching.getByText("마지막 확인")).toBeVisible();
+  await guest.close();
+  await watching.close();
+});
+
 test("the editor role opens a milestone; the view of it is the same without the menu for those who only read", async ({ browser, baseURL }) => {
   const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "읽기 확인", targetDate: "2026-12-24" });
   await api(context, "PUT", `/api/v1/projects/${project.id}/members/${editorId}`, { role: "VIEWER" });

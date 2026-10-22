@@ -32,7 +32,7 @@ data class PagePerson(
 )
 
 /**
- * The pages a realtime connection can be on (`project:<id>`, `issue:<number>`, `document:<id>`):
+ * The pages a realtime connection can be on (`project:<id>`, `issue:<number>`, `document:<id>`, `milestone:<id>`):
  * who may be there, who belongs there, and when each of them last looked.
  */
 @Component
@@ -133,8 +133,13 @@ class PagePresence(
         }
         if (key.startsWith("document:")) {
             // A document belongs with the people of its project; one on an issue, of the issue's project (D-166).
-            val id = key.removePrefix("document:").takeIf { DOCUMENT_ID.matches(it) }?.let(UUID::fromString) ?: throw notFound()
+            val id = key.removePrefix("document:").takeIf { PAGE_ID.matches(it) }?.let(UUID::fromString) ?: throw notFound()
             return contentAccess.resolve(user, ContentTarget(ContentTargetType.DOCUMENT, id)).projectId
+        }
+        if (key.startsWith("milestone:")) {
+            // A milestone's dialog belongs with the people of its project (D-188).
+            val id = key.removePrefix("milestone:").takeIf { PAGE_ID.matches(it) }?.let(UUID::fromString) ?: throw notFound()
+            return contentAccess.resolve(user, ContentTarget(ContentTargetType.MILESTONE, id)).projectId
         }
         if (!key.startsWith("project:")) throw notFound()
         return projectService.access(user, key.removePrefix("project:")).project.id
@@ -144,7 +149,7 @@ class PagePresence(
 
     private companion object {
         val ISSUE_NUMBER = Regex("^\\d{1,9}$")
-        val DOCUMENT_ID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+        val PAGE_ID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
         const val MAX_PEOPLE = 200
     }
 }

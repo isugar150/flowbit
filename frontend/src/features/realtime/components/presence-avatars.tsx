@@ -46,6 +46,9 @@ export function PresenceAvatars({ page }: { page?: string } = {}) {
     queryKey: ["presence", pageKey, here],
     queryFn: () => apiFetch<PagePerson[]>(`/api/v1/presence?key=${encodeURIComponent(pageKey ?? "")}`),
     enabled: pageKey !== null,
+    // Always read again when the people here change, also when they come back to a set of people read before (alone,
+    // say): someone who has just left has a new time, which the list read then does not have.
+    staleTime: 0,
     // The same page keeps its avatars while they are read again; another page starts empty.
     placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === pageKey ? previous : undefined),
   });

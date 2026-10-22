@@ -103,6 +103,39 @@ class RealtimeIntegrationTest : IntegrationTest() {
         b.close()
     }
 
+    @Test
+    fun `목표 상세도 보는 사람과 마지막으로 본 때가 남고 프로젝트 밖의 사람은 볼 수 없다`() {
+        val milestone = admin.post("/api/v1/projects/${p("PAY")}/milestones", """{"name":"베타"}""").json()["id"]
+        val idlerId = admin.post("/api/v1/admin/members", """{"loginId":"idler","password":"$PASSWORD"}""").json()["id"]
+        admin.put("/api/v1/projects/${p("PAY")}/members/$idlerId", """{"role":"VIEWER"}""")
+        admin.post("/api/v1/admin/members", """{"loginId":"outsider","password":"$PASSWORD"}""")
+        val outsider = client().also { it.login("outsider", PASSWORD) }
+        val a = Socket(admin)
+        val b = Socket(editor)
+        a.send("""{"type":"subscribe","topics":[],"presence":"milestone:$milestone"}""")
+        b.send("""{"type":"subscribe","topics":[],"presence":"milestone:$milestone"}""")
+        b.awaitPresence { viewers -> viewers.size == 2 }
+
+        val people = admin.get("/api/v1/presence?key=milestone:$milestone").jsonList()
+
+        // The project's members, those who have it open or looked first. The milestone's own page is not the project's.
+        assertEquals(setOf("admin", "editor", "idler"), people.map { it["loginId"] }.toSet())
+        assertEquals("idler", people.last()["loginId"])
+        assertNotNull(people.single { it["loginId"] == "editor" }["lastSeenAt"])
+        assertNull(people.single { it["loginId"] == "idler" }["lastSeenAt"])
+        assertEquals(emptyList<Any?>(), admin.get("/api/v1/presence?key=project:${p("PAY")}").jsonList().filter { it["lastSeenAt"] != null })
+        assertEquals(404, outsider.get("/api/v1/presence?key=milestone:$milestone").status)
+        assertEquals(404, admin.get("/api/v1/presence?key=milestone:00000000-0000-0000-0000-000000000000").status)
+        assertEquals(404, admin.get("/api/v1/presence?key=milestone:not-an-id").status)
+        // A milestone's page is not open to the one who may not enter its project, over the socket either.
+        val c = Socket(outsider)
+        c.send("""{"type":"subscribe","topics":[],"presence":"milestone:$milestone"}""")
+        assertNull(c.poll("presence"))
+        a.close()
+        b.close()
+        c.close()
+    }
+
     private inner class Socket(
         client: ApiClient,
     ) : WebSocket.Listener {

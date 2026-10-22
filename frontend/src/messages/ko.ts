@@ -208,6 +208,9 @@ export const ko = {
     filePreview: (name: string) => `${name} 미리보기`,
     fileViewerLoading: "파일을 불러오는 중…",
     fileViewerFailed: "이 파일은 미리 볼 수 없습니다. 내려받아 열어 주세요.",
+    fileViewerEmpty: "내용이 없는 파일입니다.",
+    fileViewerTextCut: "앞부분만 보입니다. 전체는 내려받아 확인해 주세요.",
+    pdfPage: (page: number, total: number) => `${page} / ${total}`,
     // The picture of a text, enlarged on top of the page (D-182).
     imageViewer: "이미지 크게 보기",
     imageOpen: "이미지 크게 보기",
