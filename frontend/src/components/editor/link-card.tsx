@@ -24,6 +24,29 @@ export function linkIn(target: EventTarget, dom: HTMLElement | undefined): HTMLA
   return anchor;
 }
 
+/** A press on a link, remembered until its click: where on the screen it was and which link. */
+export type Press = { anchor: HTMLAnchorElement; x: number; y: number };
+
+/** How far the pointer may move between the press and the release for it still to be a click on the link where it was pressed. */
+const STILL = 4;
+
+export function pressOn(target: EventTarget, dom: HTMLElement | undefined, x: number, y: number): Press | null {
+  const anchor = linkIn(target, dom);
+  return anchor ? { anchor, x, y } : null;
+}
+
+/**
+ * The link a click is on: the one under it, or else the one the press began on when the pointer has not moved. A page can
+ * move under a pointer between the press and the release (a table makes room for its toolbar the moment the cursor enters it,
+ * so the link slides away); the browser then reports the click on something around it, and the link would never answer.
+ */
+export function clickedLink(target: EventTarget, dom: HTMLElement | undefined, press: Press | null, x: number, y: number): HTMLAnchorElement | null {
+  const under = linkIn(target, dom);
+  if (under) return under;
+  if (!press || !press.anchor.isConnected) return null;
+  return Math.hypot(x - press.x, y - press.y) <= STILL ? press.anchor : null;
+}
+
 /** Where a card for `anchor` goes: under the line of it that was clicked (a link can wrap over several lines). */
 export function cardPlace(anchor: HTMLAnchorElement, box: HTMLElement, clientY: number): { left: number; top: number } {
   const lines = Array.from(anchor.getClientRects());

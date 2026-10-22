@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
+import { DocumentOutline } from "@/components/editor/document-outline";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { milestoneTemplate } from "../outline";
 import { SaveStatus } from "@/components/editor/save-status";
@@ -337,14 +338,18 @@ export function MilestoneDetailBody({
                   keepLocal={notes?.isDirty}
                   blockIds
                   overlay={({ editor, container }) => (
-                    <BlockComments
-                      editor={editor}
-                      container={container}
-                      target={target}
-                      threads={feed.data?.threads ?? []}
-                      canComment={feed.data?.canComment ?? false}
-                      mentionables={mentionables}
-                    />
+                    <>
+                      <BlockComments
+                        editor={editor}
+                        container={container}
+                        target={target}
+                        threads={feed.data?.threads ?? []}
+                        canComment={feed.data?.canComment ?? false}
+                        mentionables={mentionables}
+                      />
+                      {/* The headings, as marks between the notes and the panel at their right; the list opens over the text (D-179). */}
+                      <DocumentOutline editor={editor} container={container} compact />
+                    </>
                   )}
                 />
               ) : (

@@ -32,7 +32,7 @@ import { BlockDragHandle } from "./block-drag-handle";
 import { BlockId } from "./block-id";
 import { Embed, MAX_EMBED_URL_LENGTH, embedFor } from "./embed";
 import { fixedOrigin } from "./fixed-origin";
-import { LinkCard, cardPlace, linkIn, openLink, type LinkCardState } from "./link-card";
+import { LinkCard, cardPlace, clickedLink, openLink, pressOn, type LinkCardState, type Press } from "./link-card";
 import { Mention, MentionPeopleContext, type MentionPerson } from "./mention";
 import { PageLink } from "./page-link";
 import { tableExtensions } from "./table-extensions";
@@ -298,6 +298,7 @@ export function RichTextEditor({
   const uploadLimit = useUploadLimit();
   // A link that was clicked shows where it goes; a second click on it opens it in a new tab (D-175).
   const boxRef = useRef<HTMLDivElement>(null);
+  const pressRef = useRef<Press | null>(null);
   const [linkCard, setLinkCard] = useState<LinkCardState | null>(null);
   const closeLinkCard = useCallback(() => setLinkCard(null), []);
   const [slash, setSlash] = useState<SlashState | null>(null);
@@ -604,7 +605,8 @@ export function RichTextEditor({
       className={cn("rich-text relative", editable && "rich-text-editable", overlay && "pr-8", className)}
       ref={boxRef}
       onClick={(event) => {
-        const anchor = linkIn(event.target, editorRef.current?.view.dom);
+        const anchor = clickedLink(event.target, editorRef.current?.view.dom, pressRef.current, event.clientX, event.clientY);
+        pressRef.current = null;
         const href = anchor?.getAttribute("href");
         const box = boxRef.current;
         if (!anchor || !href || !box) {
@@ -620,8 +622,9 @@ export function RichTextEditor({
           setLinkCard({ href, anchor, ...cardPlace(anchor, box, event.clientY) });
         }
       }}
-      onPointerDownCapture={() => {
+      onPointerDownCapture={(event) => {
         interactedRef.current = true;
+        pressRef.current = pressOn(event.target, editorRef.current?.view.dom, event.clientX, event.clientY);
       }}
       onKeyDownCapture={() => {
         interactedRef.current = true;

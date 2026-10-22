@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { DocumentOutline } from "@/components/editor/document-outline";
 import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
@@ -102,14 +103,18 @@ export function IssueBody({
           // Each block can be commented on, by anyone who sees the issue (D-165).
           blockIds
           overlay={({ editor, container }) => (
-            <BlockComments
-              editor={editor}
-              container={container}
-              target={target}
-              threads={feed.data?.threads ?? []}
-              canComment={feed.data?.canComment ?? false}
-              mentionables={mentionables}
-            />
+            <>
+              <BlockComments
+                editor={editor}
+                container={container}
+                target={target}
+                threads={feed.data?.threads ?? []}
+                canComment={feed.data?.canComment ?? false}
+                mentionables={mentionables}
+              />
+              {/* The headings, as marks between the body and the panel at its right; the list opens over the text (D-179). */}
+              <DocumentOutline editor={editor} container={container} compact />
+            </>
           )}
           // "/문서" in the body makes a document on this issue and puts it there as a block.
           documents={issue.documents}

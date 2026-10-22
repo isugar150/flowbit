@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Editor } from "@tiptap/react";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -13,15 +13,31 @@ type Entry = { level: number; text: string };
 const FULL_FROM = 1280;
 /** Narrower than that only a mark per heading is shown, down to this width; below it nothing (a phone has no room beside the text). */
 const MARKS_FROM = 640;
-/** How far below the top of the scroll box a heading counts as the one being read: just under the page header. */
-const READING_LINE = 96;
+/** How far below the top of the scroll box the outline stays: under the page's header (a page) or a little off the edge (a dialog, whose bar is outside its scroll box). */
+const STICKY_TOP_PAGE = 56;
+const STICKY_TOP_DIALOG = 16;
+/**
+ * A heading counts as the one being read once it has reached this far below the top of the scroll box. Past where a
+ * heading stops when it is jumped to (64px, `scroll-margin-top` in globals.css), so the heading that was chosen is the one picked out.
+ */
+const READING_LINE_PAGE = 96;
+const READING_LINE_DIALOG = 72;
 /** About a frame; a timer, not requestAnimationFrame, because a page in the background gets no frames. */
 const DELAY_MS = 16;
 
 /** Indentation of an entry by the level of its heading (1, 2, 3 and deeper). */
 const INDENT = ["pl-2", "pl-5", "pl-8"];
-/** Length of the mark of a heading by its level. */
-const MARK_WIDTH = ["w-4", "w-3", "w-2"];
+/** Length of the mark of a heading by its level; the longest fits the 16px the marks have (a dialog's padding is 20px). */
+const MARK_WIDTH = ["w-3.5", "w-2.5", "w-1.5"];
+
+/** The box that scrolls the page the editor is on: the app's <main>, or the scroll box of a dialog. */
+function scrollParentOf(element: HTMLElement | null): HTMLElement | null {
+  for (let node = element?.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === "auto" || overflowY === "scroll") return node;
+  }
+  return null;
+}
 
 /** The headings of the document that have text, in order. They are read from the page, where they are also scrolled to. */
 function headingsIn(editor: Editor): HTMLElement[] {
@@ -73,14 +89,14 @@ function useWidth(scroller: HTMLElement | null): number {
 }
 
 /** Which heading is being read: the last one that has reached the reading line, or the last one at the end of the page. */
-function useActive(editor: Editor, scroller: HTMLElement | null, entries: Entry[]): [number, (index: number) => void] {
+function useActive(editor: Editor, scroller: HTMLElement | null, entries: Entry[], readingLine: number): [number, (index: number) => void] {
   const [active, setActive] = useState(0);
   useEffect(() => {
     if (!scroller) return;
     const update = () => {
       const headings = headingsIn(editor);
       if (headings.length === 0) return;
-      const line = scroller.getBoundingClientRect().top + READING_LINE;
+      const line = scroller.getBoundingClientRect().top + readingLine;
       let current = 0;
       headings.forEach((heading, index) => {
         if (heading.getBoundingClientRect().top <= line) current = index;
@@ -95,7 +111,7 @@ function useActive(editor: Editor, scroller: HTMLElement | null, entries: Entry[
       clearTimeout(timer);
       scroller.removeEventListener("scroll", update);
     };
-  }, [editor, scroller, entries]);
+  }, [editor, scroller, entries, readingLine]);
   return [active, setActive];
 }
 
@@ -114,15 +130,19 @@ export function DocumentOutline({
   container: HTMLElement | null;
   /**
    * Only the marks, however wide the page: for a page with something else beside the text, where the whole list would lie
-   * over it (the project overview, whose cards stand right of the description; D-177). The list opens over the text.
+   * over it (the project overview, whose cards stand right of the description; a ticket and a milestone, whose panel stands
+   * right of the text; D-177, D-179). The list opens over the text.
    */
   compact?: boolean;
 }) {
-  // The page scrolls in the <main> of the app's frame, and the width left beside the text is what that box has to spare.
-  const scroller = container?.closest("main") ?? null;
+  // The page scrolls in the <main> of the app's frame (a ticket or a milestone, in the scroll box of its dialog), and the
+  // width left beside the text is what that box has to spare.
+  const scroller = useMemo(() => scrollParentOf(container), [container]);
+  const onPage = scroller?.tagName === "MAIN";
+  const stickyTop = onPage ? STICKY_TOP_PAGE : STICKY_TOP_DIALOG;
   const entries = useEntries(editor);
   const width = useWidth(scroller);
-  const [active, setActive] = useActive(editor, scroller, entries);
+  const [active, setActive] = useActive(editor, scroller, entries, onPage ? READING_LINE_PAGE : READING_LINE_DIALOG);
   const list = useRef<HTMLOListElement>(null);
   const full = !compact && width >= FULL_FROM;
 
@@ -149,12 +169,16 @@ export function DocumentOutline({
 
   return (
     <div className="pointer-events-none absolute inset-y-0 left-full z-20">
-      <nav aria-label={m.outline} className={cn("group/outline pointer-events-auto sticky top-14", full ? "ml-6 w-56" : "ml-1 w-5")}>
+      <nav
+        aria-label={m.outline}
+        style={{ top: stickyTop }}
+        className={cn("group/outline pointer-events-auto sticky", full ? "ml-6 w-56" : "ml-0.5 w-4")}
+      >
         {full ? null : (
           <button
             type="button"
             aria-label={m.outlineOpen}
-            className="flex max-h-[calc(100dvh-9rem)] w-5 flex-col items-end gap-2 overflow-hidden rounded-md py-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex max-h-[calc(100dvh-9rem)] w-4 flex-col items-end gap-2 overflow-hidden rounded-md py-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {entries.map((entry, index) => (
               <span
