@@ -366,8 +366,8 @@ class StorageInspector(
         private const val WEBP = ".webp"
         private const val UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
-        /** A picture's file name inside a text, as the SQL regular expression that finds it. */
-        private const val IMAGE_PATTERN = "($UUID_PATTERN)\\.webp"
+        /** A picture's file name inside a text, as the SQL regular expression that finds it. The whole name, `.webp` included, is the key (the group), as it is stored. */
+        private const val IMAGE_PATTERN = "($UUID_PATTERN\\.webp)"
         private const val BLOCK_FILE_PATTERN = "/api/v1/editor-files/($UUID_PATTERN)"
         private val UUID_KEY = Regex("^$UUID_PATTERN$")
         private val IMAGE_KEY = Regex("^$UUID_PATTERN\\.webp$")

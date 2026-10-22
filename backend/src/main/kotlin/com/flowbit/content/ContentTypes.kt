@@ -62,6 +62,10 @@ object ContentEventType {
     const val STATUS_CHANGED = "STATUS_CHANGED"
     const val PRIORITY_CHANGED = "PRIORITY_CHANGED"
     const val LEAD_CHANGED = "LEAD_CHANGED"
+    const val ASSIGNEE_CHANGED = "ASSIGNEE_CHANGED"
+
+    /** A property a person added to a project or a milestone was added, changed, renamed or deleted (D-186). */
+    const val CUSTOM_PROPERTY_CHANGED = "CUSTOM_PROPERTY_CHANGED"
     const val DATES_CHANGED = "DATES_CHANGED"
     const val TARGET_DATE_CHANGED = "TARGET_DATE_CHANGED"
     const val LABELS_CHANGED = "LABELS_CHANGED"

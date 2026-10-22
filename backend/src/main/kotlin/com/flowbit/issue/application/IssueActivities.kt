@@ -22,6 +22,9 @@ enum class IssueActivityType {
     LABELS_CHANGED,
     PROJECT_CHANGED,
     PARENT_CHANGED,
+
+    /** A property a person added to this issue was added, changed, renamed or deleted (D-186). */
+    CUSTOM_PROPERTY_CHANGED,
     ATTACHMENT_ADDED,
     ATTACHMENT_REMOVED,
     DOCUMENT_ADDED,

@@ -2,6 +2,7 @@
 
 import { TimeAgo } from "@/components/dates";
 import { messages } from "@/messages";
+import { describeCustomProperty } from "@/features/custom-properties/describe";
 import { repositoryName } from "@/features/git/components/issue-git-links";
 import { priorityLabel, statusLabel } from "../meta";
 import { PersonAvatar, personName } from "@/components/person";
@@ -69,6 +70,8 @@ export function describe(item: IssueActivityItem): Described {
       return { action: m.project, change: arrow(text(from), text(to)) };
     case "PARENT_CHANGED":
       return { action: m.parent, change: arrow(text(from), text(to)) };
+    case "CUSTOM_PROPERTY_CHANGED":
+      return describeCustomProperty(item.detail, m);
     case "ATTACHMENT_ADDED":
       return { action: m.attachmentAdded, change: text(to) };
     case "ATTACHMENT_REMOVED":

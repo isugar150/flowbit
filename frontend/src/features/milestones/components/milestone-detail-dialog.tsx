@@ -7,9 +7,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRightIcon, DiamondIcon } from "lucide-react";
 import { DueDate } from "@/components/dates";
 import { DocumentOutline } from "@/components/editor/document-outline";
+import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
 import { SaveStatus } from "@/components/editor/save-status";
 import { PeopleMarks } from "@/components/person";
+import { PropertyListRow } from "@/components/property-card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlockComments } from "@/features/content/components/block-comments";
@@ -17,6 +19,7 @@ import { ContentActivity } from "@/features/content/components/content-activity"
 import { useContentFeed } from "@/features/content/use-content-feed";
 import { DateChip } from "@/features/issues/components/date-chips";
 import { updateIssue } from "@/features/issues/api";
+import { AssigneeChip } from "@/features/issues/components/assignee-chip";
 import { ChipSelect } from "@/features/issues/components/chip-select";
 import { PriorityMark, StatusMark } from "@/features/issues/components/issue-row";
 import { SubIssueIndent } from "@/features/issues/components/sub-issue-rows";
@@ -31,7 +34,7 @@ import { messages } from "@/messages";
 import { updateMilestone } from "../api";
 import { ProjectStatusIcon, projectStatusLabel, projectStatusOptions } from "@/features/projects/meta";
 import { mentionablesOf, type ProjectMember } from "@/features/projects/types";
-import { milestoneProgress, type Milestone, type MilestoneStatus } from "../types";
+import { milestoneProgress, type Milestone, type MilestoneChanges } from "../types";
 
 const statusOptions = STATUSES.map((status) => ({
   value: status,
@@ -43,6 +46,8 @@ const m = messages.milestones;
 const NAME_MAX_LENGTH = 80;
 /** The first level of sub-issues the issue list leaves out: it shows the top issue and two levels under it. */
 const HIDDEN_DEPTH = 3;
+/** The dialog and the panel beside a ticket list this many tickets; "목록에서 보기" has them all (D-143, D-184). */
+const ISSUE_LIMIT = 10;
 
 type ListRow = IssueRow | { kind: "hidden"; under: string; count: number; depth: number };
 
@@ -96,9 +101,6 @@ function upTo(rows: ListRow[], limit: number): ListRow[] {
 
 /** The name field is saved on blur, so while it has focus the person's typing wins. */
 const isFocused = (input: HTMLInputElement) => document.activeElement === input;
-
-/** What the dialog and the panel may change: the name, the status (D-163) and the target date. */
-export type MilestoneChanges = { name?: string; status?: MilestoneStatus; targetDate?: string | null };
 
 /**
  * One milestone opened from the project overview. On the left, what it is and a document where
@@ -165,7 +167,6 @@ export function MilestoneDetailBody({
   onChange,
   notes,
   stacked = false,
-  issueLimit,
   openHref,
 }: {
   projectId: string;
@@ -174,8 +175,6 @@ export function MilestoneDetailBody({
   onChange?: (changes: MilestoneChanges) => void;
   notes?: ReturnType<typeof useMilestoneNotes>;
   stacked?: boolean;
-  /** At most this many tickets are listed; the rest are counted on one line. */
-  issueLimit?: number;
   /** Where the milestone has its own place; a link to it stands right of the name. */
   openHref?: string;
 }) {
@@ -193,6 +192,14 @@ export function MilestoneDetailBody({
     staleTime: 60_000,
   });
   const mentionables = useMemo(() => mentionablesOf(members.data ?? []), [members.data]);
+  // The people the picker knows are the project's members; whoever has the milestone already stays known, even after leaving the project.
+  const assign = (ids: string[]) => {
+    const known = [
+      ...milestone.assignees,
+      ...(members.data ?? []).map(({ userId, loginId, displayName, avatarUrl }) => ({ id: userId, loginId, displayName, avatarUrl })),
+    ];
+    onChange?.({ assignees: ids.flatMap((id) => known.find((person) => person.id === id) ?? []) });
+  };
   // Read each time the milestone is opened: issues move in and out of it elsewhere.
   const issuesKey = ["milestone-issues", projectId, milestone.id];
   const queryClient = useQueryClient();
@@ -218,10 +225,7 @@ export function MilestoneDetailBody({
   }, [milestone, pathname, refetchIssues]);
   // Sub-issues sit under their parents, one step in for every level, as in the issue lists. The
   // column is narrow, so the deeper ones are left out and counted on one line (D-142).
-  const rows = useMemo(() => {
-    const all = withoutDeepRows(arrangeBySubIssues(issues.data ?? []));
-    return issueLimit === undefined ? all : upTo(all, issueLimit);
-  }, [issues.data, issueLimit]);
+  const rows = useMemo(() => upTo(withoutDeepRows(arrangeBySubIssues(issues.data ?? [])), ISSUE_LIMIT), [issues.data]);
 
   // The status shows at once (the list is this dialog's own reading, so its cache is changed
   // first); the overview behind is then read again for the progress, which renews the list too.
@@ -296,6 +300,7 @@ export function MilestoneDetailBody({
                   className="min-h-48"
                   onChange={notes?.schedule}
                   keepLocal={notes?.isDirty}
+                  mentionables={mentionables}
                   blockIds
                   overlay={({ editor, container }) => (
                     <>
@@ -325,48 +330,80 @@ export function MilestoneDetailBody({
               !stacked && "lg:w-96 lg:border-t-0 lg:border-l lg:pt-6",
             )}
           >
-            <div role="group" aria-label={m.propertiesLabel} className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] leading-5", !stacked && "lg:pr-8")}>
-              {canEdit ? (
-                <ChipSelect
-                  label={m.status}
-                  value={milestone.status}
-                  options={projectStatusOptions}
-                  onChange={(status) => onChange?.({ status })}
+            {/* Like the properties of a ticket: a label on the left, its value on the right, one line each. */}
+            <section aria-label={m.propertiesLabel} className="flex flex-col gap-1">
+              {/* The close button of the dialog sits over the right end of this line. */}
+              <h3 className={cn("text-[0.8125rem] leading-5 font-medium text-muted-foreground", !stacked && "lg:pr-8")}>
+                {messages.projects.properties}
+              </h3>
+              <dl className="flex flex-col text-[0.8125rem] leading-5">
+                <PropertyListRow label={m.status}>
+                  {canEdit ? (
+                    <ChipSelect
+                      plain
+                      label={m.status}
+                      value={milestone.status}
+                      options={projectStatusOptions}
+                      onChange={(status) => onChange?.({ status })}
+                    />
+                  ) : (
+                    <span className="flex items-center gap-2 font-medium">
+                      <ProjectStatusIcon status={milestone.status} />
+                      {projectStatusLabel(milestone.status)}
+                    </span>
+                  )}
+                </PropertyListRow>
+                <PropertyListRow label={m.assignee}>
+                  <AssigneeChip
+                    members={members.data ?? []}
+                    current={milestone.assignees}
+                    value={milestone.assignees.map((person) => person.id)}
+                    disabled={!canEdit}
+                    onChange={assign}
+                  />
+                </PropertyListRow>
+                <PropertyListRow label={m.progressLabel}>
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={percent}
+                      aria-label={m.progress(percent)}
+                      className="h-1.5 w-24 overflow-hidden rounded-full bg-foreground/10"
+                    >
+                      <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+                    </span>
+                    <span className="font-medium tabular-nums">{percent}%</span>
+                    <span className="text-muted-foreground tabular-nums">{m.issues(milestone.doneCount, milestone.issueCount)}</span>
+                  </span>
+                </PropertyListRow>
+                <PropertyListRow label={m.targetDate}>
+                  {canEdit || milestone.targetDate ? (
+                    <DateChip
+                      plain
+                      label={m.targetDate}
+                      placeholder={m.noTargetDate}
+                      value={milestone.targetDate}
+                      disabled={!canEdit}
+                      onChange={(targetDate) => onChange?.({ targetDate })}
+                    />
+                  ) : (
+                    <span className="text-muted-foreground">{m.noTarget}</span>
+                  )}
+                </PropertyListRow>
+                {/* What people added to this milestone on their own (D-186); the panel beside a ticket only shows them. */}
+                <CustomProperties
+                  owner={{ type: "milestone", id: milestone.id }}
+                  members={members.data ?? []}
+                  watch={milestone}
+                  layout="list"
+                  readOnly={!canEdit}
                 />
-              ) : (
-                <span className="flex items-center gap-1.5">
-                  <ProjectStatusIcon status={milestone.status} />
-                  {projectStatusLabel(milestone.status)}
-                </span>
-              )}
-              <span className="flex items-center gap-2">
-                <span
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={percent}
-                  aria-label={m.progress(percent)}
-                  className="h-1.5 w-28 overflow-hidden rounded-full bg-muted"
-                >
-                  <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
-                </span>
-                <span className="tabular-nums">{percent}%</span>
-              </span>
-              <span className="text-muted-foreground tabular-nums">{m.issues(milestone.doneCount, milestone.issueCount)}</span>
-              {canEdit || milestone.targetDate ? (
-                <DateChip
-                  label={m.targetDate}
-                  placeholder={m.noTargetDate}
-                  value={milestone.targetDate}
-                  disabled={!canEdit}
-                  onChange={(targetDate) => onChange?.({ targetDate })}
-                />
-              ) : (
-                <span className="text-muted-foreground">{m.noTarget}</span>
-              )}
-            </div>
+              </dl>
+            </section>
             <section aria-labelledby="milestone-issues-title" className="flex flex-col gap-2">
-              <div className={cn("flex items-center justify-between gap-2", !stacked && "lg:pr-8")}>
+              <div className="flex items-center justify-between gap-2">
                 <h3 id="milestone-issues-title" className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">
                   {m.issuesTitle}
                   {issues.data ? <span className="ml-1.5 font-normal tabular-nums">{issues.data.length}</span> : null}

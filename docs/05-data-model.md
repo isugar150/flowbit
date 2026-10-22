@@ -175,6 +175,33 @@
 
 `issues.milestone_id`(`V7`): `uuid` null FK → `milestones`. 마일스톤을 지우면 null 이 된다. 같은 프로젝트의 마일스톤인지는 서비스가 확인한다.
 
+### `custom_properties`
+
+사용자가 프로젝트·목표·티켓 하나에 직접 더한 속성 (`V3__custom_properties.sql`, D-186, [features/custom-properties.md](features/custom-properties.md)). 정의를 공유하지 않고 **그 항목에만** 속한다.
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `id` | `uuid` PK | UUID v7 |
+| `project_id`, `milestone_id`, `issue_id` | `uuid` null FK → `projects`·`milestones`·`issues` (함께 삭제) | **셋 중 정확히 하나만** 채운다(`CHECK num_nonnulls(...) = 1`) |
+| `label` | `text` | 1~30자. 같은 항목 안에서 대소문자 없이 유일(부분 유일 인덱스 세 개) |
+| `type` | `text` | `TEXT`\|`NUMBER`\|`DATE`\|`CHECKBOX`\|`LINK`\|`PERSON`. 만든 뒤 바꾸지 않는다 |
+| `value` | `jsonb` null | 값 없음은 SQL NULL. 텍스트·링크는 문자열, 숫자는 숫자, 날짜는 `"YYYY-MM-DD"`, 체크박스는 불리언, 사람은 사용자 id 문자열 |
+| `created_at`, `updated_at` | `timestamptz` | 화면 순서는 `created_at`, `id` |
+
+한 항목에 20개까지(서비스가 확인). 사람 값이 가리키는 사용자는 외래 키가 아니라 서비스가 프로젝트 구성원인지 확인한다(담당자처럼, 구성원에서 빠져도 값은 남는다).
+
+### `milestone_assignees`
+
+목표의 담당자 (`V2__milestone_assignees.sql`, D-185). 티켓의 `issue_assignees` 와 같은 모양이다.
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `milestone_id` | `uuid` FK → `milestones` (함께 삭제) | PK 의 일부 |
+| `user_id` | `uuid` FK → `users` (함께 삭제) | PK 의 일부. 인덱스 `milestone_assignees_user_id_idx` |
+| `created_at` | `timestamptz` | 담당자가 된 시각. 이 순서가 화면의 순서다 |
+
+한 목표에 최대 10명. 지정할 때는 그 프로젝트의 활성 구성원이어야 하고, 이미 담당자인 사람은 프로젝트에서 빠졌어도 다시 검사하지 않는다(티켓과 같다).
+
 ### `issues`, 문서 컬럼
 
 | 컬럼 | 타입 | 설명 |

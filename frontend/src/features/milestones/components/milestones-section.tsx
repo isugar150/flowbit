@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarIcon, ChevronRightIcon, DiamondIcon, EllipsisIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { DueDate } from "@/components/dates";
+import { PeopleMarks } from "@/components/person";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,9 +33,9 @@ const iconButtonClass =
 
 /**
  * The project's milestones on its overview. Each line only shows: name, status, progress (share of
- * its issues that are done), issue count and target date; the whole line is a link to the milestone's
+ * its issues that are done), issue count, target date and assignees; the whole line is a link to the milestone's
  * address (D-160), which opens its dialog (milestone-detail-dialog.tsx) over the overview: its
- * issues beside a document of notes, and where the name, status and date are changed. The "…" menu holds "편집" (the same dialog) and "삭제". Lines
+ * issues beside a document of notes, and where the name, status, date and assignees are changed. The "…" menu holds "편집" (the same dialog) and "삭제". Lines
  * are not edited in place: a field in every line made the list hard to read and easy to change by
  * accident.
  */
@@ -206,6 +207,7 @@ function MilestoneRow({
               <DueDate value={milestone.targetDate} />
             </span>
           ) : null}
+          {milestone.assignees.length > 0 ? <PeopleMarks people={milestone.assignees} max={3} /> : null}
         </div>
       </div>
       {canEdit ? (

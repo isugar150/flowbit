@@ -2,10 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
-import { updateMilestone } from "../api";
-import type { Milestone } from "../types";
+import { saveMilestoneChanges } from "../api";
+import type { Milestone, MilestoneChanges } from "../types";
 import { milestoneHref } from "./milestone-card";
-import { MilestoneDetailDialog, type MilestoneChanges } from "./milestone-detail-dialog";
+import { MilestoneDetailDialog } from "./milestone-detail-dialog";
 
 /**
  * The milestone dialog that belongs to the milestone's address (D-160). Opened from inside the
@@ -24,11 +24,11 @@ export function MilestoneRouteDialog({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  // A new name, status or date shows at once and is saved behind it; the overview behind follows the refresh.
+  // A new name, status, date or assignee shows at once and is saved behind it; the overview behind follows the refresh.
   const update = useOptimisticMutation(
     saved,
     (milestone, changes: MilestoneChanges) => ({ ...milestone, ...changes }),
-    (changes: MilestoneChanges) => updateMilestone({ projectId, id: saved.id, changes }),
+    (changes: MilestoneChanges) => saveMilestoneChanges({ projectId, id: saved.id, changes }),
   );
   // Moving on by a link inside the dialog leaves its slot showing what it last showed, so the
   // address says whether it still belongs on screen. An issue opened from its list comes over it.

@@ -4,6 +4,7 @@ import com.flowbit.retention.PurgeResult
 import com.flowbit.retention.RetentionService
 import com.flowbit.support.ApiClient
 import com.flowbit.support.IntegrationTest
+import com.flowbit.support.TestUploads
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -11,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
-import java.nio.file.Path
 import java.time.Duration
 import javax.imageio.ImageIO
 import kotlin.test.assertEquals
@@ -69,7 +69,7 @@ class RetentionIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/issues", """{"title":"하위 티켓","parentId":"${parent["id"]}"}""")
         admin.post("/api/v1/issues", """{"title":"남는 티켓"}""")
         admin.postFile("/api/v1/issues/1/attachments", "log.txt", "text/plain", "로그".toByteArray())
-        val file = Path.of("build/test-uploads/files", text("select file_key from issue_attachments"))
+        val file = TestUploads.pathOf("files", text("select file_key from issue_attachments"))
         assertTrue(Files.exists(file))
         val comment = admin.post("/api/v1/issues/4/comments", commentJson("지울 댓글")).json()["id"]
         admin.post("/api/v1/issues/4/comments", commentJson("남는 댓글"))
@@ -152,7 +152,7 @@ class RetentionIntegrationTest : IntegrationTest() {
     /** Whether both the WebP copy and the original of the picture are still stored. */
     private fun storedPicture(url: String): Boolean {
         val key = url.substringAfterLast('/')
-        return Files.exists(Path.of("build/test-uploads/images", key)) && Files.exists(Path.of("build/test-uploads/originals", key.removeSuffix(".webp")))
+        return Files.exists(TestUploads.pathOf("images", key)) && Files.exists(TestUploads.pathOf("originals", key.removeSuffix(".webp")))
     }
 
     private fun commentJson(text: String) = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"$text"}]}]}}"""

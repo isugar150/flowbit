@@ -54,6 +54,7 @@ export function createDemo(): Demo {
     name: m.milestone,
     targetDate: day(14, now),
     status: "IN_PROGRESS",
+    assignees: [person(1)],
     issueCount: 3,
     doneCount: 1,
     createdAt: at,
@@ -170,6 +171,8 @@ export function answer(demo: Demo, method: string, path: string, body: unknown):
     if (issueNumber) return { demo, result: demo.issues.find((issue) => issue.number === issueNumber) ?? null };
     if (route.endsWith("/issues")) return { demo, result: demo.issues };
     if (route.endsWith("/milestones")) return { demo, result: demo.milestones };
+    // The example has no properties people added, and takes none (D-186): nothing to show or to edit.
+    if (route.startsWith("/api/v1/custom-properties/")) return { demo, result: { canEdit: false, items: [] } };
     // The example has no comments and takes none (D-165).
     if (/\/content\/[a-z]+\/[^/]+\/feed$/.test(route)) return { demo, result: { canComment: false, readOnly: true, threads: [], items: [], comments: [] } };
     return { demo, result: [] };
@@ -210,6 +213,7 @@ export function answer(demo: Demo, method: string, path: string, body: unknown):
       name: input.name,
       targetDate: input.targetDate ?? null,
       status: "PLANNED",
+      assignees: [],
       issueCount: 0,
       doneCount: 0,
       createdAt: now,
@@ -218,7 +222,11 @@ export function answer(demo: Demo, method: string, path: string, body: unknown):
     return { demo: { ...demo, milestones: [...demo.milestones, created] }, result: created };
   }
   if (milestoneId && method === "PATCH") {
-    const milestones = demo.milestones.map((item) => (item.id === milestoneId ? { ...item, ...(body as Partial<Milestone>) } : item));
+    // The request names assignees by id; the milestone carries the people.
+    const { assigneeIds, ...changes } = body as Partial<Milestone> & { assigneeIds?: string[] };
+    const people = demo.members.map(({ userId, loginId, displayName, avatarUrl }) => ({ id: userId, loginId, displayName, avatarUrl }));
+    const assignees = assigneeIds?.flatMap((id) => people.find((person) => person.id === id) ?? []);
+    const milestones = demo.milestones.map((item) => (item.id === milestoneId ? { ...item, ...changes, ...(assignees ? { assignees } : {}) } : item));
     return { demo: { ...demo, milestones }, result: milestones.find((item) => item.id === milestoneId) };
   }
   if (milestoneId && method === "DELETE") {

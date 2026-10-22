@@ -86,6 +86,13 @@ export async function apiFetch<T>(path: string, { method = "GET", body }: Option
   return parse<T>(response);
 }
 
+/** The bytes of a stored file (what a document preview reads). A plain GET: there is nothing to protect with the CSRF token. */
+export async function apiBytes(path: string): Promise<ArrayBuffer> {
+  const response = await send(path, { method: "GET" });
+  if (!response.ok) throw await toApiError(response);
+  return response.arrayBuffer();
+}
+
 /** One file as the multipart body the upload endpoints take. */
 export function fileForm(file: File): FormData {
   const form = new FormData();

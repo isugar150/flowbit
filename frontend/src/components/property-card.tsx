@@ -30,3 +30,27 @@ export function PropertyRow({ label, children }: { label: string; children: Reac
     </div>
   );
 }
+
+/** One label and value in a plain list of properties (a milestone's dialog): the label on the left, the value right of it. */
+export function PropertyListRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-8 items-center gap-4 max-md:min-h-10">
+      <dt className="w-16 shrink-0 truncate text-muted-foreground" title={label}>
+        {label}
+      </dt>
+      <dd className="min-w-0 flex-1">{children}</dd>
+    </div>
+  );
+}
+
+/** One label and value on a line of a narrow side panel (an issue's): a shorter gap, as the panel is 16rem wide. */
+export function PropertyPanelRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-8 items-center gap-3 text-[0.8125rem] leading-5">
+      <dt className="w-16 shrink-0 truncate text-muted-foreground" title={label}>
+        {label}
+      </dt>
+      <dd className="min-w-0 flex-1">{children}</dd>
+    </div>
+  );
+}

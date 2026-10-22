@@ -2,13 +2,13 @@ package com.flowbit
 
 import com.flowbit.support.ApiClient
 import com.flowbit.support.IntegrationTest
+import com.flowbit.support.TestUploads
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
-import java.nio.file.Path
 import java.time.Duration
 import java.util.UUID
 import javax.imageio.ImageIO
@@ -25,7 +25,7 @@ class AdminFilesIntegrationTest : IntegrationTest() {
     @BeforeEach
     fun start() {
         // Other tests leave files behind (their rows are gone): the page would count them as unused.
-        FOLDERS.flatMap { filesIn(it) }.forEach(Files::delete)
+        FOLDERS.flatMap(TestUploads::filesIn).forEach(Files::delete)
         admin = client().also { it.setup("admin", PASSWORD) }
     }
 
@@ -70,9 +70,10 @@ class AdminFilesIntegrationTest : IntegrationTest() {
         admin.putFile("/api/v1/me/avatar", "a.png", "image/png", picture(300, 300))
         // The row of one attachment is gone (a request that died in between): its file is unused now.
         execute("delete from issue_attachments where file_name = 'lost.txt'")
-        val strayImage = Path.of("build/test-uploads/images", "${UUID.randomUUID()}.webp")
+        // A random (version 4) name is kept directly in the area's folder, as the files from before the day folders are (D-182).
+        val strayImage = TestUploads.folder("images").resolve("${UUID.randomUUID()}.webp")
         Files.write(strayImage, byteArrayOf(1, 2, 3))
-        val strangeName = Path.of("build/test-uploads/files", "not-ours.tmp")
+        val strangeName = TestUploads.folder("files").resolve("not-ours.tmp")
         Files.write(strangeName, byteArrayOf(9))
 
         val fresh = admin.get("/api/v1/admin/files").json()
@@ -100,10 +101,10 @@ class AdminFilesIntegrationTest : IntegrationTest() {
         assertEquals(0, result.number("failed"))
         assertFalse(Files.exists(strayImage))
         // Kept: the files that are used, and what has a name that is not ours.
-        assertEquals(1, filesIn(Path.of("build/test-uploads/files")).count { it.fileName.toString() != "not-ours.tmp" })
+        assertEquals(1, TestUploads.filesIn("files").count { it.fileName.toString() != "not-ours.tmp" })
         assertTrue(Files.exists(strangeName))
-        assertEquals(1, filesIn(Path.of("build/test-uploads/images")).size)
-        assertEquals(1, filesIn(Path.of("build/test-uploads/originals")).size)
+        assertEquals(1, TestUploads.filesIn("images").size)
+        assertEquals(1, TestUploads.filesIn("originals").size)
         assertEquals(1, count("select count(*) from audit_events where event_type = 'FILES_CLEANED'"))
         val after = admin.get("/api/v1/admin/files").json()
         assertEquals(0, after.number("consistency", "orphans", "files", "count"))
@@ -114,7 +115,7 @@ class AdminFilesIntegrationTest : IntegrationTest() {
     fun `DB 는 아는데 저장소에 없는 첨부는 누락으로 센다`() {
         admin.post("/api/v1/issues", """{"title":"티켓"}""")
         admin.postFile("/api/v1/issues/1/attachments", "gone.pdf", "application/pdf", "내용".toByteArray())
-        filesIn(Path.of("build/test-uploads/files")).forEach(Files::delete)
+        TestUploads.filesIn("files").forEach(Files::delete)
 
         val json = admin.get("/api/v1/admin/files").json()
 
@@ -144,10 +145,6 @@ class AdminFilesIntegrationTest : IntegrationTest() {
     private fun Map<String, Any?>.at(vararg path: String): Any? = path.fold(this as Any?) { node, key -> (node as Map<String, Any?>)[key] }
 
     private fun Map<String, Any?>.number(vararg path: String): Long = (at(*path) as Number).toLong()
-
-    private fun filesIn(directory: String): List<Path> = filesIn(Path.of("build/test-uploads", directory))
-
-    private fun filesIn(directory: Path): List<Path> = if (Files.isDirectory(directory)) Files.list(directory).use { it.toList() } else emptyList()
 
     private fun picture(
         width: Int,

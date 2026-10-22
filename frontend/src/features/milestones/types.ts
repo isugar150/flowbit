@@ -1,4 +1,5 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
+import type { IssuePerson } from "@/features/issues/types";
 import type { ProjectStatus } from "@/features/projects/types";
 
 /** Where a milestone stands, set by hand (D-163): the same values, names and marks as a project's status. */
@@ -11,6 +12,8 @@ export type Milestone = {
   /** YYYY-MM-DD */
   targetDate: string | null;
   status: MilestoneStatus;
+  /** In the order they were given the milestone; empty when no one has it (D-185). */
+  assignees: IssuePerson[];
   /** Issues in the milestone, canceled ones not counted. */
   issueCount: number;
   doneCount: number;
@@ -18,6 +21,13 @@ export type Milestone = {
   /** The milestone's own document (where things stand), or null when nothing was written. */
   content: RichDoc | null;
 };
+
+/**
+ * What the dialog may change: the name, the status (D-163), the target date and the assignees
+ * (D-185). The assignees are the people themselves, so the milestone shows complete at once; the
+ * request carries their ids.
+ */
+export type MilestoneChanges = { name?: string; status?: MilestoneStatus; targetDate?: string | null; assignees?: IssuePerson[] };
 
 /**
  * A completed or canceled milestone is closed (D-163): it is folded away in the lists and left out

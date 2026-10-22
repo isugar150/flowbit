@@ -124,6 +124,74 @@ test("beside a ticket its milestone lists ten tickets; the rest are counted on o
   await page.close();
 });
 
+test("the milestone dialog lists ten tickets too; the rest are counted on one line (D-184)", async () => {
+  const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "열 개 목표", targetDate: null });
+  for (let n = 1; n <= 12; n++) await newIssue(`열 개 티켓 ${n}`, { milestoneId: milestone.id });
+  const page = await newPage();
+  await page.goto(`/project/${project.id}`);
+  await page.locator(`li[data-presence-id="milestone:${milestone.id}"]`).click();
+  // The first list in the right column is the tickets; the properties above it are not a list.
+  const items = page.getByRole("dialog").getByRole("complementary").getByRole("list").first().getByRole("listitem");
+  await expect(items).toHaveCount(11);
+  await expect(items.last()).toHaveText("외 2개");
+  await page.close();
+});
+
+test("a milestone is given an assignee in its dialog; the overview line shows who has it (D-185)", async () => {
+  const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "담당 목표", targetDate: null });
+  const page = await newPage();
+  await page.goto(`/project/${project.id}`);
+  await page.locator(`li[data-presence-id="milestone:${milestone.id}"]`).click();
+  const dialog = page.getByRole("dialog");
+  // The people are ticked in a list that stays open for more; Escape closes it (as for an issue).
+  await dialog.getByRole("button", { name: /^담당자:/ }).click();
+  await page.getByRole("option").filter({ hasText: `편집 ${run}` }).click();
+  await page.keyboard.press("Escape");
+  await expect(dialog.getByRole("button", { name: `담당자: 편집 ${run}` })).toBeVisible();
+  await settled(page);
+  const saved = await api<{ id: string; assignees: { loginId: string }[] }[]>(context, "GET", `/api/v1/projects/${project.id}/milestones`);
+  expect(saved.find((item) => item.id === milestone.id)?.assignees.map((person) => person.loginId)).toEqual([EDITOR.loginId]);
+  await page.close();
+});
+
+test("a property added to a project by name and kind is filled in place, and read by the one who only reads (D-186)", async ({ browser, baseURL }) => {
+  const own = await api<{ id: string }>(context, "POST", "/api/v1/projects", { name: `속성 ${run}`, description: "" });
+  await api(context, "PUT", `/api/v1/projects/${own.id}/members/${editorId}`, { role: "VIEWER" });
+  const page = await newPage();
+  await page.goto(`/project/${own.id}`);
+  await page.getByRole("button", { name: "속성 추가" }).click();
+  await page.getByRole("textbox", { name: "속성 이름" }).fill("배포 메모");
+  // The kind is picked from the app's menu; 텍스트 is where it starts, and 날짜 is chosen and then changed back.
+  await page.getByRole("button", { name: "값 형식: 텍스트" }).click();
+  await page.getByRole("menuitemradio", { name: "날짜" }).click();
+  await page.getByRole("button", { name: "값 형식: 날짜" }).click();
+  await page.getByRole("menuitemradio", { name: "텍스트" }).click();
+  await page.getByRole("button", { name: "추가", exact: true }).click();
+  // The new property is there, empty; its value is typed in place and saved when the field is left.
+  const field = page.getByRole("textbox", { name: "배포 메모 값" });
+  await field.fill("금요일 저녁");
+  await field.press("Enter");
+  await settled(page);
+  const read = await api<{ canEdit: boolean; items: { label: string; type: string; value: string | null }[] }>(
+    context,
+    "GET",
+    `/api/v1/custom-properties/project/${own.id}`,
+  );
+  expect(read.items).toMatchObject([{ label: "배포 메모", type: "TEXT", value: "금요일 저녁" }]);
+  await page.close();
+
+  // Someone who only reads sees the value but has nothing to change it with.
+  const viewer = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
+  await logIn(viewer, EDITOR);
+  const reading = await newPage(viewer);
+  await reading.goto(`/project/${own.id}`);
+  // Exactly: the activity under the page says "없음 → 금요일 저녁".
+  await expect(reading.getByText("금요일 저녁", { exact: true })).toBeVisible();
+  await expect(reading.getByRole("textbox", { name: "배포 메모 값" })).toHaveCount(0);
+  await expect(reading.getByRole("button", { name: "속성 추가" })).toHaveCount(0);
+  await viewer.close();
+});
+
 test("the editor role opens a milestone; the view of it is the same without the menu for those who only read", async ({ browser, baseURL }) => {
   const milestone = await api<{ id: string }>(context, "POST", `/api/v1/projects/${project.id}/milestones`, { name: "읽기 확인", targetDate: "2026-12-24" });
   await api(context, "PUT", `/api/v1/projects/${project.id}/members/${editorId}`, { role: "VIEWER" });

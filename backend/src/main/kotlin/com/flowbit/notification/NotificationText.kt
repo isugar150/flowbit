@@ -96,6 +96,8 @@ class NotificationText(
             "STATUS_CHANGED" -> change("상태", detail, PROJECT_STATUSES)
             "PRIORITY_CHANGED" -> change("우선순위", detail, PRIORITIES)
             "LEAD_CHANGED" -> change("리드", detail)
+            "ASSIGNEE_CHANGED" -> addedRemoved("담당자", detail)
+            "CUSTOM_PROPERTY_CHANGED" -> customProperty(detail)
             "DATES_CHANGED" -> change("기간", detail)
             "TARGET_DATE_CHANGED" -> change("목표일", detail)
             "LABELS_CHANGED" -> addedRemoved("라벨", detail)
@@ -155,6 +157,7 @@ class NotificationText(
             "MILESTONE_CHANGED" -> change("목표", detail)
             "PROJECT_CHANGED" -> change("프로젝트", detail)
             "PARENT_CHANGED" -> change("상위 티켓", detail)
+            "CUSTOM_PROPERTY_CHANGED" -> customProperty(detail)
             "LABELS_CHANGED" -> addedRemoved("라벨", detail)
             "ATTACHMENT_ADDED" -> "파일 추가: ${detail["to"]}"
             "ATTACHMENT_REMOVED" -> "파일 삭제: ${detail["from"]}"
@@ -186,6 +189,17 @@ class NotificationText(
     ): String {
         fun shown(value: Any?) = value?.toString()?.let { names[it] ?: it } ?: "없음"
         return "$label: ${shown(detail["from"])} → ${shown(detail["to"])}"
+    }
+
+    /** A property people added to the item (D-186): added (with its value), renamed, changed or deleted. */
+    private fun customProperty(detail: Map<String, Any?>): String {
+        val label = detail["label"].toString()
+        return when (detail["op"]) {
+            "ADDED" -> "속성 추가: $label" + (detail["to"]?.let { " = $it" } ?: "")
+            "REMOVED" -> "속성 삭제: $label"
+            "RENAMED" -> "속성 이름: ${detail["from"]} → ${detail["to"]}"
+            else -> change(label, detail)
+        }
     }
 
     private fun addedRemoved(

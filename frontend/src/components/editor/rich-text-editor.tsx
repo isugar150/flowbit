@@ -33,6 +33,7 @@ import { BlockDragHandle } from "./block-drag-handle";
 import { BlockId } from "./block-id";
 import { Embed, MAX_EMBED_URL_LENGTH, embedFor } from "./embed";
 import { FileBlock } from "./file-block";
+import { FileViewer, type ViewerFile } from "./file-viewer";
 import { fixedOrigin } from "./fixed-origin";
 import { ImageViewer, type ViewerImage } from "./image-viewer";
 import { LinkCard, cardPlace, clickedLink, openLink, pressOn, type LinkCardState, type Press } from "./link-card";
@@ -327,6 +328,8 @@ export function RichTextEditor({
   const anyFileInputRef = useRef<HTMLInputElement>(null);
   // The picture of the text that was clicked, enlarged over the page (D-182).
   const [viewer, setViewer] = useState<{ images: ViewerImage[]; index: number } | null>(null);
+  // The Word, Excel or PowerPoint file of the text that was clicked, read over the page (D-187).
+  const [filePreview, setFilePreview] = useState<ViewerFile | null>(null);
   const editorRef = useRef<Editor | null>(null);
   // The key handler below is created once, so it reads the latest menu state through refs.
   const slashRef = useRef<SlashState | null>(null);
@@ -651,6 +654,21 @@ export function RichTextEditor({
           setLinkCard(null);
           return;
         }
+        // A file block is no link to show a card for: a Word, Excel or PowerPoint file opens its preview, any other click on it
+        // (the download button, a file that cannot be previewed) is left to the browser, which saves the file.
+        const block = target instanceof Element ? target.closest<HTMLElement>("[data-file-block]") : null;
+        if (dom && block && dom.contains(block)) {
+          if (target instanceof Element && target.closest("a[data-file-preview]")) {
+            event.preventDefault();
+            setFilePreview({
+              src: block.getAttribute("data-file-block") ?? "",
+              name: block.getAttribute("data-name") ?? "",
+              size: Number(block.getAttribute("data-size")) || 0,
+            });
+          }
+          setLinkCard(null);
+          return;
+        }
         const anchor = clickedLink(event.target, editorRef.current?.view.dom, pressRef.current, event.clientX, event.clientY);
         pressRef.current = null;
         const href = anchor?.getAttribute("href");
@@ -840,6 +858,7 @@ export function RichTextEditor({
         onClose={() => setViewer(null)}
       />
     ) : null}
+    {filePreview ? <FileViewer key={filePreview.src} file={filePreview} onClose={() => setFilePreview(null)} /> : null}
     </>
   );
 }

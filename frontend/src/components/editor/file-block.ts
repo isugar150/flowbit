@@ -1,5 +1,6 @@
 import { Node } from "@tiptap/core";
 import { messages } from "@/messages";
+import { isPreviewable } from "./file-preview";
 
 const m = messages.editor;
 
@@ -52,19 +53,16 @@ export const FileBlock = Node.create({
       const src = String(node.attrs.src ?? "");
       const name = String(node.attrs.name ?? "") || m.file;
       const size = Number(node.attrs.size) || 0;
+      const stored = STORED_FILE.test(src);
+      // A Word, Excel or PowerPoint file opens a preview when it is clicked, and downloads from a button of its own (D-187).
+      const preview = stored && isPreviewable(name, size);
       const dom = document.createElement("div");
       dom.contentEditable = "false";
       dom.setAttribute("data-file-block", src);
+      dom.setAttribute("data-name", name);
+      dom.setAttribute("data-size", String(size));
       dom.className = "rich-text-file my-2 [&.ProseMirror-selectednode]:ring-2 [&.ProseMirror-selectednode]:ring-ring";
 
-      const link = document.createElement("a");
-      link.href = STORED_FILE.test(src) ? fileBlockHref(src, name) : "#";
-      link.download = name;
-      link.draggable = false;
-      link.title = m.fileDownload(name);
-      link.setAttribute("aria-label", m.fileDownload(name));
-      link.className =
-        "flex min-h-12 max-w-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-foreground no-underline outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50";
       const icon = document.createElement("span");
       icon.className = "flex shrink-0 text-muted-foreground";
       icon.innerHTML = FILE_ICON;
@@ -77,11 +75,45 @@ export const FileBlock = Node.create({
       meta.className = "text-xs leading-4 text-muted-foreground tabular-nums";
       meta.textContent = m.fileSize(size);
       text.append(title, meta);
-      const download = document.createElement("span");
-      download.className = "flex shrink-0 text-muted-foreground";
-      download.innerHTML = DOWNLOAD_ICON;
-      link.append(icon, text, download);
-      dom.append(link);
+
+      const href = stored ? fileBlockHref(src, name) : "#";
+      const focusClass = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+      if (!preview) {
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = name;
+        link.draggable = false;
+        link.title = m.fileDownload(name);
+        link.setAttribute("aria-label", m.fileDownload(name));
+        link.className = `flex min-h-12 max-w-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-foreground no-underline hover:bg-muted ${focusClass}`;
+        const download = document.createElement("span");
+        download.className = "flex shrink-0 text-muted-foreground";
+        download.innerHTML = DOWNLOAD_ICON;
+        link.append(icon, text, download);
+        dom.append(link);
+      } else {
+        const card = document.createElement("div");
+        card.className = "flex min-h-12 max-w-full items-stretch rounded-lg border border-border bg-card text-foreground";
+        // The editor opens the preview on a click on this link (it has the file's own address, so a middle click still saves it).
+        const open = document.createElement("a");
+        open.href = href;
+        open.draggable = false;
+        open.setAttribute("data-file-preview", "");
+        open.title = m.filePreview(name);
+        open.setAttribute("aria-label", m.filePreview(name));
+        open.className = `flex min-w-0 flex-1 items-center gap-3 rounded-l-lg px-3 py-2 text-foreground no-underline hover:bg-muted ${focusClass}`;
+        open.append(icon, text);
+        const download = document.createElement("a");
+        download.href = href;
+        download.download = name;
+        download.draggable = false;
+        download.title = m.fileDownload(name);
+        download.setAttribute("aria-label", m.fileDownload(name));
+        download.className = `flex shrink-0 items-center rounded-r-lg border-l border-border px-3 text-muted-foreground no-underline hover:bg-muted hover:text-foreground ${focusClass}`;
+        download.innerHTML = DOWNLOAD_ICON;
+        card.append(open, download);
+        dom.append(card);
+      }
       return { dom, update: (updated) => updated.type === node.type && updated.attrs.src === node.attrs.src };
     };
   },

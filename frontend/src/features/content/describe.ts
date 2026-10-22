@@ -1,3 +1,4 @@
+import { describeCustomProperty } from "@/features/custom-properties/describe";
 import type { Described } from "@/features/issues/components/activity-event";
 import { priorityLabel } from "@/features/issues/meta";
 import type { IssuePriority } from "@/features/issues/types";
@@ -28,6 +29,10 @@ export function describeContent(item: ContentActivityItem): Described {
       return { action: m.priority, change: arrow(priorityLabel(from as IssuePriority), priorityLabel(to as IssuePriority)) };
     case "LEAD_CHANGED":
       return { action: m.lead, change: arrow(text(from), text(to)) };
+    case "ASSIGNEE_CHANGED":
+      return { action: m.assignee, change: [...names(added).map((name) => `+${name}`), ...names(removed).map((name) => `−${name}`)].join(", ") };
+    case "CUSTOM_PROPERTY_CHANGED":
+      return describeCustomProperty(item.detail, m);
     case "DATES_CHANGED":
       return { action: m.dates, change: arrow(text(from), text(to)) };
     case "TARGET_DATE_CHANGED":

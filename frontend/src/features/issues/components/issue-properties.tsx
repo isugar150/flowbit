@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { CircleSlashIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
+import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { useMilestonePanel } from "@/features/milestones/components/milestone-panel";
 import type { Milestone } from "@/features/milestones/types";
@@ -261,6 +262,13 @@ export function IssueProperties({
         assignees={issue.assignees}
         followsParent={issue.parent !== null}
         disabled={!canEdit}
+      />
+      {/* What people added to this issue on their own (D-186): its own group under the rest. */}
+      <CustomProperties
+        owner={{ type: "issue", id: issue.id }}
+        members={members}
+        watch={issue}
+        layout="panel"
       />
     </div>
   );

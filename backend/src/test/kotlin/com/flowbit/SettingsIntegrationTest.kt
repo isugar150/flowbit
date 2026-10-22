@@ -3,6 +3,7 @@ package com.flowbit
 import com.flowbit.media.application.ImageDimensions
 import com.flowbit.support.ApiClient
 import com.flowbit.support.IntegrationTest
+import com.flowbit.support.TestUploads
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.awt.Color
@@ -253,16 +254,9 @@ class SettingsIntegrationTest : IntegrationTest() {
         return ByteArrayOutputStream().also { ImageIO.write(image, format, it) }.toByteArray()
     }
 
-    /** Everything in the test storage directory; it is emptied before each test. */
-    private fun storedFiles(): List<Path> = filesIn(storage)
+    /** Every picture kept in the test storage, in its day folder (D-182); they are removed before each test. */
+    private fun storedFiles(): List<Path> = TestUploads.filesIn("images")
 
     /** The originals of the uploaded pictures, kept next to the WebP copies. */
-    private fun storedOriginals(): List<Path> = filesIn(originals)
-
-    private fun filesIn(directory: Path): List<Path> = if (Files.isDirectory(directory)) Files.list(directory).use { it.toList() } else emptyList()
-
-    private companion object {
-        val storage: Path = Path.of("build/test-uploads/images")
-        val originals: Path = Path.of("build/test-uploads/originals")
-    }
+    private fun storedOriginals(): List<Path> = TestUploads.filesIn("originals")
 }

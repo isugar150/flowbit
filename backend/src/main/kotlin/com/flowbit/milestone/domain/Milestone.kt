@@ -21,6 +21,9 @@ class Milestone(
 ) {
     companion object {
         const val NAME_MAX_LENGTH = 80
+
+        /** The same as an issue's (D-125). */
+        const val MAX_ASSIGNEES = 10
     }
 }
 

@@ -8,6 +8,7 @@ import { MilestonesSection } from "@/features/milestones/components/milestones-s
 import type { Milestone } from "@/features/milestones/types";
 import { ProjectMemberList } from "@/features/projects/components/project-member-list";
 import { ProjectOverviewEditor } from "@/features/projects/components/project-overview-editor";
+import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
 import { ProjectProperties } from "@/features/projects/components/project-properties";
 import { ProjectUpdates } from "@/features/projects/components/project-updates";
 import { HealthBadge } from "@/features/projects/meta";
@@ -89,6 +90,8 @@ export async function ProjectOverview({ id }: { id: string }) {
             <PropertyRow label={m.propCreated}>
               <span className="tabular-nums">{created}</span>
             </PropertyRow>
+            {/* What people added to this project on their own (D-186). */}
+            <CustomProperties owner={{ type: "project", id: project.id }} members={members} watch={project} layout="card" />
           </dl>
         </PropertyCard>
         {/* Who is in the project, nothing more: people are added, removed and given roles in the settings. */}
