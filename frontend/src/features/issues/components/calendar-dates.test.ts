@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateKey, dayParts, draggedDates, fromDays, issuesByDay, sameDates, spanDays, toDays, weeksOf } from "./calendar-dates";
+import { dateKey, dayParts, draggedDates, fromDays, issuesByDay, placedDates, sameDates, spanDays, toDays, weeksOf } from "./calendar-dates";
 
 describe("days", () => {
   it("counts days and turns the count back into a day", () => {
@@ -78,6 +78,12 @@ describe("draggedDates", () => {
   it("grows a single day into a span from either end", () => {
     expect(draggedDates(single, "start", "2026-10-15", "2026-10-13")).toEqual({ startDate: "2026-10-13", dueDate: "2026-10-15" });
     expect(draggedDates(single, "end", "2026-10-15", "2026-10-18")).toEqual({ startDate: "2026-10-15", dueDate: "2026-10-18" });
+  });
+});
+
+describe("placedDates", () => {
+  it("gives an issue without dates the one day it is dropped on", () => {
+    expect(placedDates("2026-10-23")).toEqual({ startDate: null, dueDate: "2026-10-23" });
   });
 });
 

@@ -184,7 +184,7 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
     setChosen({ year: next.getFullYear(), month: next.getMonth() });
   };
   // The bar being dragged is drawn on the days it would have, so it follows the pointer.
-  const shown = drag ? issues.map((issue) => (issue.number === drag.number ? { ...issue, ...drag.dates } : issue)) : issues;
+  const shown = drag?.dates ? issues.map((issue) => (issue.number === drag.number ? { ...issue, ...drag.dates } : issue)) : issues;
   const byDay = issuesByDay(shown, MAX_SPAN_DAYS);
   // The issues drawn on a day: the first few. A bar being dragged is always among them, or it would
   // disappear into "+N개 더" on the days where it comes late, and the drag could not be seen.
@@ -194,7 +194,9 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
     if (dragged >= MAX_PER_DAY) visible[MAX_PER_DAY - 1] = items[dragged];
     return visible;
   };
-  const undated = issues.filter((issue) => !issue.dueDate).length;
+  // The issues that have no date cannot be on a day: they wait under the calendar to be dragged onto one (D-205). The shared page, which has a
+  // month of its own and no issue without a date, has no such place.
+  const undated = fixedMonth ? [] : issues.filter((issue) => !issue.dueDate);
   const marked = (key: string) =>
     marking !== null && key >= (marking.from <= marking.to ? marking.from : marking.to) && key <= (marking.from <= marking.to ? marking.to : marking.from);
 
@@ -223,7 +225,7 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
           className={cn(
             "w-full min-w-[42rem] table-fixed border-collapse text-[0.8125rem] leading-5 select-none",
             // One cursor all over while a bar is dragged, whatever the pointer is over.
-            drag && !drag.settled && (drag.mode === "move" ? "[&_*]:cursor-grabbing!" : "[&_*]:cursor-ew-resize!"),
+            drag && !drag.settled && (drag.mode === "start" || drag.mode === "end" ? "[&_*]:cursor-ew-resize!" : "[&_*]:cursor-grabbing!"),
           )}
         >
           <thead>
@@ -358,7 +360,59 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
           </tbody>
         </table>
       </div>
-      {undated > 0 ? <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.undated(undated)}</p> : null}
+      {undated.length > 0 ? (
+        <section aria-label={m.undatedTitle(undated.length)} className="flex flex-col gap-2 rounded-lg border px-3 py-2.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+            <h3 className="text-[0.8125rem] leading-5 font-medium">{m.undatedTitle(undated.length)}</h3>
+            {onMove ? <p className="text-xs leading-4 text-muted-foreground">{m.undatedHint}</p> : null}
+          </div>
+          <ul className={cn("flex max-h-44 flex-wrap gap-1.5 overflow-y-auto", drag?.mode === "place" && !drag.settled && "[&_*]:cursor-grabbing!")}>
+            {undated.map((issue) => {
+              const movable = Boolean(onMove) && (canMove?.(issue) ?? true);
+              const href = issueHref(issue);
+              const card = cardOf?.(issue);
+              const closed = issue.status === "DONE" || issue.status === "CANCELED";
+              const className = cn(
+                "flex h-6 max-w-72 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                href && "hover:bg-accent",
+                closed && "text-muted-foreground line-through",
+                movable && "cursor-grab",
+                // The one being dragged stays here, dimmed, while its bar is on the day it is over.
+                drag?.number === issue.number && drag.mode === "place" && "opacity-50",
+              );
+              const element = href ? (
+                <Link
+                  href={href}
+                  draggable={false}
+                  onPointerDown={movable ? (event) => press(event, issue, "place", "") : undefined}
+                  title={card ? undefined : `${issue.key} ${issue.title} · ${statusLabel(issue.status)}`}
+                  className={className}
+                />
+              ) : (
+                <div title={card ? undefined : `${issue.key} ${issue.title}`} className={className} />
+              );
+              const body = (
+                <>
+                  <StatusIcon status={issue.status} className="size-3" />
+                  <span className="shrink-0 text-muted-foreground tabular-nums">{issue.key}</span>
+                  <span className="truncate">{issue.title}</span>
+                </>
+              );
+              return (
+                <li key={issue.key} className="min-w-0">
+                  {card ? (
+                    <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} disabled={drag !== null}>
+                      {body}
+                    </IssueHoverCard>
+                  ) : (
+                    cloneElement(element, undefined, body)
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

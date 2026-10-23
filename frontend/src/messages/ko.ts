@@ -454,7 +454,8 @@ export const ko = {
       calendarHint: "티켓을 끌어 날짜를 옮기고, 양 끝을 끌어 시작일·종료일을 바꿉니다. 빈 날짜를 누르거나 끌면 새 티켓을 만듭니다.",
       resizeStart: "끌어서 시작일 바꾸기",
       resizeEnd: "끌어서 종료일 바꾸기",
-      undated: (count: number) => `기한이 없는 티켓 ${count}개는 캘린더에 나오지 않습니다.`,
+      undatedTitle: (count: number) => `기한 없는 티켓 ${count}개`,
+      undatedHint: "끌어서 날짜 칸에 놓으면 그날이 기한이 됩니다.",
     },
     reactions: {
       add: "이모지 달기",

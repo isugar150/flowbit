@@ -9,8 +9,11 @@ export type CalendarIssue = Pick<Issue, "key" | "number" | "title" | "status" | 
 /** The dates of an issue: one day (`startDate` null) or a first and a last day. */
 export type IssueDates = { startDate: string | null; dueDate: string };
 
-/** What dragging a bar changes: both its ends together, or only its first or its last day. */
-export type BarDragMode = "move" | "start" | "end";
+/**
+ * What dragging a bar changes: both its ends together, or only its first or last day. `place` is dragging an issue that has
+ * no date from under the calendar to a day: it gets that one day (D-205).
+ */
+export type BarDragMode = "move" | "start" | "end" | "place";
 
 export type Month = { year: number; month: number };
 
@@ -63,7 +66,7 @@ export function sameDates(a: IssueDates, b: IssueDates): boolean {
  * end puts that end on the pointer's day and leaves the other; an end cannot pass the other one
  * (the span is then the one day they meet on), and a span of one day has no `startDate`.
  */
-export function draggedDates(origin: IssueDates, mode: BarDragMode, anchor: string, pointer: string): IssueDates {
+export function draggedDates(origin: IssueDates, mode: Exclude<BarDragMode, "place">, anchor: string, pointer: string): IssueDates {
   if (mode === "move") {
     const shift = toDays(pointer) - toDays(anchor);
     return {
@@ -74,6 +77,11 @@ export function draggedDates(origin: IssueDates, mode: BarDragMode, anchor: stri
   const first = origin.startDate ?? origin.dueDate;
   const [start, end] = mode === "start" ? [pointer < origin.dueDate ? pointer : origin.dueDate, origin.dueDate] : [first, pointer > first ? pointer : first];
   return start === end ? { startDate: null, dueDate: end } : { startDate: start, dueDate: end };
+}
+
+/** The dates an issue without any gets when it is dropped on a day: that one day, with no first day. */
+export function placedDates(day: string): IssueDates {
+  return { startDate: null, dueDate: day };
 }
 
 /** The days an issue is drawn on: from its first to its last day, but no more than `maxDays` before the last. */
