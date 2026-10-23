@@ -39,6 +39,8 @@ export type Project = {
   member: boolean;
   /** When the project was archived; null for a project in use. Only the archived list has it set. */
   archivedAt: string | null;
+  /** Every member of the workspace enters the project as an editor, added or not (D-192). */
+  openToAll: boolean;
   /** The overview document. Only sent when a single project is requested; null in lists. */
   content: RichDoc | null;
 };
@@ -49,11 +51,15 @@ export type ProjectMember = {
   displayName: string | null;
   avatarUrl: string | null;
   role: ProjectRole;
+  /** False for someone listed only because the project is open to everyone: they were not added (D-192). */
+  direct: boolean;
 };
 
 /** Only the fields present are changed; null clears the lead or a date. */
 export type ProjectChanges = Partial<{
   name: string;
+  /** Managers only. */
+  openToAll: boolean;
   description: string;
   content: RichDoc | null;
   status: ProjectStatus;
@@ -79,7 +85,7 @@ export function mentionablesOf(members: ProjectMember[]): MentionPerson[] {
 }
 
 export function usersAsMembers(users: UserSummary[] | null): ProjectMember[] {
-  return (users ?? []).map((person) => ({ ...person, userId: person.id, role: "EDITOR" }));
+  return (users ?? []).map((person) => ({ ...person, userId: person.id, role: "EDITOR", direct: false }));
 }
 
 /**

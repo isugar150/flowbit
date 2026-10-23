@@ -4,6 +4,7 @@ import { ProjectGitRepositories } from "@/features/git/components/project-git-re
 import type { ProjectGitSettings } from "@/features/git/types";
 import type { UserSummary } from "@/features/members/types";
 import { ArchiveProjectSection } from "@/features/projects/components/archive-project-section";
+import { ProjectAccessField } from "@/features/projects/components/project-access-field";
 import { ProjectAccessRequests } from "@/features/projects/components/project-access-requests";
 import { ProjectDetailsForm } from "@/features/projects/components/project-details-form";
 import { ProjectIconField } from "@/features/projects/components/project-icon-field";
@@ -41,10 +42,17 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
         {canManage ? <ProjectIconField projectId={project.id} iconUrl={project.iconUrl} /> : null}
         <ProjectDetailsForm project={project} canManage={canManage} />
       </SettingsSection>
+      {canManage ? (
+        <SettingsSection title={m.accessTitle} description={m.accessDescription}>
+          <ProjectAccessField projectId={project.id} openToAll={project.openToAll} />
+        </SettingsSection>
+      ) : null}
       <SettingsSection title={m.membersTitle} description={m.membersDescription}>
         <ProjectMembersPanel
           projectId={project.id}
-          members={members}
+          // Only the people who were added: a project open to everyone lists every member of the workspace (D-192).
+          members={members.filter((member) => member.direct)}
+          openToAll={project.openToAll}
           users={users}
           canManage={canManage}
           currentUserId={user.id}

@@ -65,6 +65,8 @@ data class ProjectResponse(
     val member: Boolean,
     /** When the project was archived; null for a project in use. */
     val archivedAt: Instant?,
+    /** Whether every member of the workspace enters the project as an editor (D-192). */
+    val openToAll: Boolean,
     /** The overview document as editor JSON; present only when one project is requested. */
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
@@ -93,6 +95,7 @@ data class ProjectResponse(
                 subscribed = view.subscribed,
                 member = view.member,
                 archivedAt = view.archivedAt,
+                openToAll = view.openToAll,
                 content = view.content,
             )
     }
@@ -115,9 +118,12 @@ data class ProjectMemberResponse(
     val displayName: String?,
     val avatarUrl: String?,
     val role: ProjectRole,
+    /** False for someone listed only because the project is open to everyone (D-192). */
+    val direct: Boolean,
 ) {
     companion object {
-        fun from(row: ProjectMemberRow) = ProjectMemberResponse(row.userId, row.loginId, row.displayName, ImageStorage.urlOf(row.avatarKey), row.role)
+        fun from(row: ProjectMemberRow) =
+            ProjectMemberResponse(row.userId, row.loginId, row.displayName, ImageStorage.urlOf(row.avatarKey), row.role, row.direct)
     }
 }
 
@@ -152,6 +158,8 @@ data class ProjectAccessRequestResponse(
 data class CreateProjectRequest(
     val name: String,
     val description: String? = null,
+    /** Opens the project to every member of the workspace from the start (D-192). */
+    val openToAll: Boolean = false,
 )
 
 data class PutProjectMemberRequest(
@@ -184,7 +192,7 @@ class ProjectController(
         @RequestBody body: CreateProjectRequest,
         exchange: ServerWebExchange,
     ): ProjectResponse {
-        val project = projectService.create(user, body.name, body.description, ClientInfo.from(exchange))
+        val project = projectService.create(user, body.name, body.description, body.openToAll, ClientInfo.from(exchange))
         realtime.publish(RealtimeHub.PROJECTS, user.id)
         return ProjectResponse.from(project)
     }
@@ -256,8 +264,9 @@ class ProjectController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable projectId: String,
         @RequestBody body: Map<String, Any?>,
+        exchange: ServerWebExchange,
     ): ProjectResponse {
-        val project = projectService.update(user, projectId, body)
+        val project = projectService.update(user, projectId, body, ClientInfo.from(exchange))
         realtime.publish("project:${project.id}", user.id)
         realtime.publish(RealtimeHub.PROJECTS, user.id)
         return ProjectResponse.from(project)
@@ -361,6 +370,8 @@ data class MemberProjectRoleResponse(
     val projectId: UUID,
     val name: String,
     val role: ProjectRole?,
+    /** Open to every member of the workspace (D-192): they enter without a role of their own. */
+    val openToAll: Boolean,
 )
 
 /**
@@ -402,5 +413,8 @@ class AdminMemberProjectsController(
     @GetMapping("/{memberId}/projects")
     suspend fun projects(
         @PathVariable memberId: UUID,
-    ): List<MemberProjectRoleResponse> = projectService.rolesOf(memberId).map { (project, role) -> MemberProjectRoleResponse(project.id, project.name, role) }
+    ): List<MemberProjectRoleResponse> =
+        projectService.rolesOf(memberId).map { (project, role) ->
+            MemberProjectRoleResponse(project.id, project.name, role, project.openToAll)
+        }
 }

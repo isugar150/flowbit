@@ -47,6 +47,7 @@ export type ContentActivityType =
   | "ICON_CHANGED"
   | "ARCHIVED"
   | "RESTORED"
+  | "ACCESS_CHANGED"
   | "MEMBER_ADDED"
   | "MEMBER_REMOVED"
   | "MEMBER_ROLE_CHANGED"

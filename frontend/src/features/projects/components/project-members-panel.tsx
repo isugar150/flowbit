@@ -29,12 +29,16 @@ function RoleOptions() {
 export function ProjectMembersPanel({
   projectId,
   members: saved,
+  openToAll,
   users,
   canManage,
   currentUserId,
 }: {
   projectId: string;
+  /** The people who were added, not everyone a project open to all lets in. */
   members: ProjectMember[];
+  /** The project is open to every member of the workspace (D-192): the list is not who can enter. */
+  openToAll: boolean;
   /** Everyone who could be added; empty when the viewer cannot manage. */
   users: UserSummary[];
   canManage: boolean;
@@ -68,6 +72,7 @@ export function ProjectMembersPanel({
   return (
     <div className="flex flex-col gap-4">
       {failure ? <FormAlert>{apiErrorMessage(failure)}</FormAlert> : null}
+      {openToAll ? <p className="text-muted-foreground">{m.openMembersNote}</p> : null}
       <ul className="flex flex-col divide-y rounded-xl border">
         {members.map((member) => {
           const name = personName(member);

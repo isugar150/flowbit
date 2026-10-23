@@ -40,6 +40,8 @@ export type MemberProjectRole = {
   projectId: string;
   name: string;
   role: "MANAGER" | "EDITOR" | "VIEWER" | null;
+  /** The project is open to every member of the workspace: they enter as editors without a role (D-192). */
+  openToAll: boolean;
 };
 
 /**

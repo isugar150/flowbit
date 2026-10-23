@@ -2,6 +2,7 @@ package com.flowbit.issue.application
 
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueStatus
+import com.flowbit.project.application.ProjectAccessSql
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Component
@@ -103,9 +104,8 @@ private const val LIST_LIMIT = 1000
  * An issue linked to no project is open to everyone; a linked one follows its project, which must
  * be in use and one the viewer may enter (docs/features/M3-projects-and-issues.md, "독립 티켓").
  */
-private const val VISIBLE =
-    """(i.project_id is null or (p.archived_at is null and (:seesAll or exists(
-           select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = :viewerId))))"""
+private val VISIBLE =
+    "(i.project_id is null or (p.archived_at is null and (:seesAll or ${ProjectAccessSql.mayEnter("i.project_id", ":viewerId")})))"
 
 /** Read side of issues: one query that joins the project, the assignees and the author. */
 @Component
@@ -160,6 +160,7 @@ class IssueQueries(
             .one()
             .awaitSingle()
 
+    /** Whether the person is active and may enter the project: a member of it, or it is open to everyone (D-192). */
     suspend fun isProjectMember(
         projectId: UUID,
         userId: UUID,
@@ -167,8 +168,8 @@ class IssueQueries(
         exists(
             """
             select exists(
-                select 1 from project_members pm join users u on u.id = pm.user_id
-                where pm.project_id = :projectId and pm.user_id = :userId and u.status = 'ACTIVE'
+                select 1 from users u
+                where u.id = :userId and u.status = 'ACTIVE' and ${ProjectAccessSql.mayEnter(":projectId", "u.id")}
             ) as found
             """.trimIndent(),
         ) { it.bind("projectId", projectId).bind("userId", userId) }

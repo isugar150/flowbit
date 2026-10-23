@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,13 @@ import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createProject } from "../api";
 import { createProjectSchema } from "../schema";
+import { OpenToAllField } from "./open-to-all-field";
 
 const m = messages.projects;
 
 type Input = z.input<typeof createProjectSchema>;
 type Values = z.output<typeof createProjectSchema>;
-const DEFAULTS: Input = { name: "" };
+const DEFAULTS: Input = { name: "", openToAll: false };
 
 /** create-project-dialog.tsx looks for the same id when it opens. */
 const PROJECT_NAME_FIELD = "project-name";
@@ -40,6 +41,7 @@ export function CreateProjectForm({ onClose }: { onClose: () => void }) {
     router.push(`/project/${project.id}`);
   });
   const { errors } = form.formState;
+  const openToAll = useWatch({ control: form.control, name: "openToAll" });
 
   // The first time, the dialog is already open when this arrives, after the dialog chose where
   // the cursor goes; put it in the name, which is what the dialog is for.
@@ -84,6 +86,12 @@ export function CreateProjectForm({ onClose }: { onClose: () => void }) {
           />
           {errors.name ? <FieldError>{errors.name.message}</FieldError> : null}
         </Field>
+        <OpenToAllField
+          idPrefix="new-project-access"
+          value={openToAll}
+          onChange={(open) => form.setValue("openToAll", open)}
+          disabled={mutation.isPending}
+        />
       </FieldGroup>
       <DialogFooter>
         <Button type="button" variant="outline" className="max-md:h-11" onClick={onClose}>

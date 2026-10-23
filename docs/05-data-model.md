@@ -129,6 +129,7 @@
 | `projects.lead_id` (`V6`) | `uuid` null FK → `users` (지워지면 null) | 프로젝트 리드 |
 | `projects.start_date`, `target_date` (`V6`) | `date` null | 기간. 둘 다 있으면 `start_date <= target_date` |
 | `projects.labels` (`V6`) | `text[]` | 라벨 이름, 최대 10개. 기본 빈 배열 |
+| `projects.open_to_all` (`V2`, D-192) | `boolean` | 기본 `false`. 켜면 로그인할 수 있는 모든 구성원이 이 프로젝트에 편집 역할로 들어간다(직접 구성원은 그 역할과 편집 중 높은 쪽). 구성원 행은 만들지 않는다 |
 | `projects.icon_key` (`V9`) | `text` null | 올린 프로젝트 아이콘의 저장소 파일 이름(`ImageStorage`). 없으면 기본 아이콘 |
 | `project_members.project_id`, `user_id` | `uuid` | 복합 기본 키. 프로젝트나 사용자가 지워지면 함께 지워진다 |
 | `project_members.role` | `text` | `MANAGER` \| `EDITOR` \| `VIEWER` |

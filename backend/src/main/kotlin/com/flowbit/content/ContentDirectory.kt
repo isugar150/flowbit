@@ -2,6 +2,7 @@ package com.flowbit.content
 
 import com.flowbit.issue.application.IssueActivityStore
 import com.flowbit.issue.application.IssueQueries
+import com.flowbit.project.application.ProjectAccessSql
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.r2dbc.core.DatabaseClient
@@ -134,7 +135,7 @@ class ContentDirectory(
                 from users u
                 join project_subscriptions ps on ps.user_id = u.id and ps.project_id = :projectId
                 where u.status = 'ACTIVE'
-                  and exists (select 1 from project_members pm where pm.project_id = :projectId and pm.user_id = u.id)
+                  and ${ProjectAccessSql.mayEnter(":projectId", "u.id")}
                 order by u.login_id
                 """.trimIndent(),
             ).bind("projectId", projectId)
@@ -149,7 +150,7 @@ class ContentDirectory(
         val projectId = context.projectId
         val reach =
             if (projectId != null) {
-                "and exists (select 1 from project_members pm where pm.project_id = :projectId and pm.user_id = u.id)"
+                "and ${ProjectAccessSql.mayEnter(":projectId", "u.id")}"
             } else {
                 ""
             }
@@ -181,8 +182,8 @@ class ContentDirectory(
                 databaseClient
                     .sql(
                         """
-                        select 1 from project_members pm join users u on u.id = pm.user_id
-                        where pm.project_id = :projectId and pm.user_id = :userId and u.status = 'ACTIVE'
+                        select 1 from users u
+                        where u.id = :userId and u.status = 'ACTIVE' and ${ProjectAccessSql.mayEnter(":projectId", "u.id")}
                         """.trimIndent(),
                     ).bind("projectId", projectId)
             } else {

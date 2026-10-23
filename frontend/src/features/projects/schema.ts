@@ -7,6 +7,6 @@ const m = messages.projects;
 
 const name = z.string().trim().min(1, m.nameRequired).max(80, m.nameTooLong);
 
-export const createProjectSchema = z.object({ name });
+export const createProjectSchema = z.object({ name, openToAll: z.boolean() });
 
 export const projectNameSchema = z.object({ name });

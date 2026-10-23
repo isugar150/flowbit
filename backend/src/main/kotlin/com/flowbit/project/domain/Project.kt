@@ -22,6 +22,15 @@ enum class ProjectRole {
         get() = this == MANAGER
 }
 
+/**
+ * What a person may do in a project: the role they were added with, raised to editor while the
+ * project is open to every member of the workspace (D-192). Null means they may not enter.
+ */
+fun effectiveProjectRole(
+    memberRole: ProjectRole?,
+    openToAll: Boolean,
+): ProjectRole? = if (openToAll) maxOf(memberRole ?: ProjectRole.EDITOR, ProjectRole.EDITOR) else memberRole
+
 /** Where a project stands, in the order it moves through. */
 enum class ProjectStatus {
     BACKLOG,
@@ -58,7 +67,12 @@ class Project(
     var archivedAt: Instant?,
     val createdAt: Instant,
     var updatedAt: Instant,
+    /** Every member of the workspace enters the project as an editor, with no row in `project_members` (D-192). */
+    var openToAll: Boolean = false,
 ) {
+    /** What the person may do here, given the role they were added with (null: not added). */
+    fun roleOf(memberRole: ProjectRole?): ProjectRole? = effectiveProjectRole(memberRole, openToAll)
+
     companion object {
         const val NAME_MAX_LENGTH = 80
         const val DESCRIPTION_MAX_LENGTH = 500
@@ -82,6 +96,14 @@ interface ProjectRepository : CoroutineCrudRepository<Project, UUID> {
     suspend fun updateArchivedAt(
         id: UUID,
         archivedAt: Instant?,
+        now: Instant,
+    ): Int
+
+    @Modifying
+    @Query("update projects set open_to_all = :openToAll, updated_at = :now where id = :id")
+    suspend fun updateOpenToAll(
+        id: UUID,
+        openToAll: Boolean,
         now: Instant,
     ): Int
 

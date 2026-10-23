@@ -263,6 +263,111 @@ class ProjectsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `모든 구성원에게 연 프로젝트에는 추가되지 않았어도 편집 역할로 들어가고 나중에 가입한 사람도 들어간다`() {
+        createProject("PAY")
+        val base = "/api/v1/projects/${p("PAY")}"
+        assertEquals(false, owner.get(base).json()["openToAll"])
+        assertEquals(404, outsider.get(base).status)
+
+        val opened = owner.patch(base, """{"openToAll":true}""")
+        assertEquals(200, opened.status)
+        assertEquals(true, opened.json()["openToAll"])
+
+        // Not added, yet in, as an editor: the project is theirs to read and write.
+        val seen = outsider.get(base)
+        assertEquals(200, seen.status)
+        assertEquals("EDITOR", seen.json()["myRole"])
+        assertEquals(false, seen.json()["member"])
+        assertEquals("EDITOR", outsider.get("/api/v1/projects").jsonList().single()["myRole"])
+        assertEquals(201, outsider.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"모두의 티켓"}""").status)
+        assertEquals(200, outsider.patch(base, """{"description":"함께 고친 설명"}""").status)
+        assertEquals(listOf("모두의 티켓"), owner.get("/api/v1/issues").jsonList().map { it["title"] })
+
+        // Managing stays with the managers.
+        assertEquals(403, outsider.patch(base, """{"name":"바꾸기"}""").status)
+        assertEquals(403, outsider.patch(base, """{"openToAll":false}""").status)
+        assertEquals(403, outsider.put("$base/members/$outsiderId", """{"role":"MANAGER"}""").status)
+        assertEquals(403, outsider.post("$base/archive", "{}").status)
+        // Nothing to ask for: they are in already.
+        assertEquals(409, outsider.post("$base/access-requests").status)
+
+        // Whoever signs up later is let in without anyone adding them.
+        createMember("newcomer")
+        val newcomer = client().also { it.login("newcomer", PASSWORD) }
+        assertEquals("EDITOR", newcomer.get(base).json()["myRole"])
+
+        // Everyone active is a person of the project, the added ones marked.
+        val people = owner.get("$base/members").jsonList()
+        assertEquals(listOf("owner", "admin", "newcomer", "outsider"), people.map { it["loginId"] })
+        assertEquals(listOf(true, false, false, false), people.map { it["direct"] })
+        assertEquals(listOf("MANAGER", "EDITOR", "EDITOR", "EDITOR"), people.map { it["role"] })
+        assertEquals(4, owner.get(base).json()["memberCount"])
+        assertEquals(listOf("PAY 프로젝트"), admin.get("/api/v1/admin/members/$ownerId/projects").jsonList().map { it["name"] })
+        assertEquals(true, admin.get("/api/v1/admin/members/$outsiderId/projects").jsonList().single()["openToAll"])
+
+        // Closed again, only the people who were added are left.
+        assertEquals(false, owner.patch(base, """{"openToAll":false}""").json()["openToAll"])
+        assertEquals(404, outsider.get(base).status)
+        assertEquals(404, newcomer.get(base).status)
+        assertEquals(listOf("owner"), owner.get("$base/members").jsonList().map { it["loginId"] })
+        assertEquals(1, owner.get(base).json()["memberCount"])
+    }
+
+    @Test
+    fun `프로젝트를 열면 보기 역할도 편집이 되고 대기 중이던 접근 요청이 지워진다`() {
+        createProject("PAY")
+        val base = "/api/v1/projects/${p("PAY")}"
+        createMember("third")
+        val third = client().also { it.login("third", PASSWORD) }
+        owner.put("$base/members/$outsiderId", """{"role":"VIEWER"}""")
+        assertEquals(200, third.post("$base/access-requests").status)
+        assertEquals(listOf("third"), owner.get("$base/access-requests").jsonList().map { it["loginId"] })
+        assertEquals(403, outsider.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"읽기만"}""").status)
+
+        owner.patch(base, """{"openToAll":true}""")
+
+        assertEquals(emptyList(), owner.get("$base/access-requests").jsonList())
+        assertEquals("EDITOR", outsider.get(base).json()["myRole"])
+        assertEquals(201, outsider.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"이제 쓴다"}""").status)
+        // The added person is still listed with the role they were given, to be changed or kept.
+        val added = owner.get("$base/members").jsonList().first { it["loginId"] == "outsider" }
+        assertEquals("VIEWER", added["role"])
+        assertEquals(true, added["direct"])
+        // The managers still have to be added: the last one cannot step down.
+        assertEquals(409, owner.delete("$base/members/$ownerId").status)
+
+        owner.patch(base, """{"openToAll":false}""")
+        assertEquals("VIEWER", outsider.get(base).json()["myRole"])
+        assertEquals(404, third.get(base).status)
+        // Their request was answered by the opening, so they ask again like anyone.
+        assertEquals(200, third.post("$base/access-requests").status)
+    }
+
+    @Test
+    fun `프로젝트를 만들 때 열 수 있고 열린 프로젝트의 티켓은 목록과 검색과 담당자 지정에 모두에게 같다`() {
+        val created = owner.post("/api/v1/projects", """{"name":"공개 프로젝트","openToAll":true}""")
+        assertEquals(201, created.status)
+        assertEquals(true, created.json()["openToAll"])
+        remember("OPEN", created.json()["id"])
+        val base = "/api/v1/projects/${p("OPEN")}"
+
+        val issue = owner.post("$base/issues", """{"title":"열린 정산 티켓","assigneeIds":["$outsiderId"]}""")
+        assertEquals(201, issue.status)
+
+        assertEquals(listOf("열린 정산 티켓"), outsider.get("/api/v1/issues").jsonList().map { it["title"] })
+        @Suppress("UNCHECKED_CAST")
+        val hits = outsider.get("/api/v1/search?q=${java.net.URLEncoder.encode("정산", Charsets.UTF_8)}").json()["issues"] as List<Map<String, Any?>>
+        assertEquals(listOf("열린 정산 티켓"), hits.map { it["title"] })
+        @Suppress("UNCHECKED_CAST")
+        val projects = outsider.get("/api/v1/search?q=${java.net.URLEncoder.encode("공개", Charsets.UTF_8)}").json()["projects"] as List<Map<String, Any?>>
+        assertEquals(listOf("공개 프로젝트"), projects.map { it["name"] })
+
+        assertEquals(422, owner.patch(base, """{"openToAll":"yes"}""").status)
+        assertEquals(false, owner.patch(base, """{"openToAll":false}""").json()["openToAll"])
+        assertEquals(emptyList(), outsider.get("/api/v1/issues").jsonList())
+    }
+
+    @Test
     fun `로그인하지 않으면 프로젝트를 볼 수 없다`() {
         createProject("PAY")
 

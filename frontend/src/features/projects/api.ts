@@ -1,11 +1,11 @@
 import { apiFetch, fileForm } from "@/lib/api/client";
 import type { Project, ProjectChanges, ProjectEntry, ProjectHealth, ProjectMember, ProjectRole, ProjectUpdate } from "./types";
 
-export function createProject(input: { name: string }): Promise<Project> {
+export function createProject(input: { name: string; openToAll?: boolean }): Promise<Project> {
   return apiFetch<Project>("/api/v1/projects", { method: "POST", body: input });
 }
 
-/** Only the fields present are changed. Renaming needs the manager role; the rest needs edit. */
+/** Only the fields present are changed. Renaming and opening the project to everyone need the manager role; the rest needs edit. */
 export function updateProject(input: { id: string; changes: ProjectChanges }): Promise<Project> {
   return apiFetch<Project>(`/api/v1/projects/${input.id}`, { method: "PATCH", body: input.changes });
 }

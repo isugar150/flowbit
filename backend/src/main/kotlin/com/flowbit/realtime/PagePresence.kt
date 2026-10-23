@@ -7,6 +7,7 @@ import com.flowbit.content.ContentTarget
 import com.flowbit.content.ContentTargetType
 import com.flowbit.issue.application.IssueService
 import com.flowbit.media.application.ImageStorage
+import com.flowbit.project.application.ProjectAccessSql
 import com.flowbit.project.application.ProjectService
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -93,7 +94,7 @@ class PagePresence(
             if (projectId == null) {
                 "true"
             } else {
-                "(v.user_id is not null or exists(select 1 from project_members pm where pm.project_id = :projectId and pm.user_id = u.id))"
+                "(v.user_id is not null or ${ProjectAccessSql.mayEnter(":projectId", "u.id")})"
             }
         return databaseClient
             .sql(

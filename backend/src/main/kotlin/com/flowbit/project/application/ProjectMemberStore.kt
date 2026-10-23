@@ -41,6 +41,8 @@ data class ProjectSummaryRow(
     val subscribed: Boolean,
     /** When the project was archived; null for a project in use. */
     val archivedAt: Instant? = null,
+    /** Whether every member of the workspace enters the project as an editor (D-192). */
+    val openToAll: Boolean = false,
 )
 
 data class ProjectPerson(
@@ -75,6 +77,8 @@ data class ProjectMemberRow(
     val displayName: String?,
     val avatarKey: String?,
     val role: ProjectRole,
+    /** False for someone who is in the list only because the project is open to everyone (D-192): no `project_members` row. */
+    val direct: Boolean = true,
 )
 
 /**
@@ -203,6 +207,16 @@ class ProjectMemberStore(
             .rowsUpdated()
             .awaitSingle() > 0
 
+    /** Drops every waiting request: opening the project to everyone answers them all (D-192). */
+    suspend fun removeAccessRequests(projectId: UUID) {
+        databaseClient
+            .sql("delete from project_access_requests where project_id = :projectId")
+            .bind("projectId", projectId)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
     /** Following twice is the same as once. */
     suspend fun subscribe(
         projectId: UUID,
@@ -230,7 +244,10 @@ class ProjectMemberStore(
             .awaitSingle()
     }
 
-    /** Whether the user is an active member of the project (the only people who can lead it). */
+    /**
+     * Whether the user is active and belongs to the project: added to it, or it is open to everyone
+     * (D-192). These are the people who can lead it or be given its issues.
+     */
     suspend fun isActiveMember(
         projectId: UUID,
         userId: UUID,
@@ -239,8 +256,8 @@ class ProjectMemberStore(
             .sql(
                 """
                 select exists(
-                    select 1 from project_members pm join users u on u.id = pm.user_id
-                    where pm.project_id = :projectId and pm.user_id = :userId and u.status = 'ACTIVE'
+                    select 1 from users u
+                    where u.id = :userId and u.status = 'ACTIVE' and ${ProjectAccessSql.mayEnter(":projectId", "u.id")}
                 ) as member
                 """.trimIndent(),
             ).bind("projectId", projectId)
@@ -296,15 +313,20 @@ class ProjectMemberStore(
     /**
      * The people of a project. Someone whose account is disabled is not listed (they cannot sign in, so they cannot be
      * tagged or given an issue, and they would only be in the way); they stay members and come back when enabled again.
+     * While the project is open to everyone (D-192) every active person is listed: the ones who were not added
+     * have the editor role and are not `direct`.
      */
     suspend fun members(projectId: UUID): List<ProjectMemberRow> =
         databaseClient
             .sql(
                 """
-                select u.id, u.login_id, u.display_name, u.avatar_key, pm.role
-                from project_members pm join users u on u.id = pm.user_id
-                where pm.project_id = :projectId and u.status = 'ACTIVE'
-                order by case pm.role when 'MANAGER' then 0 when 'EDITOR' then 1 else 2 end,
+                select u.id, u.login_id, u.display_name, u.avatar_key, coalesce(pm.role, 'EDITOR') as role,
+                       pm.user_id is not null as is_direct
+                from projects p
+                join users u on u.status = 'ACTIVE'
+                left join project_members pm on pm.project_id = p.id and pm.user_id = u.id
+                where p.id = :projectId and (pm.user_id is not null or p.open_to_all)
+                order by case coalesce(pm.role, 'EDITOR') when 'MANAGER' then 0 when 'EDITOR' then 1 else 2 end,
                          lower(coalesce(u.display_name, u.login_id))
                 """.trimIndent(),
             ).bind("projectId", projectId)
@@ -315,6 +337,7 @@ class ProjectMemberStore(
                     displayName = row.get("display_name", String::class.java),
                     avatarKey = row.get("avatar_key", String::class.java),
                     role = role(row, "role"),
+                    direct = checkNotNull(row.get("is_direct", Boolean::class.javaObjectType)),
                 )
             }.all()
             .collectList()
@@ -345,8 +368,10 @@ class ProjectMemberStore(
             databaseClient
                 .sql(
                     """
-                    select p.id, p.name, p.description, p.icon_key, p.created_at, p.archived_at, pm.role as member_role,
-                           (select count(*) from project_members m join users mu on mu.id = m.user_id where m.project_id = p.id and mu.status = 'ACTIVE') as member_count,
+                    select p.id, p.name, p.description, p.icon_key, p.created_at, p.archived_at, p.open_to_all, pm.role as member_role,
+                           case when p.open_to_all then (select count(*) from users au where au.status = 'ACTIVE')
+                                else (select count(*) from project_members m join users mu on mu.id = m.user_id where m.project_id = p.id and mu.status = 'ACTIVE')
+                           end as member_count,
                            p.status, p.priority, p.start_date, p.target_date, p.labels,
                            l.id as lead_id, l.login_id as lead_login_id,
                            l.display_name as lead_display_name, l.avatar_key as lead_avatar_key,
@@ -399,6 +424,7 @@ class ProjectMemberStore(
                     healthUpdatedAt = row.get("health_updated_at", OffsetDateTime::class.java)?.toInstant(),
                     subscribed = checkNotNull(row.get("subscribed", Boolean::class.javaObjectType)),
                     archivedAt = row.get("archived_at", OffsetDateTime::class.java)?.toInstant(),
+                    openToAll = checkNotNull(row.get("open_to_all", Boolean::class.javaObjectType)),
                 )
             }.all()
             .collectList()

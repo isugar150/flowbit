@@ -38,6 +38,7 @@ export function createDemo(): Demo {
     displayName: name,
     avatarUrl: null,
     role: index === 0 ? "MANAGER" : "EDITOR",
+    direct: true,
   }));
   const person = (index: number) => {
     const { userId, loginId, displayName, avatarUrl } = members[index];
@@ -68,6 +69,7 @@ export function createDemo(): Demo {
     subscribed: false,
     member: true,
     archivedAt: null,
+    openToAll: false,
     content: null,
   };
   const issue = (number: number, fields: Partial<Issue>): Issue => ({

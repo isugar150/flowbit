@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArchiveIcon, LockIcon } from "lucide-react";
+import { ArchiveIcon, GlobeIcon, LockIcon } from "lucide-react";
 import { DueDate, TimeAgo } from "@/components/dates";
 import { PersonAvatar, personName } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
@@ -99,11 +99,17 @@ function ProjectRow({ project, archived }: { project: ProjectSummary; archived: 
           ) : (
             <Link
               href={locked ? `/no-access/${project.id}` : `/project/${project.id}`}
-              title={locked ? m.locked : undefined}
+              title={locked ? m.locked : project.openToAll ? m.openBadge : undefined}
               className="min-w-0 truncate font-medium outline-none after:absolute after:inset-0"
             >
               {project.name}
               {locked ? <span className="sr-only"> ({m.locked})</span> : null}
+              {project.openToAll ? (
+                <>
+                  <GlobeIcon className="ml-1.5 inline-block size-3.5 align-[-2px] text-muted-foreground" aria-hidden="true" />
+                  <span className="sr-only"> ({m.openBadge})</span>
+                </>
+              ) : null}
             </Link>
           )}
         </div>

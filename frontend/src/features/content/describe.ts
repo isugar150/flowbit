@@ -41,6 +41,8 @@ export function describeContent(item: ContentActivityItem): Described {
       return { action: m.archived };
     case "RESTORED":
       return { action: m.restored };
+    case "ACCESS_CHANGED":
+      return { action: item.detail.open === true ? m.accessOpened : m.accessClosed };
     case "MEMBER_ADDED":
       return { action: m.memberAdded, change: `${text(item.detail.name)} (${role(item.detail.role)})` };
     case "MEMBER_REMOVED":

@@ -1,5 +1,6 @@
 package com.flowbit.issue.application
 
+import com.flowbit.project.application.ProjectAccessSql
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.r2dbc.core.DatabaseClient
@@ -305,7 +306,7 @@ class IssueActivityStore(
                        or exists (
                            select 1 from issues i join project_subscriptions ps on ps.project_id = i.project_id
                            where i.id = :issueId and ps.user_id = u.id
-                             and exists (select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = u.id)
+                             and ${ProjectAccessSql.mayEnter("i.project_id", "u.id")}
                        ))
                 order by u.login_id
                 """.trimIndent(),

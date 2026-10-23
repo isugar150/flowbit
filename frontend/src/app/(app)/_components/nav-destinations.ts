@@ -16,7 +16,7 @@ export function isCurrentPath(pathname: string, href: string, exact = false): bo
 
 /** "내 프로젝트" lists the ones this person can enter; the rest are on the all-projects page. */
 export function enterableProjects(projects: ProjectSummary[]): ProjectSummary[] {
-  // Only the ones the person was added to: a workspace administrator may enter every project, but
-  // the rest are reached through 전체 프로젝트 (the user's call, 2026-10-15).
-  return projects.filter((project) => project.member);
+  // The ones the person was added to and the ones open to every member (D-192). A project they cannot
+  // enter is reached through 전체 프로젝트 only.
+  return projects.filter((project) => project.myRole !== null);
 }

@@ -69,6 +69,9 @@ object ContentEventType {
     const val ICON_CHANGED = "ICON_CHANGED"
     const val ARCHIVED = "ARCHIVED"
     const val RESTORED = "RESTORED"
+
+    /** The project was opened to every member of the workspace, or closed again (D-192). */
+    const val ACCESS_CHANGED = "ACCESS_CHANGED"
     const val MEMBER_ADDED = "MEMBER_ADDED"
     const val MEMBER_REMOVED = "MEMBER_REMOVED"
     const val MEMBER_ROLE_CHANGED = "MEMBER_ROLE_CHANGED"
@@ -85,7 +88,7 @@ object ContentEventType {
     val TALK = setOf(COMMENT_ADDED, THREAD_COMMENT)
 
     /** Kept in the activity but never told: changes the people who follow a project do not need a message for. */
-    val SILENT = setOf(MEMBER_ADDED, MEMBER_REMOVED, MEMBER_ROLE_CHANGED, ICON_CHANGED, ARCHIVED, RESTORED)
+    val SILENT = setOf(MEMBER_ADDED, MEMBER_REMOVED, MEMBER_ROLE_CHANGED, ICON_CHANGED, ARCHIVED, RESTORED, ACCESS_CHANGED)
 
     /** Typing is saved every few seconds: the same person's next edit of these extends the latest entry. */
     val MERGED = setOf(CONTENT_EDITED, NAME_CHANGED)

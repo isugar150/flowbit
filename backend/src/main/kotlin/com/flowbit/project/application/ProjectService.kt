@@ -26,6 +26,7 @@ import com.flowbit.project.domain.ProjectPriority
 import com.flowbit.project.domain.ProjectRepository
 import com.flowbit.project.domain.ProjectRole
 import com.flowbit.project.domain.ProjectStatus
+import com.flowbit.project.domain.effectiveProjectRole
 import com.flowbit.user.application.UserService
 import com.flowbit.user.domain.UserRole
 import kotlinx.coroutines.flow.toList
@@ -73,6 +74,8 @@ data class ProjectView(
     val member: Boolean = false,
     /** When the project was archived; null for a project in use. */
     val archivedAt: Instant? = null,
+    /** Whether every member of the workspace enters the project as an editor (D-192). */
+    val openToAll: Boolean = false,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
     val content: String? = null,
 )
@@ -96,8 +99,8 @@ data class AccessRequestResult(
 
 /**
  * Projects and who may enter them. Every method takes the acting user and decides access itself.
- * Everyone sees every project in the list (D-047), but only members (and workspace administrators)
- * may enter one; to anyone else its data answers "not found".
+ * Everyone sees every project in the list (D-047), but only members may enter one, unless the
+ * project is open to everyone (D-192); to anyone else its data answers "not found".
  */
 @Service
 class ProjectService(
@@ -113,13 +116,13 @@ class ProjectService(
     private val clock: Clock,
 ) {
     /** Every active project; `myRole` is null for those the user may not enter. */
-    suspend fun list(user: AuthenticatedUser): List<ProjectView> = memberStore.projectsVisibleTo(user.id, includeAll = true).map { view(it, user) }
+    suspend fun list(user: AuthenticatedUser): List<ProjectView> = memberStore.projectsVisibleTo(user.id, includeAll = true).map(::view)
 
     /**
      * The archived projects, for looking up what was put away. Like the list of active ones,
      * everyone sees them all; `myRole` says who may restore one.
      */
-    suspend fun listArchived(user: AuthenticatedUser): List<ProjectView> = memberStore.archivedProjects(user.id).map { view(it, user) }
+    suspend fun listArchived(user: AuthenticatedUser): List<ProjectView> = memberStore.archivedProjects(user.id).map(::view)
 
     /**
      * Puts a project away: it leaves the lists and the sidebar, its issues leave the issue lists,
@@ -152,7 +155,7 @@ class ProjectService(
                 ?.let { repository.findById(it) }
                 ?.takeIf { it.archivedAt != null }
                 ?: throw notFound()
-        val role = effectiveRole(memberStore.roleOf(project.id, user.id), user)
+        val role = project.roleOf(memberStore.roleOf(project.id, user.id))
         if (role?.canManage != true) throw ForbiddenException("프로젝트를 관리할 권한이 없습니다")
         val now = clock.instant()
         repository.updateArchivedAt(project.id, null, now)
@@ -167,7 +170,7 @@ class ProjectService(
         projectId: String,
     ): ProjectEntry {
         val project = findActive(projectId) ?: throw notFound()
-        val role = effectiveRole(memberStore.roleOf(project.id, user.id), user)
+        val role = project.roleOf(memberStore.roleOf(project.id, user.id))
         val managers = memberStore.members(project.id).filter { it.role == ProjectRole.MANAGER }
         val requestedAt = if (role == null) memberStore.accessRequestedAt(project.id, user.id) else null
         return ProjectEntry(project.id, project.name, role, managers, requestedAt)
@@ -184,7 +187,7 @@ class ProjectService(
         projectId: String,
     ): AccessRequestResult {
         val project = findActive(projectId) ?: throw notFound()
-        if (effectiveRole(memberStore.roleOf(project.id, user.id), user) != null) {
+        if (project.roleOf(memberStore.roleOf(project.id, user.id)) != null) {
             throw ConflictException("ALREADY_MEMBER", "이미 이 프로젝트의 구성원입니다")
         }
         val added = memberStore.requestAccess(project.id, user.id, clock.instant())
@@ -251,6 +254,7 @@ class ProjectService(
         user: AuthenticatedUser,
         rawName: String,
         rawDescription: String?,
+        openToAll: Boolean,
         client: ClientInfo,
     ): ProjectView {
         val name = rawName.trim()
@@ -259,29 +263,37 @@ class ProjectService(
         if (errors.isNotEmpty()) throw ValidationException(errors)
 
         val now = clock.instant()
-        val project = Project(UuidV7.generate(now), name, description, user.id, null, now, now)
+        val project = Project(UuidV7.generate(now), name, description, user.id, null, now, now, openToAll)
         entityTemplate.insert(project).awaitSingle()
         memberStore.put(project.id, user.id, ProjectRole.MANAGER, now)
         auditService.record(AuditEventType.PROJECT_CREATED, user.id, client, mapOf("projectId" to project.id.toString()))
-        return view(memberStore.summary(project.id, user.id), user)
+        return view(memberStore.summary(project.id, user.id))
     }
 
     /**
      * Changes the fields present in `changes`. Renaming needs the manager role; the summary
      * (`description`), the overview document (`content`) and the properties (`status`, `priority`,
-     * `leadId`, `startDate`, `targetDate`, `labels`) can be written by anyone who may edit.
+     * `leadId`, `startDate`, `targetDate`, `labels`) can be written by anyone who may edit. Who may
+     * enter the project (`openToAll`, D-192) is the manager's to decide, like the name.
      */
     @Transactional
     suspend fun update(
         user: AuthenticatedUser,
         projectId: String,
         changes: Map<String, Any?>,
+        client: ClientInfo,
     ): ProjectView {
         val access = access(user, projectId)
         val project = access.project
-        if (!access.role.canEdit || ("name" in changes && !access.role.canManage)) {
+        if (!access.role.canEdit || (("name" in changes || "openToAll" in changes) && !access.role.canManage)) {
             throw ForbiddenException("프로젝트를 수정할 권한이 없습니다")
         }
+        val openToAll =
+            if ("openToAll" in changes) {
+                changes["openToAll"] as? Boolean ?: throw ValidationException("openToAll", "INVALID", "값이 올바르지 않습니다")
+            } else {
+                project.openToAll
+            }
         val name = if ("name" in changes) (changes["name"] as? String)?.trim().orEmpty() else project.name
         val description =
             if ("description" in changes) (changes["description"] as? String)?.trim().orEmpty() else project.description
@@ -297,8 +309,38 @@ class ProjectService(
         repository.updateDetails(project.id, name, description, now)
         if (PROPERTY_FIELDS.any { it in changes }) memberStore.updateProperties(project.id, properties, now)
         if ("content" in changes) richText.store(RichText.ContentTable.PROJECTS, project.id, document)
-        contentLog.record(projectTarget(project.id), user.id, activityOf(project.name, name, current, properties, contentChanged), now)
+        val accessEvents = changeAccess(project, openToAll, user, client, now)
+        contentLog.record(
+            projectTarget(project.id),
+            user.id,
+            activityOf(project.name, name, current, properties, contentChanged) + accessEvents,
+            now,
+        )
         return detail(project.id, user)
+    }
+
+    /**
+     * Opens the project to every member of the workspace, or closes it again (D-192). Opening answers the
+     * requests that were waiting to be let in. Nothing happens, and nothing is recorded, when the setting
+     * is already what it should be.
+     */
+    private suspend fun changeAccess(
+        project: Project,
+        openToAll: Boolean,
+        user: AuthenticatedUser,
+        client: ClientInfo,
+        now: Instant,
+    ): List<ContentEvent> {
+        if (openToAll == project.openToAll) return emptyList()
+        repository.updateOpenToAll(project.id, openToAll, now)
+        if (openToAll) memberStore.removeAccessRequests(project.id)
+        auditService.record(
+            AuditEventType.PROJECT_ACCESS_CHANGED,
+            user.id,
+            client,
+            mapOf("projectId" to project.id.toString(), "openToAll" to openToAll.toString()),
+        )
+        return listOf(ContentEvent(ContentEventType.ACCESS_CHANGED, mapOf("open" to openToAll)))
     }
 
     private fun projectTarget(projectId: UUID) = ContentTarget(ContentTargetType.PROJECT, projectId)
@@ -419,7 +461,7 @@ class ProjectService(
     private suspend fun detail(
         projectId: UUID,
         user: AuthenticatedUser,
-    ): ProjectView = view(memberStore.summary(projectId, user.id), user).copy(content = richText.load(RichText.ContentTable.PROJECTS, projectId))
+    ): ProjectView = view(memberStore.summary(projectId, user.id)).copy(content = richText.load(RichText.ContentTable.PROJECTS, projectId))
 
     /** Replaces the project icon with the upload, converted to a 256px square WebP. The upload itself is kept too. Managers only. */
     suspend fun replaceIcon(
@@ -556,7 +598,7 @@ class ProjectService(
         projectId: String,
     ): ProjectAccess {
         val project = findActive(projectId) ?: throw notFound()
-        val role = effectiveRole(memberStore.roleOf(project.id, user.id), user) ?: throw notFound()
+        val role = project.roleOf(memberStore.roleOf(project.id, user.id)) ?: throw notFound()
         return ProjectAccess(project, role)
     }
 
@@ -573,7 +615,7 @@ class ProjectService(
         projectId: UUID,
     ): ProjectAccess? {
         val project = repository.findById(projectId)?.takeIf { it.archivedAt == null } ?: return null
-        val role = effectiveRole(memberStore.roleOf(project.id, user.id), user) ?: return null
+        val role = project.roleOf(memberStore.roleOf(project.id, user.id)) ?: return null
         return ProjectAccess(project, role)
     }
 
@@ -597,41 +639,30 @@ class ProjectService(
         }
     }
 
-    private fun view(
-        row: ProjectSummaryRow,
-        user: AuthenticatedUser,
-    ) = ProjectView(
-        id = row.id,
-        name = row.name,
-        description = row.description,
-        iconKey = row.iconKey,
-        myRole = effectiveRole(row.memberRole, user),
-        memberCount = row.memberCount,
-        createdAt = row.createdAt,
-        status = row.status,
-        priority = row.priority,
-        lead = row.lead,
-        startDate = row.startDate,
-        targetDate = row.targetDate,
-        labels = row.labels,
-        issueCount = row.issueCount,
-        doneCount = row.doneCount,
-        health = row.health,
-        healthUpdatedAt = row.healthUpdatedAt,
-        subscribed = row.subscribed,
-        member = row.memberRole != null,
-        archivedAt = row.archivedAt,
-    )
-
-    /**
-     * What the person may do in a project: their role as a member, nothing more. A workspace
-     * administrator enters only the projects they were added to, like anyone else (D-131).
-     */
-    @Suppress("UNUSED_PARAMETER")
-    private fun effectiveRole(
-        memberRole: ProjectRole?,
-        user: AuthenticatedUser,
-    ): ProjectRole? = memberRole
+    private fun view(row: ProjectSummaryRow) =
+        ProjectView(
+            id = row.id,
+            name = row.name,
+            description = row.description,
+            iconKey = row.iconKey,
+            myRole = effectiveProjectRole(row.memberRole, row.openToAll),
+            memberCount = row.memberCount,
+            createdAt = row.createdAt,
+            status = row.status,
+            priority = row.priority,
+            lead = row.lead,
+            startDate = row.startDate,
+            targetDate = row.targetDate,
+            labels = row.labels,
+            issueCount = row.issueCount,
+            doneCount = row.doneCount,
+            health = row.health,
+            healthUpdatedAt = row.healthUpdatedAt,
+            subscribed = row.subscribed,
+            member = row.memberRole != null,
+            archivedAt = row.archivedAt,
+            openToAll = row.openToAll,
+        )
 
     private fun detailErrors(
         name: String,

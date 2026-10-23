@@ -4,6 +4,7 @@ import com.flowbit.common.error.ValidationException
 import com.flowbit.instance.application.InstanceService
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueStatus
+import com.flowbit.project.application.ProjectAccessSql
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Service
@@ -241,10 +242,9 @@ class SearchService(
             left join projects ip on ip.id = i.project_id
             left join projects p on p.id = d.project_id
             where (
-                (d.issue_id is not null and i.deleted_at is null and (i.project_id is null or (ip.archived_at is null and exists(
-                    select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = :viewerId))))
-                or (d.project_id is not null and p.archived_at is null and exists(
-                    select 1 from project_members pm where pm.project_id = d.project_id and pm.user_id = :viewerId))
+                (d.issue_id is not null and i.deleted_at is null and (i.project_id is null or (ip.archived_at is null and
+                    ${ProjectAccessSql.mayEnter("i.project_id", ":viewerId")})))
+                or (d.project_id is not null and p.archived_at is null and ${ProjectAccessSql.mayEnter("d.project_id", ":viewerId")})
             )
               and $termConditions
             order by title_hit desc, d.updated_at desc
@@ -293,7 +293,7 @@ class SearchService(
             from projects p
             cross join lateral (${textOf("p")}) b
             where p.archived_at is null
-              and exists (select 1 from project_members pm where pm.project_id = p.id and pm.user_id = :viewerId)
+              and ${ProjectAccessSql.mayEnter("p.id", ":viewerId")}
               and $termConditions
             order by title_hit desc, p.updated_at desc
             limit $limit
@@ -356,9 +356,8 @@ class SearchService(
         private val WHITESPACE = Regex("\\s+")
 
         /** The same rule as the issue lists (IssueQueries): no project, or a project in use the viewer is a member of (D-131). */
-        private const val VISIBLE_ISSUE =
-            """(i.project_id is null or (p.archived_at is null and exists(
-                   select 1 from project_members pm where pm.project_id = i.project_id and pm.user_id = :viewerId)))"""
+        private val VISIBLE_ISSUE =
+            "(i.project_id is null or (p.archived_at is null and ${ProjectAccessSql.mayEnter("i.project_id", ":viewerId")}))"
 
         /**
          * The words written in the editor of `alias.content`, two ways: `body` has a space between the

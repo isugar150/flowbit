@@ -91,8 +91,15 @@ export function MemberProjectRoles({ memberId }: { memberId: string }) {
             key={project.projectId}
             className="flex items-center justify-between gap-3 py-1.5 pr-1.5 pl-3"
           >
-            <span className="min-w-0 truncate text-[0.8125rem] leading-5">
-              {project.name}
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-[0.8125rem] leading-5">
+                {project.name}
+              </span>
+              {project.openToAll ? (
+                <span className="truncate text-xs leading-4 text-muted-foreground">
+                  {m.projectOpen}
+                </span>
+              ) : null}
             </span>
             <NativeSelect
               size="sm"

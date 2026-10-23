@@ -101,6 +101,7 @@ class NotificationText(
             "ICON_CHANGED" -> "아이콘을 바꿨습니다"
             "ARCHIVED" -> "프로젝트를 보관했습니다"
             "RESTORED" -> "프로젝트를 복원했습니다"
+            "ACCESS_CHANGED" -> if (detail["open"] == true) "프로젝트를 모든 구성원에게 열었습니다" else "프로젝트를 지정한 구성원에게만 열도록 바꿨습니다"
             "MEMBER_ADDED" -> "구성원 추가: ${detail["name"]}"
             "MEMBER_REMOVED" -> "구성원 제거: ${detail["name"]}"
             "MEMBER_ROLE_CHANGED" -> "구성원 역할: ${detail["name"]}"
