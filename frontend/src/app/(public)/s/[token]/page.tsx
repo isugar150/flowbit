@@ -5,7 +5,7 @@ import { messages } from "@/messages";
 
 // A shared page is for the people who were given its address: search engines are told to keep out.
 export const metadata: Metadata = {
-  title: messages.share.page.calendarLabel,
+  title: messages.share.page.title,
   robots: { index: false, follow: false },
 };
 

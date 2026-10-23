@@ -1056,8 +1056,28 @@ export const ko = {
   },
   share: {
     button: "공유하기",
-    title: "캘린더 공유",
-    description: "링크를 아는 사람은 누구나 로그인하지 않고 이 달의 티켓 제목·상태·기간을 볼 수 있습니다. 담당자와 본문, 댓글은 보이지 않습니다.",
+    // What differs between the kinds of page that can be shared (features/share).
+    kinds: {
+      MY_ISSUES_CALENDAR: {
+        title: "캘린더 공유",
+        label: "캘린더",
+        description: "링크를 아는 사람은 누구나 로그인하지 않고 이 달의 티켓 제목·상태·기간을 볼 수 있습니다. 담당자와 본문, 댓글은 보이지 않습니다.",
+      },
+      MY_ISSUES_TIMELINE: {
+        title: "타임라인 공유",
+        label: "타임라인",
+        description:
+          "링크를 아는 사람은 누구나 로그인하지 않고 고른 기간에 걸친 티켓의 제목·상태·기간과 프로젝트 이름을 볼 수 있습니다. 담당자와 본문, 댓글은 보이지 않습니다.",
+      },
+    },
+    range: {
+      from: "시작 월",
+      to: "끝 월",
+      hint: (months: number) => `끝 월까지 포함해 ${months}개월입니다. 최대 24개월까지 고를 수 있습니다.`,
+      create: "링크 만들기",
+      change: "범위 바꾸기",
+      summary: (from: string, to: string) => (from === to ? from : `${from} ~ ${to}`),
+    },
     creating: "링크를 만드는 중",
     linkLabel: "공유 링크",
     copy: "복사",
@@ -1078,16 +1098,17 @@ export const ko = {
     shareAgainHint: "다시 공유하면 이전과 다른 새 링크가 만들어집니다.",
     close: "닫기",
     page: {
-      titleBy: (name: string | null) => (name ? `${name}님이 공유한 캘린더` : "공유된 캘린더"),
+      titleBy: (name: string | null, label: string) => (name ? `${name}님이 공유한 ${label}` : `공유된 ${label}`),
       scope: { assigned: "담당 티켓", created: "요청한 티켓" },
       source: (scope: string) => `내 티켓 · ${scope}`,
       loading: "불러오는 중",
       empty: "이 달에 걸친 티켓이 없습니다.",
+      emptyRange: "이 기간에 걸친 티켓이 없습니다.",
       notFoundTitle: "이 링크는 열 수 없습니다",
       notFoundHint: "링크가 중지됐거나 주소가 맞지 않습니다.",
       failed: "불러오지 못했습니다. 잠시 뒤 다시 열어 보세요.",
+      title: "공유된 화면",
       sharedOn: "Flowbit 에서 공유됨",
-      calendarLabel: "공유된 캘린더",
     },
   },
   retention: {

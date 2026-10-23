@@ -20,12 +20,24 @@ import type { ShareAccess, ShareLink, ShareTarget } from "../types";
 const m = messages.share;
 
 /**
+ * What a page that lets the person choose what to share (the months a timeline covers) adds to the share window. Its
+ * fields come first, and the link is made when they press "링크 만들기" instead of when the window opens: each choice
+ * is a link of its own, and a link made at every opening would pile up links that nobody can stop.
+ */
+export type SharePick = {
+  /** The fields that choose; `change` sets the parameters. */
+  render: (params: Record<string, string>, change: (next: Record<string, string>) => void) => React.ReactNode;
+  /** The choice in a few words, once its link is made. */
+  summary: (params: Record<string, string>) => string;
+};
+
+/**
  * The button that shares a page (docs/features/sharing.md, D-197). Pressing it opens the share
  * window, which makes the link for `target` (or finds the one the person already has: the same
  * page is always the same address). It is the same for every kind of page: what differs is only
- * the target the page hands it.
+ * the target the page hands it and, where there is something to choose, `pick`.
  */
-export function ShareButton({ target }: { target: ShareTarget }) {
+export function ShareButton({ target, pick }: { target: ShareTarget; pick?: SharePick }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -33,7 +45,7 @@ export function ShareButton({ target }: { target: ShareTarget }) {
         <Share2Icon data-icon="inline-start" />
         {m.button}
       </Button>
-      {open ? <ShareDialog target={target} onClose={() => setOpen(false)} /> : null}
+      {open ? <ShareDialog target={target} pick={pick} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
@@ -133,12 +145,15 @@ function ShareHistory({ id }: { id: string }) {
 }
 
 /** The share window: the link and the embed code to copy, who opened it lately, and the stop. */
-function ShareDialog({ target, onClose }: { target: ShareTarget; onClose: () => void }) {
+function ShareDialog({ target, pick, onClose }: { target: ShareTarget; pick?: SharePick; onClose: () => void }) {
+  const text = m.kinds[target.kind];
+  const picking = pick !== undefined;
   const box = useRef<HTMLDivElement>(null);
+  const [params, setParams] = useState(target.params);
   const [link, setLink] = useState<ShareLink | null>(null);
   const [stopped, setStopped] = useState(false);
   const create = useMutation({
-    mutationFn: () => createShare(target),
+    mutationFn: () => createShare({ kind: target.kind, params }),
     onSuccess: (made) => {
       setLink(made);
       setStopped(false);
@@ -152,19 +167,21 @@ function ShareDialog({ target, onClose }: { target: ShareTarget; onClose: () => 
     },
   });
   const { mutate: makeLink } = create;
+  // Without anything to choose the link is made as the window opens.
   useEffect(() => {
-    makeLink();
-  }, [makeLink]);
+    if (!picking) makeLink();
+  }, [makeLink, picking]);
   const url = link ? shareUrl(window.location.origin, link.path) : "";
   const error = create.error ?? stop.error;
 
   return (
     <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
       <DialogContent className="sm:max-w-lg">
-        <DialogTitle>{m.title}</DialogTitle>
-        <DialogDescription>{m.description}</DialogDescription>
+        <DialogTitle>{text.title}</DialogTitle>
+        <DialogDescription>{text.description}</DialogDescription>
         <div ref={box} className="flex flex-col gap-4">
           {error ? <FormAlert>{apiErrorMessage(error)}</FormAlert> : null}
+          {pick && !link ? pick.render(params, setParams) : null}
           {create.isPending && !link ? (
             <p role="status" className="flex items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
               <Spinner aria-hidden="true" />
@@ -173,8 +190,16 @@ function ShareDialog({ target, onClose }: { target: ShareTarget; onClose: () => 
           ) : null}
           {link ? (
             <>
+              {pick ? (
+                <p className="flex items-center justify-between gap-2 text-[0.8125rem] leading-5">
+                  <span className="font-medium tabular-nums">{pick.summary(link.params)}</span>
+                  <Button type="button" variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" onClick={() => setLink(null)}>
+                    {m.range.change}
+                  </Button>
+                </p>
+              ) : null}
               <CopyField label={m.linkLabel} value={url} within={box} />
-              <CopyField label={m.embedLabel} hint={m.embedHint} value={embedCode(url, m.page.calendarLabel)} multiline within={box} />
+              <CopyField label={m.embedLabel} hint={m.embedHint} value={embedCode(url, text.label)} multiline within={box} />
               <ShareHistory id={link.id} />
             </>
           ) : null}
@@ -191,12 +216,13 @@ function ShareDialog({ target, onClose }: { target: ShareTarget; onClose: () => 
               {stop.isPending ? m.stopping : m.stop}
             </Button>
           ) : null}
-          {stopped ? (
-            <Button type="button" variant="outline" className="max-md:h-11" disabled={create.isPending} onClick={() => create.mutate()}>
-              {m.shareAgain}
+          {/* With a choice to make the link comes from pressing this; without one, the same page is shared again. */}
+          {!link && (picking || stopped) ? (
+            <Button type="button" variant={picking ? "default" : "outline"} className="max-md:h-11" disabled={create.isPending} onClick={() => create.mutate()}>
+              {picking ? m.range.create : m.shareAgain}
             </Button>
           ) : null}
-          <Button type="button" className="max-md:h-11" onClick={onClose}>
+          <Button type="button" variant={link || (!picking && !stopped) ? "default" : "outline"} className="max-md:h-11" onClick={onClose}>
             {m.close}
           </Button>
         </DialogFooter>

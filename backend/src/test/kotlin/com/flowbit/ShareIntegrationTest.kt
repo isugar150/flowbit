@@ -5,6 +5,7 @@ import com.flowbit.support.IntegrationTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.time.YearMonth
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -122,12 +123,89 @@ class ShareIntegrationTest : IntegrationTest() {
         assertEquals(200, client().get("/api/v1/public/shares/${renewed["token"]}").status)
     }
 
+    @Test
+    fun `타임라인은 같은 범위면 같은 URL 이고 범위나 탭이 다르면 다른 URL 이다`() {
+        val first = timelineShare(admin, "2026-10", "2026-12", "assigned")
+        val again = timelineShare(admin, "2026-10", "2026-12", "assigned")
+
+        assertEquals(first["token"], again["token"])
+        assertEquals(mapOf("from" to "2026-10", "to" to "2026-12", "scope" to "assigned"), first["params"])
+        assertNotEquals(first["token"], timelineShare(admin, "2026-10", "2027-01", "assigned")["token"])
+        assertNotEquals(first["token"], timelineShare(admin, "2026-09", "2026-12", "assigned")["token"])
+        assertNotEquals(first["token"], timelineShare(admin, "2026-10", "2026-12", "created")["token"])
+        // The same months are another page than the calendar's.
+        assertNotEquals(share(admin, "2026-10", "assigned")["token"], timelineShare(admin, "2026-10", "2026-10", "assigned")["token"])
+        assertEquals(6, count("select count(*) from share_links"))
+        // A whole two years, the last month included, is the longest.
+        assertEquals(200, admin.post("/api/v1/shares", timelineBody("2026-01", "2027-12", "assigned")).status)
+    }
+
+    @Test
+    fun `타임라인 링크는 로그인 없이 고른 기간에 걸친 티켓을 프로젝트 이름과 함께 보여 준다`() {
+        val project = admin.post("/api/v1/projects", """{"name":"결제 개편"}""").json()["id"]
+        issue("""{"title":"프로젝트의 10월","assigneeIds":["$adminId"],"projectId":"$project","startDate":"2026-10-10","dueDate":"2026-10-15"}""")
+        issue("""{"title":"12월에서 내년 1월까지","assigneeIds":["$adminId"],"startDate":"2026-12-01","dueDate":"2027-01-10"}""")
+        issue("""{"title":"기간 앞","assigneeIds":["$adminId"],"startDate":"2026-09-20","dueDate":"2026-09-30"}""")
+        issue("""{"title":"기간 뒤","assigneeIds":["$adminId"],"startDate":"2027-01-02","dueDate":"2027-01-20"}""")
+        issue("""{"title":"담당자 없음","dueDate":"2026-11-10"}""")
+        val token = timelineShare(admin, "2026-10", "2026-12", "assigned")["token"]
+
+        val opened = client().get("/api/v1/public/shares/$token")
+
+        assertEquals(200, opened.status)
+        val body = opened.json()
+        assertEquals("MY_ISSUES_TIMELINE", body["kind"])
+        assertEquals(mapOf("from" to "2026-10", "to" to "2026-12", "scope" to "assigned"), body["params"])
+        @Suppress("UNCHECKED_CAST")
+        val issues = (body["content"] as Map<String, Any?>)["issues"] as List<Map<String, Any?>>
+        assertEquals(listOf("프로젝트의 10월", "12월에서 내년 1월까지"), issues.map { it["title"] })
+        assertEquals(listOf("결제 개편", null), issues.map { it["project"] })
+        // Where and what it is, and the project's name: no id of the project, no people, no text, nothing above it.
+        assertEquals(
+            setOf("number", "key", "title", "status", "startDate", "dueDate", "createdAt", "updatedAt", "project"),
+            issues.first().keys,
+        )
+        assertEquals(1, count("select count(*) from share_accesses"))
+    }
+
+    @Test
+    fun `기한이 없는 진행 중 티켓은 오늘까지 이어진 것으로 보고 그 기간에 오늘이 들면 나온다`() {
+        issue("""{"title":"기한 없음","assigneeIds":["$adminId"],"status":"IN_PROGRESS"}""")
+        val thisMonth = YearMonth.now(clock)
+        val here = timelineShare(admin, thisMonth.toString(), thisMonth.plusMonths(1).toString(), "assigned")["token"]
+        val later = timelineShare(admin, "2099-01", "2099-02", "assigned")["token"]
+
+        @Suppress("UNCHECKED_CAST")
+        fun titles(token: Any?) =
+            ((client().get("/api/v1/public/shares/$token").json()["content"] as Map<String, Any?>)["issues"] as List<Map<String, Any?>>).map { it["title"] }
+
+        assertEquals(listOf("기한 없음"), titles(here))
+        assertEquals(emptyList(), titles(later))
+    }
+
     private fun share(
         who: ApiClient,
         month: String,
         scope: String,
     ): Map<String, Any?> {
         val response = who.post("/api/v1/shares", """{"kind":"MY_ISSUES_CALENDAR","params":{"month":"$month","scope":"$scope"}}""")
+        assertEquals(200, response.status)
+        return response.json()
+    }
+
+    private fun timelineBody(
+        from: String,
+        to: String,
+        scope: String,
+    ) = """{"kind":"MY_ISSUES_TIMELINE","params":{"from":"$from","to":"$to","scope":"$scope"}}"""
+
+    private fun timelineShare(
+        who: ApiClient,
+        from: String,
+        to: String,
+        scope: String,
+    ): Map<String, Any?> {
+        val response = who.post("/api/v1/shares", timelineBody(from, to, scope))
         assertEquals(200, response.status)
         return response.json()
     }

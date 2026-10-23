@@ -51,7 +51,7 @@ const m = messages.issues;
 // The list is what nearly everyone comes for, so only the list is in the page's own script. The
 // other two views arrive when they are chosen, and the new-issue dialog (which carries the whole
 // document editor) when it is first opened, or a moment earlier when its button is pointed at.
-const IssueTimeline = dynamic(() => import("./issue-timeline").then((module) => module.IssueTimeline));
+const IssueTimeline = dynamic(() => import("./issue-timeline").then((module) => module.IssueTimeline<Issue>));
 const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module) => module.IssueCalendarView<Issue>));
 const loadNewIssueDialog = () => import("./new-issue-dialog");
 const NewIssueDialog = dynamic(() => loadNewIssueDialog().then((module) => module.NewIssueDialog), { ssr: false });
@@ -123,7 +123,7 @@ export function IssuesView({
   openCreated = true,
   shareScope,
 }: {
-  /** Which of a person's issues these are ("내 티켓": the ones assigned to them or the ones they made): puts a "공유하기" button on the calendar that shares its month (D-197). Left out where the calendar is not shared. */
+  /** Which of a person's issues these are ("내 티켓": the ones assigned to them or the ones they made): puts a "공유하기" button on the calendar (its month) and on the timeline (the months picked) (D-197, D-199). Left out where they are not shared. */
   shareScope?: "assigned" | "created";
   /** False for example data (the tour's) whose tickets have no page of their own: a ticket made in the dialog is then not opened. */
   openCreated?: boolean;
@@ -516,7 +516,10 @@ export function IssuesView({
             </div>
           ) : null}
           {view === "timeline" ? (
-            <IssueTimeline issues={issues} />
+            <IssueTimeline
+              issues={issues}
+              share={shareScope ? (range) => ({ kind: "MY_ISSUES_TIMELINE", params: { ...range, scope: shareScope } }) : undefined}
+            />
           ) : view === "calendar" ? (
             <IssueCalendarView
               issues={issues}

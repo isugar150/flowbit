@@ -3,18 +3,21 @@ import type { Issue } from "./types";
 /** An issue above another, as an issue carries it (`parent`, `ancestors`). */
 type IssueRef = NonNullable<Issue["parent"]>;
 
+/** What the arrangement needs of an issue: its place among the issues above it. */
+type Arranged = Pick<Issue, "number" | "key" | "title" | "ancestors">;
+
 /** One line of a list that shows sub-issues under their parents. */
-export type IssueRow =
-  | { kind: "issue"; issue: Issue; depth: number }
+export type IssueRow<T extends Arranged = Issue> =
+  | { kind: "issue"; issue: T; depth: number }
   /** An issue above the rows that follow but not in the list itself, shown only so they have their place. */
   | { kind: "context"; parent: IssueRef; depth: number };
 
-type Node = {
+type Node<T extends Arranged> = {
   ref: IssueRef;
-  issue?: Issue;
+  issue?: T;
   /** Where the issue itself stands in the group, or where the first issue under it does. */
   order: number;
-  children: Node[];
+  children: Node<T>[];
 };
 
 /**
@@ -24,13 +27,13 @@ type Node = {
  * top-level one down, appears as a dimmed line of its own (the user's call, 2026-10-15: the parent
  * alone did not say where a deep sub-issue came from).
  */
-export function arrangeBySubIssues(group: Issue[]): IssueRow[] {
-  const nodes = new Map<number, Node>();
-  const roots: Node[] = [];
+export function arrangeBySubIssues<T extends Arranged>(group: T[]): IssueRow<T>[] {
+  const nodes = new Map<number, Node<T>>();
+  const roots: Node<T>[] = [];
   group.forEach((issue, index) => {
     // The path from the top-level issue down to this one.
     const path: IssueRef[] = [...issue.ancestors, { number: issue.number, key: issue.key, title: issue.title }];
-    let parent: Node | undefined;
+    let parent: Node<T> | undefined;
     path.forEach((ref, step) => {
       let node = nodes.get(ref.number);
       if (!node) {
@@ -46,8 +49,8 @@ export function arrangeBySubIssues(group: Issue[]): IssueRow[] {
     });
   });
 
-  const rows: IssueRow[] = [];
-  const walk = (node: Node, depth: number) => {
+  const rows: IssueRow<T>[] = [];
+  const walk = (node: Node<T>, depth: number) => {
     rows.push(node.issue ? { kind: "issue", issue: node.issue, depth } : { kind: "context", parent: node.ref, depth });
     // Sub-issues read in the order they were made, the same as on their parent's own page.
     for (const child of [...node.children].sort((a, b) => a.ref.number - b.ref.number)) walk(child, depth + 1);
