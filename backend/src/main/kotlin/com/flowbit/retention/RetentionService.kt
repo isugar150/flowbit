@@ -27,9 +27,6 @@ enum class RetentionItem {
     ISSUES,
     DOCUMENTS,
     COMMENTS,
-
-    /** The record of when share links were opened (D-198). Its period counts from the time of the opening, not from a deletion. */
-    SHARE_ACCESSES,
 }
 
 enum class RetentionUnit {
@@ -63,14 +60,12 @@ data class RetentionSettings(
     val issues: RetentionPeriod?,
     val documents: RetentionPeriod?,
     val comments: RetentionPeriod?,
-    val shareAccesses: RetentionPeriod? = null,
 ) {
     fun of(item: RetentionItem): RetentionPeriod? =
         when (item) {
             RetentionItem.ISSUES -> issues
             RetentionItem.DOCUMENTS -> documents
             RetentionItem.COMMENTS -> comments
-            RetentionItem.SHARE_ACCESSES -> shareAccesses
         }
 }
 
@@ -79,10 +74,9 @@ data class PurgeResult(
     val issues: Long,
     val documents: Long,
     val comments: Long,
-    val shareAccesses: Long = 0,
 ) {
     val isEmpty: Boolean
-        get() = issues == 0L && documents == 0L && comments == 0L && shareAccesses == 0L
+        get() = issues == 0L && documents == 0L && comments == 0L
 }
 
 /**
@@ -120,7 +114,6 @@ class RetentionService(
             rows[RetentionItem.ISSUES],
             rows[RetentionItem.DOCUMENTS],
             rows[RetentionItem.COMMENTS],
-            rows[RetentionItem.SHARE_ACCESSES],
         )
     }
 
@@ -230,36 +223,20 @@ class RetentionService(
                     .awaitSingle()
                 // Comments, threads and activity are kept by the page's id without a foreign key (D-165): what a page deleted for good left behind goes too.
                 removedFiles += sweepOrphans()
-                // The record of who opened share links goes by the time of the opening, not of a deletion (D-198).
-                val shareAccesses =
-                    settings.shareAccesses?.let { period ->
-                        databaseClient
-                            .sql("delete from share_accesses where accessed_at < :cutoff")
-                            .bind("cutoff", at(period.cutoff(now)))
-                            .fetch()
-                            .rowsUpdated()
-                            .awaitSingle()
-                    } ?: 0
-                val result = PurgeResult(issues = issues, documents = documents, comments = comments, shareAccesses = shareAccesses)
+                val result = PurgeResult(issues = issues, documents = documents, comments = comments)
                 if (!result.isEmpty) {
                     auditService.record(
                         AuditEventType.DATA_PURGED,
                         null,
                         ClientInfo(null, null),
-                        mapOf("issues" to "$issues", "documents" to "$documents", "comments" to "$comments", "shareAccesses" to "$shareAccesses"),
+                        mapOf("issues" to "$issues", "documents" to "$documents", "comments" to "$comments"),
                     )
                 }
                 result
             }
         removedFiles.forEach { fileStorage.delete(it) }
         if (!result.isEmpty) {
-            log.info(
-                "Removed for good: {} issues, {} documents, {} comments, {} share link records",
-                result.issues,
-                result.documents,
-                result.comments,
-                result.shareAccesses,
-            )
+            log.info("Removed for good: {} issues, {} documents, {} comments", result.issues, result.documents, result.comments)
         }
         if (!result.isEmpty || removedFiles.isNotEmpty()) cleanUpPictures()
         return result
@@ -349,13 +326,12 @@ class RetentionService(
 
     private fun at(instant: Instant) = OffsetDateTime.ofInstant(instant, ZoneOffset.UTC)
 
-    /** The name of the item in the API and in the audit log: `issues`, `shareAccesses`. */
+    /** The name of the item in the API and in the audit log: `issues`, `documents`, `comments`. */
     private fun fieldOf(item: RetentionItem) =
         when (item) {
             RetentionItem.ISSUES -> "issues"
             RetentionItem.DOCUMENTS -> "documents"
             RetentionItem.COMMENTS -> "comments"
-            RetentionItem.SHARE_ACCESSES -> "shareAccesses"
         }
 
     private companion object {

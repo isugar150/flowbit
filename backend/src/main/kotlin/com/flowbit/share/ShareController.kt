@@ -1,7 +1,6 @@
 package com.flowbit.share
 
 import com.flowbit.auth.application.AuthenticatedUser
-import com.flowbit.common.error.ValidationException
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.media.api.EditorFileController
 import com.flowbit.media.api.FileController
@@ -58,8 +57,6 @@ data class ShareSummaryResponse(
     val token: String,
     val path: String,
     val createdAt: Instant,
-    val accessCount: Long,
-    val lastAccessedAt: Instant?,
     val subject: String?,
 )
 
@@ -70,46 +67,24 @@ data class ShareListResponse(
     val items: List<ShareSummaryResponse>,
 )
 
-data class ShareAccessResponse(
-    val accessedAt: Instant,
-    val ipAddress: String?,
-    val userAgent: String?,
-    val embedded: Boolean,
-    val referrer: String?,
-    val item: String?,
-)
-
-data class ShareAccessesResponse(
-    val total: Long,
-    val items: List<ShareAccessResponse>,
-)
-
-/** Making, stopping and reading the history of one's own share links. */
+/** Making, listing and stopping one's own share links. */
 @RestController
 @RequestMapping("/api/v1/shares")
 class ShareController(
     private val service: ShareService,
 ) {
     /**
-     * A page of the links the person has made and not stopped (D-204): `kind` narrows it to one kind, `sort` is `created` (the
-     * newest first, the default), `accessed` (opened most recently first) or `opened` (opened most often first), `limit` is 20 unless
-     * said (100 at most), `offset` where the page starts.
+     * A page of the links the person has made and not stopped, the newest first (D-204): `kind` narrows it to one kind,
+     * `limit` is 20 unless said (100 at most), `offset` where the page starts.
      */
     @GetMapping
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestParam(required = false) kind: String?,
-        @RequestParam(required = false) sort: String?,
         @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam(defaultValue = "0") offset: Int,
     ): ShareListResponse {
-        val order =
-            if (sort == null) {
-                ShareSort.CREATED
-            } else {
-                ShareSort.entries.firstOrNull { it.name.equals(sort, ignoreCase = true) } ?: throw ValidationException("sort", "INVALID", "값이 올바르지 않습니다")
-            }
-        val page = service.list(user, kind?.takeIf { it.isNotEmpty() }, order, limit, offset)
+        val page = service.list(user, kind?.takeIf { it.isNotEmpty() }, limit, offset)
         return ShareListResponse(
             total = page.total,
             kinds = page.kinds,
@@ -122,8 +97,6 @@ class ShareController(
                         token = it.link.token,
                         path = "/s/${it.link.token}",
                         createdAt = it.link.createdAt,
-                        accessCount = it.accessCount,
-                        lastAccessedAt = it.lastAccessedAt,
                         subject = it.subject,
                     )
                 },
@@ -147,19 +120,6 @@ class ShareController(
     ) {
         service.revoke(user, id, ClientInfo.from(exchange))
     }
-
-    @GetMapping("/{id}/accesses")
-    suspend fun accesses(
-        @AuthenticationPrincipal user: AuthenticatedUser,
-        @PathVariable id: UUID,
-        @RequestParam(defaultValue = "20") limit: Int,
-    ): ShareAccessesResponse {
-        val page = service.accesses(user, id, limit)
-        return ShareAccessesResponse(
-            page.total,
-            page.items.map { ShareAccessResponse(it.accessedAt, it.ipAddress, it.userAgent, it.embedded, it.referrer, it.item) },
-        )
-    }
 }
 
 /**
@@ -176,11 +136,9 @@ class PublicShareController(
     @GetMapping("/{token}")
     suspend fun open(
         @PathVariable token: String,
-        @RequestParam(defaultValue = "false") embedded: Boolean,
-        @RequestParam(required = false) referrer: String?,
         exchange: ServerWebExchange,
     ): ResponseEntity<PublicShare> {
-        val shared = service.open(token, ClientInfo.from(exchange), embedded, referrer)
+        val shared = service.open(token, ClientInfo.from(exchange))
         // What a link shows follows what its owner may see, so a copy kept anywhere would go stale.
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(shared)
     }
@@ -191,11 +149,9 @@ class PublicShareController(
         @PathVariable token: String,
         @PathVariable type: String,
         @PathVariable id: String,
-        @RequestParam(defaultValue = "false") embedded: Boolean,
-        @RequestParam(required = false) referrer: String?,
         exchange: ServerWebExchange,
     ): ResponseEntity<PublicShare> {
-        val shared = service.openItem(token, type, id, ClientInfo.from(exchange), embedded, referrer)
+        val shared = service.openItem(token, type, id, ClientInfo.from(exchange))
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(shared)
     }
 

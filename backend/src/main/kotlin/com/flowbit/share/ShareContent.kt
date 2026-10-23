@@ -227,8 +227,9 @@ class MyIssuesCalendarShare(
 /**
  * The timeline of "내 티켓" from one month to another (the last one included, [MAX_MONTHS] at
  * most): the issues of the sharing person that cover a day of that time. An issue covers the days
- * from its start date (or the day it was made) to its due date; without a due date, to the day it
- * was last changed when it is finished and to today when it is not, as the chart draws it.
+ * from its start date to its due date, and the one day of its due date when it has no start date (D-207);
+ * without a due date, from the day it was made to the day it was last changed when it is finished and to
+ * today when it is not. As the chart draws it (`timeline-span.ts`).
  */
 @Component
 class MyIssuesTimelineShare(
@@ -261,7 +262,7 @@ class MyIssuesTimelineShare(
             queries
                 .listForUser(Viewer(ownerId, seesAllProjects = false), scope, deleted = false)
                 .filter { issue ->
-                    val start = issue.startDate ?: day(issue.createdAt)
+                    val start = issue.startDate ?: issue.dueDate ?: day(issue.createdAt)
                     val finished = issue.status == IssueStatus.DONE || issue.status == IssueStatus.CANCELED
                     val end = issue.dueDate ?: if (finished) day(issue.updatedAt) else today
                     // The bar covers the days between the two, whichever comes first.

@@ -179,9 +179,9 @@
 한 항목에 20개까지(서비스가 확인). 사람 값이 가리키는 사용자는 외래 키가 아니라 서비스가 프로젝트 구성원인지 확인한다(담당자처럼, 구성원에서 빠져도 값은 남는다).
 
 
-### `share_links`, `share_accesses` (`V3`, D-197·D-198)
+### `share_links` (`V3`, D-197)
 
-공유 링크와 그 접속 기록 ([features/sharing.md](features/sharing.md)). 링크는 한 사람이 한 종류의 화면을 정해진 매개변수로 공유한 것이다.
+공유 링크 ([features/sharing.md](features/sharing.md)). 링크는 한 사람이 한 종류의 화면을 정해진 매개변수로 공유한 것이다.
 
 | 컬럼 (`share_links`) | 타입 | 설명 |
 |---|---|---|
@@ -194,14 +194,4 @@
 
 부분 유일 인덱스 `(owner_id, kind, target) WHERE revoked_at IS NULL`: 같은 사람이 같은 것을 다시 공유하면 쓰고 있는 링크를 돌려주고(같은 URL), 중지한 뒤에는 새 행(새 토큰)을 만든다.
 
-| 컬럼 (`share_accesses`) | 타입 | 설명 |
-|---|---|---|
-| `id` | `uuid` PK | UUID v7 |
-| `share_id` | `uuid` FK → `share_links` (함께 삭제) | |
-| `accessed_at` | `timestamptz` | 서버 시각 |
-| `ip_address` | `text` null | 요청의 `remoteAddress`(프록시 뒤는 `X-Forwarded-*`) |
-| `user_agent` | `text` null | 512자까지 |
-| `embedded`, `referrer` | `boolean`, `text` null | 프레임 안에서 열렸는지, 그 페이지 주소(512자까지). 공유 화면이 말해 주는 값이라 기록용이다 |
-| `item` (`V4`, D-200) | `text` null | 링크 안의 하위 항목을 연 줄이면 무엇인지(`issue:13`, `document:{id}`). 링크 자체를 연 줄은 null |
-
-인덱스: `(share_id, accessed_at desc)`, `(accessed_at)`. 접속 기록은 관리자 설정 "데이터 보관"의 항목 `SHARE_ACCESSES`(`retention_policies.item` 의 CHECK 에 더했다, D-198)의 기간이 지나면 `accessed_at` 기준으로 지운다. 링크 행은 지우지 않는다.
+접속 기록 표 `share_accesses`(`V3`, 열 때마다 한 줄)와 그 `item` 컬럼(`V4`)은 **`V5__drop_share_accesses.sql` 이 지웠다**(D-208: 저장 공간을 많이 쓰고 얻는 것이 적어 접속 기록 기능을 없앴다). 같은 마이그레이션이 `retention_policies` 에서 `SHARE_ACCESSES` 줄을 지우고 `item` 의 CHECK 를 `ISSUES`·`DOCUMENTS`·`COMMENTS` 로 되돌렸다. 이미 적용된 `V3`·`V4` 파일은 고치지 않는다(Flyway 체크섬).

@@ -1,7 +1,5 @@
 package com.flowbit.share
 
-import com.flowbit.common.UuidV7
-import com.flowbit.common.web.ClientInfo
 import io.r2dbc.spi.Readable
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -28,39 +26,7 @@ data class OpenShare(
     val ownerName: String?,
 )
 
-/** One time a link was opened. */
-data class ShareAccess(
-    val accessedAt: Instant,
-    val ipAddress: String?,
-    val userAgent: String?,
-    val embedded: Boolean,
-    val referrer: String?,
-    /** What was opened at the link when it has more than one page (`issue:13`, `document:<id>`); null for the link's own page. */
-    val item: String? = null,
-)
-
-/** How a person's list of their links is put in order. `orderBy` is ours, never input. */
-enum class ShareSort(
-    val orderBy: String,
-) {
-    /** The newest first. */
-    CREATED("l.created_at desc, l.id desc"),
-
-    /** The one opened most recently first; the ones nobody opened after the rest. */
-    ACCESSED("last_accessed_at desc nulls last, l.created_at desc, l.id desc"),
-
-    /** The one opened most often first. */
-    OPENED("access_count desc, l.created_at desc, l.id desc"),
-}
-
-/** A link with how often it was opened and when last. */
-data class ShareLinkStats(
-    val link: ShareLink,
-    val accessCount: Long,
-    val lastAccessedAt: Instant?,
-)
-
-/** Rows of `share_links` and `share_accesses` (docs/features/sharing.md). */
+/** Rows of `share_links` (docs/features/sharing.md). */
 @Component
 class ShareStore(
     private val databaseClient: DatabaseClient,
@@ -103,38 +69,30 @@ class ShareStore(
             .awaitSingle() > 0
 
     /**
-     * The links in use of this person with how often each was opened: of one kind when [kind] is given, in the order of [sort],
-     * [limit] of them from the [offset]th. A page of the person's list of their links (D-204).
+     * The links in use of this person, the newest first: of one kind when [kind] is given, [limit] of them from the
+     * [offset]th. A page of the person's list of their links (D-204).
      */
     suspend fun listLive(
         ownerId: UUID,
         kind: String?,
-        sort: ShareSort,
         limit: Int,
         offset: Int,
-    ): List<ShareLinkStats> =
+    ): List<ShareLink> =
         databaseClient
             .sql(
                 """
-                select $LINK_COLUMNS,
-                       (select count(*) from share_accesses a where a.share_id = l.id) as access_count,
-                       (select max(a.accessed_at) from share_accesses a where a.share_id = l.id) as last_accessed_at
+                select $LINK_COLUMNS
                 from share_links l
                 where l.owner_id = :ownerId and l.revoked_at is null and (cast(:kind as text) is null or l.kind = :kind)
-                order by ${sort.orderBy}
+                order by l.created_at desc, l.id desc
                 limit :limit offset :offset
                 """.trimIndent(),
             ).bind("ownerId", ownerId)
             .bindText("kind", kind)
             .bind("limit", limit)
             .bind("offset", offset)
-            .map { row ->
-                ShareLinkStats(
-                    link = linkOf(row),
-                    accessCount = checkNotNull(row.get("access_count", Long::class.javaObjectType)),
-                    lastAccessedAt = row.get("last_accessed_at", OffsetDateTime::class.java)?.toInstant(),
-                )
-            }.all()
+            .map { row -> linkOf(row) }
+            .all()
             .collectList()
             .awaitSingle()
 
@@ -183,67 +141,6 @@ class ShareStore(
             .map { row -> OpenShare(linkOf(row), row.get("owner_name", String::class.java)) }
             .one()
             .awaitSingleOrNull()
-
-    suspend fun recordAccess(
-        shareId: UUID,
-        at: Instant,
-        client: ClientInfo,
-        embedded: Boolean,
-        referrer: String?,
-        item: String? = null,
-    ) {
-        databaseClient
-            .sql(
-                """
-                insert into share_accesses (id, share_id, accessed_at, ip_address, user_agent, embedded, referrer, item)
-                values (:id, :shareId, :accessedAt, :ipAddress, :userAgent, :embedded, :referrer, :item)
-                """.trimIndent(),
-            ).bind("id", UuidV7.generate(at))
-            .bind("shareId", shareId)
-            .bind("accessedAt", at(at))
-            .bind("embedded", embedded)
-            .bindText("ipAddress", client.ipAddress)
-            .bindText("userAgent", client.userAgent)
-            .bindText("referrer", referrer)
-            .bindText("item", item)
-            .fetch()
-            .rowsUpdated()
-            .awaitSingle()
-    }
-
-    /** The latest times the link was opened, newest first. */
-    suspend fun recentAccesses(
-        shareId: UUID,
-        limit: Int,
-    ): List<ShareAccess> =
-        databaseClient
-            .sql(
-                """
-                select accessed_at, ip_address, user_agent, embedded, referrer, item
-                from share_accesses where share_id = :shareId order by accessed_at desc, id desc limit :limit
-                """.trimIndent(),
-            ).bind("shareId", shareId)
-            .bind("limit", limit)
-            .map { row ->
-                ShareAccess(
-                    accessedAt = checkNotNull(row.get("accessed_at", OffsetDateTime::class.java)).toInstant(),
-                    ipAddress = row.get("ip_address", String::class.java),
-                    userAgent = row.get("user_agent", String::class.java),
-                    embedded = checkNotNull(row.get("embedded", Boolean::class.javaObjectType)),
-                    referrer = row.get("referrer", String::class.java),
-                    item = row.get("item", String::class.java),
-                )
-            }.all()
-            .collectList()
-            .awaitSingle()
-
-    suspend fun countAccesses(shareId: UUID): Long =
-        databaseClient
-            .sql("select count(*) as n from share_accesses where share_id = :shareId")
-            .bind("shareId", shareId)
-            .map { row -> checkNotNull(row.get("n", Long::class.javaObjectType)) }
-            .one()
-            .awaitSingle()
 
     private fun linkOf(row: Readable) =
         ShareLink(

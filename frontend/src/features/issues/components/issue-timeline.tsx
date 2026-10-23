@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { statusLabel } from "../meta";
 import { arrangeBySubIssues } from "../sub-issue-tree";
+import { dayOf, localDay, spanOf } from "../timeline-span";
 import type { Issue } from "../types";
 import { SubIssueIndent } from "./sub-issue-rows";
 
@@ -29,13 +30,6 @@ const COLORS = ["#30a46c", "#f2994a", "#3e8ee0", "#8e6ee0", "#d6409f", "#c9a400"
  */
 export type TimelineIssue = Pick<Issue, "key" | "number" | "title" | "status" | "startDate" | "dueDate" | "createdAt" | "updatedAt" | "project" | "ancestors">;
 
-/** A calendar day as a number of days, so days can be subtracted. */
-const dayOf = (date: string) => Math.floor(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10))) / DAY);
-/** The reader's own calendar day of a moment. */
-function localDay(iso: string | number): number {
-  const date = new Date(iso);
-  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY);
-}
 const dateOfDay = (day: number) => new Date(day * DAY);
 /** Today as a day number. Reads the clock, so it is only called in the browser. */
 function todayDay(): number {
@@ -53,25 +47,17 @@ function daysOfRange({ from, to }: MonthRange): { first: number; last: number } 
 type Bar<T> = { issue: T; start: number; end: number; open: boolean };
 type Group<T> = { key: string; title: string; color: string; bars: Bar<T>[] };
 
-/**
- * The span an issue covers: from its start date (or the day it was created) to its due date. Without a due date the
- * end is not known, so a finished issue ends when it was last changed and an unfinished one
- * reaches today, drawn lighter (`open`).
- */
+/** The span an issue covers (`spanOf`: an issue with only a due date is that one day, D-207). */
 function barOf<T extends TimelineIssue>(issue: T, today: number): Bar<T> {
-  // An issue with its own first day starts there; otherwise on the day it was made.
-  const start = issue.startDate ? dayOf(issue.startDate) : localDay(issue.createdAt);
-  const finished = issue.status === "DONE" || issue.status === "CANCELED";
-  const end = issue.dueDate ? dayOf(issue.dueDate) : finished ? localDay(issue.updatedAt) : today;
-  return { issue, start: Math.min(start, end), end: Math.max(start, end), open: !issue.dueDate && !finished };
+  return { issue, ...spanOf(issue, today) };
 }
 
 const defaultIssueHref = (issue: TimelineIssue) => `/issue/${issue.key}`;
 const monthLabel = (month: string) => m.monthTitle(Number(month.slice(0, 4)), Number(month.slice(5, 7)));
 
 /**
- * A timeline (Gantt) chart of issues grouped by project: one line per issue with a bar from the
- * day it was made to its due date, a summary bar for each project, and a line for today. Issues in
+ * A timeline (Gantt) chart of issues grouped by project: one line per issue with a bar from its
+ * start date to its due date (one day when it has no start date), a summary bar for each project, and a line for today. Issues in
  * no project form the last group. Inside a project sub-issues sit under their parent, one step in
  * for every level, as they do in the list; a parent that is in another project (or not on this
  * chart) gets a dimmed line of its own without a bar.
