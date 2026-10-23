@@ -134,7 +134,7 @@
 
 ### ~~마일스톤 (화면 이름은 "목표")~~ — 없앴다 (D-189)
 
-프로젝트 안의 단계를 나누던 **목표(마일스톤)는 없앴다**(2026-10-23, 사용자 지시). 단계는 상위 티켓과 하위 티켓으로 나눈다. 마이그레이션 `V4__remove_milestones.sql` 이 `milestones`·`milestone_assignees` 표, `issues.milestone_id`, 목표의 댓글·활동·속성, 티켓 활동의 `MILESTONE_CHANGED` 를 지운다(티켓은 남는다). API `…/milestones`, 티켓의 `milestoneId`·`milestone`, 프로젝트의 `currentMilestone`, 검색의 `milestones`, 프레즌스 키 `milestone:` 도 없다. 옛 결정(D-045, D-057, D-113 …)은 기록으로만 남는다.
+프로젝트 안의 단계를 나누던 **목표(마일스톤)는 없앴다**(2026-10-23, 사용자 지시). 단계는 상위 티켓과 하위 티켓으로 나눈다. 마이그레이션(`V4__remove_milestones.sql`, 지금은 `V1` 에 합쳐졌다: D-191)이 `milestones`·`milestone_assignees` 표, `issues.milestone_id`, 목표의 댓글·활동·속성, 티켓 활동의 `MILESTONE_CHANGED` 를 지운다(티켓은 남는다). API `…/milestones`, 티켓의 `milestoneId`·`milestone`, 프로젝트의 `currentMilestone`, 검색의 `milestones`, 프레즌스 키 `milestone:` 도 없다. 옛 결정(D-045, D-057, D-113 …)은 기록으로만 남는다.
 
 ### 프로젝트 속성
 
@@ -394,7 +394,7 @@
 ```
 projects (id, name, description, next_issue_number, created_by, archived_at, created_at, updated_at,
           status, priority, lead_id, start_date, target_date, labels text[])   -- 속성은 V6
--- milestones, milestone_assignees: V7 / V2 에서 만들었고 V4 가 지웠다 (D-189)
+-- milestones, milestone_assignees: 만들었다가 D-189 로 지웠고, 합친 `V1` 에는 없다 (D-191)
 project_updates (id, project_id, author_id, health, body, created_at)        -- V8
 project_members (project_id, user_id, role: MANAGER | EDITOR | VIEWER, created_at)   PK (project_id, user_id)
 ```

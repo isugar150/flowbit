@@ -1,6 +1,6 @@
 # 05. 데이터 모델
 
-> **스키마의 바탕은 `backend/src/main/resources/db/migration/V1__schema.sql` 이다** (D-067). 이 파일은 더 고치지 않고, 이후의 변경은 `V2` 부터 새 파일로 추가한다 (D-084). 첫 운영 배포 전에 그동안의 단계별 마이그레이션을 이 파일 하나로 합쳤다(2026-10-13, D-104). 그 뒤 개발하면서 `V2`~`V26` 이 다시 쌓였고, **첫 배포를 앞두고 2026-10-21 에 한 번 더 이 파일 하나로 합쳤다**(D-168: 사용자가 그때까지의 DB 를 모두 지우기로 했다. 합친 파일을 실제 PostgreSQL 에 적용해 예전 26개를 차례로 적용한 DB 와 열·제약·인덱스·함수·시드를 비교해 같음을 확인했다). 지금 마이그레이션 파일은 `V1__schema.sql` 하나뿐이다. **아래 표와 이 문서의 기록에 남아 있는 `V2`~`V26` 같은 표시는 합치기 전 파일 번호로, 그 컬럼이 언제 생겼는지의 기록일 뿐이다.** 모두 `V1` 안에 있다. 이 문서의 표는 그 파일의 설명이고, 어긋나면 파일이 기준이다. `issues.project_id` 는 프로젝트가 지워지면 null 이 된다(티켓은 남는다).
+> **스키마의 바탕은 `backend/src/main/resources/db/migration/V1__schema.sql` 이다** (D-067). 이 파일은 더 고치지 않고, 이후의 변경은 `V2` 부터 새 파일로 추가한다 (D-084). 첫 운영 배포 전에 그동안의 단계별 마이그레이션을 이 파일 하나로 합쳤다(2026-10-13, D-104). 그 뒤 개발하면서 `V2`~`V26` 이 다시 쌓였고, **첫 배포를 앞두고 2026-10-21 에 한 번 더 이 파일 하나로 합쳤다**(D-168: 사용자가 그때까지의 DB 를 모두 지우기로 했다. 합친 파일을 실제 PostgreSQL 에 적용해 예전 26개를 차례로 적용한 DB 와 열·제약·인덱스·함수·시드를 비교해 같음을 확인했다). 그 뒤 `V2`(목표 담당자)·`V3`(사용자 속성)·`V4`(목표 제거)가 더해졌다가 **2026-10-23 에 다시 `V1` 하나로 합쳤다**(D-191: DB 는 지우지 않고 `flyway_schema_history` 를 고쳐 맞춘다). 지금 마이그레이션 파일은 `V1__schema.sql` 하나뿐이다. **아래 표와 이 문서의 기록에 남아 있는 `V2`~`V26` 같은 표시는 합치기 전 파일 번호로, 그 컬럼이 언제 생겼는지의 기록일 뿐이다.** 모두 `V1` 안에 있다. 이 문서의 표는 그 파일의 설명이고, 어긋나면 파일이 기준이다. `issues.project_id` 는 프로젝트가 지워지면 null 이 된다(티켓은 남는다).
 
 스키마 설계나 검토 시 `agent-skills/wshobson-agents/plugins/database-design/skills/postgresql-table-design/SKILL.md` 를 참고한다.
 
@@ -160,16 +160,16 @@
 
 ### ~~`milestones`, `milestone_assignees`~~ — 없앴다 (D-189)
 
-프로젝트 안의 단계였던 목표(마일스톤)의 표 `milestones`(`milestones.content` 포함)와 `milestone_assignees`, 그리고 `issues.milestone_id` 는 `V4__remove_milestones.sql` 이 지운다. 같은 마이그레이션이 목표의 댓글·스레드·활동·파일(`content_*` 의 `target_type = 'MILESTONE'`), 목표에 더한 사용자 속성(`custom_properties.milestone_id`), 티켓 활동의 `MILESTONE_CHANGED`, 프로젝트 활동의 `MILESTONE_ADDED`·`MILESTONE_REMOVED`, 프레즌스 기록(`page_views` 의 `milestone:…`)을 지우고, API 알림이 `MILESTONE_CHANGED` 만 받던 것은 끈다. 목표의 댓글 파일과 본문 사진은 파일 저장소에 남아 있다가 관리자 설정 > 파일 관리의 "쓰지 않는 파일 정리"로 지워진다.
+프로젝트 안의 단계였던 목표(마일스톤)의 표 `milestones`(`milestones.content` 포함)와 `milestone_assignees`, 그리고 `issues.milestone_id` 는 지금의 `V1` 에 없다(D-189 의 `V4__remove_milestones.sql` 이 지웠고, D-191 이 그 `V4` 를 `V1` 에 합쳤다). 같은 마이그레이션이 목표의 댓글·스레드·활동·파일(`content_*` 의 `target_type = 'MILESTONE'`), 목표에 더한 사용자 속성(`custom_properties.milestone_id`), 티켓 활동의 `MILESTONE_CHANGED`, 프로젝트 활동의 `MILESTONE_ADDED`·`MILESTONE_REMOVED`, 프레즌스 기록(`page_views` 의 `milestone:…`)을 지우고, API 알림이 `MILESTONE_CHANGED` 만 받던 것은 끈다. 목표의 댓글 파일과 본문 사진은 파일 저장소에 남아 있다가 관리자 설정 > 파일 관리의 "쓰지 않는 파일 정리"로 지워진다.
 
 ### `custom_properties`
 
-사용자가 프로젝트·티켓 하나에 직접 더한 속성 (`V3__custom_properties.sql`, D-186, [features/custom-properties.md](features/custom-properties.md)). 정의를 공유하지 않고 **그 항목에만** 속한다.
+사용자가 프로젝트·티켓 하나에 직접 더한 속성 (`V1` 의 끝, D-186, [features/custom-properties.md](features/custom-properties.md)). 정의를 공유하지 않고 **그 항목에만** 속한다.
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `id` | `uuid` PK | UUID v7 |
-| `project_id`, `issue_id` | `uuid` null FK → `projects`·`issues` (함께 삭제) | **둘 중 정확히 하나만** 채운다(`CHECK num_nonnulls(...) = 1`, `V4` 가 `milestone_id` 를 뺐다) |
+| `project_id`, `issue_id` | `uuid` null FK → `projects`·`issues` (함께 삭제) | **둘 중 정확히 하나만** 채운다(`CONSTRAINT custom_properties_one_owner CHECK (num_nonnulls(project_id, issue_id) = 1)`) |
 | `label` | `text` | 1~30자. 같은 항목 안에서 대소문자 없이 유일(부분 유일 인덱스 둘) |
 | `type` | `text` | `TEXT`\|`NUMBER`\|`DATE`\|`CHECKBOX`\|`LINK`\|`PERSON`. 만든 뒤 바꾸지 않는다 |
 | `value` | `jsonb` null | 값 없음은 SQL NULL. 텍스트·링크는 문자열, 숫자는 숫자, 날짜는 `"YYYY-MM-DD"`, 체크박스는 불리언, 사람은 사용자 id 문자열 |

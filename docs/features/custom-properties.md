@@ -66,7 +66,7 @@
 
 ## 데이터
 
-`custom_properties` ([05-data-model.md](../05-data-model.md)), 마이그레이션 `V3__custom_properties.sql`. 항목이 영구 삭제되면 함께 지워진다(`ON DELETE CASCADE`).
+`custom_properties` ([05-data-model.md](../05-data-model.md)), 마이그레이션: 합친 `V1` 의 끝(D-191. 처음에는 `V3__custom_properties.sql`). 항목이 영구 삭제되면 함께 지워진다(`ON DELETE CASCADE`).
 
 ## 아직 없는 것
 

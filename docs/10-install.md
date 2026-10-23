@@ -3,6 +3,17 @@
 Flowbit 을 서버에 설치해서 쓰기까지의 순서다. **서버에는 Docker 와 PostgreSQL 18 만 있으면 된다.** 개발 환경을 꾸리는 방법은 [README.md](../README.md), 구조와 환경 변수의 근거는 [02-architecture.md](02-architecture.md) 에 있다.
 
 > **이전 개발 DB 가 있다면 지우고 시작한다 (D-168).** 개발 중에 쌓인 마이그레이션 26개(`V1`~`V26`)를 이번 배포 때 `V1__schema.sql` 하나로 합쳤다. 예전 파일로 만든 DB 는 Flyway 가 "이미 적용한 V1 이 달라졌다"며 시작을 거부한다. 쓰던 데이터를 옮기는 방법은 없다(사용자 결정: 일회성으로 모두 지움). 아래 2단계의 `DROP DATABASE` 를 한 번 실행한다. **그 DB 의 티켓·프로젝트·계정이 모두 사라진다.**
+>
+> **예외 (D-191, 2026-10-23)**: 그 뒤 `V2`~`V4` 가 더해졌다가 다시 `V1` 하나로 합쳤다. 이때는 DB 를 지우지 않는다. `V1`~`V4` 가 **모두 적용된** DB 에 새 빌드를 띄우기 **전에** 그 DB 에서 아래 SQL 을 한 번 실행하면 된다(`flyway_schema_history` 만 고친다. 데이터와 스키마는 그대로).
+>
+> ```sql
+> BEGIN;
+> DELETE FROM flyway_schema_history WHERE version IN ('2', '3', '4');
+> UPDATE flyway_schema_history SET checksum = 440577120 WHERE version = '1';
+> COMMIT;
+> ```
+>
+> 새로 설치하는 DB 는 아무것도 하지 않는다. `V4` 까지 적용되지 않은 DB 는 먼저 이전 빌드로 `V4` 까지 올린 뒤 실행한다(안 그러면 목표 표가 남은 채로 기준이 잡힌다).
 
 ## 1. 구성
 
