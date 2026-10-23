@@ -35,6 +35,8 @@ data class ShareAccess(
     val userAgent: String?,
     val embedded: Boolean,
     val referrer: String?,
+    /** What was opened at the link when it has more than one page (`issue:13`, `document:<id>`); null for the link's own page. */
+    val item: String? = null,
 )
 
 /** Rows of `share_links` and `share_accesses` (docs/features/sharing.md). */
@@ -120,12 +122,13 @@ class ShareStore(
         client: ClientInfo,
         embedded: Boolean,
         referrer: String?,
+        item: String? = null,
     ) {
         databaseClient
             .sql(
                 """
-                insert into share_accesses (id, share_id, accessed_at, ip_address, user_agent, embedded, referrer)
-                values (:id, :shareId, :accessedAt, :ipAddress, :userAgent, :embedded, :referrer)
+                insert into share_accesses (id, share_id, accessed_at, ip_address, user_agent, embedded, referrer, item)
+                values (:id, :shareId, :accessedAt, :ipAddress, :userAgent, :embedded, :referrer, :item)
                 """.trimIndent(),
             ).bind("id", UuidV7.generate(at))
             .bind("shareId", shareId)
@@ -134,6 +137,7 @@ class ShareStore(
             .bindText("ipAddress", client.ipAddress)
             .bindText("userAgent", client.userAgent)
             .bindText("referrer", referrer)
+            .bindText("item", item)
             .fetch()
             .rowsUpdated()
             .awaitSingle()
@@ -147,7 +151,7 @@ class ShareStore(
         databaseClient
             .sql(
                 """
-                select accessed_at, ip_address, user_agent, embedded, referrer
+                select accessed_at, ip_address, user_agent, embedded, referrer, item
                 from share_accesses where share_id = :shareId order by accessed_at desc, id desc limit :limit
                 """.trimIndent(),
             ).bind("shareId", shareId)
@@ -159,6 +163,7 @@ class ShareStore(
                     userAgent = row.get("user_agent", String::class.java),
                     embedded = checkNotNull(row.get("embedded", Boolean::class.javaObjectType)),
                     referrer = row.get("referrer", String::class.java),
+                    item = row.get("item", String::class.java),
                 )
             }.all()
             .collectList()

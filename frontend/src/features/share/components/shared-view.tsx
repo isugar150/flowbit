@@ -1,16 +1,24 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { LinkIcon } from "lucide-react";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Spinner } from "@/components/ui/spinner";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { buttonVariants } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { IssueCalendarView } from "@/features/issues/components/issue-calendar";
 import { IssueTimeline } from "@/features/issues/components/issue-timeline";
 import { ApiError } from "@/lib/api/errors";
 import { messages } from "@/messages";
-import { fetchPublicShare } from "../api";
+import { fetchPublicItem, fetchPublicShare } from "../api";
 import type { PublicShare } from "../types";
+
+// A shared issue reads its text in the editor, which is large: only a link to an issue loads it.
+const SharedIssuePage = dynamic(() => import("./shared-issue").then((module) => module.SharedIssuePage));
+const SharedDocumentPage = dynamic(() => import("./shared-issue").then((module) => module.SharedDocumentPage));
 
 const m = messages.share.page;
 /** An issue on the shared page opens nothing: what it would open needs a sign-in. */
@@ -42,19 +50,20 @@ function rangeOf(params: Record<string, string>): { from: string; to: string } |
 
 const monthLabel = (month: string) => messages.issues.views.monthTitle(Number(month.slice(0, 4)), Number(month.slice(5, 7)));
 
-/** Who shared what: the title of the page and where its issues come from. */
+/** Who shared what: the title of the page and, for "내 티켓", where its issues come from. */
 function SharedHeader({ share, detail }: { share: PublicShare; detail?: string }) {
-  const scope = share.params.scope === "created" ? m.scope.created : m.scope.assigned;
+  const scope = share.kind === "ISSUE" ? null : share.params.scope === "created" ? m.scope.created : m.scope.assigned;
+  const line = [scope ? m.source(scope) : null, detail].filter(Boolean).join(" · ");
   return (
     <header className="flex flex-col gap-0.5 px-4 pt-4">
       <h1 className="text-lg leading-7 font-semibold">{m.titleBy(share.sharedBy, messages.share.kinds[share.kind].label)}</h1>
-      <p className="text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{[m.source(scope), detail].filter(Boolean).join(" · ")}</p>
+      {line ? <p className="text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{line}</p> : null}
     </header>
   );
 }
 
-/** What a link shows, by its kind. */
-function SharedContent({ share }: { share: PublicShare }) {
+/** What a link shows, by its kind. `token` is the link's, for the addresses of the pages under a shared issue. */
+function SharedContent({ share, token }: { share: PublicShare; token: string }) {
   if (share.kind === "MY_ISSUES_CALENDAR") {
     const month = monthOf(share.params);
     return (
@@ -62,6 +71,16 @@ function SharedContent({ share }: { share: PublicShare }) {
         <SharedHeader share={share} />
         {month ? <IssueCalendarView issues={share.content.issues} fixedMonth={month} issueHref={opensNothing} /> : null}
         {month && share.content.issues.length === 0 ? <p className="px-4 pb-6 text-[0.8125rem] leading-5 text-muted-foreground">{m.empty}</p> : null}
+      </>
+    );
+  }
+  if (share.kind === "ISSUE") {
+    // The page of an issue or document has its own title and path; this one only says who shared it.
+    const page = share.content;
+    return (
+      <>
+        <SharedHeader share={share} />
+        {page.type === "issue" ? <SharedIssuePage token={token} issue={page} /> : <SharedDocumentPage token={token} document={page} />}
       </>
     );
   }
@@ -87,9 +106,14 @@ function SharedContent({ share }: { share: PublicShare }) {
  * is focused or the connection comes back.
  */
 export function SharedView({ token }: { token: string }) {
+  // A shared issue leads to its sub-issues and documents inside the same link: `?issue=13`, `?doc={id}`.
+  const searchParams = useSearchParams();
+  const doc = searchParams.get("doc");
+  const issue = searchParams.get("issue");
+  const item = doc ? ({ type: "document", id: doc } as const) : issue ? ({ type: "issue", id: issue } as const) : null;
   const share = useQuery({
-    queryKey: ["shared", token],
-    queryFn: () => fetchPublicShare(token, whereAmI()),
+    queryKey: ["shared", token, item?.type ?? "", item?.id ?? ""],
+    queryFn: () => (item ? fetchPublicItem(token, item.type, item.id, whereAmI()) : fetchPublicShare(token, whereAmI())),
     retry: false,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -113,13 +137,21 @@ export function SharedView({ token }: { token: string }) {
                 <LinkIcon />
               </EmptyMedia>
               <EmptyTitle>
-                <h1>{notFound ? m.notFoundTitle : m.failed}</h1>
+                <h1>{notFound ? (item ? m.issue.unavailableTitle : m.notFoundTitle) : m.failed}</h1>
               </EmptyTitle>
-              {notFound ? <EmptyDescription>{m.notFoundHint}</EmptyDescription> : null}
+              {notFound ? <EmptyDescription>{item ? m.issue.unavailableHint : m.notFoundHint}</EmptyDescription> : null}
             </EmptyHeader>
+            {/* A page under the link that cannot be opened leads back to the link's own page. */}
+            {notFound && item ? (
+              <EmptyContent>
+                <Link href={`/s/${token}`} prefetch={false} className={buttonVariants({ variant: "outline" })}>
+                  {m.issue.backToShared}
+                </Link>
+              </EmptyContent>
+            ) : null}
           </Empty>
         ) : null}
-        {share.data ? <SharedContent share={share.data} /> : null}
+        {share.data ? <SharedContent share={share.data} token={token} /> : null}
       </main>
       <footer className="flex items-center gap-2 px-4 pb-4 text-xs leading-4 text-muted-foreground">
         <Wordmark className="text-sm [&_svg]:size-4" />

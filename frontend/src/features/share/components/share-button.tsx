@@ -127,6 +127,7 @@ function ShareHistory({ id }: { id: string }) {
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="truncate" title={access.userAgent ?? undefined}>
                     {clientLabel(access)}
+                    {access.item ? <span className="text-muted-foreground"> · {m.historyItem(access.item)}</span> : null}
                   </span>
                   <span className="shrink-0 text-xs leading-4 text-muted-foreground">
                     <TimeAgo iso={access.accessedAt} />

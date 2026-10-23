@@ -202,5 +202,6 @@
 | `ip_address` | `text` null | 요청의 `remoteAddress`(프록시 뒤는 `X-Forwarded-*`) |
 | `user_agent` | `text` null | 512자까지 |
 | `embedded`, `referrer` | `boolean`, `text` null | 프레임 안에서 열렸는지, 그 페이지 주소(512자까지). 공유 화면이 말해 주는 값이라 기록용이다 |
+| `item` (`V4`, D-200) | `text` null | 링크 안의 하위 항목을 연 줄이면 무엇인지(`issue:13`, `document:{id}`). 링크 자체를 연 줄은 null |
 
 인덱스: `(share_id, accessed_at desc)`, `(accessed_at)`. 접속 기록은 관리자 설정 "데이터 보관"의 항목 `SHARE_ACCESSES`(`retention_policies.item` 의 CHECK 에 더했다, D-198)의 기간이 지나면 `accessed_at` 기준으로 지운다. 링크 행은 지우지 않는다.

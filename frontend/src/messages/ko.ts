@@ -1058,6 +1058,12 @@ export const ko = {
     button: "공유하기",
     // What differs between the kinds of page that can be shared (features/share).
     kinds: {
+      ISSUE: {
+        title: "티켓 공유",
+        label: "티켓",
+        description:
+          "링크를 아는 사람은 누구나 로그인하지 않고 이 티켓의 제목·상태·본문과 하위 티켓, 문서를 읽을 수 있습니다. 읽기만 할 수 있고, 하위 티켓과 문서로도 이동할 수 있습니다. 댓글과 활동 기록, 첨부는 보이지 않습니다.",
+      },
       MY_ISSUES_CALENDAR: {
         title: "캘린더 공유",
         label: "캘린더",
@@ -1087,6 +1093,10 @@ export const ko = {
     embedHint: "다른 페이지의 HTML 에 붙여 넣으면 이 캘린더가 그 안에 보입니다.",
     historyTitle: "최근 접속 기록",
     historyEmpty: "아직 접속한 사람이 없습니다.",
+    historyItem: (item: string) => {
+      const [type, id] = [item.slice(0, item.indexOf(":")), item.slice(item.indexOf(":") + 1)];
+      return type === "issue" ? `하위 티켓 #${id}` : type === "document" ? "문서" : item;
+    },
     historyCount: (total: number, shown: number) => (total > shown ? `전체 ${total}건 중 최근 ${shown}건` : `${total}건`),
     embedded: "임베드",
     embeddedIn: (page: string) => `임베드 · ${page}`,
@@ -1108,6 +1118,32 @@ export const ko = {
       notFoundHint: "링크가 중지됐거나 주소가 맞지 않습니다.",
       failed: "불러오지 못했습니다. 잠시 뒤 다시 열어 보세요.",
       title: "공유된 화면",
+      issue: {
+        readOnly: "읽기 전용",
+        trailLabel: "경로",
+        sharedIssue: "공유한 티켓",
+        subIssues: "하위 티켓",
+        documents: "문서",
+        body: "본문",
+        noBody: "본문이 없습니다.",
+        status: "상태",
+        priority: "우선순위",
+        dueDate: "기한",
+        assignees: "담당자",
+        project: "프로젝트",
+        createdBy: "만든 사람",
+        createdAt: "만든 날",
+        updatedAt: "마지막 수정",
+        subProgress: (done: number, total: number) => `${done}/${total}`,
+        documentTitle: "문서",
+        documentOf: "이 문서가 있는 티켓",
+        untitledDocument: "제목 없는 문서",
+        unavailableTitle: "열 수 없습니다",
+        unavailableHint: "이 링크로 공유한 티켓 아래의 티켓과 문서만 열 수 있습니다.",
+        backToShared: "공유한 티켓으로",
+        bodyLabel: "티켓 본문",
+        documentBodyLabel: "문서 내용",
+      },
       sharedOn: "Flowbit 에서 공유됨",
     },
   },

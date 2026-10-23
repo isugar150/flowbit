@@ -8,6 +8,7 @@ import type { UserSummary } from "@/features/members/types";
 import { mentionablesOf, usersAsMembers, type ProjectMember } from "@/features/projects/types";
 import { branchName } from "@/features/git/branch-name";
 import { IssueGitLinks } from "@/features/git/components/issue-git-links";
+import { ShareButton } from "@/features/share/components/share-button";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { getProjects, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
@@ -112,6 +113,12 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
             <span className="shrink-0 text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">{created}</span>
           </div>
         </section>
+        {/* Whoever can change the issue can share it, read-only, with its sub-issues and documents (D-200). */}
+        {canEdit ? (
+          <div>
+            <ShareButton target={{ kind: "ISSUE", params: { number: String(issue.number) } }} />
+          </div>
+        ) : null}
         <DeleteIssueButton issue={issue} />
       </aside>
     </div>

@@ -5,12 +5,14 @@ export type PageLinkStorage = {
   titles: Map<string, string>;
   /** Opens a document; set by the editor component. */
   open: (id: string) => void;
+  /** The address a document block links to, for opening it in a new tab; `/doc/{id}` unless the editor component says otherwise. */
+  href: (id: string) => string;
   /** Shown for a document without a title. */
   untitled: string;
   /** Redraws every block on screen, after `titles` changed. */
   redraw: Set<() => void>;
   /** What the editor component knows: how to open a document, and the documents' current titles. */
-  configure: (options: { open: (id: string) => void; untitled: string; documents: { id: string; title: string }[] }) => void;
+  configure: (options: { open: (id: string) => void; href?: (id: string) => string; untitled: string; documents: { id: string; title: string }[] }) => void;
 };
 
 declare module "@tiptap/core" {
@@ -38,13 +40,15 @@ export const PageLink = Node.create<Record<string, never>, PageLinkStorage>({
     return {
       titles: new Map(),
       open: () => {},
+      href: (id: string) => `/doc/${id}`,
       untitled: "",
       redraw: new Set(),
       // Written through `this`, not through a variable holding this object: the editor keeps its
       // own copy of the storage, and the blocks read that copy. Setting `open` on the object made
       // here left the copy with the empty default, so clicking a block did nothing.
-      configure(this: PageLinkStorage, { open, untitled, documents }) {
+      configure(this: PageLinkStorage, { open, href, untitled, documents }) {
         this.open = open;
+        this.href = href ?? ((id: string) => `/doc/${id}`);
         this.untitled = untitled;
         for (const document of documents) this.titles.set(document.id, document.title || untitled);
         for (const redraw of this.redraw) redraw();
@@ -85,6 +89,7 @@ export const PageLink = Node.create<Record<string, never>, PageLinkStorage>({
       title.className = "truncate underline decoration-border underline-offset-4";
       dom.append(title);
       const draw = () => {
+        dom.href = storage.href(id);
         title.textContent = storage.titles.get(id) ?? (String(node.attrs.title ?? "") || storage.untitled);
       };
       draw();

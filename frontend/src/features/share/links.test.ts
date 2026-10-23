@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeClient, embedCode, shareUrl } from "./links";
+import { describeClient, documentAddress, embedCode, issueAddress, shareUrl } from "./links";
 
 describe("shareUrl", () => {
   it("puts the path of the link after the address the site is opened at", () => {
@@ -41,5 +41,13 @@ describe("describeClient", () => {
   it("knows nothing of a missing or unfamiliar User-Agent", () => {
     expect(describeClient(null)).toEqual({ browser: null, os: null });
     expect(describeClient("curl/8.5.0")).toEqual({ browser: null, os: null });
+  });
+});
+
+describe("addresses inside a shared issue", () => {
+  it("makes the shared issue the link itself and every other issue or document a page of it", () => {
+    expect(issueAddress("tok_en-1", 12, 12)).toBe("/s/tok_en-1");
+    expect(issueAddress("tok_en-1", 12, 15)).toBe("/s/tok_en-1?issue=15");
+    expect(documentAddress("tok_en-1", "0198a1b2-0000-7000-8000-000000000001")).toBe("/s/tok_en-1?doc=0198a1b2-0000-7000-8000-000000000001");
   });
 });

@@ -40,3 +40,13 @@ export function describeClient(userAgent: string | null): { browser: string | nu
               : null;
   return { browser, os };
 }
+
+/** Where a page of a shared issue is: the shared issue itself is the link's own address, a sub-issue adds `?issue=13`. */
+export function issueAddress(token: string, root: number, number: number): string {
+  return number === root ? `/s/${token}` : `/s/${token}?issue=${number}`;
+}
+
+/** Where a document of a shared issue is, inside the same link. */
+export function documentAddress(token: string, id: string): string {
+  return `/s/${token}?doc=${id}`;
+}

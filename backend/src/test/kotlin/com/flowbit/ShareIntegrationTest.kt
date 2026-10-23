@@ -4,8 +4,11 @@ import com.flowbit.support.ApiClient
 import com.flowbit.support.IntegrationTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.time.Duration
 import java.time.YearMonth
+import javax.imageio.ImageIO
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -183,6 +186,104 @@ class ShareIntegrationTest : IntegrationTest() {
         assertEquals(emptyList(), titles(later))
     }
 
+    @Test
+    fun `티켓 링크는 같은 티켓이면 같은 URL 이고 다른 티켓이면 다른 URL 이다`() {
+        issue("""{"title":"첫 티켓"}""")
+        issue("""{"title":"둘째 티켓"}""")
+
+        val first = issueShare(1)
+        assertEquals(first["token"], issueShare(1)["token"])
+        assertEquals(mapOf("number" to "1"), first["params"])
+        assertNotEquals(first["token"], issueShare(2)["token"])
+        assertEquals(2, count("select count(*) from share_links"))
+    }
+
+    @Test
+    fun `링크를 아는 사람은 로그인 없이 티켓과 하위 티켓과 문서를 읽고 열 때마다 기록이 남는다`() {
+        val body = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"본문 내용"}]}]}"""
+        val root = issue("""{"title":"공유할 티켓","content":$body,"assigneeIds":["$adminId"]}""")
+        val child = issue("""{"title":"하위 티켓","parentId":"${root["id"]}"}""")
+        issue("""{"title":"손자 티켓","parentId":"${child["id"]}"}""")
+        issue("""{"title":"남의 티켓"}""")
+        admin.post("/api/v1/issues/1/comments", """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"비밀 댓글"}]}]}}""")
+        val document = admin.post("/api/v1/issues/2/documents", """{"title":"설계 메모"}""").json()["id"]
+        admin.patch("/api/v1/documents/$document", """{"content":$body}""")
+        val link = issueShare(1)
+        val visitor = client()
+
+        val opened = visitor.get("/api/v1/public/shares/${link["token"]}")
+
+        assertEquals(200, opened.status)
+        assertEquals(false, opened.body.contains("비밀 댓글"))
+        val shared = opened.json()
+        assertEquals("ISSUE", shared["kind"])
+        @Suppress("UNCHECKED_CAST")
+        val rootPage = shared["content"] as Map<String, Any?>
+        assertEquals("공유할 티켓", rootPage["title"])
+        assertEquals("issue", rootPage["type"])
+        assertEquals(emptyList<Any>(), rootPage["trail"])
+        assertEquals(listOf("하위 티켓"), titles(rootPage["subIssues"]))
+        assertEquals(emptyList<Any>(), rootPage["documents"])
+        assertEquals("doc", (rootPage["content"] as Map<*, *>)["type"])
+        // Of people only a display name, and this person has none: the login id is not told.
+        assertEquals(emptyList<Any>(), rootPage["assignees"])
+        assertEquals(false, opened.body.contains("admin"))
+        assertEquals(false, rootPage.keys.any { it in setOf("comments", "activity", "reactions", "attachments", "git", "customProperties") })
+
+        // A sub-issue, a sub-issue of it, and a document of the sub-issue are all opened inside the same link.
+        val childPage = item(visitor, link["token"], "issue", "2")
+        assertEquals("하위 티켓", childPage["title"])
+        assertEquals(listOf("공유할 티켓"), titles(childPage["trail"]))
+        assertEquals(listOf("손자 티켓"), titles(childPage["subIssues"]))
+        assertEquals(listOf("설계 메모"), titles(childPage["documents"]))
+        val grandchildPage = item(visitor, link["token"], "issue", "3")
+        assertEquals(listOf("공유할 티켓", "하위 티켓"), titles(grandchildPage["trail"]))
+        val documentPage = item(visitor, link["token"], "document", document as String)
+        assertEquals("document", documentPage["type"])
+        assertEquals("설계 메모", documentPage["title"])
+        assertEquals("하위 티켓", (documentPage["issue"] as Map<*, *>)["title"])
+        assertEquals("doc", (documentPage["content"] as Map<*, *>)["type"])
+
+        // Every opening is a line of the link's history, with what was opened.
+        assertEquals(4, count("select count(*) from share_accesses"))
+        val history = admin.get("/api/v1/shares/${link["id"]}/accesses").json()
+
+        @Suppress("UNCHECKED_CAST")
+        val items = (history["items"] as List<Map<String, Any?>>).map { it["item"] }.toSet()
+        assertEquals(setOf(null, "issue:2", "issue:3", "document:$document"), items)
+    }
+
+    @Test
+    fun `본문의 사진과 파일은 링크 안의 주소로 바뀌어 로그인 없이 받을 수 있다`() {
+        val image = admin.postFile("/api/v1/images", "shot.png", "image/png", png()).json()["url"] as String
+        val file = admin.postFile("/api/v1/editor-files", "메모.txt", "text/plain", "내용".toByteArray()).json()
+        val body =
+            """{"type":"doc","content":[{"type":"image","attrs":{"src":"$image"}},""" +
+                """{"type":"fileBlock","attrs":{"src":"${file["url"]}","name":"메모.txt","size":6}}]}"""
+        issue("""{"title":"사진과 파일","content":$body}""")
+        val token = issueShare(1)["token"]
+        val visitor = client()
+
+        val page = visitor.get("/api/v1/public/shares/$token").json()["content"] as Map<*, *>
+
+        @Suppress("UNCHECKED_CAST")
+        val nodes = (page["content"] as Map<String, Any?>)["content"] as List<Map<String, Any?>>
+        val imageSrc = (nodes[0]["attrs"] as Map<*, *>)["src"] as String
+        val fileSrc = (nodes[1]["attrs"] as Map<*, *>)["src"] as String
+        assertEquals("/api/v1/public/shares/$token/files/${image.substringAfterLast('/')}", imageSrc)
+        assertEquals("/api/v1/public/shares/$token/editor-files/${(file["url"] as String).substringAfterLast('/')}", fileSrc)
+
+        val picture = visitor.get(imageSrc)
+        assertEquals(200, picture.status)
+        assertEquals("image/webp", picture.header("Content-Type"))
+        assertEquals(200, visitor.get("$imageSrc/original?name=shot.png").status)
+        val download = visitor.get("$fileSrc?name=" + java.net.URLEncoder.encode("메모.txt", "UTF-8"))
+        assertEquals(200, download.status)
+        assertEquals("내용", download.body)
+        // The pictures and files are not lines of the history; only the page was opened.
+        assertEquals(1, count("select count(*) from share_accesses"))
+    }
+
     private fun share(
         who: ApiClient,
         month: String,
@@ -208,6 +309,34 @@ class ShareIntegrationTest : IntegrationTest() {
         val response = who.post("/api/v1/shares", timelineBody(from, to, scope))
         assertEquals(200, response.status)
         return response.json()
+    }
+
+    private fun issueShare(number: Int): Map<String, Any?> {
+        val response = admin.post("/api/v1/shares", """{"kind":"ISSUE","params":{"number":"$number"}}""")
+        assertEquals(200, response.status)
+        return response.json()
+    }
+
+    private fun item(
+        visitor: ApiClient,
+        token: Any?,
+        type: String,
+        id: String,
+    ): Map<String, Any?> {
+        val response = visitor.get("/api/v1/public/shares/$token/items/$type/$id")
+        assertEquals(200, response.status)
+        @Suppress("UNCHECKED_CAST")
+        return response.json()["content"] as Map<String, Any?>
+    }
+
+    private fun titles(list: Any?): List<Any?> {
+        @Suppress("UNCHECKED_CAST")
+        return (list as List<Map<String, Any?>>).map { it["title"] }
+    }
+
+    private fun png(): ByteArray {
+        val image = BufferedImage(40, 30, BufferedImage.TYPE_INT_RGB)
+        return ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
     }
 
     private fun issue(json: String): Map<String, Any?> {

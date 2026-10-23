@@ -79,7 +79,7 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
   - `POST /api/v1/auth/login`
   - `GET /api/v1/auth/csrf`
   - `GET /api/v1/auth/methods`, `GET /api/v1/auth/sso/start`, `GET /api/v1/auth/sso/callback` (SSO, [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md))
-  - `GET /api/v1/public/shares/{token}` (공유 링크가 보여 주는 내용. 토큰이 맞으면 누구나, 열 때마다 접속을 기록하고 IP 별 요청 제한을 건다. [features/sharing.md](features/sharing.md), D-197)
+  - `GET /api/v1/public/shares/{token}` 와 그 아래 `…/items/{issue|document}/{id}`, `…/files/{키}`, `…/files/{키}/original`, `…/editor-files/{키}` (공유 링크가 보여 주는 내용과 그것이 이끄는 하위 항목·사진·파일. 토큰이 맞으면 누구나, 열 때마다 접속을 기록하고 IP 별 요청 제한을 건다. [features/sharing.md](features/sharing.md), D-197·D-200)
   - `POST /api/v1/integrations/git/{id}/webhook` (Git 서버가 부른다. 세션 대신 연결의 비밀 값으로 만든 서명을 확인하고, CSRF 검사에서 뺀다. [features/git-integration.md](features/git-integration.md))
 - SSO 의 `start`·`callback` 은 JSON API 가 아니라 브라우저가 직접 여는 주소다. 항상 302 로 답하고, 실패는 문제 문서가 아니라 `/login?error=sso_…` 로 알린다.
 - 로그인 방법은 세 가지다: Flowbit 의 아이디·비밀번호, LDAP(같은 로그인 폼), SSO(OpenID Connect). 어느 쪽이든 결과는 같은 세션 쿠키다.

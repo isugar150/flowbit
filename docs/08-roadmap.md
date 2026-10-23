@@ -17,7 +17,7 @@
 | M7a | 알림 통로: 메일(SMTP), 웹 푸시(Firebase), API 알림 (M7 의 일부를 먼저) | 구현됨 (화면·실제 서비스 확인 남음) | [features/M7a-notification-channels.md](features/M7a-notification-channels.md) |
 | (마일스톤 밖) | 관리자 설정의 백업 및 복원: 워크스페이스·로그인 연동·알림 설정과 구성원을 파일로 (사용자 지정, D-112) | 구현됨 | [features/admin-backup.md](features/admin-backup.md) |
 | (마일스톤 밖) | 티켓·문서 검색: `Ctrl/⌘+K` 검색 창과 `/search` 결과 페이지 (사용자 지정, D-133) | 구현됨 | [features/search.md](features/search.md) |
-| (마일스톤 밖) | 공유 링크: "내 티켓" 캘린더의 한 달, 타임라인의 고른 기간(몇 월부터 몇 월까지)을 로그인 없이 볼 수 있는 읽기 전용 링크(임베드 가능, 접속 기록과 자동 정리). 다른 화면에도 쓰도록 공통 구조 (사용자 지정, D-197·D-198) | 구현됨, 화면·통합 테스트 확인 안 함 | [features/sharing.md](features/sharing.md) |
+| (마일스톤 밖) | 공유 링크: "내 티켓" 캘린더의 한 달, 타임라인의 고른 기간(몇 월부터 몇 월까지), 티켓(하위 티켓·문서로 이동)을 로그인 없이 볼 수 있는 읽기 전용 링크(임베드 가능, 접속 기록과 자동 정리). 다른 화면에도 쓰도록 공통 구조 (사용자 지정, D-197·D-198) | 구현됨, 화면·통합 테스트 확인 안 함 | [features/sharing.md](features/sharing.md) |
 | (마일스톤 밖) | 관리자 설정의 데이터 보관: 삭제한 티켓·문서·댓글을 항목별로 정한 기간 뒤 영구 삭제 (사용자 지정, D-132) | 구현됨 | [features/admin-retention.md](features/admin-retention.md) |
 | (마일스톤 밖) | 관리자 설정의 파일 관리: 저장소 통계, 저장소와 DB 점검, 쓰지 않는 파일 정리, 영구 삭제 뒤 사진·원본 정리, 파일은 커밋 뒤에 지움 (사용자 요청, D-171·D-172) | 구현됨 (화면·실제 S3 확인 남음) | [features/admin-files.md](features/admin-files.md) |
 | (마일스톤 밖) | 온보딩 투어: 처음 로그인하면 뜨는 둘러보기, 예시 티켓으로 연습, 건너뛰기, 내 설정에서 다시 보기 (사용자 지정, D-120) | 구현됨 | [features/onboarding-tour.md](features/onboarding-tour.md) |

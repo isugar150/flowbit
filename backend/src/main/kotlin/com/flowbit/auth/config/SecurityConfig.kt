@@ -101,8 +101,8 @@ class SecurityConfig {
                 "/api/v1/auth/methods",
                 "/api/v1/auth/sso/start",
                 "/api/v1/auth/sso/callback",
-                // What a share link shows: opened by anyone who has the address (docs/features/sharing.md).
-                "/api/v1/public/shares/*",
+                // What a share link shows, and what it leads to: opened by anyone who has the address (docs/features/sharing.md).
+                "/api/v1/public/shares/**",
             )
 
         /** Called by Git servers, signed with the connection's secret (docs/features/git-integration.md). */

@@ -137,6 +137,43 @@ class IssueQueries(
             it.visibleTo(viewer)
         }
 
+    /** One issue in use by number, if the viewer may see it. */
+    suspend fun findVisible(
+        viewer: Viewer,
+        number: Int,
+    ): IssueView? = select("where $VISIBLE and i.deleted_at is null and i.number = :number") { it.visibleTo(viewer).bind("number", number) }.firstOrNull()
+
+    /** One issue in use by id, if the viewer may see it. */
+    suspend fun findVisibleById(
+        viewer: Viewer,
+        id: UUID,
+    ): IssueView? = select("where $VISIBLE and i.deleted_at is null and i.id = :id") { it.visibleTo(viewer).bind("id", id) }.firstOrNull()
+
+    /**
+     * Whether the text of an issue in use under [rootNumber] (itself and its sub-issues, however deep) or of one of their documents
+     * in use holds [needle]. For deciding if a file may be served at a share link: only what the shared text points at.
+     */
+    suspend fun treeTextHolds(
+        rootNumber: Int,
+        needle: String,
+    ): Boolean {
+        // LIKE's own characters in the needle are plain characters here.
+        val pattern = "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        return exists(
+            """
+            with recursive tree (id) as (
+                select i.id from issues i where i.number = :root and i.deleted_at is null
+                union all
+                select c.id from issues c join tree t on c.parent_id = t.id where c.deleted_at is null
+            )
+            select (
+                exists(select 1 from issues i where i.id in (select id from tree) and i.content::text like :pattern)
+                or exists(select 1 from documents d where d.issue_id in (select id from tree) and d.deleted_at is null and d.content::text like :pattern)
+            ) as found
+            """.trimIndent(),
+        ) { it.bind("root", rootNumber).bind("pattern", pattern) }
+    }
+
     /** Lists show either the issues in use or the deleted ones, never a mix. */
     private fun deletedIs(deleted: Boolean) = if (deleted) "i.deleted_at is not null" else "i.deleted_at is null"
 

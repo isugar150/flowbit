@@ -5,8 +5,11 @@ import { loadPreview } from "./preview-loader";
 
 const m = messages.editor;
 
-/** Where an uploaded file is served from; the same pattern as `STORED_FILE` in RichText.kt. */
-const STORED_FILE = /^\/api\/v1\/editor-files\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/**
+ * Where an uploaded file is served from; the same pattern as `STORED_FILE` in RichText.kt, and the address the same file has
+ * inside a share link (docs/features/sharing.md), where it is read without signing in.
+ */
+const STORED_FILE = /^\/api\/v1\/(?:editor-files|public\/shares\/[A-Za-z0-9_-]+\/editor-files)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The address that downloads the file under its own name. */
 export const fileBlockHref = (src: string, name: string) => `${src}?name=${encodeURIComponent(name)}`;

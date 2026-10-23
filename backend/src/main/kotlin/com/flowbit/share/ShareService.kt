@@ -63,6 +63,7 @@ class ShareService(
     ): SharedLink {
         val provider = providers[kind] ?: throw ValidationException("kind", "INVALID", "공유할 수 없는 종류입니다")
         val normalized = provider.normalize(params.orEmpty())
+        provider.check(user, normalized)
         val target = encode(normalized)
         store.findLive(user.id, provider.kind.name, target)?.let { return SharedLink(it, normalized) }
         val now = clock.instant()
@@ -110,10 +111,48 @@ class ShareService(
         val opened = store.findOpen(token) ?: throw notFound()
         val provider = providers[opened.link.kind] ?: throw notFound()
         val params = decode(opened.link.target)
-        val content = provider.content(opened.link.ownerId, params)
-        store.recordAccess(opened.link.id, clock.instant(), client, embedded, referrer?.trim()?.take(MAX_REFERRER_LENGTH)?.takeIf { it.isNotEmpty() })
+        val content = provider.content(opened.link.ownerId, params, token)
+        store.recordAccess(opened.link.id, clock.instant(), client, embedded, referrerOf(referrer))
         return PublicShare(opened.link.kind, opened.ownerName?.takeIf { it.isNotBlank() }, params, content)
     }
+
+    /**
+     * A page the shared one leads to (a sub-issue or a document of a shared issue), opened like the link's own page and recorded
+     * with what it was (`item`: `issue:13`). Not found when it is not part of what was shared.
+     */
+    suspend fun openItem(
+        token: String,
+        type: String,
+        id: String,
+        client: ClientInfo,
+        embedded: Boolean,
+        referrer: String?,
+    ): PublicShare {
+        rateLimiter.check("share-open", client.ipAddress, OPENS_PER_MINUTE)
+        val opened = store.findOpen(token) ?: throw notFound()
+        val provider = providers[opened.link.kind] ?: throw notFound()
+        val params = decode(opened.link.target)
+        val content = provider.item(opened.link.ownerId, params, token, type, id) ?: throw notFound()
+        store.recordAccess(opened.link.id, clock.instant(), client, embedded, referrerOf(referrer), "$type:$id".take(MAX_ITEM_LENGTH))
+        return PublicShare(opened.link.kind, opened.ownerName?.takeIf { it.isNotBlank() }, params, content)
+    }
+
+    /**
+     * Checks that a picture or file may be served to whoever has the link: it must be one the shared pages hold. Not found
+     * otherwise. Not recorded (a page holds many), and counted apart from the pages.
+     */
+    suspend fun checkFile(
+        token: String,
+        file: SharedFile,
+        client: ClientInfo,
+    ) {
+        rateLimiter.check("share-file", client.ipAddress, FILES_PER_MINUTE)
+        val opened = store.findOpen(token) ?: throw notFound()
+        val provider = providers[opened.link.kind] ?: throw notFound()
+        if (!provider.mayServe(opened.link.ownerId, decode(opened.link.target), file)) throw notFound()
+    }
+
+    private fun referrerOf(referrer: String?) = referrer?.trim()?.take(MAX_REFERRER_LENGTH)?.takeIf { it.isNotEmpty() }
 
     private suspend fun ownLink(
         user: AuthenticatedUser,
@@ -125,7 +164,9 @@ class ShareService(
     internal companion object {
         const val RECENT_ACCESSES = 20
         const val OPENS_PER_MINUTE = 120
+        const val FILES_PER_MINUTE = 600
         private const val MAX_REFERRER_LENGTH = 512
+        private const val MAX_ITEM_LENGTH = 100
         private val random = SecureRandom()
 
         /** 256 random bits as 43 characters of an address. */

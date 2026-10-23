@@ -1,5 +1,6 @@
 package com.flowbit.share
 
+import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ValidationException
 import com.flowbit.issue.application.IssueQueries
 import com.flowbit.issue.application.MyIssueScope
@@ -18,12 +19,23 @@ import java.util.UUID
 enum class ShareKind {
     MY_ISSUES_CALENDAR,
     MY_ISSUES_TIMELINE,
+    ISSUE,
 }
+
+/** A file a shared page points at, by the key in its address: a picture (`<uuid>.webp`) or a file placed in a text (`<uuid>`). */
+data class SharedFile(
+    val kind: SharedFileKind,
+    val key: String,
+)
+
+enum class SharedFileKind { IMAGE, EDITOR_FILE }
 
 /**
  * What one kind of shared page needs: a check of the parameters the sharing person sent, and the
  * content shown at the link. Everything else (links, the stop, the record of who opened it, the
- * clean-up) is [ShareService]'s and is the same for every kind (docs/features/sharing.md).
+ * clean-up) is [ShareService]'s and is the same for every kind (docs/features/sharing.md). A kind whose page leads to
+ * others (a shared issue leads to its sub-issues and documents) also says what it leads to ([item]) and which
+ * files it may serve ([mayServe]); the others keep the defaults, which lead nowhere.
  */
 interface ShareContentProvider {
     val kind: ShareKind
@@ -31,14 +43,41 @@ interface ShareContentProvider {
     /** The parameters in the form they are stored in, without anything the kind does not use. Throws [ValidationException] when they are not right. */
     fun normalize(params: Map<String, String>): Map<String, String>
 
+    /** Whether [owner] may share this at all, checked when the link is made. Throws when not; the default lets everyone share what is theirs. */
+    suspend fun check(
+        owner: AuthenticatedUser,
+        params: Map<String, String>,
+    ) {}
+
     /**
      * The content to show to anyone who opens the link. It is made each time the link is opened,
-     * from what [ownerId] (who shared it) may see now, and holds no more than the kind shows.
+     * from what [ownerId] (who shared it) may see now, and holds no more than the kind shows. [token] is the link's, for the
+     * addresses in the content that lead back into it.
      */
     suspend fun content(
         ownerId: UUID,
         params: Map<String, String>,
+        token: String,
     ): Any
+
+    /**
+     * A page the shared one leads to, of the kind `type` and the name `id`, or null when there is none or it is not part of
+     * what was shared. Made like [content].
+     */
+    suspend fun item(
+        ownerId: UUID,
+        params: Map<String, String>,
+        token: String,
+        type: String,
+        id: String,
+    ): Any? = null
+
+    /** Whether [file] is one the shared pages point at, so that it may be served to whoever has the link. */
+    suspend fun mayServe(
+        ownerId: UUID,
+        params: Map<String, String>,
+        file: SharedFile,
+    ): Boolean = false
 }
 
 /** An issue as the shared calendar shows it: where it is and what it is, and nothing else about it. */
@@ -118,6 +157,7 @@ class MyIssuesCalendarShare(
     override suspend fun content(
         ownerId: UUID,
         params: Map<String, String>,
+        token: String,
     ): SharedCalendar {
         val month = checkNotNull(MyIssuesParams.month(params["month"]))
         val scope = checkNotNull(MyIssuesParams.scope(params["scope"]))
@@ -162,6 +202,7 @@ class MyIssuesTimelineShare(
     override suspend fun content(
         ownerId: UUID,
         params: Map<String, String>,
+        token: String,
     ): SharedTimeline {
         val first = checkNotNull(MyIssuesParams.month(params["from"])).atDay(1)
         val last = checkNotNull(MyIssuesParams.month(params["to"])).atEndOfMonth()

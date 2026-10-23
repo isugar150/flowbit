@@ -278,6 +278,8 @@ export function RichTextEditor({
   keepLocal,
   onCreateDocument,
   documents,
+  openDocument,
+  documentHref,
   mentionables,
   ref,
   blockIds = false,
@@ -300,6 +302,10 @@ export function RichTextEditor({
   onCreateDocument?: (title: string) => Promise<{ id: string; title: string }>;
   /** The documents the text may hold as blocks, for their current titles. */
   documents?: { id: string; title: string }[];
+  /** What a click on a document block does; it opens `/doc/{id}` unless this says otherwise (a shared page opens it inside its link). */
+  openDocument?: (id: string) => void;
+  /** The address a document block links to, to open in a new tab; `/doc/{id}` unless this says otherwise. */
+  documentHref?: (id: string) => string;
   /** The people `@` offers to tag. Without them `@` is ordinary text. */
   mentionables?: MentionPerson[];
   /** True while this editor has edits the server has not stored yet. */
@@ -609,11 +615,12 @@ export function RichTextEditor({
     // A plain editor (a comment) has no page blocks.
     if (!editor || editor.isDestroyed || plain) return;
     editor.storage.pageLink.configure({
-      open: (id) => router.push(`/doc/${id}`),
+      open: (id) => (openDocument ? openDocument(id) : router.push(`/doc/${id}`)),
+      href: documentHref,
       untitled: m.untitledDocument,
       documents: documents ?? [],
     });
-  }, [editor, documents, router, plain]);
+  }, [editor, documents, router, plain, openDocument, documentHref]);
 
   const keepLocalRef = useRef(keepLocal);
   useEffect(() => {
