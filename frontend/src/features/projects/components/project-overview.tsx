@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { GlobeIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { ContentActivity } from "@/features/content/components/content-activity";
@@ -81,7 +82,15 @@ export async function ProjectOverview({ id }: { id: string }) {
                 <span className="font-normal text-muted-foreground">{m.noUpdates}</span>
               )}
             </PropertyRow>
-            <PropertyRow label={m.propMembers}>{m.memberCount(project.memberCount)}</PropertyRow>
+            {/* A project open to everyone has no list of people to show: it says so here instead (D-192). */}
+            {project.openToAll ? (
+              <PropertyRow label={m.propAccess}>
+                <GlobeIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                {m.openProject}
+              </PropertyRow>
+            ) : (
+              <PropertyRow label={m.propMembers}>{m.memberCount(project.memberCount)}</PropertyRow>
+            )}
             <PropertyRow label={m.propCreated}>
               <span className="tabular-nums">{created}</span>
             </PropertyRow>
@@ -89,10 +98,12 @@ export async function ProjectOverview({ id }: { id: string }) {
             <CustomProperties owner={{ type: "project", id: project.id }} members={members} watch={project} layout="card" />
           </dl>
         </PropertyCard>
-        {/* Who is in the project, nothing more: people are added, removed and given roles in the settings. */}
-        <PropertyCard title={m.membersCardTitle}>
-          <ProjectMemberList members={members} currentUserId={user.id} />
-        </PropertyCard>
+        {/* Who is in the project, nothing more: people are added, removed and given roles in the settings. Not for a project open to everyone: that is everybody. */}
+        {project.openToAll ? null : (
+          <PropertyCard title={m.membersCardTitle}>
+            <ProjectMemberList members={members} currentUserId={user.id} />
+          </PropertyCard>
+        )}
       </aside>
     </div>
   );

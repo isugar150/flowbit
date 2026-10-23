@@ -689,6 +689,9 @@ export const ko = {
     accessOpenHint: "워크스페이스의 모든 구성원이 편집 역할로 들어와 티켓과 문서를 함께 고칩니다. 앞으로 가입하는 사람도 바로 들어옵니다.",
     accessSaved: "공개 범위를 바꿨습니다.",
     openBadge: "모든 구성원에게 열림",
+    // The row of the overview's properties for a project open to everyone, in place of the member count.
+    propAccess: "공개 범위",
+    openProject: "공개 프로젝트",
     openMembersNote: "이 프로젝트는 모든 구성원에게 열려 있어, 아래에 없는 사람도 편집 역할로 들어옵니다. 아래는 따로 추가한 사람이고, 관리 역할을 정해 두는 데 씁니다.",
     membersTitle: "프로젝트 구성원",
     membersDescription: "관리는 프로젝트 설정과 구성원을 바꿀 수 있고, 편집은 티켓을 쓰고 수정할 수 있고, 보기는 읽기만 할 수 있습니다.",
