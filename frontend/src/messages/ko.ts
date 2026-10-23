@@ -356,6 +356,10 @@ export const ko = {
     valueOf: (label: string) => `${label} 값`,
     loadFailed: "사용자 속성을 불러오지 못했습니다.",
     notANumber: "숫자를 입력하세요.",
+    /** Properties set while a ticket is being made, before it exists (D-193). */
+    tooMany: (max: number) => `속성은 ${max}개까지 추가할 수 있습니다.`,
+    exists: "같은 이름의 속성이 이미 있습니다.",
+    notANumberOf: (label: string) => `'${label}' 속성의 값은 숫자여야 합니다.`,
   },
   dates: {
     clear: "날짜 지우기",

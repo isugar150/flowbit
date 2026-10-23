@@ -1,6 +1,7 @@
 package com.flowbit.issue.application
 
 import com.flowbit.common.error.ValidationException
+import com.flowbit.customproperty.application.NewCustomProperty
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueStatus
 import org.springframework.core.io.Resource
@@ -30,6 +31,8 @@ data class NewIssue(
     val parentId: UUID? = null,
     /** With [dueDate], makes the issue cover a span of days. */
     val startDate: LocalDate? = null,
+    /** The properties the people adding it want it to have from the start (D-186, D-193), in order. */
+    val customProperties: List<NewCustomProperty> = emptyList(),
 )
 
 /**

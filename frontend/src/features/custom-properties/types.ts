@@ -23,5 +23,8 @@ export type CustomProperty = {
 /** GET /api/v1/custom-properties/{type}/{id} */
 export type CustomPropertyList = { canEdit: boolean; items: CustomProperty[] };
 
+/** A property sent with a new issue (D-193): the same three things as adding one afterwards. */
+export type NewCustomPropertyInput = { label: string; type: CustomPropertyType; value: CustomPropertyValue };
+
 /** What may be changed on a property: its value, and its name. The kind stays. */
 export type CustomPropertyChanges = { value?: CustomPropertyValue; label?: string };

@@ -2,6 +2,8 @@ package com.flowbit.issue.api
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonRawValue
+import com.flowbit.customproperty.application.CustomPropertyType
+import com.flowbit.customproperty.application.NewCustomProperty
 import com.flowbit.issue.application.AttachmentView
 import com.flowbit.issue.application.CommentView
 import com.flowbit.issue.application.DocumentDetail
@@ -315,6 +317,8 @@ data class CreateIssueRequest(
     val parentId: UUID? = null,
     /** With `dueDate`, makes the issue cover a span of days. */
     val startDate: LocalDate? = null,
+    /** Properties to give the issue as it is made, in order (D-193); the same as adding each one afterwards. */
+    val customProperties: List<NewCustomPropertyRequest>? = null,
 ) {
     fun toNewIssue(projectId: String? = this.projectId) =
         NewIssue(
@@ -329,8 +333,15 @@ data class CreateIssueRequest(
             projectId,
             parentId,
             startDate,
+            customProperties.orEmpty().map { NewCustomProperty(it.label, it.type, it.value) },
         )
 }
+
+data class NewCustomPropertyRequest(
+    val label: String,
+    val type: CustomPropertyType,
+    val value: Any? = null,
+)
 
 /** Both null takes the pick away. */
 data class GitRepositoryRequest(

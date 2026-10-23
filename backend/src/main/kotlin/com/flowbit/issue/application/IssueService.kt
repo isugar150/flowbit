@@ -6,6 +6,7 @@ import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.FieldError
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
+import com.flowbit.customproperty.application.CustomPropertyService
 import com.flowbit.issue.domain.Issue
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueRepository
@@ -39,6 +40,7 @@ class IssueService(
     private val richText: RichText,
     private val activities: IssueActivityStore,
     private val extras: IssueExtrasStore,
+    private val customProperties: CustomPropertyService,
     private val clock: Clock,
 ) {
     /**
@@ -159,6 +161,8 @@ class IssueService(
                 requireAssignees(project?.id, input.assigneeIds.orEmpty(), emptyList())
             }
         val labelIds = requireLabels(input.labelIds)
+        // Checked before anything is stored, so that a bad property does not use up an issue number.
+        val properties = customProperties.checkAll(input.customProperties, project?.id)
 
         val now = clock.instant()
         val issue =
@@ -182,6 +186,7 @@ class IssueService(
         if (document != null) richText.store(RichText.ContentTable.ISSUES, issue.id, document)
         if (labelIds.isNotEmpty()) queries.replaceLabels(issue.id, labelIds)
         if (assigneeIds.isNotEmpty()) queries.replaceAssignees(issue.id, assigneeIds, now)
+        if (properties.isNotEmpty()) customProperties.addChecked(issue.id, properties, now)
         val events = listOf(IssueEvent(IssueActivityType.CREATED))
         activities.record(issue.id, user.id, events, now)
         // The author and the assignees follow the issue from the start.

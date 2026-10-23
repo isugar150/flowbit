@@ -28,7 +28,7 @@
 - **연결 바꾸기**: 티켓 상세 오른쪽 "프로젝트"에서 프로젝트를 고른다. 연결하려면 그 프로젝트에서 편집 권한이 있어야 한다. 담당자는 연결된 프로젝트의 구성원 중에서(독립 티켓은 모든 구성원 중에서) 고른다.
 - **프로젝트에는 키가 없다** (D-082). 프로젝트는 내부 ID 로만 가리킨다: 주소 `/project/{id}`, API `/api/v1/projects/{id}`, 실시간 주제 `project:{id}`. 화면에는 이름만 보인다. 이름은 겹쳐도 된다.
 - **주소**: `/issue/FB-12`(번호만 읽는다). 앱 안에서 티켓을 누르면 어느 화면에서든 그 위에 대화상자로 뜬다. **주소를 직접 열거나 새로 고쳐도 대화상자다** (D-074): 뒤에 둘 화면이 없으므로 전체 티켓 목록 위에 뜨고, 닫으면 `/issues` 로 간다. `/issues` 는 볼 수 있는 모든 티켓("전체 티켓"), `/project/{id}/issues` 는 그 프로젝트에 연결된 티켓, `/my-issues` 는 내 티켓.
-- **API**: `GET/POST /api/v1/issues`(`?project={id}` 로 좁히기, 만들 때 `projectId`·`parentId`), `GET/PATCH /api/v1/issues/{번호}`(`projectId`, `parentId` 를 `null` 로 보내면 떼어 낸다), `…/activity`, `…/subscription`, `…/reactions`, `…/attachments`, `…/documents`. `GET/POST /api/v1/projects/{id}/issues` 는 그 프로젝트의 목록과 "그 프로젝트에 연결해 만들기"로 남아 있다. 한 건 조회 응답에는 `canEdit`, `canAddSubIssue`, `subIssues`, `reactions`, `attachments`, `documents` 가 더 들어 있다.
+- **API**: `GET/POST /api/v1/issues`(`?project={id}` 로 좁히기, 만들 때 `projectId`·`parentId`·`customProperties`(D-193, [custom-properties.md](custom-properties.md))), `GET/PATCH /api/v1/issues/{번호}`(`projectId`, `parentId` 를 `null` 로 보내면 떼어 낸다), `…/activity`, `…/subscription`, `…/reactions`, `…/attachments`, `…/documents`. `GET/POST /api/v1/projects/{id}/issues` 는 그 프로젝트의 목록과 "그 프로젝트에 연결해 만들기"로 남아 있다. 한 건 조회 응답에는 `canEdit`, `canAddSubIssue`, `subIssues`, `reactions`, `attachments`, `documents` 가 더 들어 있다.
 
 | 기능 | 내용 | 상태 |
 |---|---|---|

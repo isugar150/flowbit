@@ -80,6 +80,48 @@ class CustomPropertyService(
         return announced(user, target, item, detail, now)
     }
 
+    /**
+     * Checks the properties a new issue is to be made with, as [create] would one by one: names that are
+     * allowed and do not repeat (ignoring case), at most [MAX_PER_ITEM], and values that fit their kind.
+     * `projectId` is the project the issue will be in, whose members a PERSON value may name. Nothing is
+     * stored; the issue is made first, then [addChecked] keeps these with it.
+     */
+    suspend fun checkAll(
+        inputs: List<NewCustomProperty>,
+        projectId: UUID?,
+    ): List<CheckedCustomProperty> {
+        if (inputs.size > MAX_PER_ITEM) {
+            throw ValidationException("customProperties", "TOO_MANY", "속성은 한 항목에 ${MAX_PER_ITEM}개까지 추가할 수 있습니다")
+        }
+        val seen = mutableSetOf<String>()
+        return inputs.map { input ->
+            val label = validLabel(input.label)
+            if (!seen.add(label.lowercase())) throw taken()
+            val value = normalize(input.type, input.value, projectId, current = null)
+            CheckedCustomProperty(label, input.type, value?.let(jsonMapper::writeValueAsString))
+        }
+    }
+
+    /**
+     * Keeps checked properties with an issue that has just been made, in the order given. They are part of
+     * making the issue, so no activity is written for them (the issue's "created" entry stands for it all);
+     * the right to make the issue is the right to give it properties.
+     */
+    @Transactional
+    suspend fun addChecked(
+        issueId: UUID,
+        checked: List<CheckedCustomProperty>,
+        now: Instant,
+    ) {
+        val owner = CustomPropertyOwner(CustomPropertyOwnerKind.ISSUE, issueId)
+        // A property's place in the list is the time it was added (ids made in one millisecond do not sort), so each
+        // one is a microsecond after the one before.
+        checked.forEachIndexed { index, property ->
+            val at = now.plusNanos(index * 1_000L)
+            store.insert(UuidV7.generate(at), owner, property.label, property.type, property.valueJson, at)
+        }
+    }
+
     /** Changes the fields present in `changes`: `label` and `value` (the kind of value cannot change). */
     @Transactional
     suspend fun update(

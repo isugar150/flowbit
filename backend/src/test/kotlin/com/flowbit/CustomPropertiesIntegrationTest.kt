@@ -237,6 +237,56 @@ class CustomPropertiesIntegrationTest : IntegrationTest() {
 
     @Test
     @Suppress("UNCHECKED_CAST")
+    fun `티켓을 만들 때 속성을 함께 정하면 순서대로 붙고 활동에는 만들었다는 줄만 남는다 (D-193)`() {
+        val created =
+            editor.post(
+                "/api/v1/projects/$projectId/issues",
+                """
+                {"title":"새 티켓","customProperties":[
+                  {"label":"담당 부서","type":"TEXT","value":"  결제팀  "},
+                  {"label":"예산","type":"NUMBER","value":1500.5},
+                  {"label":"배포예정일","type":"DATE","value":"2026-11-01"},
+                  {"label":"검수 완료","type":"CHECKBOX"},
+                  {"label":"명세","type":"LINK","value":"https://example.com/spec"},
+                  {"label":"QA 담당","type":"PERSON","value":"$editorId"},
+                  {"label":"비고","type":"TEXT"}
+                ]}
+                """.trimIndent(),
+            )
+        assertEquals(201, created.status)
+        val id = created.json()["id"] as String
+
+        val list = admin.get(path("issue", id)).json()
+        val all = items(list)
+        assertEquals(listOf("담당 부서", "예산", "배포예정일", "검수 완료", "명세", "QA 담당", "비고"), all.map { it["label"] })
+        assertEquals(listOf("결제팀", 1500.5, "2026-11-01", false, "https://example.com/spec", editorId, null), all.map { it["value"] })
+        assertEquals("editor", (all[5]["person"] as Map<String, Any?>)["loginId"])
+
+        // Giving them is part of making the ticket: the history says it was created, not that each was added.
+        val number = created.json()["number"]
+        val types = (admin.get("/api/v1/issues/$number/activity").json()["items"] as List<Map<String, Any?>>).map { it["type"] }
+        assertTrue("CREATED" in types)
+        assertTrue("CUSTOM_PROPERTY_CHANGED" !in types)
+
+        // Left out or empty, the ticket simply has none.
+        val plain = editor.post("/api/v1/projects/$projectId/issues", """{"title":"속성 없음","customProperties":[]}""")
+        assertEquals(201, plain.status)
+        assertEquals(emptyList<Any?>(), items(admin.get(path("issue", plain.json()["id"] as String)).json()))
+    }
+
+    @Test
+    fun `프로젝트에 속하지 않은 티켓은 활성 사용자 누구나 사람 속성으로 정할 수 있다 (D-193)`() {
+        val created =
+            admin.post(
+                "/api/v1/issues",
+                """{"title":"혼자 있는 티켓","customProperties":[{"label":"확인자","type":"PERSON","value":"$outsiderId"}]}""",
+            )
+        assertEquals(201, created.status)
+        assertEquals(outsiderId, items(admin.get(path("issue", created.json()["id"] as String)).json()).single()["value"])
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
     fun `사람과 체크박스는 읽을 수 있는 말로 활동에 남는다`() {
         val person = add(editor, "project", projectId, "리뷰어", "PERSON").json()["id"] as String
         val box = add(editor, "project", projectId, "검수", "CHECKBOX").json()["id"] as String

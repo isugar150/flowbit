@@ -55,6 +55,20 @@ data class CustomPropertyView(
     val person: CustomPropertyPerson?,
 )
 
+/** A property asked for together with the item it belongs to (a new issue), before it is checked. */
+data class NewCustomProperty(
+    val label: String,
+    val type: CustomPropertyType,
+    val value: Any? = null,
+)
+
+/** A [NewCustomProperty] that passed the checks, ready to be stored: the label as kept and the value as JSON. */
+data class CheckedCustomProperty(
+    val label: String,
+    val type: CustomPropertyType,
+    val valueJson: String?,
+)
+
 /** The properties of one item, and whether the caller may change them. */
 data class CustomPropertyList(
     val canEdit: Boolean,

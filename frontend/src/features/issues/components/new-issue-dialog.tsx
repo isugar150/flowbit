@@ -12,6 +12,8 @@ import { ModKey } from "@/components/mod-key";
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
+import { DraftProperties } from "@/features/custom-properties/components/draft-properties";
+import { draftsToInput, draftWithBadNumber, withoutPeople, type DraftProperty } from "@/features/custom-properties/drafts";
 import type { UserSummary } from "@/features/members/types";
 import { mentionablesOf, usersAsMembers, type ProjectMember, type ProjectSummary } from "@/features/projects/types";
 import { apiFetch } from "@/lib/api/client";
@@ -73,6 +75,13 @@ export function NewIssueDialog({
 }) {
   const [title, setTitle] = useState("");
   const [properties, setProperties] = useState<Properties>(DEFAULT_PROPERTIES);
+  // What people add to the ticket on their own (D-193): kept here and sent with the ticket, since it has no id to save them under yet.
+  const [drafts, setDrafts] = useState<DraftProperty[]>([]);
+  const [draftProblem, setDraftProblem] = useState<string | null>(null);
+  const changeDrafts = (next: DraftProperty[]) => {
+    setDrafts(next);
+    setDraftProblem(null);
+  };
   // The body lives in the editor; a new `revision` restarts it empty (after "create more").
   const [revision, setRevision] = useState(0);
   const content = useRef<RichDoc | null>(null);
@@ -113,6 +122,8 @@ export function NewIssueDialog({
         startDate: defaultDates?.startDate ?? null,
         dueDate: defaultDates?.dueDate ?? null,
       }));
+      // A person property names a member of the project, and the project starts over, so the properties do too.
+      changeDrafts([]);
       setTitleError(false);
       setLastCreated(null);
     }
@@ -132,6 +143,7 @@ export function NewIssueDialog({
         projectId: initialProjectId ?? defaultProjectId,
         assigneeIds: defaultAssigneeId ? [defaultAssigneeId] : [],
       });
+      changeDrafts([]);
       resetBody();
       onOpenChange(false);
     }
@@ -151,8 +163,11 @@ export function NewIssueDialog({
   });
   const members = other ? (fetched.data ?? []) : defaultMembers;
   // Assignees belong to a project; changing the project starts those over.
-  const setProject = (key: string | null) =>
+  const setProject = (key: string | null) => {
     setProperties((current) => ({ ...current, projectId: key, assigneeIds: [] }));
+    // The same for the people named in the added properties: they were members of the other project.
+    setDrafts(withoutPeople);
+  };
 
   const submit = () => {
     if (mutation.isPending) return;
@@ -161,12 +176,23 @@ export function NewIssueDialog({
       titleRef.current?.focus();
       return;
     }
+    const notANumber = draftWithBadNumber(drafts);
+    if (notANumber) {
+      setDraftProblem(messages.customProperties.notANumberOf(notANumber.label));
+      return;
+    }
     setLastCreated(null);
-    mutation.mutate({ title, content: content.current, ...properties });
+    mutation.mutate({
+      title,
+      content: content.current,
+      ...properties,
+      ...(drafts.length > 0 ? { customProperties: draftsToInput(drafts) } : null),
+    });
   };
 
   const startAgain = () => {
     setTitle("");
+    changeDrafts([]);
     resetBody();
     setProperties({
       ...DEFAULT_PROPERTIES,
@@ -276,10 +302,15 @@ export function NewIssueDialog({
               members={members}
               labels={labels}
               projects={projects}
+              afterDueDate={<DraftProperties drafts={drafts} onChange={changeDrafts} members={members} />}
             />
           </aside>
           </div>
-          {mutation.isError ? (
+          {draftProblem ? (
+            <div className="px-4 pb-2">
+              <FormAlert>{draftProblem}</FormAlert>
+            </div>
+          ) : mutation.isError ? (
             <div className="px-4 pb-2">
               <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert>
             </div>

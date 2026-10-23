@@ -1,4 +1,5 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
+import type { NewCustomPropertyInput } from "@/features/custom-properties/types";
 import type { IssueGitLink, IssueGitRepository } from "@/features/git/types";
 
 export type IssueStatus = "BACKLOG" | "READY" | "IN_PROGRESS" | "DONE" | "CANCELED";
@@ -138,6 +139,8 @@ export type NewIssueInput = {
   projectId: string | null;
   /** Makes the issue a sub-issue of this one. */
   parentId?: string;
+  /** Properties to give the issue as it is made, in order (D-193); left out for none. */
+  customProperties?: NewCustomPropertyInput[];
 };
 
 /**

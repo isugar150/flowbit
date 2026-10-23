@@ -49,7 +49,7 @@ const LABEL_MAX_LENGTH = 30;
 export type CustomPropertiesLayout = "card" | "panel";
 
 /** A text field that looks like the chips around it: a pill, or with `plain` a quiet row that shows its edge when pointed at. */
-const fieldClass = (plain: boolean) =>
+export const fieldClass = (plain: boolean) =>
   plain
     ? "-mx-2 h-8 w-full min-w-0 rounded-md bg-transparent px-2 text-[0.8125rem] leading-5 font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-10"
     : "h-7 w-full min-w-0 rounded-full border bg-background px-2.5 text-[0.8125rem] leading-5 outline-none placeholder:text-muted-foreground hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-9";
@@ -119,23 +119,7 @@ export function CustomProperties({
                 onChange={(changes, person) => change.mutate({ id: item.id, changes, person })}
               />
             </div>
-            {canEdit ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button variant="ghost" size="icon-xs" aria-label={m.menuOf(item.label)} className="shrink-0 text-muted-foreground max-md:size-8" />
-                  }
-                >
-                  <EllipsisIcon aria-hidden="true" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem variant="destructive" onClick={() => remove.mutate(item.id)}>
-                    <Trash2Icon />
-                    {m.remove}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
+            {canEdit ? <RemoveMenu label={item.label} onRemove={() => remove.mutate(item.id)} /> : null}
           </div>
         </Row>
       ))}
@@ -148,7 +132,7 @@ export function CustomProperties({
       <>
         {alert}
         {rows}
-        {canEdit ? <AddProperty add={add} /> : null}
+        {canEdit ? <AddSavedProperty add={add} /> : null}
       </>
     );
   }
@@ -157,13 +141,32 @@ export function CustomProperties({
     <>
       {alert}
       {list.items.length > 0 ? <dl className="flex flex-col">{rows}</dl> : null}
-      {canEdit ? <AddProperty add={add} /> : null}
+      {canEdit ? <AddSavedProperty add={add} /> : null}
     </>
   );
 }
 
+/** The "…" at the end of a property's row, with the one thing it does: delete it. */
+export function RemoveMenu({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size="icon-xs" aria-label={m.menuOf(label)} className="shrink-0 text-muted-foreground max-md:size-8" />}
+      >
+        <EllipsisIcon aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuItem variant="destructive" onClick={onRemove}>
+          <Trash2Icon />
+          {m.remove}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** The editor for one value, by what kind it is. Without the right to edit it only shows it. */
-function PropertyValue({
+export function PropertyValue({
   item,
   canEdit,
   plain,
@@ -340,8 +343,36 @@ function PersonValue({
   );
 }
 
-/** "속성 추가": a name and a kind of value, then the property is there, empty, to be filled in. */
-function AddProperty({ add }: { add: ReturnType<typeof useCustomProperties>["add"] }) {
+/** "속성 추가" on an item that exists: the property is saved at once. */
+function AddSavedProperty({ add }: { add: ReturnType<typeof useCustomProperties>["add"] }) {
+  return (
+    <AddPropertyPopover
+      onAdd={(input, done) => add.mutate(input, { onSuccess: done })}
+      pending={add.isPending}
+      error={add.isError ? apiErrorMessage(add.error) : null}
+      onClosed={add.reset}
+    />
+  );
+}
+
+/**
+ * "속성 추가": a name and a kind of value, then the property is there, empty, to be filled in. What
+ * adding does is the caller's (`onAdd`, which calls `done` once it worked: the form closes and empties);
+ * an item that exists saves it, a ticket being made keeps it until the ticket is (D-193).
+ */
+export function AddPropertyPopover({
+  onAdd,
+  pending = false,
+  error = null,
+  onClosed,
+}: {
+  onAdd: (input: { label: string; type: CustomPropertyType }, done: () => void) => void;
+  pending?: boolean;
+  /** Why the last add did not work, said in the form. */
+  error?: string | null;
+  /** The form was closed: whatever it said about the last add is no longer true. */
+  onClosed?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [type, setType] = useState<CustomPropertyType>("TEXT");
@@ -353,7 +384,7 @@ function AddProperty({ add }: { add: ReturnType<typeof useCustomProperties>["add
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (!next) add.reset();
+          if (!next) onClosed?.();
         }}
       >
         <PopoverTrigger
@@ -372,17 +403,14 @@ function AddProperty({ add }: { add: ReturnType<typeof useCustomProperties>["add
             className="flex flex-col gap-3"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!name || add.isPending) return;
-              add.mutate(
-                { label: name, type },
-                {
-                  onSuccess: () => {
-                    setOpen(false);
-                    setLabel("");
-                    setType("TEXT");
-                  },
-                },
-              );
+              // The form is drawn in a portal but React still hands the event up to the form around the button, which in a new ticket makes the ticket.
+              event.stopPropagation();
+              if (!name || pending) return;
+              onAdd({ label: name, type }, () => {
+                setOpen(false);
+                setLabel("");
+                setType("TEXT");
+              });
             }}
           >
             <p className="text-xs leading-4 text-muted-foreground">{m.addHint}</p>
@@ -403,8 +431,8 @@ function AddProperty({ add }: { add: ReturnType<typeof useCustomProperties>["add
               {/* The app's own menu (as for a status or a priority), not the browser's list. */}
               <ChipSelect label={m.typeLabel} value={type} options={TYPE_OPTIONS} onChange={setType} />
             </div>
-            {add.isError ? <FormAlert>{apiErrorMessage(add.error)}</FormAlert> : null}
-            <Button type="submit" size="sm" disabled={!name || add.isPending}>
+            {error ? <FormAlert>{error}</FormAlert> : null}
+            <Button type="submit" size="sm" disabled={!name || pending}>
               {m.create}
             </Button>
           </form>
