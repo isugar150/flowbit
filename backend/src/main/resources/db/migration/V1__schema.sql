@@ -1,8 +1,9 @@
 -- The whole schema in one file: the baseline of the first production install. The step-by-step
--- migrations written during development (V1 to V26) were folded into this one, once, before that
--- install (docs/09-decisions.md D-067, D-104, D-168). A database made from the older files cannot
--- be moved onto this one (Flyway would see a changed V1): it is dropped and made again. This file is
--- never edited again: every later change goes in a new file, V2, V3, ….
+-- migrations written during development (V1 to V26, and then V1 to V4 on top of the first merge)
+-- were folded into this one (docs/09-decisions.md D-067, D-104, D-168, D-191). A database that
+-- already has the older files applied keeps its data: its flyway_schema_history is rewritten to match
+-- this file (the SQL is in D-191). This file is never edited again: every later change goes in a
+-- new file, V2, V3, ….
 
 -- ---------------------------------------------------------------------------------------------
 -- Installation and people
@@ -228,30 +229,11 @@ CREATE TABLE project_updates (
 
 CREATE INDEX project_updates_project_created_idx ON project_updates (project_id, created_at DESC);
 
--- Stages inside a project ("목표" on screen). Issues linked to the project can be put in one;
--- a milestone's progress is the share of its issues that are done.
-CREATE TABLE milestones (
-    id          uuid        PRIMARY KEY,
-    project_id  uuid        NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
-    name        text        NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
-    target_date date,
-    -- A document of its own, written in the block editor like a project's overview: where the stage
-    -- stands, what is left, what was decided (docs/features/M3-projects-and-issues.md "목표의 상세").
-    content     jsonb,
-    -- The same values as a project's (D-163). Completed and canceled ones are folded away in the lists.
-    status      text        NOT NULL DEFAULT 'PLANNED'
-                            CHECK (status IN ('BACKLOG', 'PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED')),
-    created_at  timestamptz NOT NULL DEFAULT now(),
-    updated_at  timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX milestones_project_id_idx ON milestones (project_id);
-
 -- ---------------------------------------------------------------------------------------------
 -- Issues
 -- ---------------------------------------------------------------------------------------------
 
--- An issue stands on its own. It may be linked to a project (and to a milestone inside it), and
+-- An issue stands on its own. It may be linked to a project, and
 -- the link can change without the issue's number changing.
 CREATE TABLE issues (
     id           uuid        PRIMARY KEY,
@@ -259,8 +241,6 @@ CREATE TABLE issues (
     number       integer     NOT NULL CHECK (number >= 1),
     -- Null: linked to no project, and then open to everyone.
     project_id   uuid        REFERENCES projects (id) ON DELETE SET NULL,
-    -- Deleting a milestone keeps its issues; they just belong to no milestone.
-    milestone_id uuid        REFERENCES milestones (id) ON DELETE SET NULL,
     -- Sub-issues: removing the parent leaves the children as ordinary issues.
     parent_id    uuid        REFERENCES issues (id) ON DELETE SET NULL,
     title        text        NOT NULL CHECK (char_length(title) BETWEEN 1 AND 200),
@@ -290,7 +270,6 @@ CREATE TABLE issues (
 
 CREATE INDEX issues_project_status_idx ON issues (project_id, status);
 CREATE INDEX issues_created_by_idx ON issues (created_by);
-CREATE INDEX issues_milestone_id_idx ON issues (milestone_id);
 CREATE INDEX issues_parent_id_idx ON issues (parent_id);
 -- The purge looks for rows deleted before a moment (D-132).
 CREATE INDEX issues_deleted_at_idx ON issues (deleted_at) WHERE deleted_at IS NOT NULL;
@@ -335,7 +314,7 @@ CREATE INDEX issue_labels_label_id_idx ON issue_labels (label_id);
 
 -- What happened to an issue, in order: created, status changed, assigned … (the "활동" list on
 -- the issue). `detail` holds the old and new values as they were named at the time, so the list
--- still reads right after a person, label or milestone is renamed or removed.
+-- still reads right after a person or a label is renamed or removed.
 CREATE TABLE issue_activities (
     id         uuid        PRIMARY KEY,
     -- Order of recording; timestamps can tie.
@@ -747,19 +726,19 @@ CREATE TABLE git_repositories (
 );
 
 -- ---------------------------------------------------------------------------------------------
--- Comments on blocks, and the activity and comments of projects, documents and milestones
+-- Comments on blocks, and the activity and comments of projects and documents
 -- (docs/features/content-comments.md, D-165 to D-167)
 -- ---------------------------------------------------------------------------------------------
 
 -- Threads of comments on a block. `block_id` is the block's number (`attrs.blockId` of a top-level
 -- block of the editor document: it does not change when the block moves or the text around it
 -- changes); `quote` is the start of its text when the thread was opened, so that the thread still
--- says what it was about once the block is gone. The target is one of four kinds of row, so there
+-- says what it was about once the block is gone. The target is one of three kinds of row, so there
 -- is no foreign key: the retention job removes what is left behind by a target that was deleted
 -- for good.
 CREATE TABLE content_threads (
     id          uuid        PRIMARY KEY,
-    target_type text        NOT NULL CHECK (target_type IN ('PROJECT', 'ISSUE', 'DOCUMENT', 'MILESTONE')),
+    target_type text        NOT NULL CHECK (target_type IN ('PROJECT', 'ISSUE', 'DOCUMENT')),
     target_id   uuid        NOT NULL,
     block_id    text        NOT NULL,
     quote       text        NOT NULL DEFAULT '',
@@ -785,12 +764,12 @@ CREATE TABLE content_thread_comments (
 
 CREATE INDEX content_thread_comments_thread_idx ON content_thread_comments (thread_id, created_at, id);
 
--- The activity of a project, a document and a milestone, as an issue has (`issue_activities`).
+-- The activity of a project and a document, as an issue has (`issue_activities`).
 CREATE TABLE content_activities (
     id          uuid        PRIMARY KEY,
     -- Order of recording; timestamps can tie.
     seq         bigint      GENERATED ALWAYS AS IDENTITY,
-    target_type text        NOT NULL CHECK (target_type IN ('PROJECT', 'DOCUMENT', 'MILESTONE')),
+    target_type text        NOT NULL CHECK (target_type IN ('PROJECT', 'DOCUMENT')),
     target_id   uuid        NOT NULL,
     actor_id    uuid        NOT NULL REFERENCES users (id),
     type        text        NOT NULL,
@@ -803,7 +782,7 @@ CREATE INDEX content_activities_target_idx ON content_activities (target_type, t
 -- Comments under that activity, as an issue has (`issue_comments`), with replies, emoji and files.
 CREATE TABLE content_comments (
     id          uuid        PRIMARY KEY,
-    target_type text        NOT NULL CHECK (target_type IN ('PROJECT', 'DOCUMENT', 'MILESTONE')),
+    target_type text        NOT NULL CHECK (target_type IN ('PROJECT', 'DOCUMENT')),
     target_id   uuid        NOT NULL,
     author_id   uuid        NOT NULL REFERENCES users (id),
     -- The comment this one answers; null for a comment of its own (D-167). As on an issue's comments.
@@ -840,7 +819,7 @@ CREATE TABLE content_activity_reactions (
 -- the retention job removes those nobody sent within a day.
 CREATE TABLE content_files (
     id          uuid        PRIMARY KEY,
-    target_type text        NOT NULL CHECK (target_type IN ('PROJECT', 'DOCUMENT', 'MILESTONE')),
+    target_type text        NOT NULL CHECK (target_type IN ('PROJECT', 'DOCUMENT')),
     target_id   uuid        NOT NULL,
     comment_id  uuid        REFERENCES content_comments (id) ON DELETE CASCADE,
     file_key    text        NOT NULL,
@@ -854,3 +833,28 @@ CREATE TABLE content_files (
 CREATE INDEX content_files_target_idx ON content_files (target_type, target_id, created_at);
 CREATE INDEX content_files_comment_idx ON content_files (comment_id) WHERE comment_id IS NOT NULL;
 CREATE INDEX content_files_pending_idx ON content_files (created_at) WHERE pending;
+
+-- ---------------------------------------------------------------------------------------------
+-- Properties people add to one project or issue on their own (docs/features/custom-properties.md, D-186)
+-- ---------------------------------------------------------------------------------------------
+
+-- A label, a kind of value and the value. They belong to the one item they were added to (no shared
+-- definition), and go with it when it is deleted for good. Kept apart from the item's own columns so
+-- the two kinds of item share one table; exactly one of the two ids is set.
+CREATE TABLE custom_properties (
+    id         uuid        PRIMARY KEY,
+    project_id uuid        REFERENCES projects (id) ON DELETE CASCADE,
+    issue_id   uuid        REFERENCES issues (id) ON DELETE CASCADE,
+    label      text        NOT NULL CHECK (char_length(label) BETWEEN 1 AND 30),
+    type       text        NOT NULL CHECK (type IN ('TEXT', 'NUMBER', 'DATE', 'CHECKBOX', 'LINK', 'PERSON')),
+    -- null: no value yet. TEXT and LINK a string, NUMBER a number, DATE 'YYYY-MM-DD', CHECKBOX a boolean,
+    -- PERSON the user's id as a string.
+    value      jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT custom_properties_one_owner CHECK (num_nonnulls(project_id, issue_id) = 1)
+);
+
+-- One label once per item, ignoring case.
+CREATE UNIQUE INDEX custom_properties_project_label_idx ON custom_properties (project_id, lower(label)) WHERE project_id IS NOT NULL;
+CREATE UNIQUE INDEX custom_properties_issue_label_idx ON custom_properties (issue_id, lower(label)) WHERE issue_id IS NOT NULL;
