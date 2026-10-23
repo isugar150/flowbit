@@ -7,8 +7,6 @@ import { ReplayTourButton } from "@/features/tour/components/replay-tour-button"
 import { MyGitHubAccountSetting } from "@/features/git/components/my-github-account";
 import type { MyGitHubAccount } from "@/features/git/types";
 import { MyNotificationSettings } from "@/features/notifications/components/my-notification-settings";
-import { MyShareLinks } from "@/features/share/components/my-share-links";
-import type { ShareSummary } from "@/features/share/types";
 import type { MyNotificationSettings as MyNotifications } from "@/features/notifications/types";
 import { requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
@@ -19,11 +17,10 @@ const n = messages.notifications.mine;
 export const metadata: Metadata = { title: m.title };
 
 export default async function PersonalSettingsPage() {
-  const [user, notifications, github, shares] = await Promise.all([
+  const [user, notifications, github] = await Promise.all([
     requireUser(),
     serverGet<MyNotifications>("/api/v1/me/notifications"),
     serverGet<MyGitHubAccount>("/api/v1/me/git/github"),
-    serverGet<ShareSummary[]>("/api/v1/shares"),
   ]);
 
   return (
@@ -48,15 +45,6 @@ export default async function PersonalSettingsPage() {
         <>
           <SettingsSection title={messages.git.myAccount.title} description={messages.git.myAccount.description}>
             <MyGitHubAccountSetting account={github} />
-          </SettingsSection>
-          <Separator />
-        </>
-      ) : null}
-      {/* The share links the person made: to see who opened them and to delete them (D-202). */}
-      {shares ? (
-        <>
-          <SettingsSection title={messages.share.mine.title} description={messages.share.mine.description}>
-            <MyShareLinks links={shares} />
           </SettingsSection>
           <Separator />
         </>

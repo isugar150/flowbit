@@ -39,6 +39,20 @@ data class ShareAccess(
     val item: String? = null,
 )
 
+/** How a person's list of their links is put in order. `orderBy` is ours, never input. */
+enum class ShareSort(
+    val orderBy: String,
+) {
+    /** The newest first. */
+    CREATED("l.created_at desc, l.id desc"),
+
+    /** The one opened most recently first; the ones nobody opened after the rest. */
+    ACCESSED("last_accessed_at desc nulls last, l.created_at desc, l.id desc"),
+
+    /** The one opened most often first. */
+    OPENED("access_count desc, l.created_at desc, l.id desc"),
+}
+
 /** A link with how often it was opened and when last. */
 data class ShareLinkStats(
     val link: ShareLink,
@@ -88,8 +102,17 @@ class ShareStore(
             .rowsUpdated()
             .awaitSingle() > 0
 
-    /** The links in use of this person, the newest first, with how often each was opened. */
-    suspend fun listLive(ownerId: UUID): List<ShareLinkStats> =
+    /**
+     * The links in use of this person with how often each was opened: of one kind when [kind] is given, in the order of [sort],
+     * [limit] of them from the [offset]th. A page of the person's list of their links (D-204).
+     */
+    suspend fun listLive(
+        ownerId: UUID,
+        kind: String?,
+        sort: ShareSort,
+        limit: Int,
+        offset: Int,
+    ): List<ShareLinkStats> =
         databaseClient
             .sql(
                 """
@@ -97,10 +120,14 @@ class ShareStore(
                        (select count(*) from share_accesses a where a.share_id = l.id) as access_count,
                        (select max(a.accessed_at) from share_accesses a where a.share_id = l.id) as last_accessed_at
                 from share_links l
-                where l.owner_id = :ownerId and l.revoked_at is null
-                order by l.created_at desc, l.id desc
+                where l.owner_id = :ownerId and l.revoked_at is null and (cast(:kind as text) is null or l.kind = :kind)
+                order by ${sort.orderBy}
+                limit :limit offset :offset
                 """.trimIndent(),
             ).bind("ownerId", ownerId)
+            .bindText("kind", kind)
+            .bind("limit", limit)
+            .bind("offset", offset)
             .map { row ->
                 ShareLinkStats(
                     link = linkOf(row),
@@ -110,6 +137,17 @@ class ShareStore(
             }.all()
             .collectList()
             .awaitSingle()
+
+    /** How many links in use the person has of each kind. */
+    suspend fun countLiveByKind(ownerId: UUID): Map<String, Long> =
+        databaseClient
+            .sql("select kind, count(*) as n from share_links where owner_id = :ownerId and revoked_at is null group by kind")
+            .bind("ownerId", ownerId)
+            .map { row -> checkNotNull(row.get("kind", String::class.java)) to checkNotNull(row.get("n", Long::class.javaObjectType)) }
+            .all()
+            .collectList()
+            .awaitSingle()
+            .toMap()
 
     suspend fun findById(id: UUID): ShareLink? =
         databaseClient

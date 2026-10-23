@@ -1,6 +1,7 @@
 package com.flowbit.share
 
 import com.flowbit.auth.application.AuthenticatedUser
+import com.flowbit.common.error.ValidationException
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.media.api.EditorFileController
 import com.flowbit.media.api.FileController
@@ -62,6 +63,13 @@ data class ShareSummaryResponse(
     val subject: String?,
 )
 
+/** A page of the person's links: how many there are of the kind asked for, how many of each kind, and the page. */
+data class ShareListResponse(
+    val total: Long,
+    val kinds: Map<String, Long>,
+    val items: List<ShareSummaryResponse>,
+)
+
 data class ShareAccessResponse(
     val accessedAt: Instant,
     val ipAddress: String?,
@@ -82,24 +90,45 @@ data class ShareAccessesResponse(
 class ShareController(
     private val service: ShareService,
 ) {
-    /** The links the person has made and not stopped, the newest first. */
+    /**
+     * A page of the links the person has made and not stopped (D-204): `kind` narrows it to one kind, `sort` is `created` (the
+     * newest first, the default), `accessed` (opened most recently first) or `opened` (opened most often first), `limit` is 20 unless
+     * said (100 at most), `offset` where the page starts.
+     */
     @GetMapping
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
-    ): List<ShareSummaryResponse> =
-        service.list(user).map {
-            ShareSummaryResponse(
-                id = it.link.id,
-                kind = it.link.kind,
-                params = it.params,
-                token = it.link.token,
-                path = "/s/${it.link.token}",
-                createdAt = it.link.createdAt,
-                accessCount = it.accessCount,
-                lastAccessedAt = it.lastAccessedAt,
-                subject = it.subject,
-            )
-        }
+        @RequestParam(required = false) kind: String?,
+        @RequestParam(required = false) sort: String?,
+        @RequestParam(defaultValue = "20") limit: Int,
+        @RequestParam(defaultValue = "0") offset: Int,
+    ): ShareListResponse {
+        val order =
+            if (sort == null) {
+                ShareSort.CREATED
+            } else {
+                ShareSort.entries.firstOrNull { it.name.equals(sort, ignoreCase = true) } ?: throw ValidationException("sort", "INVALID", "값이 올바르지 않습니다")
+            }
+        val page = service.list(user, kind?.takeIf { it.isNotEmpty() }, order, limit, offset)
+        return ShareListResponse(
+            total = page.total,
+            kinds = page.kinds,
+            items =
+                page.items.map {
+                    ShareSummaryResponse(
+                        id = it.link.id,
+                        kind = it.link.kind,
+                        params = it.params,
+                        token = it.link.token,
+                        path = "/s/${it.link.token}",
+                        createdAt = it.link.createdAt,
+                        accessCount = it.accessCount,
+                        lastAccessedAt = it.lastAccessedAt,
+                        subject = it.subject,
+                    )
+                },
+        )
+    }
 
     /** The link to share this page: the person's existing one, or a new one. */
     @PostMapping

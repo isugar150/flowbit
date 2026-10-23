@@ -111,15 +111,16 @@ function ShareLinkRow({ link, onDeleted }: { link: ShareSummary; onDeleted: () =
 }
 
 /**
- * The share links the person has made and not stopped (D-202): what each one is, how often and when last it was opened,
- * its address to copy, who opened it, and the delete (which stops it: it opens no more).
+ * A page of the share links the person has made and not stopped (D-202): what each one is, how often and when last it was
+ * opened, its address to copy, who opened it, and the delete (which stops it: it opens no more). Which links, and the way
+ * to the next page, are the page's (D-204).
  */
 export function MyShareLinks({ links }: { links: ShareSummary[] }) {
   const router = useRouter();
   // A link that was deleted leaves the list at once, before the page has been read again.
   const [deleted, setDeleted] = useState<ReadonlySet<string>>(new Set());
   const shown = links.filter((link) => !deleted.has(link.id));
-  if (shown.length === 0) return <p className="rounded-lg border px-3 py-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.mine.empty}</p>;
+  if (shown.length === 0) return null;
   return (
     <div className="flex flex-col gap-2">
       <ul className="flex flex-col divide-y rounded-xl border">

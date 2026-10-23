@@ -333,7 +333,13 @@ class ShareIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/admin/members", """{"loginId":"member","password":"$PASSWORD"}""")
         val member = client().also { it.login("member", PASSWORD) }
 
-        val listed = admin.get("/api/v1/shares").jsonList()
+        val page = admin.get("/api/v1/shares").json()
+
+        assertEquals(2, page["total"])
+        assertEquals(mapOf("ISSUE" to 1, "MY_ISSUES_CALENDAR" to 1), page["kinds"])
+
+        @Suppress("UNCHECKED_CAST")
+        val listed = page["items"] as List<Map<String, Any?>>
 
         // The newest first, each with how often it was opened and what it is about.
         assertEquals(listOf(shared["id"], calendar["id"]), listed.map { it["id"] })
@@ -346,7 +352,8 @@ class ShareIntegrationTest : IntegrationTest() {
         assertEquals(mapOf("month" to "2026-10", "scope" to "assigned"), listed[1]["params"])
         assertEquals("/s/${calendar["token"]}", listed[1]["path"])
         // Nobody else's links are in it.
-        assertEquals(emptyList<Any>(), member.get("/api/v1/shares").jsonList())
+        assertEquals(0, member.get("/api/v1/shares").json()["total"])
+        assertEquals(emptyList<Any>(), member.get("/api/v1/shares").json()["items"])
 
         // The history can be asked for fewer entries than there are.
         val history = admin.get("/api/v1/shares/${calendar["id"]}/accesses?limit=1").json()
@@ -354,7 +361,41 @@ class ShareIntegrationTest : IntegrationTest() {
         assertEquals(1, (history["items"] as List<*>).size)
 
         assertEquals(204, admin.delete("/api/v1/shares/${calendar["id"]}").status)
-        assertEquals(listOf(shared["id"]), admin.get("/api/v1/shares").jsonList().map { it["id"] })
+        assertEquals(listOf(shared["id"]), titlesOf(admin.get("/api/v1/shares").json()["items"], "id"))
+    }
+
+    @Test
+    fun `내 링크 목록은 쪽으로 나뉘고 종류로 거르고 순서를 바꿔 볼 수 있다`() {
+        issue("""{"title":"공유할 티켓"}""")
+        val calendarOctober = share(admin, "2026-10", "assigned")
+        val calendarNovember = share(admin, "2026-11", "assigned")
+        val timeline = timelineShare(admin, "2026-10", "2026-12", "assigned")
+        val shared = issueShare(1)
+        // The oldest link is opened the most, the one before the newest was opened last.
+        val visitor = client()
+        repeat(3) { visitor.get("/api/v1/public/shares/${calendarOctober["token"]}") }
+        visitor.get("/api/v1/public/shares/${timeline["token"]}")
+
+        // Pages: two at a time, the newest first; the total is of all of them.
+        val first = admin.get("/api/v1/shares?limit=2").json()
+        assertEquals(4, first["total"])
+        assertEquals(listOf(shared["id"], timeline["id"]), titlesOf(first["items"], "id"))
+        val second = admin.get("/api/v1/shares?limit=2&offset=2").json()
+        assertEquals(4, second["total"])
+        assertEquals(listOf(calendarNovember["id"], calendarOctober["id"]), titlesOf(second["items"], "id"))
+
+        // One kind: the total is of that kind, and how many of each kind stays what it is.
+        val calendars = admin.get("/api/v1/shares?kind=MY_ISSUES_CALENDAR").json()
+        assertEquals(2, calendars["total"])
+        assertEquals(mapOf("ISSUE" to 1, "MY_ISSUES_CALENDAR" to 2, "MY_ISSUES_TIMELINE" to 1), calendars["kinds"])
+        assertEquals(listOf(calendarNovember["id"], calendarOctober["id"]), titlesOf(calendars["items"], "id"))
+
+        // The order: the most opened first, and the most recently opened first (the ones never opened last).
+        assertEquals(calendarOctober["id"], titlesOf(admin.get("/api/v1/shares?sort=opened").json()["items"], "id").first())
+        assertEquals(
+            listOf(timeline["id"], calendarOctober["id"]),
+            titlesOf(admin.get("/api/v1/shares?sort=accessed").json()["items"], "id").take(2),
+        )
     }
 
     private fun share(
@@ -400,6 +441,14 @@ class ShareIntegrationTest : IntegrationTest() {
         assertEquals(200, response.status)
         @Suppress("UNCHECKED_CAST")
         return response.json()["content"] as Map<String, Any?>
+    }
+
+    private fun titlesOf(
+        list: Any?,
+        key: String,
+    ): List<Any?> {
+        @Suppress("UNCHECKED_CAST")
+        return (list as List<Map<String, Any?>>).map { it[key] }
     }
 
     private fun titles(list: Any?): List<Any?> {

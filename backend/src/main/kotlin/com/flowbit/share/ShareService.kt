@@ -34,6 +34,13 @@ data class ShareSummary(
     val subject: String?,
 )
 
+/** A page of a person's list of their links, with how many there are in all and of each kind. */
+data class ShareListPage(
+    val total: Long,
+    val kinds: Map<String, Long>,
+    val items: List<ShareSummary>,
+)
+
 data class ShareAccessPage(
     val total: Long,
     val items: List<ShareAccess>,
@@ -98,12 +105,26 @@ class ShareService(
         }
     }
 
-    /** The links the person has made and has not stopped, the newest first (their settings page lists them, D-202). */
-    suspend fun list(user: AuthenticatedUser): List<ShareSummary> =
-        store.listLive(user.id).map { stats ->
-            val params = decode(stats.link.target)
-            ShareSummary(stats.link, params, stats.accessCount, stats.lastAccessedAt, providers[stats.link.kind]?.describe(user.id, params))
-        }
+    /**
+     * A page of the links the person has made and has not stopped (their settings page lists them, D-202, D-204): of one kind
+     * when `kind` is given, in the order of `sort`. `total` is how many there are of that kind; `kinds` how many of each there are.
+     */
+    suspend fun list(
+        user: AuthenticatedUser,
+        kind: String?,
+        sort: ShareSort,
+        limit: Int,
+        offset: Int,
+    ): ShareListPage {
+        if (kind != null && kind !in providers) throw ValidationException("kind", "INVALID", "값이 올바르지 않습니다")
+        val kinds = store.countLiveByKind(user.id)
+        val items =
+            store.listLive(user.id, kind, sort, limit.coerceIn(1, MAX_LIST), offset.coerceAtLeast(0)).map { stats ->
+                val params = decode(stats.link.target)
+                ShareSummary(stats.link, params, stats.accessCount, stats.lastAccessedAt, providers[stats.link.kind]?.describe(user.id, params))
+            }
+        return ShareListPage(total = if (kind == null) kinds.values.sum() else kinds[kind] ?: 0, kinds = kinds, items = items)
+    }
 
     /** The latest times the person's own link was opened, [limit] of them at most. */
     suspend fun accesses(
@@ -183,6 +204,7 @@ class ShareService(
     internal companion object {
         const val RECENT_ACCESSES = 20
         const val MAX_ACCESSES = 200
+        const val MAX_LIST = 100
         const val OPENS_PER_MINUTE = 120
         const val FILES_PER_MINUTE = 600
         private const val MAX_REFERRER_LENGTH = 512

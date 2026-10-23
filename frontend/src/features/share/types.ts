@@ -34,6 +34,13 @@ export type ShareSummary = ShareLink & {
   subject: string | null;
 };
 
+/** A page of the person's links (GET /api/v1/shares, D-204): how many there are of the kind asked for, how many of each kind, and the page. */
+export type ShareList = {
+  total: number;
+  kinds: Partial<Record<ShareKind, number>>;
+  items: ShareSummary[];
+};
+
 /** One time a link was opened. */
 export type ShareAccess = {
   accessedAt: string;
