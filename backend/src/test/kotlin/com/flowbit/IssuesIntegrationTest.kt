@@ -218,6 +218,20 @@ class IssuesIntegrationTest : IntegrationTest() {
         assertEquals(listOf("셋째", "둘째", "첫째"), editor.get("/api/v1/projects/${p("PAY")}/issues").jsonList().map { it["title"] })
     }
 
+    @Test
+    fun `티켓 목록은 본문 글을 싣지 않고 한 티켓을 읽으면 싣는다`() {
+        val created = editor.post("/api/v1/issues", """{"title":"환불 흐름","description":"## 배경\n환불이 느리다"}""")
+        assertEquals(201, created.status)
+
+        val listed = editor.get("/api/v1/issues").jsonList().single()
+        assertEquals("환불 흐름", listed["title"])
+        assertEquals("", listed["description"])
+        assertEquals("", editor.get("/api/v1/me/issues?scope=created").jsonList().single()["description"])
+        // One issue, and what is sent when it is made, carry the text.
+        assertEquals("## 배경\n환불이 느리다", editor.get("/api/v1/issues/1").json()["description"])
+        assertEquals("## 배경\n환불이 느리다", created.json()["description"])
+    }
+
     private fun createMember(loginId: String): String =
         admin.post("/api/v1/admin/members", """{"loginId":"$loginId","password":"$PASSWORD"}""").json()["id"] as String
 

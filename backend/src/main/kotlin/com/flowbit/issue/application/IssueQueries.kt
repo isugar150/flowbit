@@ -186,8 +186,8 @@ class IssueQueries(
             it.visibleTo(viewer).bind("parentId", parentId)
         }
 
-    /** One issue by number, whoever asks: the caller decides whether they may see it. */
-    suspend fun find(number: Int): IssueView? = select("where i.number = :number") { it.bind("number", number) }.firstOrNull()
+    /** One issue by number, whoever asks: the caller decides whether they may see it. The only read that carries the issue's plain text (`description`). */
+    suspend fun find(number: Int): IssueView? = select("where i.number = :number", withDescription = true) { it.bind("number", number) }.firstOrNull()
 
     /** Hands out the next issue number. One atomic statement, so two creators never get the same number. */
     suspend fun nextNumber(): Int =
@@ -285,14 +285,20 @@ class IssueQueries(
             .one()
             .awaitSingle()
 
+    /**
+     * The issues the `tail` picks. `description` (the text of the body, up to 50 000 characters) is read only with [withDescription]: a
+     * list of a thousand issues does not use it, and carried it from the database to the browser, twice for every refresh (D-206).
+     * Without it the issue's `description` is empty.
+     */
     private suspend fun select(
         tail: String,
+        withDescription: Boolean = false,
         bind: (DatabaseClient.GenericExecuteSpec) -> DatabaseClient.GenericExecuteSpec,
     ): List<IssueView> =
         bind(
             databaseClient.sql(
                 """
-                select i.id, i.number, i.title, i.description, i.status, i.priority, i.start_date, i.due_date,
+                select i.id, i.number, i.title, ${if (withDescription) "i.description" else "'' as description"}, i.status, i.priority, i.start_date, i.due_date,
                        i.version, i.created_at, i.updated_at, i.deleted_at,
                        case when i.status in ('DONE', 'CANCELED') then coalesce(
                            (select max(sa.created_at) from issue_activities sa where sa.issue_id = i.id and sa.type = 'STATUS_CHANGED'),

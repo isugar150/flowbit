@@ -84,19 +84,29 @@ export function placedDates(day: string): IssueDates {
   return { startDate: null, dueDate: day };
 }
 
-/** The days an issue is drawn on: from its first to its last day, but no more than `maxDays` before the last. */
-export function spanDays({ startDate, dueDate }: IssueDates, maxDays: number): string[] {
-  const last = toDays(dueDate);
-  const first = Math.max(startDate ? toDays(startDate) : last, last - maxDays);
-  return Array.from({ length: last - first + 1 }, (_, index) => fromDays(first + index));
+/**
+ * The days an issue is drawn on: from its first to its last day, but no more than `maxDays` before the last. With `within` (the first and
+ * the last day that are shown) only the days of that stretch: a calendar shows six weeks, and an issue of three months would
+ * otherwise be taken apart into all its days for the sake of the few that are shown (D-206).
+ */
+export function spanDays({ startDate, dueDate }: IssueDates, maxDays: number, within?: { first: string; last: string }): string[] {
+  const end = toDays(dueDate);
+  const start = Math.max(startDate ? toDays(startDate) : end, end - maxDays);
+  const from = within ? Math.max(start, toDays(within.first)) : start;
+  const to = within ? Math.min(end, toDays(within.last)) : end;
+  return Array.from({ length: Math.max(0, to - from + 1) }, (_, index) => fromDays(from + index));
 }
 
-/** The issues of each day they are drawn on, in the order given. Issues without a due date are left out. */
-export function issuesByDay<T extends { startDate: string | null; dueDate: string | null }>(issues: T[], maxDays: number): Map<string, T[]> {
+/** The issues of each day they are drawn on, in the order given (the days of `within` only, when it is given). Issues without a due date are left out. */
+export function issuesByDay<T extends { startDate: string | null; dueDate: string | null }>(
+  issues: T[],
+  maxDays: number,
+  within?: { first: string; last: string },
+): Map<string, T[]> {
   const byDay = new Map<string, T[]>();
   for (const issue of issues) {
     if (!issue.dueDate) continue;
-    for (const key of spanDays({ startDate: issue.startDate, dueDate: issue.dueDate }, maxDays)) {
+    for (const key of spanDays({ startDate: issue.startDate, dueDate: issue.dueDate }, maxDays, within)) {
       const day = byDay.get(key);
       if (day) day.push(issue);
       else byDay.set(key, [issue]);

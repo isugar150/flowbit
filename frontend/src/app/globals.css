@@ -340,6 +340,27 @@
 }
 
 /*
+ * A line of a long list (D-206): the browser lays out and paints it only when it is near the screen, so a thousand lines cost
+ * about as much as the screen holds. The height it has meanwhile is the line's own (the 2.5rem of a line, 3rem on a narrow
+ * screen), so the scroll bar stays where it was. Painting is kept inside the line, which would cut off the name tag that stands over
+ * a line another person is pointing at: that line is drawn as usual.
+ */
+@layer components {
+  .list-line {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 2.5rem;
+  }
+  @media (max-width: 47.99rem) {
+    .list-line {
+      contain-intrinsic-size: auto 3rem;
+    }
+  }
+  .list-line[data-presence-by] {
+    content-visibility: visible;
+  }
+}
+
+/*
  * Where someone else on the same page is pointing or typing (features/realtime/presence-focus.tsx
  * sets these attributes). The name tag sits just above the outlined region.
  */

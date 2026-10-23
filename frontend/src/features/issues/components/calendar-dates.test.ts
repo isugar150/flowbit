@@ -116,6 +116,31 @@ describe("spanDays", () => {
   });
 });
 
+describe("the days that are shown", () => {
+  it("lists only the days of a span that fall within the stretch shown", () => {
+    const within = { first: "2026-10-05", last: "2026-10-07" };
+    expect(spanDays({ startDate: "2026-09-01", dueDate: "2026-11-30" }, 400, within)).toEqual(["2026-10-05", "2026-10-06", "2026-10-07"]);
+    expect(spanDays({ startDate: "2026-10-06", dueDate: "2026-10-20" }, 92, within)).toEqual(["2026-10-06", "2026-10-07"]);
+    expect(spanDays({ startDate: null, dueDate: "2026-10-05" }, 92, within)).toEqual(["2026-10-05"]);
+  });
+
+  it("lists no day of a span that is outside the stretch", () => {
+    const within = { first: "2026-10-05", last: "2026-10-07" };
+    expect(spanDays({ startDate: "2026-09-01", dueDate: "2026-09-30" }, 92, within)).toEqual([]);
+    expect(spanDays({ startDate: "2026-11-01", dueDate: "2026-11-05" }, 92, within)).toEqual([]);
+  });
+
+  it("groups issues by only the days within the stretch", () => {
+    const long = { id: "a", startDate: "2026-01-01", dueDate: "2026-12-31" };
+    const inside = { id: "b", startDate: null, dueDate: "2026-10-06" };
+    const outside = { id: "c", startDate: null, dueDate: "2026-03-01" };
+    const byDay = issuesByDay([long, inside, outside], 400, { first: "2026-10-05", last: "2026-10-07" });
+    expect([...byDay.keys()]).toEqual(["2026-10-05", "2026-10-06", "2026-10-07"]);
+    expect(byDay.get("2026-10-06")).toEqual([long, inside]);
+    expect(byDay.get("2026-10-05")).toEqual([long]);
+  });
+});
+
 describe("issuesByDay", () => {
   it("puts an issue on every day it covers, in the order the issues come", () => {
     const one = { id: "a", startDate: "2026-10-12", dueDate: "2026-10-14" };

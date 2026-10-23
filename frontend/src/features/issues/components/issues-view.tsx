@@ -34,6 +34,8 @@ import { STATUS_ORDER } from "../meta";
 import { NONE, assigneeOptions, priorityOptions, statusOptions } from "../options";
 import { DEFAULT_ISSUE_GROUPING, ISSUE_GROUPS, groupIssues, type IssueGrouping } from "../grouping";
 import { useRememberedListQuery } from "../list-memory";
+import { useProgressiveCount, withinBudget } from "../progressive";
+import { useStableList } from "../stable";
 import { arrangeBySubIssues } from "../sub-issue-tree";
 import type { Issue, IssueChanges, IssueStatus, Label } from "../types";
 import { NEW_ISSUE_EVENT } from "./new-issue-launcher";
@@ -156,8 +158,11 @@ export function IssuesView({
 }) {
   // A status picked on a line, or an issue dragged to another day, shows right away: the line
   // moves to its new group before the save has come back.
+  // The page is read again after a save and when someone else changes something, and the server sends every issue as a new
+  // object: the ones that did not change stay the objects they were, so only the lines that changed are drawn again (D-206).
+  const stableIssues = useStableList(savedIssues, (issue) => issue.id);
   const mutation = useOptimisticMutation(
-    savedIssues,
+    stableIssues,
     (current, { number, changes }: { number: number; changes: Pick<IssueChanges, "status" | "startDate" | "dueDate"> }) =>
       current.map((issue) => (issue.number === number ? { ...issue, ...changes } : issue)),
     updateIssue,
@@ -408,6 +413,11 @@ export function IssuesView({
   }, [issues, grouping, projects, sort, completed, now]);
 
   // The last filters, order and grouping are shared by the three lists and kept across visits.
+  // A long list is drawn in steps: the first lines at once and the rest while the page can already be used (D-206).
+  const totalLines = groups.reduce((sum, group) => sum + group.rows.length, 0);
+  const linesDrawn = useProgressiveCount(totalLines, view === "list");
+  const drawnGroups = withinBudget(groups, linesDrawn);
+
   useRememberedListQuery({
     query: searchParams.toString(),
     enabled: rememberFilters && !deleted,
@@ -531,7 +541,7 @@ export function IssuesView({
           ) : (
             <>
               <IssueListHeader showProject={projectId === null} sticky={underTabs ? "top-20 max-md:top-22" : "top-11"} />
-              {groups.map((group) => (
+              {drawnGroups.map((group) => (
             <section key={group.key} aria-label={group.label}>
               <h2 className="flex h-9 items-center gap-2 border-y bg-muted px-5 text-[0.8125rem] leading-5 font-medium">
                 {group.icon}
@@ -539,7 +549,7 @@ export function IssuesView({
                 <span className="font-normal text-muted-foreground tabular-nums">{group.count}</span>
               </h2>
               <ul>
-                {group.rows.map((row) =>
+                {group.drawn.map((row) =>
                   row.kind === "context" ? (
                     <SubIssueContextRow
                       key={`context-${row.parent.number}`}

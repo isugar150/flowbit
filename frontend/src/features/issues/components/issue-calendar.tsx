@@ -185,7 +185,9 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
   };
   // The bar being dragged is drawn on the days it would have, so it follows the pointer.
   const shown = drag?.dates ? issues.map((issue) => (issue.number === drag.number ? { ...issue, ...drag.dates } : issue)) : issues;
-  const byDay = issuesByDay(shown, MAX_SPAN_DAYS);
+  // Only the six weeks that are on the screen are worked out: an issue of a few months is not taken apart into all its days.
+  const weeks = weeksOf(month);
+  const byDay = issuesByDay(shown, MAX_SPAN_DAYS, { first: weeks[0][0].key, last: weeks[weeks.length - 1][6].key });
   // The issues drawn on a day: the first few. A bar being dragged is always among them, or it would
   // disappear into "+N개 더" on the days where it comes late, and the drag could not be seen.
   const visibleOf = (items: T[]) => {
@@ -238,7 +240,7 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
             </tr>
           </thead>
           <tbody>
-            {weeksOf(month).map((week) => (
+            {weeks.map((week) => (
               <tr key={week[0].key}>
                 {week.map((cell) => {
                   // The days of the months around a fixed month are left empty: only that month is shown.

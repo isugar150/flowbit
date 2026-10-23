@@ -143,7 +143,7 @@ export const IssueListRow = memo(function IssueListRow({
       data-presence-id={`${presence}:${issue.number}`}
       data-tour={presence === "issue-row" ? "issue-row" : undefined}
       onClick={open}
-      className={cn("flex h-10 cursor-pointer items-center gap-2 border-b hover:bg-muted max-md:h-12", className)}
+      className={cn("list-line flex h-10 cursor-pointer items-center gap-2 border-b hover:bg-muted max-md:h-12", className)}
     >
       <SubIssueIndent depth={depth} />
       {editable ? (
