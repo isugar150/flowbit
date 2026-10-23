@@ -15,7 +15,6 @@ import { messages } from "@/messages";
 import { createShare, revokeShare } from "../api";
 import { embedCode, shareUrl } from "../links";
 import type { ShareLink, ShareTarget } from "../types";
-import { ShareHistory } from "./share-history";
 
 const m = messages.share;
 
@@ -147,7 +146,6 @@ function ShareDialog({ target, pick, onClose }: { target: ShareTarget; pick?: Sh
               ) : null}
               <CopyField label={m.linkLabel} value={url} within={box} />
               <CopyField label={m.embedLabel} hint={m.embedHint} value={embedCode(url, text.label)} multiline within={box} />
-              <ShareHistory id={link.id} />
             </>
           ) : null}
           {stopped ? (

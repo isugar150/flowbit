@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { SHARE_KINDS, SHARE_SORTS, pageCount, pageRange, sharesAddress, type ShareListQuery, SHARES_PAGE_SIZE } from "../list-query";
+import { SHARE_KINDS, pageCount, pageRange, sharesAddress, type ShareListQuery, SHARES_PAGE_SIZE } from "../list-query";
 import type { ShareKind } from "../types";
 
 const m = messages.share;
@@ -24,8 +24,8 @@ function Choice({ href, current, children }: { href: string; current: boolean; c
 }
 
 /**
- * What narrows and orders the list of the person's links (D-204): the kind (with how many there are of each) and the order.
- * Each is a link to the same list with that choice made, from its first page.
+ * What narrows the list of the person's links (D-204): the kind, with how many there are of each. Each is a link to the same
+ * list with that choice made, from its first page.
  */
 export function ShareListToolbar({ query, kinds }: { query: ShareListQuery; kinds: Partial<Record<ShareKind, number>> }) {
   const all = SHARE_KINDS.reduce((sum, kind) => sum + (kinds[kind] ?? 0), 0);
@@ -38,14 +38,6 @@ export function ShareListToolbar({ query, kinds }: { query: ShareListQuery; kind
         {SHARE_KINDS.map((kind) => (
           <Choice key={kind} href={sharesAddress(query, { kind })} current={query.kind === kind}>
             {m.kinds[kind].label} <span className="ml-1 tabular-nums">{kinds[kind] ?? 0}</span>
-          </Choice>
-        ))}
-      </nav>
-      <nav aria-label={m.mine.sortLabel} className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs leading-4 text-muted-foreground">{m.mine.sortLabel}</span>
-        {SHARE_SORTS.map((sort) => (
-          <Choice key={sort} href={sharesAddress(query, { sort })} current={query.sort === sort}>
-            {m.mine.sorts[sort]}
           </Choice>
         ))}
       </nav>

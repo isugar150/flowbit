@@ -17,7 +17,7 @@ import type { RetentionItem, RetentionPeriod, RetentionSettings, RetentionUnit }
 
 const m = messages.retention;
 
-const ITEMS: RetentionItem[] = ["issues", "documents", "comments", "shareAccesses"];
+const ITEMS: RetentionItem[] = ["issues", "documents", "comments"];
 const UNITS: RetentionUnit[] = ["DAYS", "WEEKS", "MONTHS"];
 const MAX_AMOUNT = 999;
 
@@ -41,7 +41,6 @@ function formOf(settings: RetentionSettings): Form {
     issues: rowOf(settings.issues),
     documents: rowOf(settings.documents),
     comments: rowOf(settings.comments),
-    shareAccesses: rowOf(settings.shareAccesses),
   };
 }
 

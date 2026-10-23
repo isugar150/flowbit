@@ -27,9 +27,6 @@ export type ShareLink = {
 
 /** A link in the person's list of their links (GET /api/v1/shares, D-202). */
 export type ShareSummary = ShareLink & {
-  /** How often it was opened and when last. */
-  accessCount: number;
-  lastAccessedAt: string | null;
   /** What it is about when its parameters do not say it (an issue: "FB-12 제목"); null otherwise. */
   subject: string | null;
 };
@@ -40,21 +37,6 @@ export type ShareList = {
   kinds: Partial<Record<ShareKind, number>>;
   items: ShareSummary[];
 };
-
-/** One time a link was opened. */
-export type ShareAccess = {
-  accessedAt: string;
-  ipAddress: string | null;
-  userAgent: string | null;
-  /** Opened inside a frame of another page. */
-  embedded: boolean;
-  /** That page, as the shared page itself reported it. */
-  referrer: string | null;
-  /** What was opened at a link that has more than one page: `issue:13`, `document:{id}`; null for the link's own page. */
-  item: string | null;
-};
-
-export type ShareAccesses = { total: number; items: ShareAccess[] };
 
 /** An entry of a shared issue's history: the kind of change, who made it (display name) and when; never the values (D-201). */
 export type SharedActivity = { type: IssueActivityType; actor: string | null; at: string };

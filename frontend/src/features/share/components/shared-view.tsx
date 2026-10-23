@@ -25,16 +25,6 @@ const m = messages.share.page;
 /** An issue on the shared page opens nothing: what it would open needs a sign-in. */
 const opensNothing = () => null;
 
-/** Where this page is shown, for the record of who opened the link: inside a frame of another page or not. */
-function whereAmI(): { embedded: boolean; referrer: string } {
-  try {
-    return { embedded: window.self !== window.top, referrer: document.referrer };
-  } catch {
-    // A page that cannot even be compared with its parent is in a frame.
-    return { embedded: true, referrer: document.referrer };
-  }
-}
-
 const MONTH = /^\d{4}-\d{2}$/;
 
 /** The month of a shared calendar, from its `month` parameter (2026-10). */
@@ -103,8 +93,7 @@ function SharedContent({ share, token }: { share: PublicShare; token: string }) 
 
 /**
  * The page of a share link (docs/features/sharing.md): the shared content for anyone who has the address, without
- * signing in. Opening it is what the link's record of visits counts, so it asks once and not again when the window
- * is focused or the connection comes back.
+ * signing in. It asks once and not again when the window is focused or the connection comes back.
  */
 export function SharedView({ token }: { token: string }) {
   // A shared issue leads to its sub-issues and documents inside the same link: `?issue=13`, `?doc={id}`.
@@ -114,7 +103,7 @@ export function SharedView({ token }: { token: string }) {
   const item = doc ? ({ type: "document", id: doc } as const) : issue ? ({ type: "issue", id: issue } as const) : null;
   const share = useQuery({
     queryKey: ["shared", token, item?.type ?? "", item?.id ?? ""],
-    queryFn: () => (item ? fetchPublicItem(token, item.type, item.id, whereAmI()) : fetchPublicShare(token, whereAmI())),
+    queryFn: () => (item ? fetchPublicItem(token, item.type, item.id) : fetchPublicShare(token)),
     retry: false,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
