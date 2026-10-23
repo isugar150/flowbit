@@ -178,3 +178,29 @@
 
 한 항목에 20개까지(서비스가 확인). 사람 값이 가리키는 사용자는 외래 키가 아니라 서비스가 프로젝트 구성원인지 확인한다(담당자처럼, 구성원에서 빠져도 값은 남는다).
 
+
+### `share_links`, `share_accesses` (`V3`, D-197·D-198)
+
+공유 링크와 그 접속 기록 ([features/sharing.md](features/sharing.md)). 링크는 한 사람이 한 종류의 화면을 정해진 매개변수로 공유한 것이다.
+
+| 컬럼 (`share_links`) | 타입 | 설명 |
+|---|---|---|
+| `id` | `uuid` PK | UUID v7 |
+| `token` | `text` UNIQUE | 주소(`/s/{token}`)에 들어가는 값. 서버가 만든 256비트 난수(URL 안전 base64, 43자). 짐작할 수 없다 |
+| `owner_id` | `uuid` FK → `users` | 공유한 사람. 공개되는 내용은 이 사람의 지금 권한으로 만든다 |
+| `kind` | `text` | 화면 종류(`MY_ISSUES_CALENDAR`). 값은 코드(`ShareKind`)가 정하고 CHECK 는 두지 않는다 |
+| `target` | `text` | 매개변수를 키 순서로 이은 정규형(`month=2026-10&scope=assigned`) |
+| `created_at`, `revoked_at` | `timestamptz` | 중지하면 `revoked_at` 만 채운다. 중지한 링크는 되살리지 않는다 |
+
+부분 유일 인덱스 `(owner_id, kind, target) WHERE revoked_at IS NULL`: 같은 사람이 같은 것을 다시 공유하면 쓰고 있는 링크를 돌려주고(같은 URL), 중지한 뒤에는 새 행(새 토큰)을 만든다.
+
+| 컬럼 (`share_accesses`) | 타입 | 설명 |
+|---|---|---|
+| `id` | `uuid` PK | UUID v7 |
+| `share_id` | `uuid` FK → `share_links` (함께 삭제) | |
+| `accessed_at` | `timestamptz` | 서버 시각 |
+| `ip_address` | `text` null | 요청의 `remoteAddress`(프록시 뒤는 `X-Forwarded-*`) |
+| `user_agent` | `text` null | 512자까지 |
+| `embedded`, `referrer` | `boolean`, `text` null | 프레임 안에서 열렸는지, 그 페이지 주소(512자까지). 공유 화면이 말해 주는 값이라 기록용이다 |
+
+인덱스: `(share_id, accessed_at desc)`, `(accessed_at)`. 접속 기록은 관리자 설정 "데이터 보관"의 항목 `SHARE_ACCESSES`(`retention_policies.item` 의 CHECK 에 더했다, D-198)의 기간이 지나면 `accessed_at` 기준으로 지운다. 링크 행은 지우지 않는다.

@@ -7,13 +7,14 @@ import { useInBrowser } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
+import { ShareButton } from "@/features/share/components/share-button";
+import type { ShareTarget } from "@/features/share/types";
 import { StatusIcon, statusLabel } from "../meta";
-import type { Issue } from "../types";
 import { DayIssues } from "./calendar-day-issues";
-import { dateKey, issuesByDay, weeksOf, type IssueDates, type Month } from "./calendar-dates";
+import { dateKey, issuesByDay, weeksOf, type CalendarIssue, type IssueDates, type Month } from "./calendar-dates";
 import { useBarDrag } from "./use-bar-drag";
 
-export type { IssueDates } from "./calendar-dates";
+export type { CalendarIssue, IssueDates } from "./calendar-dates";
 
 const m = messages.issues.views;
 
@@ -32,6 +33,8 @@ function today(): { month: Month; key: string } {
 const MAX_PER_DAY = 3;
 /** An issue is drawn on every day of its span, up to this many days. */
 const MAX_SPAN_DAYS = 92;
+
+const defaultIssueHref = (issue: CalendarIssue) => `/issue/${issue.key}`;
 
 /**
  * One end of an issue's bar. Dragging it to another day changes the first day (the left end) or
@@ -81,18 +84,31 @@ function BarEdge({
  * under the calendar.
  *
  * `onMove` and `onCreate` are left out where the person may not change or make issues.
+ *
+ * The same calendar is the shared page (docs/features/sharing.md): `fixedMonth` shows one month
+ * and nothing turns it, `issueHref` returning null draws the issues as bars that open nothing (the
+ * page is read without signing in), and `share` adds the button that shares the month on show.
  */
-export function IssueCalendarView({
+export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
   issues,
   canMove,
   onMove,
   onCreate,
+  fixedMonth,
+  issueHref = defaultIssueHref,
+  share,
 }: {
-  issues: Issue[];
+  issues: T[];
   /** Whether this person may change the dates of an issue. */
-  canMove?: (issue: Issue) => boolean;
-  onMove?: (issue: Issue, dates: IssueDates) => void;
+  canMove?: (issue: T) => boolean;
+  onMove?: (issue: T, dates: IssueDates) => void;
   onCreate?: (dates: IssueDates) => void;
+  /** Show this month only, without the buttons and the wheel that turn months, and leave out the days of the months around it. */
+  fixedMonth?: Month;
+  /** Where an issue opens; null for an issue that opens nothing. */
+  issueHref?: (issue: T) => string | null;
+  /** What to share for a month (YYYY-MM): puts a "공유하기" button in the top line. */
+  share?: (month: string) => ShareTarget;
 }) {
   // The current month depends on the clock, which only the browser may read while rendering.
   const inBrowser = useInBrowser();
@@ -126,7 +142,7 @@ export function IssueCalendarView({
   const gridRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const grid = gridRef.current;
-    if (!grid) return;
+    if (!grid || fixedMonth) return;
     let lastTurn = 0;
     const onWheel = (event: WheelEvent) => {
       // Zooming (Ctrl) and sideways scrolling of a calendar wider than the screen stay as they are.
@@ -144,12 +160,12 @@ export function IssueCalendarView({
     };
     grid.addEventListener("wheel", onWheel, { passive: false });
     return () => grid.removeEventListener("wheel", onWheel);
-  }, [inBrowser]);
+  }, [inBrowser, fixedMonth]);
 
   if (!inBrowser) return <div className="h-96" aria-hidden="true" />;
 
   const now = today();
-  const month = chosen ?? now.month;
+  const month = fixedMonth ?? chosen ?? now.month;
   const move = (step: number) => {
     const next = new Date(month.year, month.month + step, 1);
     setChosen({ year: next.getFullYear(), month: next.getMonth() });
@@ -159,29 +175,34 @@ export function IssueCalendarView({
   const byDay = issuesByDay(shown, MAX_SPAN_DAYS);
   // The issues drawn on a day: the first few. A bar being dragged is always among them, or it would
   // disappear into "+N개 더" on the days where it comes late, and the drag could not be seen.
-  const visibleOf = (items: Issue[]) => {
+  const visibleOf = (items: T[]) => {
     const visible = items.slice(0, MAX_PER_DAY);
     const dragged = drag ? items.findIndex((issue) => issue.number === drag.number) : -1;
     if (dragged >= MAX_PER_DAY) visible[MAX_PER_DAY - 1] = items[dragged];
     return visible;
   };
   const undated = issues.filter((issue) => !issue.dueDate).length;
-  const marked =(key: string) =>
+  const marked = (key: string) =>
     marking !== null && key >= (marking.from <= marking.to ? marking.from : marking.to) && key <= (marking.from <= marking.to ? marking.to : marking.from);
 
   return (
     <div className="flex flex-col gap-2 px-4 pb-6">
       <div className="flex flex-wrap items-center gap-1">
         <h2 className="mr-2 text-[0.9375rem] leading-[1.375rem] font-semibold tabular-nums">{m.monthTitle(month.year, month.month + 1)}</h2>
-        <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label={m.previousMonth} onClick={() => move(-1)}>
-          <ChevronLeftIcon />
-        </Button>
-        <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label={m.nextMonth} onClick={() => move(1)}>
-          <ChevronRightIcon />
-        </Button>
-        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" onClick={() => setChosen(null)}>
-          {m.today}
-        </Button>
+        {fixedMonth ? null : (
+          <>
+            <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label={m.previousMonth} onClick={() => move(-1)}>
+              <ChevronLeftIcon />
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label={m.nextMonth} onClick={() => move(1)}>
+              <ChevronRightIcon />
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" onClick={() => setChosen(null)}>
+              {m.today}
+            </Button>
+          </>
+        )}
+        {share ? <ShareButton target={share(`${month.year}-${String(month.month + 1).padStart(2, "0")}`)} /> : null}
         {onCreate || onMove ? <p className="ml-auto text-xs leading-4 text-muted-foreground max-md:hidden">{m.calendarHint}</p> : null}
       </div>
       <div ref={gridRef} className="overflow-x-auto">
@@ -205,7 +226,8 @@ export function IssueCalendarView({
             {weeksOf(month).map((week) => (
               <tr key={week[0].key}>
                 {week.map((cell) => {
-                  const items = byDay.get(cell.key) ?? [];
+                  // The days of the months around a fixed month are left empty: only that month is shown.
+                  const items = fixedMonth && !cell.inMonth ? [] : (byDay.get(cell.key) ?? []);
                   return (
                     <td
                       key={cell.key}
@@ -236,53 +258,69 @@ export function IssueCalendarView({
                           const dragged = drag?.number === issue.number ? drag : null;
                           const first = cell.key === (issue.startDate ?? issue.dueDate);
                           const last = cell.key === issue.dueDate;
+                          const href = issueHref(issue);
+                          const title = `${issue.key} ${issue.title} · ${statusLabel(issue.status)} · ${dates}`;
+                          const className = cn(
+                            "group/bar relative flex h-6 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                            href && "hover:bg-accent",
+                            // A span reads as one bar: its inner days are joined to their neighbours.
+                            issue.startDate && !first && "-ml-1 rounded-l-none",
+                            issue.startDate && !last && "-mr-1 rounded-r-none",
+                            issue.startDate && "bg-primary/15",
+                            issue.startDate && href && "hover:bg-primary/25",
+                            (issue.status === "DONE" || issue.status === "CANCELED") && "text-muted-foreground line-through",
+                            movable && "cursor-grab",
+                            // The bar as it is dragged: outlined all round, as one bar over the days it covers.
+                            dragged && "border-y border-primary bg-primary/25 shadow-sm hover:bg-primary/25",
+                            dragged && first && "border-l",
+                            dragged && last && "border-r",
+                          );
+                          const body = (
+                            <>
+                              <StatusIcon status={issue.status} className="size-3" />
+                              <span className="truncate">{issue.title}</span>
+                              {movable && first ? (
+                                <BarEdge
+                                  edge="start"
+                                  label={m.resizeStart}
+                                  active={dragged?.mode === "start"}
+                                  onPress={(event) => press(event, issue, "start", cell.key)}
+                                />
+                              ) : null}
+                              {movable && last ? (
+                                <BarEdge
+                                  edge="end"
+                                  label={m.resizeEnd}
+                                  active={dragged?.mode === "end"}
+                                  onPress={(event) => press(event, issue, "end", cell.key)}
+                                />
+                              ) : null}
+                            </>
+                          );
                           return (
-                            <li key={issue.id}>
-                              <Link
-                                href={`/issue/${issue.key}`}
-                                // Dragging a bar is the calendar's own (use-bar-drag.ts), not the browser's drag of a link.
-                                draggable={false}
-                                onPointerDown={movable ? (event) => press(event, issue, "move", cell.key) : undefined}
-                                title={`${issue.key} ${issue.title} · ${statusLabel(issue.status)} · ${dates}`}
-                                className={cn(
-                                  "group/bar relative flex h-6 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
-                                  // A span reads as one bar: its inner days are joined to their neighbours.
-                                  issue.startDate && !first && "-ml-1 rounded-l-none",
-                                  issue.startDate && !last && "-mr-1 rounded-r-none",
-                                  issue.startDate && "bg-primary/15 hover:bg-primary/25",
-                                  (issue.status === "DONE" || issue.status === "CANCELED") && "text-muted-foreground line-through",
-                                  movable && "cursor-grab",
-                                  // The bar as it is dragged: outlined all round, as one bar over the days it covers.
-                                  dragged && "border-y border-primary bg-primary/25 shadow-sm hover:bg-primary/25",
-                                  dragged && first && "border-l",
-                                  dragged && last && "border-r",
-                                )}
-                              >
-                                <StatusIcon status={issue.status} className="size-3" />
-                                <span className="truncate">{issue.title}</span>
-                                {movable && first ? (
-                                  <BarEdge
-                                    edge="start"
-                                    label={m.resizeStart}
-                                    active={dragged?.mode === "start"}
-                                    onPress={(event) => press(event, issue, "start", cell.key)}
-                                  />
-                                ) : null}
-                                {movable && last ? (
-                                  <BarEdge
-                                    edge="end"
-                                    label={m.resizeEnd}
-                                    active={dragged?.mode === "end"}
-                                    onPress={(event) => press(event, issue, "end", cell.key)}
-                                  />
-                                ) : null}
-                              </Link>
+                            <li key={issue.key}>
+                              {href ? (
+                                <Link
+                                  href={href}
+                                  // Dragging a bar is the calendar's own (use-bar-drag.ts), not the browser's drag of a link.
+                                  draggable={false}
+                                  onPointerDown={movable ? (event) => press(event, issue, "move", cell.key) : undefined}
+                                  title={title}
+                                  className={className}
+                                >
+                                  {body}
+                                </Link>
+                              ) : (
+                                <div title={title} className={className}>
+                                  {body}
+                                </div>
+                              )}
                             </li>
                           );
                         })}
                         {items.length > MAX_PER_DAY ? (
                           <li>
-                            <DayIssues dayKey={cell.key} issues={items} hidden={items.length - MAX_PER_DAY} />
+                            <DayIssues dayKey={cell.key} issues={items} hidden={items.length - MAX_PER_DAY} issueHref={issueHref} />
                           </li>
                         ) : null}
                       </ul>

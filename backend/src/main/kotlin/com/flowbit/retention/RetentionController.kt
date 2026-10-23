@@ -20,11 +20,19 @@ data class RetentionSettingsBody(
     val issues: RetentionPeriodBody? = null,
     val documents: RetentionPeriodBody? = null,
     val comments: RetentionPeriodBody? = null,
+    /** How long the record of who opened share links is kept (D-198). */
+    val shareAccesses: RetentionPeriodBody? = null,
 ) {
-    fun toSettings() = RetentionSettings(issues?.toPeriod(), documents?.toPeriod(), comments?.toPeriod())
+    fun toSettings() = RetentionSettings(issues?.toPeriod(), documents?.toPeriod(), comments?.toPeriod(), shareAccesses?.toPeriod())
 
     companion object {
-        fun from(settings: RetentionSettings) = RetentionSettingsBody(settings.issues?.toBody(), settings.documents?.toBody(), settings.comments?.toBody())
+        fun from(settings: RetentionSettings) =
+            RetentionSettingsBody(
+                settings.issues?.toBody(),
+                settings.documents?.toBody(),
+                settings.comments?.toBody(),
+                settings.shareAccesses?.toBody(),
+            )
 
         private fun RetentionPeriodBody.toPeriod() = RetentionPeriod(amount, unit)
 

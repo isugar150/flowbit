@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Issue } from "../types";
-import { draggedDates, sameDates, type BarDragMode, type IssueDates } from "./calendar-dates";
+import { draggedDates, sameDates, type BarDragMode, type CalendarIssue, type IssueDates } from "./calendar-dates";
 
 /** How far the pointer must move before pressing a bar becomes a drag, so that a plain click still opens the issue. */
 const DRAG_START_PX = 4;
@@ -40,7 +39,7 @@ function swallowNextClick() {
  * dragged, and the one under the pointer when it went down no longer exists then. Touch is left
  * to scrolling.
  */
-export function useBarDrag(issues: Issue[], onMove?: (issue: Issue, dates: IssueDates) => void) {
+export function useBarDrag<T extends CalendarIssue>(issues: T[], onMove?: (issue: T, dates: IssueDates) => void) {
   const [drag, setDrag] = useState<BarDrag | null>(null);
   const latest = useRef({ issues, onMove });
   useEffect(() => {
@@ -62,7 +61,7 @@ export function useBarDrag(issues: Issue[], onMove?: (issue: Issue, dates: Issue
   }, [drag]);
 
   /** Starts dragging `issue` by the day `anchor` of its bar: all of it, or its first or last day. */
-  const press = useCallback((event: React.PointerEvent, issue: Issue, mode: BarDragMode, anchor: string) => {
+  const press = useCallback((event: React.PointerEvent, issue: T, mode: BarDragMode, anchor: string) => {
     if (event.button !== 0 || event.pointerType === "touch" || !issue.dueDate || !latest.current.onMove) return;
     // No text selection and no native link drag from here on.
     event.preventDefault();

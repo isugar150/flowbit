@@ -35,6 +35,8 @@ export async function MyIssuesList({ scope, deleted = false }: { scope: "assigne
       defaultAssigneeId={me.id}
       // Every issue on this tab is assigned to the person; picking an assignee would only hide them.
       assigneeFilter={scope !== "assigned"}
+      // The calendar of the deleted issues is not shared: a shared one shows the issues in use.
+      shareScope={deleted ? undefined : scope}
       empty={
         scope === "assigned"
           ? { title: m.emptyAssignedTitle, description: m.emptyAssigned }

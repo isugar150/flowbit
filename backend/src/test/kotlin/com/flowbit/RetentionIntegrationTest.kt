@@ -36,14 +36,20 @@ class RetentionIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/admin/members", """{"loginId":"member","password":"$PASSWORD"}""")
         val member = client().also { it.login("member", PASSWORD) }
 
-        assertEquals(mapOf("issues" to null, "documents" to null, "comments" to null), admin.get("/api/v1/admin/retention").json())
+        assertEquals(mapOf("issues" to null, "documents" to null, "comments" to null, "shareAccesses" to null), admin.get("/api/v1/admin/retention").json())
         assertEquals(403, member.get("/api/v1/admin/retention").status)
         assertEquals(403, member.put("/api/v1/admin/retention", "{}").status)
 
         val saved = admin.put("/api/v1/admin/retention", """{"issues":{"amount":3,"unit":"MONTHS"},"comments":{"amount":2,"unit":"WEEKS"}}""")
 
         assertEquals(200, saved.status)
-        val expected = mapOf("issues" to mapOf("amount" to 3, "unit" to "MONTHS"), "documents" to null, "comments" to mapOf("amount" to 2, "unit" to "WEEKS"))
+        val expected =
+            mapOf(
+                "issues" to mapOf("amount" to 3, "unit" to "MONTHS"),
+                "documents" to null,
+                "comments" to mapOf("amount" to 2, "unit" to "WEEKS"),
+                "shareAccesses" to null,
+            )
         assertEquals(expected, saved.json())
         assertEquals(expected, admin.get("/api/v1/admin/retention").json())
         assertEquals(1, count("select count(*) from audit_events where event_type = 'RETENTION_SETTINGS_CHANGED'"))
@@ -55,7 +61,10 @@ class RetentionIntegrationTest : IntegrationTest() {
         assertEquals(422, admin.put("/api/v1/admin/retention", """{"issues":{"amount":1000,"unit":"DAYS"}}""").status)
         assertEquals(expected, admin.get("/api/v1/admin/retention").json())
 
-        assertEquals(mapOf("issues" to null, "documents" to null, "comments" to null), admin.put("/api/v1/admin/retention", "{}").json())
+        assertEquals(
+            mapOf("issues" to null, "documents" to null, "comments" to null, "shareAccesses" to null),
+            admin.put("/api/v1/admin/retention", "{}").json(),
+        )
     }
 
     @Test
@@ -136,6 +145,35 @@ class RetentionIntegrationTest : IntegrationTest() {
 
         assertFalse(storedPicture(own))
         assertTrue(storedPicture(shared))
+    }
+
+    @Test
+    fun `공유 링크 접속 기록은 기록한 때부터 기간이 지난 것만 지우고 링크는 남긴다`() {
+        admin.put("/api/v1/admin/retention", """{"shareAccesses":{"amount":2,"unit":"WEEKS"}}""")
+        val token = admin.post("/api/v1/shares", """{"kind":"MY_ISSUES_CALENDAR","params":{"month":"2026-10","scope":"assigned"}}""").json()["token"]
+        val visitor = client()
+        visitor.get("/api/v1/public/shares/$token")
+        clock.advance(Duration.ofDays(10))
+        visitor.get("/api/v1/public/shares/$token")
+
+        // The first opening is 15 days old, the second 5.
+        clock.advance(Duration.ofDays(5))
+        assertEquals(PurgeResult(issues = 0, documents = 0, comments = 0, shareAccesses = 1), purge())
+
+        assertEquals(1, count("select count(*) from share_accesses"))
+        assertEquals(1, count("select count(*) from share_links"))
+        assertEquals(1, count("select count(*) from audit_events where event_type = 'DATA_PURGED'"))
+        assertEquals(PurgeResult(0, 0, 0), purge())
+    }
+
+    @Test
+    fun `접속 기록의 기간을 정하지 않으면 아무리 오래돼도 지우지 않는다`() {
+        val token = admin.post("/api/v1/shares", """{"kind":"MY_ISSUES_CALENDAR","params":{"month":"2026-10","scope":"assigned"}}""").json()["token"]
+        client().get("/api/v1/public/shares/$token")
+        clock.advance(Duration.ofDays(3650))
+
+        assertEquals(PurgeResult(0, 0, 0), purge())
+        assertEquals(1, count("select count(*) from share_accesses"))
     }
 
     private fun purge(): PurgeResult = runBlocking { retention.purge() }

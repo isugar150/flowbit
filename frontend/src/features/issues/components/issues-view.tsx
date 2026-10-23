@@ -52,7 +52,7 @@ const m = messages.issues;
 // other two views arrive when they are chosen, and the new-issue dialog (which carries the whole
 // document editor) when it is first opened, or a moment earlier when its button is pointed at.
 const IssueTimeline = dynamic(() => import("./issue-timeline").then((module) => module.IssueTimeline));
-const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module) => module.IssueCalendarView));
+const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module) => module.IssueCalendarView<Issue>));
 const loadNewIssueDialog = () => import("./new-issue-dialog");
 const NewIssueDialog = dynamic(() => loadNewIssueDialog().then((module) => module.NewIssueDialog), { ssr: false });
 const preloadNewIssueDialog = () => void loadNewIssueDialog();
@@ -121,7 +121,10 @@ export function IssuesView({
   rememberFilters = true,
   assigneeFilter = true,
   openCreated = true,
+  shareScope,
 }: {
+  /** Which of a person's issues these are ("내 티켓": the ones assigned to them or the ones they made): puts a "공유하기" button on the calendar that shares its month (D-197). Left out where the calendar is not shared. */
+  shareScope?: "assigned" | "created";
   /** False for example data (the tour's) whose tickets have no page of their own: a ticket made in the dialog is then not opened. */
   openCreated?: boolean;
   /** False where every issue is already the person's own ("내 티켓"): there is no assignee to pick, and one remembered from another list is ignored. */
@@ -520,6 +523,7 @@ export function IssuesView({
               canMove={mayEdit}
               onMove={writable ? (issue, dates) => mutation.mutate({ number: issue.number, changes: dates }) : undefined}
               onCreate={writable ? openDialog : undefined}
+              share={shareScope ? (month) => ({ kind: "MY_ISSUES_CALENDAR", params: { month, scope: shareScope } }) : undefined}
             />
           ) : (
             <>

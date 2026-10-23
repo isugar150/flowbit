@@ -89,7 +89,7 @@ export function IssueAssignee({
   issue,
   className = "w-14 shrink-0",
 }: {
-  issue: Issue;
+  issue: Pick<Issue, "assignees">;
   /** The column's width. */
   className?: string;
 }) {

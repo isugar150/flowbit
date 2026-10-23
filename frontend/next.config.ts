@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
     },
   },
   // What every page says to the browser. Nobody else may put Flowbit in a frame (it embeds other sites, never the other
-  // way round), nothing is sniffed into another type, and the address of a page does not leak to other sites. The proxy in
+  // way round; only a share link's page, below, may be put in one), nothing is sniffed into another type, and the address of a page does not leak to other sites. The proxy in
   // front adds Strict-Transport-Security when there is HTTPS (docs/10-install.md).
   async headers() {
     return [
@@ -50,6 +50,9 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },
+      // A share link's page may be shown inside a frame of any other site: that is what "embed" means (docs/features/sharing.md).
+      // It comes after the rule above, so for these pages it replaces that rule's frame-ancestors.
+      { source: "/s/:token", headers: [{ key: "Content-Security-Policy", value: "frame-ancestors *" }] },
     ];
   },
   experimental: {

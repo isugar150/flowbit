@@ -1,3 +1,11 @@
+import type { Issue } from "../types";
+
+/**
+ * What the calendar needs of an issue: where it is and what it is. The people (`assignees`) are
+ * shown where there are any, and an issue the calendar may not open (the shared one) has none.
+ */
+export type CalendarIssue = Pick<Issue, "key" | "number" | "title" | "status" | "startDate" | "dueDate"> & Partial<Pick<Issue, "assignees">>;
+
 /** The dates of an issue: one day (`startDate` null) or a first and a last day. */
 export type IssueDates = { startDate: string | null; dueDate: string };
 

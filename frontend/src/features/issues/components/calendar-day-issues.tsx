@@ -6,8 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { StatusIcon, statusLabel } from "../meta";
-import type { Issue } from "../types";
-import { dayParts } from "./calendar-dates";
+import { dayParts, type CalendarIssue } from "./calendar-dates";
 import { IssueAssignee } from "./issue-row";
 
 const m = messages.issues.views;
@@ -17,7 +16,18 @@ const m = messages.issues.views;
  * status, title and assignees, and opening one goes to its page. It is a button of its own, so
  * pressing it does not start a new issue on the day as pressing the empty part of the day does.
  */
-export function DayIssues({ dayKey, issues, hidden }: { dayKey: string; issues: Issue[]; hidden: number }) {
+export function DayIssues<T extends CalendarIssue>({
+  dayKey,
+  issues,
+  hidden,
+  issueHref,
+}: {
+  dayKey: string;
+  issues: T[];
+  hidden: number;
+  /** Where an issue opens; null for an issue that opens nothing (the shared calendar). */
+  issueHref: (issue: T) => string | null;
+}) {
   const [open, setOpen] = useState(false);
   const { month, day, weekday } = dayParts(dayKey);
   const title = m.dayTitle(month, day, m.weekdays[weekday]);
@@ -36,13 +46,11 @@ export function DayIssues({ dayKey, issues, hidden }: { dayKey: string; issues: 
           <span className="text-xs leading-4 font-normal text-muted-foreground tabular-nums">{m.dayCount(issues.length)}</span>
         </h3>
         <ul className="max-h-72 overflow-y-auto">
-          {issues.map((issue) => (
-            <li key={issue.id}>
-              <Link
-                href={`/issue/${issue.key}`}
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 outline-none hover:bg-accent focus-visible:bg-accent"
-              >
+          {issues.map((issue) => {
+            const href = issueHref(issue);
+            const className = cn("flex items-center gap-2 rounded-md px-2 py-1.5 outline-none", href && "hover:bg-accent focus-visible:bg-accent");
+            const body = (
+              <>
                 <StatusIcon status={issue.status} className="size-4 shrink-0" />
                 <span className="min-w-0 flex-1">
                   <span
@@ -58,10 +66,21 @@ export function DayIssues({ dayKey, issues, hidden }: { dayKey: string; issues: 
                     {issue.startDate && issue.dueDate ? ` · ${issue.startDate.slice(5)} ~ ${issue.dueDate.slice(5)}` : null}
                   </span>
                 </span>
-                <IssueAssignee issue={issue} className="shrink-0" />
-              </Link>
-            </li>
-          ))}
+                {issue.assignees ? <IssueAssignee issue={{ assignees: issue.assignees }} className="shrink-0" /> : null}
+              </>
+            );
+            return (
+              <li key={issue.key}>
+                {href ? (
+                  <Link href={href} onClick={() => setOpen(false)} className={className}>
+                    {body}
+                  </Link>
+                ) : (
+                  <div className={className}>{body}</div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </PopoverContent>
     </Popover>

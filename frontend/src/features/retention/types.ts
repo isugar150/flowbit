@@ -1,6 +1,6 @@
 export type RetentionUnit = "DAYS" | "WEEKS" | "MONTHS";
 
-export type RetentionItem = "issues" | "documents" | "comments";
+export type RetentionItem = "issues" | "documents" | "comments" | "shareAccesses";
 
 export interface RetentionPeriod {
   amount: number;

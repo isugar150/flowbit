@@ -27,6 +27,9 @@ enum class RetentionItem {
     ISSUES,
     DOCUMENTS,
     COMMENTS,
+
+    /** The record of when share links were opened (D-198). Its period counts from the time of the opening, not from a deletion. */
+    SHARE_ACCESSES,
 }
 
 enum class RetentionUnit {
@@ -60,12 +63,14 @@ data class RetentionSettings(
     val issues: RetentionPeriod?,
     val documents: RetentionPeriod?,
     val comments: RetentionPeriod?,
+    val shareAccesses: RetentionPeriod? = null,
 ) {
     fun of(item: RetentionItem): RetentionPeriod? =
         when (item) {
             RetentionItem.ISSUES -> issues
             RetentionItem.DOCUMENTS -> documents
             RetentionItem.COMMENTS -> comments
+            RetentionItem.SHARE_ACCESSES -> shareAccesses
         }
 }
 
@@ -74,9 +79,10 @@ data class PurgeResult(
     val issues: Long,
     val documents: Long,
     val comments: Long,
+    val shareAccesses: Long = 0,
 ) {
     val isEmpty: Boolean
-        get() = issues == 0L && documents == 0L && comments == 0L
+        get() = issues == 0L && documents == 0L && comments == 0L && shareAccesses == 0L
 }
 
 /**
@@ -110,10 +116,15 @@ class RetentionService(
                 .collectList()
                 .awaitSingle()
                 .toMap()
-        return RetentionSettings(rows[RetentionItem.ISSUES], rows[RetentionItem.DOCUMENTS], rows[RetentionItem.COMMENTS])
+        return RetentionSettings(
+            rows[RetentionItem.ISSUES],
+            rows[RetentionItem.DOCUMENTS],
+            rows[RetentionItem.COMMENTS],
+            rows[RetentionItem.SHARE_ACCESSES],
+        )
     }
 
-    /** Replaces all three periods. Administrators only (reached through `/api/v1/admin`). */
+    /** Replaces all the periods. Administrators only (reached through `/api/v1/admin`). */
     suspend fun update(
         settings: RetentionSettings,
         actorId: UUID,
@@ -219,20 +230,36 @@ class RetentionService(
                     .awaitSingle()
                 // Comments, threads and activity are kept by the page's id without a foreign key (D-165): what a page deleted for good left behind goes too.
                 removedFiles += sweepOrphans()
-                val result = PurgeResult(issues = issues, documents = documents, comments = comments)
+                // The record of who opened share links goes by the time of the opening, not of a deletion (D-198).
+                val shareAccesses =
+                    settings.shareAccesses?.let { period ->
+                        databaseClient
+                            .sql("delete from share_accesses where accessed_at < :cutoff")
+                            .bind("cutoff", at(period.cutoff(now)))
+                            .fetch()
+                            .rowsUpdated()
+                            .awaitSingle()
+                    } ?: 0
+                val result = PurgeResult(issues = issues, documents = documents, comments = comments, shareAccesses = shareAccesses)
                 if (!result.isEmpty) {
                     auditService.record(
                         AuditEventType.DATA_PURGED,
                         null,
                         ClientInfo(null, null),
-                        mapOf("issues" to "$issues", "documents" to "$documents", "comments" to "$comments"),
+                        mapOf("issues" to "$issues", "documents" to "$documents", "comments" to "$comments", "shareAccesses" to "$shareAccesses"),
                     )
                 }
                 result
             }
         removedFiles.forEach { fileStorage.delete(it) }
         if (!result.isEmpty) {
-            log.info("Removed for good: {} issues, {} documents, {} comments", result.issues, result.documents, result.comments)
+            log.info(
+                "Removed for good: {} issues, {} documents, {} comments, {} share link records",
+                result.issues,
+                result.documents,
+                result.comments,
+                result.shareAccesses,
+            )
         }
         if (!result.isEmpty || removedFiles.isNotEmpty()) cleanUpPictures()
         return result
@@ -322,7 +349,14 @@ class RetentionService(
 
     private fun at(instant: Instant) = OffsetDateTime.ofInstant(instant, ZoneOffset.UTC)
 
-    private fun fieldOf(item: RetentionItem) = item.name.lowercase()
+    /** The name of the item in the API and in the audit log: `issues`, `shareAccesses`. */
+    private fun fieldOf(item: RetentionItem) =
+        when (item) {
+            RetentionItem.ISSUES -> "issues"
+            RetentionItem.DOCUMENTS -> "documents"
+            RetentionItem.COMMENTS -> "comments"
+            RetentionItem.SHARE_ACCESSES -> "shareAccesses"
+        }
 
     private companion object {
         /** How long a file uploaded for a comment waits for the comment to be sent. */

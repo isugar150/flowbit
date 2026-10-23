@@ -38,6 +38,8 @@ enum class AuditEventType {
     GIT_CONNECTION_CHANGED,
     GIT_CONNECTION_DELETED,
     GIT_SECRET_REGENERATED,
+    SHARE_LINK_CREATED,
+    SHARE_LINK_REVOKED,
 }
 
 /** Append-only record of security-relevant events. Never pass passwords or other secrets in `detail`. */

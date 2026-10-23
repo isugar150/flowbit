@@ -197,7 +197,7 @@ server {
 }
 ```
 
-Flowbit 이 내보내는 페이지에는 `X-Content-Type-Options`, `Content-Security-Policy: frame-ancestors 'self'`(다른 사이트가 Flowbit 을 프레임에 넣을 수 없다), `Referrer-Policy`, `Permissions-Policy` 가 이미 붙는다. HSTS 는 HTTPS 를 끝내는 프록시가 붙인다(위의 `add_header`).
+Flowbit 이 내보내는 페이지에는 `X-Content-Type-Options`, `Content-Security-Policy: frame-ancestors 'self'`(다른 사이트가 Flowbit 을 프레임에 넣을 수 없다. **공유 링크의 페이지 `/s/*` 만 예외**로 어느 사이트든 넣을 수 있다, [features/sharing.md](features/sharing.md)), `Referrer-Policy`, `Permissions-Policy` 가 이미 붙는다. HSTS 는 HTTPS 를 끝내는 프록시가 붙인다(위의 `add_header`).
 
 ## 7. 설치한 뒤 할 일
 
