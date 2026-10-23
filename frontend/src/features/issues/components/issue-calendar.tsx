@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { cloneElement, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useInBrowser } from "@/components/dates";
@@ -9,9 +9,13 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { ShareButton } from "@/features/share/components/share-button";
 import type { ShareTarget } from "@/features/share/types";
+import type { CardActivity } from "../card-activity";
+import { fetchRecentActivity } from "../recent-activity";
+import type { Issue } from "../types";
 import { StatusIcon, statusLabel } from "../meta";
 import { DayIssues } from "./calendar-day-issues";
 import { dateKey, issuesByDay, weeksOf, type CalendarIssue, type IssueDates, type Month } from "./calendar-dates";
+import { IssueHoverCard, cardOfIssue, type IssueCardData } from "./issue-card";
 import { useBarDrag } from "./use-bar-drag";
 
 export type { CalendarIssue, IssueDates } from "./calendar-dates";
@@ -85,6 +89,9 @@ function BarEdge({
  *
  * `onMove` and `onCreate` are left out where the person may not change or make issues.
  *
+ * With `cardOf` a bar has a card that opens when the pointer rests on it (D-201): its title, properties, project, requester and
+ * last history entries, in place of the browser's own tooltip. The entries come with the card, or from `loadActivity`.
+ *
  * The same calendar is the shared page (docs/features/sharing.md): `fixedMonth` shows one month
  * and nothing turns it, `issueHref` returning null draws the issues as bars that open nothing (the
  * page is read without signing in), and `share` adds the button that shares the month on show.
@@ -97,6 +104,8 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
   fixedMonth,
   issueHref = defaultIssueHref,
   share,
+  cardOf,
+  loadActivity,
 }: {
   issues: T[];
   /** Whether this person may change the dates of an issue. */
@@ -109,6 +118,10 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
   issueHref?: (issue: T) => string | null;
   /** What to share for a month (YYYY-MM): puts a "공유하기" button in the top line. */
   share?: (month: string) => ShareTarget;
+  /** What the card over an issue says; without it a bar has the browser's own tooltip. */
+  cardOf?: (issue: T) => IssueCardData;
+  /** The last history entries of an issue, for the card, when `cardOf` does not carry them. */
+  loadActivity?: (issue: T) => Promise<CardActivity[]>;
 }) {
   // The current month depends on the clock, which only the browser may read while rendering.
   const inBrowser = useInBrowser();
@@ -275,6 +288,7 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
                             dragged && first && "border-l",
                             dragged && last && "border-r",
                           );
+                          const card = cardOf?.(issue);
                           const body = (
                             <>
                               <StatusIcon status={issue.status} className="size-3" />
@@ -297,23 +311,28 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
                               ) : null}
                             </>
                           );
+                          // With a card the browser's own tooltip would say the same thing twice.
+                          const element = href ? (
+                            <Link
+                              href={href}
+                              // Dragging a bar is the calendar's own (use-bar-drag.ts), not the browser's drag of a link.
+                              draggable={false}
+                              onPointerDown={movable ? (event) => press(event, issue, "move", cell.key) : undefined}
+                              title={card ? undefined : title}
+                              className={className}
+                            />
+                          ) : (
+                            <div title={card ? undefined : title} className={className} />
+                          );
                           return (
                             <li key={issue.key}>
-                              {href ? (
-                                <Link
-                                  href={href}
-                                  // Dragging a bar is the calendar's own (use-bar-drag.ts), not the browser's drag of a link.
-                                  draggable={false}
-                                  onPointerDown={movable ? (event) => press(event, issue, "move", cell.key) : undefined}
-                                  title={title}
-                                  className={className}
-                                >
+                              {card ? (
+                                // No card over a bar that is being dragged, or while any is.
+                                <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} disabled={drag !== null}>
                                   {body}
-                                </Link>
+                                </IssueHoverCard>
                               ) : (
-                                <div title={title} className={className}>
-                                  {body}
-                                </div>
+                                cloneElement(element, undefined, body)
                               )}
                             </li>
                           );
@@ -335,4 +354,12 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
       {undated > 0 ? <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.undated(undated)}</p> : null}
     </div>
   );
+}
+
+/**
+ * The calendar of the lists of issues the signed-in person reads: each bar has its card, and the last entries of the
+ * issue's history are read from the server when the card first opens (D-201).
+ */
+export function IssuesCalendarView(props: Omit<React.ComponentProps<typeof IssueCalendarView<Issue>>, "cardOf" | "loadActivity">) {
+  return <IssueCalendarView<Issue> {...props} cardOf={cardOfIssue} loadActivity={(issue) => fetchRecentActivity(issue.number)} />;
 }

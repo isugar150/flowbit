@@ -143,6 +143,17 @@ class IssueController(
         @PathVariable number: Int,
     ): IssueActivityResponse = IssueActivityResponse.from(commentService.activity(user, number))
 
+    /** The latest entries of the history only, newest first (`limit` 1 to 10): for the card shown over an issue on a calendar. */
+    @GetMapping("/{number}/activity/recent")
+    suspend fun recentActivity(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+        @RequestParam(defaultValue = "3") limit: Int,
+    ): List<IssueActivityItemResponse> =
+        issueService.recentActivity(user, number, limit.coerceIn(1, 10)).map {
+            IssueActivityItemResponse(it.id, it.type, it.detail, it.actor?.let(IssuePersonResponse::from), it.createdAt, it.reactions)
+        }
+
     @PutMapping("/{number}/subscription")
     suspend fun subscribe(
         @AuthenticationPrincipal user: AuthenticatedUser,

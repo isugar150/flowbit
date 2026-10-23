@@ -39,6 +39,13 @@ data class ShareAccess(
     val item: String? = null,
 )
 
+/** A link with how often it was opened and when last. */
+data class ShareLinkStats(
+    val link: ShareLink,
+    val accessCount: Long,
+    val lastAccessedAt: Instant?,
+)
+
 /** Rows of `share_links` and `share_accesses` (docs/features/sharing.md). */
 @Component
 class ShareStore(
@@ -80,6 +87,29 @@ class ShareStore(
             .fetch()
             .rowsUpdated()
             .awaitSingle() > 0
+
+    /** The links in use of this person, the newest first, with how often each was opened. */
+    suspend fun listLive(ownerId: UUID): List<ShareLinkStats> =
+        databaseClient
+            .sql(
+                """
+                select $LINK_COLUMNS,
+                       (select count(*) from share_accesses a where a.share_id = l.id) as access_count,
+                       (select max(a.accessed_at) from share_accesses a where a.share_id = l.id) as last_accessed_at
+                from share_links l
+                where l.owner_id = :ownerId and l.revoked_at is null
+                order by l.created_at desc, l.id desc
+                """.trimIndent(),
+            ).bind("ownerId", ownerId)
+            .map { row ->
+                ShareLinkStats(
+                    link = linkOf(row),
+                    accessCount = checkNotNull(row.get("access_count", Long::class.javaObjectType)),
+                    lastAccessedAt = row.get("last_accessed_at", OffsetDateTime::class.java)?.toInstant(),
+                )
+            }.all()
+            .collectList()
+            .awaitSingle()
 
     suspend fun findById(id: UUID): ShareLink? =
         databaseClient

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { CheckIcon, CopyIcon, Share2Icon } from "lucide-react";
-import { TimeAgo } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -13,9 +12,10 @@ import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { copyText } from "@/lib/copy-text";
 import { messages } from "@/messages";
-import { createShare, fetchShareAccesses, revokeShare } from "../api";
-import { describeClient, embedCode, shareUrl } from "../links";
-import type { ShareAccess, ShareLink, ShareTarget } from "../types";
+import { createShare, revokeShare } from "../api";
+import { embedCode, shareUrl } from "../links";
+import type { ShareLink, ShareTarget } from "../types";
+import { ShareHistory } from "./share-history";
 
 const m = messages.share;
 
@@ -88,60 +88,6 @@ function CopyField({ label, hint, value, multiline, within }: { label: string; h
         </p>
       ) : null}
     </div>
-  );
-}
-
-function hostOf(address: string | null): string | null {
-  if (!address) return null;
-  try {
-    return new URL(address).host;
-  } catch {
-    return address;
-  }
-}
-
-function clientLabel(access: ShareAccess): string {
-  const { browser, os } = describeClient(access.userAgent);
-  return [browser, os].filter(Boolean).join(" · ") || m.unknownClient;
-}
-
-/** When the link was opened and from where, newest first (the person's own link only). */
-function ShareHistory({ id }: { id: string }) {
-  const history = useQuery({ queryKey: ["share-accesses", id], queryFn: () => fetchShareAccesses(id), staleTime: 0 });
-  const items = history.data?.items ?? [];
-  return (
-    <section aria-label={m.historyTitle} className="flex flex-col gap-1.5">
-      <h3 className="flex items-baseline justify-between gap-2 text-[0.8125rem] leading-5 font-medium">
-        {m.historyTitle}
-        {history.data ? <span className="text-xs leading-4 font-normal text-muted-foreground tabular-nums">{m.historyCount(history.data.total, items.length)}</span> : null}
-      </h3>
-      {history.isPending ? <Spinner aria-hidden="true" /> : null}
-      {history.isError ? <FormAlert>{apiErrorMessage(history.error)}</FormAlert> : null}
-      {history.data && items.length === 0 ? <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.historyEmpty}</p> : null}
-      {items.length > 0 ? (
-        <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border px-3">
-          {items.map((access) => {
-            const page = access.embedded ? hostOf(access.referrer) : null;
-            return (
-              <li key={`${access.accessedAt}-${access.ipAddress}`} className="flex flex-col gap-0.5 py-1.5 text-[0.8125rem] leading-5">
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className="truncate" title={access.userAgent ?? undefined}>
-                    {clientLabel(access)}
-                    {access.item ? <span className="text-muted-foreground"> · {m.historyItem(access.item)}</span> : null}
-                  </span>
-                  <span className="shrink-0 text-xs leading-4 text-muted-foreground">
-                    <TimeAgo iso={access.accessedAt} />
-                  </span>
-                </span>
-                <span className="truncate text-xs leading-4 text-muted-foreground tabular-nums">
-                  {[access.ipAddress, access.embedded ? (page ? m.embeddedIn(page) : m.embedded) : null].filter(Boolean).join(" · ")}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-    </section>
   );
 }
 

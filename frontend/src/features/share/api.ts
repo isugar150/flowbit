@@ -11,8 +11,9 @@ export function revokeShare(id: string): Promise<void> {
   return apiFetch<void>(`/api/v1/shares/${id}`, { method: "DELETE" });
 }
 
-export function fetchShareAccesses(id: string): Promise<ShareAccesses> {
-  return apiFetch<ShareAccesses>(`/api/v1/shares/${id}/accesses`);
+/** The latest times a link of the person's was opened: 20 unless `limit` says (200 at most). */
+export function fetchShareAccesses(id: string, limit?: number): Promise<ShareAccesses> {
+  return apiFetch<ShareAccesses>(`/api/v1/shares/${id}/accesses${limit ? `?limit=${limit}` : ""}`);
 }
 
 /**

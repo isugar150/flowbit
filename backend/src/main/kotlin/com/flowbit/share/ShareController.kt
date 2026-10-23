@@ -49,6 +49,19 @@ data class ShareResponse(
     }
 }
 
+/** A link in the person's list of their links (D-202). */
+data class ShareSummaryResponse(
+    val id: UUID,
+    val kind: String,
+    val params: Map<String, String>,
+    val token: String,
+    val path: String,
+    val createdAt: Instant,
+    val accessCount: Long,
+    val lastAccessedAt: Instant?,
+    val subject: String?,
+)
+
 data class ShareAccessResponse(
     val accessedAt: Instant,
     val ipAddress: String?,
@@ -69,6 +82,25 @@ data class ShareAccessesResponse(
 class ShareController(
     private val service: ShareService,
 ) {
+    /** The links the person has made and not stopped, the newest first. */
+    @GetMapping
+    suspend fun list(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+    ): List<ShareSummaryResponse> =
+        service.list(user).map {
+            ShareSummaryResponse(
+                id = it.link.id,
+                kind = it.link.kind,
+                params = it.params,
+                token = it.link.token,
+                path = "/s/${it.link.token}",
+                createdAt = it.link.createdAt,
+                accessCount = it.accessCount,
+                lastAccessedAt = it.lastAccessedAt,
+                subject = it.subject,
+            )
+        }
+
     /** The link to share this page: the person's existing one, or a new one. */
     @PostMapping
     suspend fun share(
@@ -91,8 +123,9 @@ class ShareController(
     suspend fun accesses(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable id: UUID,
+        @RequestParam(defaultValue = "20") limit: Int,
     ): ShareAccessesResponse {
-        val page = service.accesses(user, id)
+        val page = service.accesses(user, id, limit)
         return ShareAccessesResponse(
             page.total,
             page.items.map { ShareAccessResponse(it.accessedAt, it.ipAddress, it.userAgent, it.embedded, it.referrer, it.item) },

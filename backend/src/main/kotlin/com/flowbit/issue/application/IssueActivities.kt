@@ -62,6 +62,13 @@ data class IssueEvent(
     val detail: Map<String, Any?> = emptyMap(),
 )
 
+/** One entry of an issue's history as little as a card says: the kind of change, who made it, and when. */
+data class ActivityBrief(
+    val type: IssueActivityType,
+    val actor: String?,
+    val at: Instant,
+)
+
 /** A stored entry of an issue's history. */
 data class IssueActivityView(
     val id: UUID,
@@ -247,6 +254,72 @@ class IssueActivityStore(
             }.all()
             .collectList()
             .awaitSingle()
+
+    /** The latest entries of the issue's history, newest first (for a card that shows the last few). */
+    suspend fun recent(
+        issueId: UUID,
+        limit: Int,
+    ): List<IssueActivityView> =
+        databaseClient
+            .sql(
+                """
+                select a.id, a.type, a.detail::text as detail, a.created_at,
+                       u.id as actor_id, u.login_id, u.display_name, u.avatar_key
+                from issue_activities a left join users u on u.id = a.actor_id
+                where a.issue_id = :issueId
+                order by a.seq desc
+                limit :limit
+                """.trimIndent(),
+            ).bind("issueId", issueId)
+            .bind("limit", limit)
+            .map { row ->
+                IssueActivityView(
+                    id = checkNotNull(row.get("id", UUID::class.java)),
+                    type = IssueActivityType.valueOf(checkNotNull(row.get("type", String::class.java))),
+                    detail = checkNotNull(row.get("detail", String::class.java)),
+                    actor = row.get("actor_id", UUID::class.java)?.let { person(row) },
+                    createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
+                )
+            }.all()
+            .collectList()
+            .awaitSingle()
+
+    /**
+     * The latest [perIssue] entries of each of these issues, newest first, as little as a card says: what kind of change, by whom
+     * (the display name; null for a Git server or a person without one), and when. No old or new values.
+     */
+    suspend fun briefsOf(
+        issueIds: Collection<UUID>,
+        perIssue: Int,
+    ): Map<UUID, List<ActivityBrief>> {
+        if (issueIds.isEmpty()) return emptyMap()
+        return databaseClient
+            .sql(
+                """
+                select issue_id, type, display_name, created_at
+                from (
+                    select a.issue_id, a.type, u.display_name, a.created_at,
+                           row_number() over (partition by a.issue_id order by a.seq desc) as place
+                    from issue_activities a left join users u on u.id = a.actor_id
+                    where a.issue_id = any(:ids)
+                ) latest
+                where place <= :perIssue
+                order by issue_id, place
+                """.trimIndent(),
+            ).bind("ids", issueIds.toTypedArray())
+            .bind("perIssue", perIssue)
+            .map { row ->
+                checkNotNull(row.get("issue_id", UUID::class.java)) to
+                    ActivityBrief(
+                        type = IssueActivityType.valueOf(checkNotNull(row.get("type", String::class.java))),
+                        actor = row.get("display_name", String::class.java)?.takeIf { it.isNotBlank() },
+                        at = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
+                    )
+            }.all()
+            .collectList()
+            .awaitSingle()
+            .groupBy({ it.first }, { it.second })
+    }
 
     /** Subscribing twice is the same as once. */
     suspend fun subscribe(

@@ -70,8 +70,16 @@ class ShareIntegrationTest : IntegrationTest() {
         @Suppress("UNCHECKED_CAST")
         val issues = (body["content"] as Map<String, Any?>)["issues"] as List<Map<String, Any?>>
         assertEquals(listOf("9월 말부터 10월 초까지", "10월 중순"), issues.map { it["title"] })
-        // Only where and what it is: no body, project, people.
-        assertEquals(setOf("number", "key", "title", "status", "startDate", "dueDate"), issues.first().keys)
+        // Where and what it is, and what the card over it says (D-201): no body, no people on it.
+        assertEquals(
+            setOf("number", "key", "title", "status", "priority", "startDate", "dueDate", "project", "createdBy", "labels", "recentActivity"),
+            issues.first().keys,
+        )
+        @Suppress("UNCHECKED_CAST")
+        val activity = issues.first()["recentActivity"] as List<Map<String, Any?>>
+        assertEquals(listOf("CREATED"), activity.map { it["type"] })
+        // Of an entry the kind, who and when: never the old or new values.
+        assertEquals(setOf("type", "actor", "at"), activity.first().keys)
         assertEquals("2026-09-28", issues.first()["startDate"])
         assertEquals("2026-10-02", issues.first()["dueDate"])
         assertEquals("BACKLOG", issues.last()["status"])
@@ -282,6 +290,71 @@ class ShareIntegrationTest : IntegrationTest() {
         assertEquals("내용", download.body)
         // The pictures and files are not lines of the history; only the page was opened.
         assertEquals(1, count("select count(*) from share_accesses"))
+    }
+
+    @Test
+    fun `공유 캘린더 카드에는 최근 활동 3건이 최신 순으로 값 없이 들어 있다`() {
+        issue("""{"title":"카드 티켓","assigneeIds":["$adminId"],"dueDate":"2026-10-15"}""")
+        admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
+        admin.patch("/api/v1/issues/1", """{"priority":"HIGH"}""")
+        admin.patch("/api/v1/issues/1", """{"dueDate":"2026-10-16"}""")
+        val token = share(admin, "2026-10", "assigned")["token"]
+
+        @Suppress("UNCHECKED_CAST")
+        val issues = (client().get("/api/v1/public/shares/$token").json()["content"] as Map<String, Any?>)["issues"] as List<Map<String, Any?>>
+
+        @Suppress("UNCHECKED_CAST")
+        val activity = issues.single()["recentActivity"] as List<Map<String, Any?>>
+        assertEquals(listOf("DUE_DATE_CHANGED", "PRIORITY_CHANGED", "STATUS_CHANGED"), activity.map { it["type"] })
+        assertEquals("HIGH", issues.single()["priority"])
+    }
+
+    @Test
+    fun `티켓의 최근 활동만 최신 순으로 개수를 정해 읽는다`() {
+        issue("""{"title":"활동 티켓"}""")
+        admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
+        admin.patch("/api/v1/issues/1", """{"priority":"HIGH"}""")
+
+        val recent = admin.get("/api/v1/issues/1/activity/recent?limit=2")
+
+        assertEquals(200, recent.status)
+        assertEquals(listOf("PRIORITY_CHANGED", "STATUS_CHANGED"), recent.jsonList().map { it["type"] })
+        assertEquals(3, admin.get("/api/v1/issues/1/activity/recent").jsonList().size)
+    }
+
+    @Test
+    fun `내 링크 목록은 쓰고 있는 링크를 접속 횟수와 함께 보여 주고 삭제하면 사라진다`() {
+        issue("""{"title":"공유할 티켓"}""")
+        val calendar = share(admin, "2026-10", "assigned")
+        val shared = issueShare(1)
+        val visitor = client()
+        visitor.get("/api/v1/public/shares/${calendar["token"]}")
+        visitor.get("/api/v1/public/shares/${calendar["token"]}")
+        admin.post("/api/v1/admin/members", """{"loginId":"member","password":"$PASSWORD"}""")
+        val member = client().also { it.login("member", PASSWORD) }
+
+        val listed = admin.get("/api/v1/shares").jsonList()
+
+        // The newest first, each with how often it was opened and what it is about.
+        assertEquals(listOf(shared["id"], calendar["id"]), listed.map { it["id"] })
+        assertEquals("FB-1 공유할 티켓", listed[0]["subject"])
+        assertEquals(0, listed[0]["accessCount"])
+        assertEquals(null, listed[0]["lastAccessedAt"])
+        assertEquals(null, listed[1]["subject"])
+        assertEquals(2, listed[1]["accessCount"])
+        assertNotNull(listed[1]["lastAccessedAt"])
+        assertEquals(mapOf("month" to "2026-10", "scope" to "assigned"), listed[1]["params"])
+        assertEquals("/s/${calendar["token"]}", listed[1]["path"])
+        // Nobody else's links are in it.
+        assertEquals(emptyList<Any>(), member.get("/api/v1/shares").jsonList())
+
+        // The history can be asked for fewer entries than there are.
+        val history = admin.get("/api/v1/shares/${calendar["id"]}/accesses?limit=1").json()
+        assertEquals(2, history["total"])
+        assertEquals(1, (history["items"] as List<*>).size)
+
+        assertEquals(204, admin.delete("/api/v1/shares/${calendar["id"]}").status)
+        assertEquals(listOf(shared["id"]), admin.get("/api/v1/shares").jsonList().map { it["id"] })
     }
 
     private fun share(

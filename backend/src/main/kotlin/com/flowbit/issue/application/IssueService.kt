@@ -123,6 +123,13 @@ class IssueService(
         )
     }
 
+    /** The latest entries of an issue's history the caller may see, newest first. */
+    suspend fun recentActivity(
+        user: AuthenticatedUser,
+        number: Int,
+        limit: Int,
+    ): List<IssueActivityView> = activities.recent(lookup.access(user, number).issue.id, limit)
+
     /** Whether the caller may see the issue; for deciding who hears about its changes. */
     suspend fun canRead(
         user: AuthenticatedUser,

@@ -122,6 +122,12 @@ class IssueShare(
         if (!lookup.access(owner, rootOf(params)).canEdit) throw ForbiddenException("티켓을 고칠 수 있는 사람만 공유할 수 있습니다")
     }
 
+    /** "FB-12 제목", or null when the person cannot see the issue any more. */
+    override suspend fun describe(
+        ownerId: UUID,
+        params: Map<String, String>,
+    ): String? = queries.findVisible(viewer(ownerId), rootOf(params))?.let { "${it.key} ${it.title}" }
+
     override suspend fun content(
         ownerId: UUID,
         params: Map<String, String>,

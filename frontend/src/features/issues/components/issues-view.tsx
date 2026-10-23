@@ -52,7 +52,7 @@ const m = messages.issues;
 // other two views arrive when they are chosen, and the new-issue dialog (which carries the whole
 // document editor) when it is first opened, or a moment earlier when its button is pointed at.
 const IssueTimeline = dynamic(() => import("./issue-timeline").then((module) => module.IssueTimeline<Issue>));
-const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module) => module.IssueCalendarView<Issue>));
+const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module) => module.IssuesCalendarView));
 const loadNewIssueDialog = () => import("./new-issue-dialog");
 const NewIssueDialog = dynamic(() => loadNewIssueDialog().then((module) => module.NewIssueDialog), { ssr: false });
 const preloadNewIssueDialog = () => void loadNewIssueDialog();

@@ -407,6 +407,20 @@ export const ko = {
     allProjects: "모든 프로젝트",
     projectFilter: "프로젝트로 거르기",
     subIssueOf: "상위 티켓",
+    /** The card over an issue on a calendar (D-201). */
+    card: {
+      status: "상태",
+      priority: "우선순위",
+      dueDate: "기한",
+      period: "기간",
+      assignees: "담당자",
+      project: "프로젝트",
+      requester: "요청자",
+      labels: "라벨",
+      activity: "최근 활동",
+      loading: "불러오는 중",
+      noActivity: "활동 기록이 없습니다.",
+    },
     /** The panel's field that makes an issue a sub-issue of one found by searching (D-189). */
     parentField: {
       title: "상위 티켓",
@@ -1067,7 +1081,8 @@ export const ko = {
       MY_ISSUES_CALENDAR: {
         title: "캘린더 공유",
         label: "캘린더",
-        description: "링크를 아는 사람은 누구나 로그인하지 않고 이 달의 티켓 제목·상태·기간을 볼 수 있습니다. 담당자와 본문, 댓글은 보이지 않습니다.",
+        description:
+          "링크를 아는 사람은 누구나 로그인하지 않고 이 달의 티켓 제목·상태·기간을 볼 수 있고, 막대에 마우스를 올리면 프로젝트 이름·만든 사람의 이름·최근 활동 3건(바뀐 값은 제외)도 보입니다. 담당자와 본문, 댓글은 보이지 않습니다.",
       },
       MY_ISSUES_TIMELINE: {
         title: "타임라인 공유",
@@ -1083,6 +1098,22 @@ export const ko = {
       create: "링크 만들기",
       change: "범위 바꾸기",
       summary: (from: string, to: string) => (from === to ? from : `${from} ~ ${to}`),
+    },
+    mine: {
+      title: "내 공유 링크",
+      description: "내가 만든 공유 링크를 보고, 누가 열었는지 확인하고, 지웁니다. 링크를 아는 사람은 누구나 로그인하지 않고 열 수 있습니다.",
+      empty: "만든 공유 링크가 없습니다. 캘린더·타임라인·티켓의 ‘공유하기’로 만듭니다.",
+      created: (day: string) => `${day} 만듦`,
+      opened: (count: number) => (count === 0 ? "아직 열린 적 없음" : `${count}번 열림`),
+      lastOpened: "마지막",
+      showHistory: "접속 기록",
+      hideHistory: "접속 기록 닫기",
+      delete: "삭제",
+      deleteConfirm: "한 번 더 누르면 삭제됩니다",
+      deleting: "삭제하는 중",
+      deleteHint: "삭제하면 이 링크는 더 이상 열리지 않습니다.",
+      noIssue: (number: string) => `#${number} (지금은 볼 수 없는 티켓)`,
+      linkOf: (title: string) => `${title} 링크`,
     },
     creating: "링크를 만드는 중",
     linkLabel: "공유 링크",
@@ -1118,6 +1149,7 @@ export const ko = {
       notFoundHint: "링크가 중지됐거나 주소가 맞지 않습니다.",
       failed: "불러오지 못했습니다. 잠시 뒤 다시 열어 보세요.",
       title: "공유된 화면",
+      activityProperty: "님이 속성을 바꿨습니다",
       issue: {
         readOnly: "읽기 전용",
         trailLabel: "경로",

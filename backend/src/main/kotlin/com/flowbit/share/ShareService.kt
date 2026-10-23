@@ -14,6 +14,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.time.Clock
+import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
@@ -21,6 +22,16 @@ import java.util.UUID
 data class SharedLink(
     val link: ShareLink,
     val params: Map<String, String>,
+)
+
+/** A link in a person's list of their links: what it is, how often it was opened and when last. */
+data class ShareSummary(
+    val link: ShareLink,
+    val params: Map<String, String>,
+    val accessCount: Long,
+    val lastAccessedAt: Instant?,
+    /** What the link is about when its parameters do not say it (an issue: "FB-12 제목"); null otherwise. */
+    val subject: String?,
 )
 
 data class ShareAccessPage(
@@ -87,13 +98,21 @@ class ShareService(
         }
     }
 
-    /** The latest times the person's own link was opened. */
+    /** The links the person has made and has not stopped, the newest first (their settings page lists them, D-202). */
+    suspend fun list(user: AuthenticatedUser): List<ShareSummary> =
+        store.listLive(user.id).map { stats ->
+            val params = decode(stats.link.target)
+            ShareSummary(stats.link, params, stats.accessCount, stats.lastAccessedAt, providers[stats.link.kind]?.describe(user.id, params))
+        }
+
+    /** The latest times the person's own link was opened, [limit] of them at most. */
     suspend fun accesses(
         user: AuthenticatedUser,
         id: UUID,
+        limit: Int = RECENT_ACCESSES,
     ): ShareAccessPage {
         val link = ownLink(user, id)
-        return ShareAccessPage(store.countAccesses(link.id), store.recentAccesses(link.id, RECENT_ACCESSES))
+        return ShareAccessPage(store.countAccesses(link.id), store.recentAccesses(link.id, limit.coerceIn(1, MAX_ACCESSES)))
     }
 
     /**
@@ -163,6 +182,7 @@ class ShareService(
 
     internal companion object {
         const val RECENT_ACCESSES = 20
+        const val MAX_ACCESSES = 200
         const val OPENS_PER_MINUTE = 120
         const val FILES_PER_MINUTE = 600
         private const val MAX_REFERRER_LENGTH = 512
