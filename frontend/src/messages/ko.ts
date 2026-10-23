@@ -447,7 +447,7 @@ export const ko = {
       nextMonth: "다음 달",
       today: "오늘",
       weekdays: ["일", "월", "화", "수", "목", "금", "토"],
-      more: (count: number) => `+${count}개 더`,
+      more: (count: number) => `+${count}개 더보기`,
       dayTitle: (month: number, day: number, weekday: string) => `${month}월 ${day}일 (${weekday})`,
       dayCount: (count: number) => `티켓 ${count}개`,
       dayShowAll: (day: string, count: number) => `${day} 티켓 ${count}개 모두 보기`,

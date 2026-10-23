@@ -339,7 +339,14 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
                         })}
                         {items.length > MAX_PER_DAY ? (
                           <li>
-                            <DayIssues dayKey={cell.key} issues={items} hidden={items.length - MAX_PER_DAY} issueHref={issueHref} />
+                            <DayIssues
+                              dayKey={cell.key}
+                              issues={items}
+                              hidden={items.length - MAX_PER_DAY}
+                              issueHref={issueHref}
+                              cardOf={cardOf}
+                              loadActivity={loadActivity}
+                            />
                           </li>
                         ) : null}
                       </ul>

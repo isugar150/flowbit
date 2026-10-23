@@ -7,7 +7,9 @@ import { cn } from "cn"
 /**
  * A card that opens over what the pointer rests on, the way a link's preview does (Base UI PreviewCard). It is
  * placed by its trigger and kept on the screen: it opens below, turns up when there is no room, and is pushed
- * sideways before it would be cut off by an edge of the window.
+ * sideways before it would be cut off by an edge of the window. It never takes the pointer: what is under it stays
+ * under the pointer (to be pointed at, pressed, or to open a card of its own), so the card does not have to be left
+ * first to reach what it covers.
  */
 function HoverCard({ ...props }: PreviewCardPrimitive.Root.Props) {
   return <PreviewCardPrimitive.Root data-slot="hover-card" {...props} />
@@ -33,7 +35,7 @@ function HoverCardContent({
   return (
     <PreviewCardPrimitive.Portal>
       <PreviewCardPrimitive.Positioner
-        className="isolate z-50 outline-none"
+        className="pointer-events-none isolate z-50 outline-none"
         align={align}
         alignOffset={alignOffset}
         side={side}
@@ -43,7 +45,7 @@ function HoverCardContent({
         <PreviewCardPrimitive.Popup
           data-slot="hover-card-content"
           className={cn(
-            "z-50 w-80 max-w-[calc(100vw-1rem)] max-h-(--available-height) origin-(--transform-origin) overflow-y-auto rounded-lg bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "pointer-events-none z-50 w-80 max-w-[calc(100vw-1rem)] max-h-(--available-height) origin-(--transform-origin) overflow-y-auto rounded-lg bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}
           {...props}

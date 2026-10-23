@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TimeAgo } from "@/components/dates";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -121,11 +121,23 @@ export function IssueCard({ card, activity, loading }: { card: IssueCardData; ac
   );
 }
 
+/** How long the pointer rests on a bar before its card opens, and how soon the next one opens when another was just put away. */
+const OPEN_DELAY_MS = 300;
+const NEXT_DELAY_MS = 60;
+const NEXT_WINDOW_MS = 500;
+/** When a card was last put away (by any bar), so that going from one bar to the next does not wait the whole time again. */
+let lastClosedAt = 0;
+
 /**
  * Makes `children` (what the pointer rests on: a bar of the calendar) the trigger of a card. `render` is the element it
- * is drawn as. The card opens after the pointer has rested a moment, closes when it leaves, and does not open at all
+ * is drawn as. The card opens after the pointer has rested a moment (at once when another card was put away a moment ago,
+ * or the bar is reached by keyboard) and closes **the moment the pointer leaves the bar**, and it does not open at all
  * while `disabled` (a bar being dragged). Its entries come from the card when it has them, else from `load`, asked for
  * when the card first opens and kept for a minute.
+ *
+ * When it opens and closes is decided here and not by Base UI's own hovering: that keeps a card open while the pointer
+ * crosses it on the way to the card (a "safe polygon"), and since the card lets the pointer through (it does not take it, D-203),
+ * the bar behind it would open its card while the first was still there: two cards at once.
  */
 export function IssueHoverCard({
   render,
@@ -133,14 +145,35 @@ export function IssueHoverCard({
   card,
   load,
   disabled,
+  side,
+  align,
 }: {
   render: React.ReactElement;
   children: React.ReactNode;
   card: IssueCardData;
   load?: () => Promise<CardActivity[]>;
   disabled?: boolean;
+  /** Which side of what it is over the card opens on (below unless said; it turns to the other side when there is no room). */
+  side?: "top" | "right" | "bottom" | "left";
+  align?: "start" | "center" | "end";
 }) {
   const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopTimer = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => stopTimer, []);
+  const show = (at: "pointer" | "keyboard") => {
+    stopTimer();
+    const delay = at === "keyboard" ? 0 : Date.now() - lastClosedAt < NEXT_WINDOW_MS ? NEXT_DELAY_MS : OPEN_DELAY_MS;
+    timer.current = setTimeout(() => setOpen(true), delay);
+  };
+  const hide = () => {
+    stopTimer();
+    if (open) lastClosedAt = Date.now();
+    setOpen(false);
+  };
   const shown = open && !disabled;
   const loaded = useQuery({
     queryKey: ["issue-card-activity", card.key],
@@ -152,11 +185,30 @@ export function IssueHoverCard({
   // A history that could not be read leaves its place out rather than say something wrong.
   const activity = card.activity ?? loaded.data ?? null;
   return (
-    <HoverCard open={shown} onOpenChange={setOpen}>
-      <HoverCardTrigger delay={300} closeDelay={80} render={render}>
+    <HoverCard
+      open={shown}
+      // Only what Base UI sees that the bar does not: Escape, and a press elsewhere.
+      onOpenChange={(next, details) => {
+        if (!next && (details.reason === "escape-key" || details.reason === "outside-press")) hide();
+      }}
+    >
+      <HoverCardTrigger
+        render={render}
+        onPointerEnter={(event) => {
+          if (event.pointerType !== "touch") show("pointer");
+        }}
+        onPointerLeave={hide}
+        // Pressing a bar is for dragging or opening it, not for reading its card.
+        onPointerDown={hide}
+        onFocus={(event) => {
+          // Reached by keyboard; a press also focuses, and that one is not for the card.
+          if (event.currentTarget.matches(":focus-visible")) show("keyboard");
+        }}
+        onBlur={hide}
+      >
         {children}
       </HoverCardTrigger>
-      <HoverCardContent>
+      <HoverCardContent side={side} align={align}>
         <IssueCard card={card} activity={activity} loading={loaded.isFetching} />
       </HoverCardContent>
     </HoverCard>

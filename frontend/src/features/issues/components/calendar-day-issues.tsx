@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { cloneElement, useState } from "react";
 import Link from "next/link";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { StatusIcon, statusLabel } from "../meta";
+import type { CardActivity } from "../card-activity";
 import { dayParts, type CalendarIssue } from "./calendar-dates";
+import { IssueHoverCard, type IssueCardData } from "./issue-card";
 import { IssueAssignee } from "./issue-row";
 
 const m = messages.issues.views;
@@ -14,19 +16,26 @@ const m = messages.issues.views;
 /**
  * The "+N개 더" under a day of the calendar: opens every issue that is on that day, each with its
  * status, title and assignees, and opening one goes to its page. It is a button of its own, so
- * pressing it does not start a new issue on the day as pressing the empty part of the day does.
+ * pressing it does not start a new issue on the day as pressing the empty part of the day does. With `cardOf` a line has the
+ * same card as the bar of the issue in the calendar (D-201), opening to the side of the list.
  */
 export function DayIssues<T extends CalendarIssue>({
   dayKey,
   issues,
   hidden,
   issueHref,
+  cardOf,
+  loadActivity,
 }: {
   dayKey: string;
   issues: T[];
   hidden: number;
   /** Where an issue opens; null for an issue that opens nothing (the shared calendar). */
   issueHref: (issue: T) => string | null;
+  /** What the card over an issue says; without it a line has no card. */
+  cardOf?: (issue: T) => IssueCardData;
+  /** The last history entries of an issue, for the card, when `cardOf` does not carry them. */
+  loadActivity?: (issue: T) => Promise<CardActivity[]>;
 }) {
   const [open, setOpen] = useState(false);
   const { month, day, weekday } = dayParts(dayKey);
@@ -69,14 +78,17 @@ export function DayIssues<T extends CalendarIssue>({
                 {issue.assignees ? <IssueAssignee issue={{ assignees: issue.assignees }} className="shrink-0" /> : null}
               </>
             );
+            const element = href ? <Link href={href} onClick={() => setOpen(false)} className={className} /> : <div className={className} />;
+            const card = cardOf?.(issue);
             return (
               <li key={issue.key}>
-                {href ? (
-                  <Link href={href} onClick={() => setOpen(false)} className={className}>
+                {card ? (
+                  // To the side of the list, so that the card does not cover the lines under it.
+                  <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} side="right" align="start">
                     {body}
-                  </Link>
+                  </IssueHoverCard>
                 ) : (
-                  <div className={className}>{body}</div>
+                  cloneElement(element, undefined, body)
                 )}
               </li>
             );
