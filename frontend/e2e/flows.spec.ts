@@ -60,7 +60,7 @@ test.afterAll(async () => {
   await context.close();
 });
 
-test("a new issue is made with C and Ctrl+Enter, and is in the list when the dialog closes", async () => {
+test("a new issue is made with C and Ctrl+Enter, opens as its own dialog (D-194), and is in the list when that is closed", async () => {
   await newIssue("먼저 있던 티켓");
   const page = await newPage();
   // The list of all issues: the project's own address sends you to it filtered by the project (D-135), and a ticket made
@@ -79,6 +79,10 @@ test("a new issue is made with C and Ctrl+Enter, and is in the list when the dia
   await dialog.getByRole("textbox", { name: /제목/ }).fill(title);
   await page.keyboard.press("Control+Enter");
 
+  // Without "계속 만들기" it goes on to the ticket just made: its own dialog, over the list.
+  await expect(page).toHaveURL(/\/issue\/[A-Z]+-\d+$/);
+  await expect(page.getByRole("dialog").getByRole("button", { name: /^상태:/ })).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page.locator("li[data-presence-id^='issue-row:']").filter({ hasText: title })).toBeVisible();
   noReloads();

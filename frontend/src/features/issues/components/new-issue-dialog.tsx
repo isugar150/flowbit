@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRightIcon } from "lucide-react";
 import { RichTextEditor, type RichDoc } from "@/components/editor/rich-text-editor";
@@ -53,6 +54,7 @@ export function NewIssueDialog({
   defaultAssigneeId = null,
   defaultDates = null,
   onCreated,
+  openCreated = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -72,7 +74,13 @@ export function NewIssueDialog({
   defaultDates?: { startDate: string | null; dueDate: string } | null;
   /** Told about the ticket that was made, so the list behind can make sure it shows. */
   onCreated?: (issue: Issue) => void;
+  /**
+   * Whether making a ticket (without "계속 만들기") goes on to open it (D-194). Off where the ticket is an
+   * example that has no page, such as the tour's.
+   */
+  openCreated?: boolean;
 }) {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [properties, setProperties] = useState<Properties>(DEFAULT_PROPERTIES);
   // What people add to the ticket on their own (D-193): kept here and sent with the ticket, since it has no id to save them under yet.
@@ -90,6 +98,8 @@ export function NewIssueDialog({
   const [lastCreated, setLastCreated] = useState<string | null>(null);
   // Closing with a title or a body that was not made into a ticket asks first (D-182).
   const [hasBody, setHasBody] = useState(false);
+  // A property was picked or added since the dialog opened or the last ticket was made: that is something to lose as well (D-182).
+  const [touched, setTouched] = useState(false);
   const [asking, setAsking] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   // The title wraps instead of scrolling sideways: the field grows with what is typed.
@@ -124,6 +134,7 @@ export function NewIssueDialog({
       }));
       // A person property names a member of the project, and the project starts over, so the properties do too.
       changeDrafts([]);
+      setTouched(false);
       setTitleError(false);
       setLastCreated(null);
     }
@@ -132,6 +143,8 @@ export function NewIssueDialog({
   const mutation = useRefreshingMutation(createIssue, (issue) => {
     onCreated?.(issue);
     setTitle("");
+    // What was kept for the next ticket ("계속 만들기") was made; closing now loses nothing.
+    setTouched(false);
     if (createMore) {
       // Keep what the next issue is likely to share (status, labels, assignees); start a fresh body.
       resetBody();
@@ -146,6 +159,8 @@ export function NewIssueDialog({
       changeDrafts([]);
       resetBody();
       onOpenChange(false);
+      // Straight to the ticket that was just made, over the list, as when a line of it is clicked.
+      if (openCreated) router.push(`/issue/${issue.key}`);
     }
   });
 
@@ -164,7 +179,12 @@ export function NewIssueDialog({
   const members = other ? (fetched.data ?? []) : defaultMembers;
   // Assignees belong to a project; changing the project starts those over.
   const setProject = (key: string | null) => {
-    setProperties((current) => ({ ...current, projectId: key, assigneeIds: [] }));
+    // The person the list is for (D-195) stays while they are still picked: they may make a ticket in this project, so they can be given it.
+    setProperties((current) => ({
+      ...current,
+      projectId: key,
+      assigneeIds: defaultAssigneeId && current.assigneeIds.includes(defaultAssigneeId) ? [defaultAssigneeId] : [],
+    }));
     // The same for the people named in the added properties: they were members of the other project.
     setDrafts(withoutPeople);
   };
@@ -192,6 +212,7 @@ export function NewIssueDialog({
 
   const startAgain = () => {
     setTitle("");
+    setTouched(false);
     changeDrafts([]);
     resetBody();
     setProperties({
@@ -201,7 +222,7 @@ export function NewIssueDialog({
     });
   };
   // Closing (the X, Esc, a click outside) with something typed asks first; "닫고 내용 버리기" starts the next one empty.
-  const dirty = title.trim() !== "" || hasBody;
+  const dirty = title.trim() !== "" || hasBody || touched;
   const requestOpenChange = (next: boolean) => {
     if (next || !dirty) {
       if (!next) setAsking(false);
@@ -295,6 +316,7 @@ export function NewIssueDialog({
             <IssuePropertyFields
               values={properties}
               onChange={(changes) => {
+                setTouched(true);
                 // Assignees belong to a project; changing the project starts those over.
                 if ("projectId" in changes) setProject(changes.projectId ?? null);
                 else setProperties((current) => ({ ...current, ...changes }));
@@ -302,7 +324,16 @@ export function NewIssueDialog({
               members={members}
               labels={labels}
               projects={projects}
-              afterDueDate={<DraftProperties drafts={drafts} onChange={changeDrafts} members={members} />}
+              afterDueDate={
+                <DraftProperties
+                  drafts={drafts}
+                  onChange={(next) => {
+                    changeDrafts(next);
+                    setTouched(true);
+                  }}
+                  members={members}
+                />
+              }
             />
           </aside>
           </div>

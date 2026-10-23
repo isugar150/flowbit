@@ -54,6 +54,8 @@ export function TourDemo({
         <IssuesView
           // The example list starts plain and leaves the person's own saved filters alone.
           rememberFilters={false}
+          // The example tickets have no page to go to.
+          openCreated={false}
           // The two lists are different screens: each starts on its own.
           key={screen}
           projectId={null}

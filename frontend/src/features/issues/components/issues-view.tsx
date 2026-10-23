@@ -120,7 +120,10 @@ export function IssuesView({
   defaultAssigneeId = null,
   rememberFilters = true,
   assigneeFilter = true,
+  openCreated = true,
 }: {
+  /** False for example data (the tour's) whose tickets have no page of their own: a ticket made in the dialog is then not opened. */
+  openCreated?: boolean;
   /** False where every issue is already the person's own ("내 티켓"): there is no assignee to pick, and one remembered from another list is ignored. */
   assigneeFilter?: boolean;
   /** Whether the list takes part in the filters, order and grouping the three lists remember together. */
@@ -585,6 +588,7 @@ export function IssuesView({
           defaultAssigneeId={defaultAssigneeId}
           defaultDates={dialogDates}
           onCreated={showCreated}
+          openCreated={openCreated}
         />
       ) : null}
     </>

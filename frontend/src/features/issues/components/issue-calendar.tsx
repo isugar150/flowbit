@@ -9,21 +9,16 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { StatusIcon, statusLabel } from "../meta";
 import type { Issue } from "../types";
+import { DayIssues } from "./calendar-day-issues";
+import { dateKey, issuesByDay, weeksOf, type IssueDates, type Month } from "./calendar-dates";
+import { useBarDrag } from "./use-bar-drag";
+
+export type { IssueDates } from "./calendar-dates";
 
 const m = messages.issues.views;
 
-type Month = { year: number; month: number };
 /** How long after turning a month the wheel is ignored, so one gesture turns one month. */
 const WHEEL_PAUSE_MS = 250;
-/** The dates of an issue: one day (`startDate` null) or a first and a last day. */
-export type IssueDates = { startDate: string | null; dueDate: string };
-
-const DAY = 86_400_000;
-const pad = (value: number) => String(value).padStart(2, "0");
-const dateKey = (year: number, month: number, day: number) => `${year}-${pad(month + 1)}-${pad(day)}`;
-/** A YYYY-MM-DD day as a count of days, and back; for moving dates by a number of days. */
-const toDays = (key: string) => Math.round(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10))) / DAY);
-const fromDays = (days: number) => new Date(days * DAY).toISOString().slice(0, 10);
 
 /** Today in the reader's own time zone. Reads the clock, so it is only called in the browser. */
 function today(): { month: Month; key: string } {
@@ -34,61 +29,56 @@ function today(): { month: Month; key: string } {
   };
 }
 
-/** The days shown for a month: whole weeks from Sunday, so the days around the month fill the corners. */
-function weeksOf({ year, month }: Month): { key: string; day: number; inMonth: boolean }[][] {
-  const first = new Date(year, month, 1);
-  const cursor = new Date(year, month, 1 - first.getDay());
-  const weeks: { key: string; day: number; inMonth: boolean }[][] = [];
-  do {
-    const week = [];
-    for (let weekday = 0; weekday < 7; weekday++) {
-      week.push({
-        key: dateKey(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()),
-        day: cursor.getDate(),
-        inMonth: cursor.getMonth() === month,
-      });
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    weeks.push(week);
-  } while (cursor.getMonth() === month);
-  return weeks;
-}
-
 const MAX_PER_DAY = 3;
 /** An issue is drawn on every day of its span, up to this many days. */
 const MAX_SPAN_DAYS = 92;
-const DRAG_TYPE = "application/x-flowbit-issue";
 
 /**
  * One end of an issue's bar. Dragging it to another day changes the first day (the left end) or
- * the last day (the right end) and leaves the other where it is.
+ * the last day (the right end) and leaves the other where it is. A grip shows where to take hold
+ * of it when the pointer is over the bar, and stays while that end is being dragged.
  */
-function BarEdge({ edge, label, data }: { edge: "start" | "end"; label: string; data: { number: number; from: string } }) {
+function BarEdge({
+  edge,
+  label,
+  active,
+  onPress,
+}: {
+  edge: "start" | "end";
+  label: string;
+  active: boolean;
+  onPress: (event: React.PointerEvent) => void;
+}) {
   return (
     <span
-      draggable
       title={label}
-      onDragStart={(event) => {
+      onPointerDown={(event) => {
         // Not the bar's own drag, which moves the whole span.
         event.stopPropagation();
-        event.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ ...data, edge }));
-        event.dataTransfer.effectAllowed = "move";
+        onPress(event);
       }}
       // The bar is a link; pressing its end must not open the issue.
       onClick={(event) => event.preventDefault()}
-      className={cn(
-        "absolute inset-y-0 w-2 cursor-ew-resize rounded-sm bg-primary/60 opacity-0 group-hover/bar:opacity-100",
-        edge === "start" ? "left-0" : "right-0",
-      )}
-    />
+      className={cn("group/edge absolute inset-y-0 z-10 flex w-2.5 cursor-ew-resize items-center justify-center", edge === "start" ? "left-0" : "right-0")}
+    >
+      <span
+        className={cn(
+          "h-3 w-0.5 rounded-full bg-primary opacity-0 group-hover/bar:opacity-60 group-hover/edge:opacity-100",
+          active && "opacity-100",
+        )}
+      />
+    </span>
   );
 }
 
 /**
  * Issues on a month calendar: on their due date, or on every day from their start to their due
- * date. Dragging an issue to another day moves its dates by that many days. Clicking an empty
- * part of a day, or dragging across days, starts a new issue with those dates. Issues without a
- * due date cannot be placed; how many there are is said under the calendar.
+ * date. Dragging an issue moves its dates by as many days as the pointer moves, and dragging one
+ * end of its bar changes only its first or last day; the bar follows the pointer meanwhile and is
+ * saved when it is let go. Clicking an empty part of a day, or dragging across days, starts a new
+ * issue with those dates. A day with more than three issues says how many more, and that opens a
+ * list of all of them. Issues without a due date cannot be placed; how many there are is said
+ * under the calendar.
  *
  * `onMove` and `onCreate` are left out where the person may not change or make issues.
  */
@@ -107,8 +97,9 @@ export function IssueCalendarView({
   // The current month depends on the clock, which only the browser may read while rendering.
   const inBrowser = useInBrowser();
   const [chosen, setChosen] = useState<Month | null>(null);
-  // The day an issue is being dragged over, and the span being marked for a new issue.
-  const [dropDay, setDropDay] = useState<string | null>(null);
+  // The bar being dragged, drawn at the dates it is dragged to.
+  const { drag, press } = useBarDrag(issues, onMove);
+  // The span being marked for a new issue.
   const [marking, setMarking] = useState<{ from: string; to: string } | null>(null);
   const markingRef = useRef(marking);
   const onCreateRef = useRef(onCreate);
@@ -163,45 +154,20 @@ export function IssueCalendarView({
     const next = new Date(month.year, month.month + step, 1);
     setChosen({ year: next.getFullYear(), month: next.getMonth() });
   };
-  const byDay = new Map<string, Issue[]>();
-  for (const issue of issues) {
-    if (!issue.dueDate) continue;
-    const last = toDays(issue.dueDate);
-    const first = Math.max(issue.startDate ? toDays(issue.startDate) : last, last - MAX_SPAN_DAYS);
-    for (let day = first; day <= last; day++) {
-      const key = fromDays(day);
-      byDay.set(key, [...(byDay.get(key) ?? []), issue]);
-    }
-  }
-  const undated = issues.filter((issue) => !issue.dueDate).length;
-  const marked = (key: string) =>
-    marking !== null && key >= (marking.from <= marking.to ? marking.from : marking.to) && key <= (marking.from <= marking.to ? marking.to : marking.from);
-
-  const drop = (event: React.DragEvent, key: string) => {
-    setDropDay(null);
-    const data = event.dataTransfer.getData(DRAG_TYPE);
-    if (!data || !onMove) return;
-    event.preventDefault();
-    const { number, from, edge } = JSON.parse(data) as { number: number; from: string; edge?: "start" | "end" };
-    const issue = issues.find((item) => item.number === number);
-    if (!issue?.dueDate) return;
-    if (edge) {
-      // One end was dragged: only that day changes. An end cannot cross the other one, and a
-      // span pulled back to a single day is a single day again.
-      const first = edge === "start" ? key : (issue.startDate ?? issue.dueDate);
-      const last = edge === "end" ? key : issue.dueDate;
-      if (first > last || (first === (issue.startDate ?? issue.dueDate) && last === issue.dueDate)) return;
-      onMove(issue, { startDate: first === last ? null : first, dueDate: last });
-      return;
-    }
-    const shift = toDays(key) - toDays(from);
-    if (shift === 0) return;
-    // The whole span moves together and keeps its length.
-    onMove(issue, {
-      startDate: issue.startDate ? fromDays(toDays(issue.startDate) + shift) : null,
-      dueDate: fromDays(toDays(issue.dueDate) + shift),
-    });
+  // The bar being dragged is drawn on the days it would have, so it follows the pointer.
+  const shown = drag ? issues.map((issue) => (issue.number === drag.number ? { ...issue, ...drag.dates } : issue)) : issues;
+  const byDay = issuesByDay(shown, MAX_SPAN_DAYS);
+  // The issues drawn on a day: the first few. A bar being dragged is always among them, or it would
+  // disappear into "+N개 더" on the days where it comes late, and the drag could not be seen.
+  const visibleOf = (items: Issue[]) => {
+    const visible = items.slice(0, MAX_PER_DAY);
+    const dragged = drag ? items.findIndex((issue) => issue.number === drag.number) : -1;
+    if (dragged >= MAX_PER_DAY) visible[MAX_PER_DAY - 1] = items[dragged];
+    return visible;
   };
+  const undated = issues.filter((issue) => !issue.dueDate).length;
+  const marked =(key: string) =>
+    marking !== null && key >= (marking.from <= marking.to ? marking.from : marking.to) && key <= (marking.from <= marking.to ? marking.to : marking.from);
 
   return (
     <div className="flex flex-col gap-2 px-4 pb-6">
@@ -219,7 +185,13 @@ export function IssueCalendarView({
         {onCreate || onMove ? <p className="ml-auto text-xs leading-4 text-muted-foreground max-md:hidden">{m.calendarHint}</p> : null}
       </div>
       <div ref={gridRef} className="overflow-x-auto">
-        <table className="w-full min-w-[42rem] table-fixed border-collapse text-[0.8125rem] leading-5 select-none">
+        <table
+          className={cn(
+            "w-full min-w-[42rem] table-fixed border-collapse text-[0.8125rem] leading-5 select-none",
+            // One cursor all over while a bar is dragged, whatever the pointer is over.
+            drag && !drag.settled && (drag.mode === "move" ? "[&_*]:cursor-grabbing!" : "[&_*]:cursor-ew-resize!"),
+          )}
+        >
           <thead>
             <tr>
               {m.weekdays.map((weekday) => (
@@ -237,26 +209,17 @@ export function IssueCalendarView({
                   return (
                     <td
                       key={cell.key}
-                      className={cn(
-                        "h-28 border p-1 align-top",
-                        cell.inMonth ? null : "bg-muted/40",
-                        onCreate && "cursor-cell",
-                        (marked(cell.key) || dropDay === cell.key) && "bg-primary/10",
-                      )}
+                      data-day={cell.key}
+                      className={cn("h-28 border p-1 align-top", cell.inMonth ? null : "bg-muted/40", onCreate && "cursor-cell", marked(cell.key) && "bg-primary/10")}
                       onMouseDown={(event) => {
-                        // Only the empty part of a day starts a new issue; an issue in it is opened or dragged.
-                        if (!onCreate || event.button !== 0 || (event.target as Element).closest("a")) return;
+                        // Only the empty part of a day starts a new issue; an issue in it is opened or dragged, and
+                        // what a button of the day opens (its list of issues, drawn elsewhere in the page) is not
+                        // the day's. React sends events from there up to this cell too, so it is the target that tells.
+                        const target = event.target as Element;
+                        if (!onCreate || event.button !== 0 || !event.currentTarget.contains(target) || target.closest("a, button")) return;
                         setMarking({ from: cell.key, to: cell.key });
                       }}
                       onMouseEnter={() => setMarking((current) => (current ? { ...current, to: cell.key } : current))}
-                      onDragOver={(event) => {
-                        if (!onMove || !event.dataTransfer.types.includes(DRAG_TYPE)) return;
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = "move";
-                        setDropDay(cell.key);
-                      }}
-                      onDragLeave={() => setDropDay((current) => (current === cell.key ? null : current))}
-                      onDrop={(event) => drop(event, cell.key)}
                     >
                       <div
                         className={cn(
@@ -267,43 +230,60 @@ export function IssueCalendarView({
                         {cell.day}
                       </div>
                       <ul className="flex flex-col gap-0.5">
-                        {items.slice(0, MAX_PER_DAY).map((issue) => {
+                        {visibleOf(items).map((issue) => {
                           const movable = Boolean(onMove) && (canMove?.(issue) ?? true);
                           const dates = issue.startDate ? `${issue.startDate} ~ ${issue.dueDate}` : issue.dueDate;
+                          const dragged = drag?.number === issue.number ? drag : null;
+                          const first = cell.key === (issue.startDate ?? issue.dueDate);
+                          const last = cell.key === issue.dueDate;
                           return (
                             <li key={issue.id}>
                               <Link
                                 href={`/issue/${issue.key}`}
-                                draggable={movable}
-                                onDragStart={(event) => {
-                                  event.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ number: issue.number, from: cell.key }));
-                                  event.dataTransfer.effectAllowed = "move";
-                                }}
+                                // Dragging a bar is the calendar's own (use-bar-drag.ts), not the browser's drag of a link.
+                                draggable={false}
+                                onPointerDown={movable ? (event) => press(event, issue, "move", cell.key) : undefined}
                                 title={`${issue.key} ${issue.title} · ${statusLabel(issue.status)} · ${dates}`}
                                 className={cn(
                                   "group/bar relative flex h-6 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
                                   // A span reads as one bar: its inner days are joined to their neighbours.
-                                  issue.startDate && cell.key !== issue.startDate && "-ml-1 rounded-l-none",
-                                  issue.startDate && cell.key !== issue.dueDate && "-mr-1 rounded-r-none",
+                                  issue.startDate && !first && "-ml-1 rounded-l-none",
+                                  issue.startDate && !last && "-mr-1 rounded-r-none",
                                   issue.startDate && "bg-primary/15 hover:bg-primary/25",
                                   (issue.status === "DONE" || issue.status === "CANCELED") && "text-muted-foreground line-through",
-                                  movable && "cursor-grab active:cursor-grabbing",
+                                  movable && "cursor-grab",
+                                  // The bar as it is dragged: outlined all round, as one bar over the days it covers.
+                                  dragged && "border-y border-primary bg-primary/25 shadow-sm hover:bg-primary/25",
+                                  dragged && first && "border-l",
+                                  dragged && last && "border-r",
                                 )}
                               >
                                 <StatusIcon status={issue.status} className="size-3" />
                                 <span className="truncate">{issue.title}</span>
-                                {movable && cell.key === (issue.startDate ?? issue.dueDate) ? (
-                                  <BarEdge edge="start" label={m.resizeStart} data={{ number: issue.number, from: cell.key }} />
+                                {movable && first ? (
+                                  <BarEdge
+                                    edge="start"
+                                    label={m.resizeStart}
+                                    active={dragged?.mode === "start"}
+                                    onPress={(event) => press(event, issue, "start", cell.key)}
+                                  />
                                 ) : null}
-                                {movable && cell.key === issue.dueDate ? (
-                                  <BarEdge edge="end" label={m.resizeEnd} data={{ number: issue.number, from: cell.key }} />
+                                {movable && last ? (
+                                  <BarEdge
+                                    edge="end"
+                                    label={m.resizeEnd}
+                                    active={dragged?.mode === "end"}
+                                    onPress={(event) => press(event, issue, "end", cell.key)}
+                                  />
                                 ) : null}
                               </Link>
                             </li>
                           );
                         })}
                         {items.length > MAX_PER_DAY ? (
-                          <li className="px-1.5 text-xs leading-4 text-muted-foreground">{m.more(items.length - MAX_PER_DAY)}</li>
+                          <li>
+                            <DayIssues dayKey={cell.key} issues={items} hidden={items.length - MAX_PER_DAY} />
+                          </li>
                         ) : null}
                       </ul>
                     </td>
