@@ -1105,13 +1105,9 @@ export const ko = {
     },
     mine: {
       title: "내 공유 링크",
-      description: "내가 만든 공유 링크를 보고, 누가 열었는지 확인하고, 지웁니다. 링크를 아는 사람은 누구나 로그인하지 않고 열 수 있습니다.",
+      description: "내가 만든 공유 링크를 보고 지웁니다. 링크를 아는 사람은 누구나 로그인하지 않고 열 수 있습니다.",
       empty: "만든 공유 링크가 없습니다. 캘린더·타임라인·티켓의 ‘공유하기’로 만듭니다.",
       created: (day: string) => `${day} 만듦`,
-      opened: (count: number) => (count === 0 ? "아직 열린 적 없음" : `${count}번 열림`),
-      lastOpened: "마지막",
-      showHistory: "접속 기록",
-      hideHistory: "접속 기록 닫기",
       delete: "삭제",
       deleteConfirm: "한 번 더 누르면 삭제됩니다",
       deleting: "삭제하는 중",
@@ -1120,8 +1116,6 @@ export const ko = {
       linkOf: (title: string) => `${title} 링크`,
       all: "전체",
       kindFilter: "종류",
-      sortLabel: "정렬",
-      sorts: { created: "최근 만든 순", accessed: "최근 접속 순", opened: "많이 열린 순" },
       emptyKind: "이 종류의 링크가 없습니다.",
       previous: "이전",
       next: "다음",
@@ -1135,16 +1129,6 @@ export const ko = {
     copyFailed: "복사하지 못했습니다. 칸을 눌러 선택한 뒤 직접 복사하세요.",
     embedLabel: "임베드 코드",
     embedHint: "다른 페이지의 HTML 에 붙여 넣으면 이 캘린더가 그 안에 보입니다.",
-    historyTitle: "최근 접속 기록",
-    historyEmpty: "아직 접속한 사람이 없습니다.",
-    historyItem: (item: string) => {
-      const [type, id] = [item.slice(0, item.indexOf(":")), item.slice(item.indexOf(":") + 1)];
-      return type === "issue" ? `하위 티켓 #${id}` : type === "document" ? "문서" : item;
-    },
-    historyCount: (total: number, shown: number) => (total > shown ? `전체 ${total}건 중 최근 ${shown}건` : `${total}건`),
-    embedded: "임베드",
-    embeddedIn: (page: string) => `임베드 · ${page}`,
-    unknownClient: "알 수 없는 클라이언트",
     stop: "공유 중지",
     stopping: "중지하는 중",
     stopped: "공유를 중지했습니다. 이 링크는 더 이상 열리지 않습니다.",
@@ -1194,7 +1178,7 @@ export const ko = {
   },
   retention: {
     title: "데이터 보관",
-    description: "삭제한 티켓·문서·댓글과 공유 링크의 접속 기록을 얼마 동안 보관할지 정합니다. 보관 기간이 지나면 영구 삭제됩니다.",
+    description: "삭제한 티켓·문서·댓글을 얼마 동안 보관할지 정합니다. 보관 기간이 지나면 영구 삭제됩니다.",
     notice: "영구 삭제된 데이터는 복원할 수 없습니다. 데이터를 백업하려면 PostgreSQL 덤프와 업로드 폴더를 따로 보관하세요.",
     items: {
       issues: {
@@ -1209,10 +1193,6 @@ export const ko = {
         label: "삭제된 댓글",
         hint: "삭제한 댓글을 영구 삭제합니다.",
       },
-      shareAccesses: {
-        label: "공유 링크 접속 기록",
-        hint: "공유 링크가 열린 기록(시각, 접속한 곳의 IP 주소와 브라우저)입니다. 기록한 때부터 이 기간이 지나면 지웁니다. 링크는 지워지지 않습니다.",
-      },
     },
     modeLabel: (item: string) => `${item} 보관`,
     keep: "영구 삭제 안 함",
@@ -1222,7 +1202,7 @@ export const ko = {
     units: { DAYS: "일", WEEKS: "주", MONTHS: "개월" },
     after: "뒤 영구 삭제",
     amountInvalid: "1~999 사이의 숫자를 입력하세요.",
-    schedule: "정리는 1시간마다 실행되며, 삭제한 시점(접속 기록은 기록한 시점)부터 보관 기간이 지난 데이터를 지웁니다.",
+    schedule: "정리는 1시간마다 실행되며, 삭제한 시점부터 보관 기간이 지난 데이터를 지웁니다.",
     save: "저장",
     saving: "저장하는 중",
     saved: "저장했습니다.",

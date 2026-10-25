@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { CheckIcon, CopyIcon, HistoryIcon, Trash2Icon } from "lucide-react";
-import { TimeAgo, useInBrowser } from "@/components/dates";
+import { CheckIcon, CopyIcon, Trash2Icon } from "lucide-react";
+import { useInBrowser } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -15,7 +15,6 @@ import { messages } from "@/messages";
 import { revokeShare } from "../api";
 import { shareUrl } from "../links";
 import type { ShareSummary } from "../types";
-import { ShareHistory } from "./share-history";
 
 const m = messages.share;
 const monthLabel = (month: string) => messages.issues.views.monthTitle(Number(month.slice(0, 4)), Number(month.slice(5, 7)));
@@ -35,11 +34,10 @@ function titleOf(link: ShareSummary): string {
   }
 }
 
-/** One link: what it is, how often it was opened, its address to copy, who opened it, and the delete. */
+/** One link: what it is, its address to copy, and the delete. */
 function ShareLinkRow({ link, onDeleted }: { link: ShareSummary; onDeleted: () => void }) {
   const inBrowser = useInBrowser();
   const [copied, setCopied] = useState<"copied" | "failed" | null>(null);
-  const [history, setHistory] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const remove = useMutation({ mutationFn: () => revokeShare(link.id), onSuccess: onDeleted });
   useEffect(() => {
@@ -57,13 +55,7 @@ function ShareLinkRow({ link, onDeleted }: { link: ShareSummary; onDeleted: () =
           {title}
         </span>
         <span className="text-[0.8125rem] leading-5 text-muted-foreground tabular-nums">
-          {m.mine.created(link.createdAt.slice(0, 10))} · {m.mine.opened(link.accessCount)}
-          {link.lastAccessedAt ? (
-            <>
-              {" · "}
-              {m.mine.lastOpened} <TimeAgo iso={link.lastAccessedAt} />
-            </>
-          ) : null}
+          {m.mine.created(link.createdAt.slice(0, 10))}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -83,10 +75,6 @@ function ShareLinkRow({ link, onDeleted }: { link: ShareSummary; onDeleted: () =
           {copied === "copied" ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
           {copied === "copied" ? m.copied : m.copy}
         </Button>
-        <Button type="button" variant="outline" className="h-8 max-md:h-11" aria-expanded={history} onClick={() => setHistory((open) => !open)}>
-          <HistoryIcon data-icon="inline-start" />
-          {history ? m.mine.hideHistory : m.mine.showHistory}
-        </Button>
         <Button
           type="button"
           variant={confirming ? "destructive" : "outline"}
@@ -105,14 +93,12 @@ function ShareLinkRow({ link, onDeleted }: { link: ShareSummary; onDeleted: () =
         </p>
       ) : null}
       {remove.isError ? <FormAlert>{apiErrorMessage(remove.error)}</FormAlert> : null}
-      {history ? <ShareHistory id={link.id} limit={100} tall /> : null}
     </li>
   );
 }
 
 /**
- * A page of the share links the person has made and not stopped (D-202): what each one is, how often and when last it was
- * opened, its address to copy, who opened it, and the delete (which stops it: it opens no more). Which links, and the way
+ * A page of the share links the person has made and not stopped (D-202): what each one is, its address to copy, and the delete (which stops it: it opens no more). Which links, and the way
  * to the next page, are the page's (D-204).
  */
 export function MyShareLinks({ links }: { links: ShareSummary[] }) {
