@@ -70,7 +70,8 @@ class GitLinkService(
 
     /**
      * A branch holding a key is linked to that issue; so is every commit pushed with it, and every
-     * commit whose message names an issue. The first push of the branch starts the work. A commit
+     * commit whose message names an issue. The first push of the branch starts the work, and so
+     * does a new commit that names the issue, on any branch (D-209). A commit
      * straight to the default branch that says "Fixes FB-12" finishes the issue, for teams that
      * work without pull requests.
      */
@@ -118,7 +119,11 @@ class GitLinkService(
             record(run, issue, actor, events)
             // Pushing to the issue's own branch makes the pusher one of its assignees (D-156).
             if (onBranch && events.isNotEmpty()) assign(run, issue, actor)
-            if (branchLinked) {
+            // A new commit that names the issue starts the work like its branch does, on any branch, the
+            // default one too (D-209); not on a branch someone took off the issue, which changes nothing (D-161).
+            val branchTakenOff = issue.number in branchNumbers && !onBranch
+            val namedCommit = !branchTakenOff && added.any { issue.number in named[it.sha].orEmpty() }
+            if (branchLinked || namedCommit) {
                 run.pickRepository(issue, push.repository)
                 moveTo(run, issue, GitStage.BRANCH, actor)
             }

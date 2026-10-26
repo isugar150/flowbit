@@ -24,6 +24,12 @@ const commitsOf = (value: unknown): Commit[] =>
     ? value.filter((item): item is Commit => typeof item === "object" && item !== null && typeof (item as Commit).sha === "string")
     : [];
 
+/** `acme/web (main)`: the repository and branch the commits were pushed to; empty when the entry does not say. */
+function commitsFrom(detail: IssueActivityItem["detail"]): string | undefined {
+  if (typeof detail.repository !== "string" || !detail.repository) return undefined;
+  return typeof detail.branch === "string" && detail.branch ? `${detail.repository} (${detail.branch})` : detail.repository;
+}
+
 /** `web#34 로그인 오류 수정`: a pull request as the history names it. */
 function pullRequestName(detail: IssueActivityItem["detail"], withTitle: boolean): string {
   const name = `${repositoryName(text(detail.repository))}#${String(detail.number ?? "")}`;
@@ -31,11 +37,11 @@ function pullRequestName(detail: IssueActivityItem["detail"], withTitle: boolean
 }
 
 /** What a line of the history says: who did what, and the value it is about. */
-export type Described = { action: string; change?: string; href?: string; commits?: Commit[] };
+export type Described = { action: string; change?: string; href?: string; commits?: Commit[]; commitsFrom?: string };
 
 /**
  * What happened, in words, with the old and new value where there is one. `href` makes the value
- * a link (to the Git server); `commits` are listed under the line.
+ * a link (to the Git server); `commits` are listed under the line, `commitsFrom` says where they are.
  */
 export function describe(item: IssueActivityItem): Described {
   const { from, to, added, removed } = item.detail;
@@ -102,7 +108,11 @@ export function describe(item: IssueActivityItem): Described {
         ? { action: m.gitPrUnlinked, change: pullRequestName(item.detail, true), href: url }
         : { action: m.gitBranchUnlinked, change: text(item.detail.branch), href: url };
     case "GIT_COMMITS_PUSHED":
-      return { action: m.gitCommitsPushed(Number(item.detail.count) || 0), commits: commitsOf(item.detail.commits) };
+      return {
+        action: m.gitCommitsPushed(Number(item.detail.count) || 0),
+        commits: commitsOf(item.detail.commits),
+        commitsFrom: commitsFrom(item.detail),
+      };
     default:
       // A kind of entry this version of the page does not know yet.
       return { action: m.changed };
@@ -127,7 +137,7 @@ export function ActivityEvent({
   readOnly: boolean;
 }) {
   const reactions = useReactions(item.reactions, react);
-  const { change, href, commits } = described;
+  const { change, href, commits, commitsFrom } = described;
   // A Git server's change (D-153): a Git user without an account here is named as the server
   // knows them, and when the event named nobody the server itself is ("GitHub에서 …").
   const via = item.detail.via;
@@ -175,6 +185,7 @@ export function ActivityEvent({
                 ›
               </span>
               {m.gitCommitsShow}
+              {commitsFrom ? <span className="text-muted-foreground/80"> · {commitsFrom}</span> : null}
             </summary>
             <ul className="mt-1 flex flex-col gap-0.5 pl-3">
               {commits.map((commit) => (

@@ -1,8 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { FolderGit2Icon, GitBranchIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon, UnlinkIcon } from "lucide-react";
+import {
+  FolderGit2Icon,
+  GitBranchIcon,
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+  InfoIcon,
+  UnlinkIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
@@ -64,6 +74,38 @@ function UnlinkButton({ number, link, label }: { number: number; link: IssueGitL
   );
 }
 
+/** The (i) beside the heading: what to write in Git so that this issue moves along (D-210). Shows on hover and on focus. */
+function GitHelp({ issueKey }: { issueKey: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        delay={0}
+        render={
+          <button
+            type="button"
+            aria-label={m.help.label}
+            className="flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-md:size-8"
+          />
+        }
+      >
+        <InfoIcon aria-hidden className="size-3.5" />
+      </TooltipTrigger>
+      <TooltipContent side="left" className="flex max-w-64 flex-col gap-1 px-2.5 py-2 text-left leading-4">
+        <span className="font-medium">{m.help.intro(issueKey)}</span>
+        <ul className="flex flex-col gap-0.5">
+          {m.help.steps(issueKey).map((step) => (
+            <li key={step} className="flex gap-1.5">
+              <span aria-hidden="true">•</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ul>
+        <span className="opacity-80">{m.help.note}</span>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 /**
  * The "Git" group of an issue's side panel (docs/features/git-integration.md "화면"): which of its
  * project's repositories the work is in, picked when there are several to pick from (D-148) and
@@ -73,22 +115,29 @@ function UnlinkButton({ number, link, label }: { number: number; link: IssueGitL
  */
 export function IssueGitLinks({
   number,
+  issueKey,
   links,
   repository = null,
   repositoryOptions = [],
   canEdit = false,
 }: {
   number: number;
+  /** FB-12: the key Git has to carry, for the examples in the help. */
+  issueKey: string;
   links: IssueGitLink[];
   repository?: IssueGitRepository | null;
   repositoryOptions?: IssueGitRepository[];
   canEdit?: boolean;
 }) {
   const picking = repositoryOptions.length > 1;
-  if (links.length === 0 && !picking) return null;
+  // A repository alone is enough: a commit that names the issue picks it (D-209) before any branch or pull request exists.
+  if (links.length === 0 && !picking && !repository) return null;
   return (
     <section className="flex flex-col gap-1">
-      <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.heading}</h3>
+      <div className="flex items-center gap-1">
+        <h3 className="text-[0.8125rem] leading-5 font-medium text-muted-foreground">{m.heading}</h3>
+        <GitHelp issueKey={issueKey} />
+      </div>
       {picking ? (
         <IssueGitRepositoryPicker number={number} repository={repository} options={repositoryOptions} disabled={!canEdit} />
       ) : repository ? (

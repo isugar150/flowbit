@@ -458,10 +458,39 @@ class GitIntegrationTest : IntegrationTest() {
         val connection = connect()
 
         val result = deliver(connection, "push", push("main", "Fixes FB-1 로그인 오류", "fix: FB-3 은 취소됨", "FB-2 언급만")).json()
-        assertEquals(listOf("FB-1"), result["statusChanged"])
+        // FB-2 is only named, which starts the work (D-209); FB-1 is finished by "Fixes" and FB-3 stays canceled.
+        assertEquals(listOf("FB-1", "FB-2"), result["statusChanged"])
         // Not the default branch: "Fixes" waits for the merge.
         deliver(connection, "push", push("feature/x", "Fixes FB-2"))
-        assertEquals(listOf("DONE", "BACKLOG", "CANCELED"), statuses(3))
+        assertEquals(listOf("DONE", "IN_PROGRESS", "CANCELED"), statuses(3))
+    }
+
+    @Test
+    fun `커밋 메시지에 키가 든 커밋을 올리면 어느 브랜치든 작업이 시작되고 저장소가 정해진다`() {
+        createIssues("READY", "BACKLOG", "DONE", "CANCELED")
+        val connection = connect()
+
+        val result = deliver(connection, "push", push("main", "FB-1 검색 결과가 없을 때 alert 제거", "FB-3 마무리", "FB-4 마무리")).json()
+        assertEquals(listOf("FB-1", "FB-3", "FB-4"), result["linkedIssues"])
+        // Ready becomes in progress; done and canceled stay as they are; the issue not named is left alone.
+        assertEquals(listOf("FB-1"), result["statusChanged"])
+        assertEquals(listOf("IN_PROGRESS", "BACKLOG", "DONE", "CANCELED"), statuses(4))
+        // The commit alone made acme/web the issue's repository.
+        assertEquals("acme/web", (admin.get("/api/v1/issues/1").json()["gitRepository"] as Map<*, *>)["repository"])
+        assertEquals(listOf("CREATED", "GIT_COMMITS_PUSHED", "STATUS_CHANGED"), activityTypes(1))
+
+        // The same commits again, after the status was moved back by hand: nothing is new, so nothing moves.
+        admin.patch("/api/v1/issues/1", """{"status":"READY"}""")
+        assertEquals(emptyList<String>(), deliver(connection, "push", push("main", "FB-1 검색 결과가 없을 때 alert 제거")).json()["statusChanged"])
+        assertEquals("READY", statuses(1).single())
+
+        // A branch someone took off the issue: its commits still count as commits, but start nothing.
+        deliver(connection, "push", push("fb-2-search"))
+        val branch = gitOf(2).single()
+        assertEquals(204, admin.delete("/api/v1/issues/2/git/links/${branch["id"]}").status)
+        admin.patch("/api/v1/issues/2", """{"status":"BACKLOG"}""")
+        deliver(connection, "push", push("fb-2-search", "FB-2 이어서"))
+        assertEquals("BACKLOG", admin.get("/api/v1/issues/2").json()["status"])
     }
 
     @Test
@@ -497,29 +526,6 @@ class GitIntegrationTest : IntegrationTest() {
         awaitTrue { received.size == 1 }
         received.clear()
 
-        // A link and commits only: the API notification that chose them gets them, once per follower; nothing else does.
-        // Each call of the Git server is one notification of its own, sent at once (D-155): the link, then the commits,
-        // each to the two followers.
-        deliver(connection, "pull_request", pullRequest(number = 50, title = "정리", body = "Refs FB-1", branch = "chore"))
-        deliver(connection, "push", push("main", "FB-1 언급"))
-        awaitTrue { received.size == 4 }
-        Thread.sleep(300)
-        assertEquals(listOf("/git", "/git", "/git", "/git"), received.map { it.first })
-        assertEquals(
-            listOf("GIT_COMMITS_PUSHED", "GIT_COMMITS_PUSHED", "GIT_PR_LINKED", "GIT_PR_LINKED"),
-            received.map { changeTypes(it.second).single() }.sorted(),
-        )
-        assertTrue(
-            received.any {
-                mapper
-                    .readTree(it.second)
-                    .get("text")
-                    .asString()
-                    .contains("PR 연결: web#50 정리")
-            },
-        )
-        received.clear()
-
         // Work started by someone without an account here: everyone who follows the issue hears it.
         deliver(connection, "push", push("fb-1-login", pusher = Triple("parkhs", "parkhs@example.com", "박현수")))
         dispatcher.flush(1, null)
@@ -541,6 +547,29 @@ class GitIntegrationTest : IntegrationTest() {
         assertTrue(payload.get("text").asString().contains("parkhs(Gitea) 님이 Git에서 티켓을 수정했습니다"))
         // The one that chose Git's kinds gets the whole change, the commit with the status.
         assertEquals(listOf("GIT_BRANCH_LINKED", "GIT_COMMITS_PUSHED", "STATUS_CHANGED"), changeTypes(received.first { it.first == "/git" }.second))
+        received.clear()
+
+        // A link and commits only (the issue is under way, so no status changes): the API notification that chose them
+        // gets them, once per follower; nothing else does. Each call of the Git server is one notification of its own,
+        // sent at once (D-155): the link, then the commits, each to the two followers.
+        deliver(connection, "pull_request", pullRequest(number = 50, title = "정리", body = "Refs FB-1", branch = "chore"))
+        deliver(connection, "push", push("main", "FB-1 언급"))
+        awaitTrue { received.size == 4 }
+        Thread.sleep(300)
+        assertEquals(listOf("/git", "/git", "/git", "/git"), received.map { it.first })
+        assertEquals(
+            listOf("GIT_COMMITS_PUSHED", "GIT_COMMITS_PUSHED", "GIT_PR_LINKED", "GIT_PR_LINKED"),
+            received.map { changeTypes(it.second).single() }.sorted(),
+        )
+        assertTrue(
+            received.any {
+                mapper
+                    .readTree(it.second)
+                    .get("text")
+                    .asString()
+                    .contains("PR 연결: web#50 정리")
+            },
+        )
     }
 
     private fun changeTypes(body: String): List<String> {

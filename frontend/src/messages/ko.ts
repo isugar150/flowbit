@@ -894,7 +894,7 @@ export const ko = {
         "Git에서 일이 진행되면 티켓을 어느 상태로 바꿀지 단계마다 정합니다. 앞으로만 바꾸고(백로그 → 준비됨 → 진행 중 → 완료·취소), 완료·취소된 티켓은 건드리지 않습니다. PR 단계는 티켓을 닫는 PR(브랜치·제목에 키, 또는 본문에 완료 키워드)에만 적용됩니다.",
       noChange: "바꾸지 않음",
       names: {
-        BRANCH: "브랜치를 올리면",
+        BRANCH: "브랜치나 커밋을 올리면",
         PR_DRAFT: "초안 PR을 열면",
         PR_OPEN: "PR을 열면 (리뷰 요청)",
         PR_MERGED: "PR을 머지하면",
@@ -902,7 +902,7 @@ export const ko = {
         CLOSING_COMMIT: "기본 브랜치에 완료 키워드 커밋",
       },
       hints: {
-        BRANCH: "티켓 키가 든 브랜치를 처음 올리거나 Flowbit에서 만들 때",
+        BRANCH: "티켓 키가 든 브랜치를 처음 올리거나 Flowbit에서 만들 때, 또는 메시지에 티켓 키가 든 새 커밋을 올릴 때(어느 브랜치든)",
         PR_DRAFT: "초안(Draft, WIP) PR을 열 때",
         PR_OPEN: "PR을 바로 열거나, 초안을 리뷰 준비로 바꾸거나, 닫힌 PR을 다시 열 때",
         PR_MERGED: "다른 열린 닫는 PR이 남아 있으면 바꾸지 않습니다",
@@ -1070,6 +1070,17 @@ export const ko = {
       reference: "참고",
       unlink: (label: string) => `${label} 연결 해제`,
       unlinkConfirm: "해제",
+      // The (i) beside the heading (D-210): what to write in Git so that the issue moves along.
+      help: {
+        label: "Git 연동 사용법",
+        intro: (key: string) => `브랜치 이름, PR 제목, 커밋 메시지에 ${key} 를 쓰면 이 티켓에 연결됩니다.`,
+        steps: (key: string) => [
+          "키가 든 브랜치나 커밋을 올리면 → 진행 중",
+          "PR을 열면 → 진행 중, 머지하면 → 완료",
+          `기본 브랜치(main 등)에 "Fixes ${key}" 커밋을 올리면 → 완료`,
+        ],
+        note: "상태는 앞으로만 바뀌고, 단계별 상태는 관리자가 바꿀 수 있습니다.",
+      },
     },
   },
   share: {

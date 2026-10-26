@@ -101,6 +101,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
         />
         <IssueGitLinks
           number={issue.number}
+          issueKey={issue.key}
           links={issue.git ?? []}
           repository={issue.gitRepository ?? null}
           repositoryOptions={issue.gitRepositoryOptions ?? []}

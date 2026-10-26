@@ -5,7 +5,7 @@ import tools.jackson.databind.json.JsonMapper
 
 /** What happens on the Git server that a connection can move an issue on (D-158). */
 enum class GitStage {
-    /** A branch with the key is pushed for the first time. */
+    /** A branch with the key is pushed for the first time, or a new commit names the issue (D-209). */
     BRANCH,
 
     /** A draft pull request that closes the issue is opened. */
