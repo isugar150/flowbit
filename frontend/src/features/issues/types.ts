@@ -94,6 +94,9 @@ export type Issue = {
   /** How many sub-issues the issue has, and how many of them are done. */
   subIssueCount: number;
   subIssueDoneCount: number;
+  /** Comments on the issue and on the blocks of its body, and entries of its history besides "created" (D-219). */
+  commentCount: number;
+  activityCount: number;
   createdBy: IssuePerson;
   version: number;
   createdAt: string;

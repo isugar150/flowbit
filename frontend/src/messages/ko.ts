@@ -609,7 +609,12 @@ export const ko = {
       confirm: "복제",
     },
     labels: "라벨",
-    columns: { key: "번호", title: "제목" },
+    columns: { key: "번호", title: "제목", counts: "댓글·활동" },
+    // Beside a line of a list, when there is something to count (D-219).
+    counts: {
+      comments: (count: number) => `댓글 ${count}개`,
+      activity: (count: number) => `활동 ${count}건`,
+    },
     noLabels: "라벨 없음",
     allLabels: "모든 라벨",
     labelFilter: "라벨로 거르기",

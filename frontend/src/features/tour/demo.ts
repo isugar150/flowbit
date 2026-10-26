@@ -91,6 +91,8 @@ export function createDemo(): Demo {
     labels: [],
     subIssueCount: 0,
     subIssueDoneCount: 0,
+    commentCount: 0,
+    activityCount: 0,
     createdBy: person(0),
     version: 1,
     createdAt: at,

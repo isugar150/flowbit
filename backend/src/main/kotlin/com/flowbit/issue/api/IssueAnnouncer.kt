@@ -78,7 +78,25 @@ class IssueAnnouncer(
     suspend fun commented(
         user: AuthenticatedUser,
         change: IssueChange,
-    ) = commented(user.id, change) { lookup.actorName(user) }
+    ) {
+        // The lists show how many comments an issue has (D-219): they read again.
+        realtime.publish(RealtimeHub.ISSUES, user.id)
+        change.projectIds.forEach { realtime.publish("project:$it", user.id) }
+        commented(user.id, change) { lookup.actorName(user) }
+    }
+
+    /** A comment of the issue was deleted: its page and the lists, which show how many comments it has, read again (D-219). */
+    suspend fun commentsChanged(
+        user: AuthenticatedUser,
+        number: Int,
+    ) {
+        touched(user, number)
+        realtime.publish(RealtimeHub.ISSUES, user.id)
+        lookup
+            .access(user, number)
+            .issue.projectId
+            ?.let { realtime.publish("project:$it", user.id) }
+    }
 
     private suspend fun commented(
         actorId: UUID?,

@@ -75,6 +75,10 @@ data class IssueView(
     val completedAt: Instant? = null,
     /** The body as raw editor JSON. Loaded for a single issue only, never in lists. */
     val content: String? = null,
+    /** Comments on the issue and on the blocks of its body, the deleted ones left out (D-219). */
+    val commentCount: Int = 0,
+    /** Entries of its history besides "created" (D-219). */
+    val activityCount: Int = 0,
 )
 
 /** An issue above another, as the query reads it; the key is added from the workspace's issue key. */
@@ -314,6 +318,10 @@ class IssueQueries(
                             where up.lvl < 20)
                         select coalesce(json_agg(json_build_object('number', number, 'title', title) order by lvl desc), '[]')::text
                         from up) as ancestors,
+                       (select count(*) from issue_comments cm where cm.issue_id = i.id and cm.deleted_at is null)
+                         + (select count(*) from content_thread_comments tc join content_threads th on th.id = tc.thread_id
+                            where th.target_type = 'ISSUE' and th.target_id = i.id and tc.deleted_at is null) as comment_count,
+                       (select count(*) from issue_activities ac where ac.issue_id = i.id and ac.type <> 'CREATED') as activity_count,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null) as sub_total,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null and s.status = 'DONE') as sub_done,
                        (select coalesce(json_agg(json_build_object('id', a.id, 'loginId', a.login_id,
@@ -378,6 +386,8 @@ class IssueQueries(
                 updatedAt = checkNotNull(row.get("updated_at", OffsetDateTime::class.java)).toInstant(),
                 deletedAt = row.get("deleted_at", OffsetDateTime::class.java)?.toInstant(),
                 completedAt = row.get("completed_at", OffsetDateTime::class.java)?.toInstant(),
+                commentCount = checkNotNull(row.get("comment_count", Long::class.javaObjectType)).toInt(),
+                activityCount = checkNotNull(row.get("activity_count", Long::class.javaObjectType)).toInt(),
             )
         }.all()
             .collectList()

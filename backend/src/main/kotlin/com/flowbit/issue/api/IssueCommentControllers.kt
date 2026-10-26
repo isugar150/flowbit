@@ -91,7 +91,7 @@ class CommentController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable id: UUID,
     ) {
-        announcer.touched(user, commentService.removeComment(user, id))
+        announcer.commentsChanged(user, commentService.removeComment(user, id))
     }
 }
 

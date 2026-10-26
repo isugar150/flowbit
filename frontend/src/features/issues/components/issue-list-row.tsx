@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import { useRouter } from "next/navigation";
+import { ActivityIcon, MessageSquareIcon } from "lucide-react";
 import type { ProjectMember } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -24,12 +25,14 @@ const m = messages.issues;
  */
 const LAYOUTS = {
   page: {
+    counts: "hidden w-[4.75rem] shrink-0 items-center gap-1 sm:flex",
     project: "hidden w-28 shrink-0 overflow-hidden md:block xl:w-32",
     labels: "hidden w-44 shrink-0 overflow-hidden xl:flex",
     due: "hidden w-16 shrink-0 sm:block",
     assignee: "w-14 shrink-0",
   },
   panel: {
+    counts: "hidden w-[4.75rem] shrink-0 items-center gap-1 @md:flex",
     project: "hidden",
     labels: "hidden w-44 shrink-0 overflow-hidden @3xl:flex",
     due: "hidden w-16 shrink-0 @md:block",
@@ -38,6 +41,36 @@ const LAYOUTS = {
 } as const;
 
 export type IssueListLayout = keyof typeof LAYOUTS;
+
+/**
+ * How many comments and how many entries of history an issue has (D-219), side by side in two cells of one width so
+ * that they line up down the list. A count of none is left blank.
+ */
+function IssueCounts({ issue, className }: { issue: Issue; className: string }) {
+  const cell = "flex w-9 shrink-0 items-center gap-1 text-xs leading-4 text-muted-foreground tabular-nums";
+  return (
+    <span className={className}>
+      <span className={cell} title={issue.commentCount > 0 ? m.counts.comments(issue.commentCount) : undefined}>
+        {issue.commentCount > 0 ? (
+          <>
+            <MessageSquareIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            {issue.commentCount}
+            <span className="sr-only">{m.counts.comments(issue.commentCount)}</span>
+          </>
+        ) : null}
+      </span>
+      <span className={cell} title={issue.activityCount > 0 ? m.counts.activity(issue.activityCount) : undefined}>
+        {issue.activityCount > 0 ? (
+          <>
+            <ActivityIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            {issue.activityCount}
+            <span className="sr-only">{m.counts.activity(issue.activityCount)}</span>
+          </>
+        ) : null}
+      </span>
+    </span>
+  );
+}
 
 /** What on a line does something of its own when pressed, so pressing it must not also open the issue. */
 const OWN_ACTION = "a, button, input, textarea, select, label, summary, [role=button], [role=combobox], [role=menuitem], [role=option], [contenteditable=true]";
@@ -76,6 +109,7 @@ export function IssueListHeader({
       <span className={editable ? "w-7 shrink-0" : "w-4 shrink-0"} />
       <span className="w-16 shrink-0">{m.columns.key}</span>
       <span className="min-w-0 flex-1">{m.columns.title}</span>
+      <span className={columns.counts}>{m.columns.counts}</span>
       {showProject ? <span className={columns.project}>{m.project}</span> : null}
       <span className={columns.labels}>{m.labels}</span>
       <span className={columns.due}>{m.dueDate}</span>
@@ -175,6 +209,7 @@ export const IssueListRow = memo(function IssueListRow({
       </span>
       <IssueTitleLink issue={issue} />
       <SubIssueProgress issue={issue} />
+      <IssueCounts issue={issue} className={columns.counts} />
       {/* Every line has the same columns whether or not it has the value, so they line up down the list. */}
       {showProject ? (
         <span className={columns.project}>

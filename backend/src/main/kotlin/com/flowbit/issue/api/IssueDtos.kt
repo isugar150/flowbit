@@ -108,6 +108,9 @@ data class IssueResponse(
     /** How many sub-issues the issue has, and how many of them are done; for the progress shown in lists. */
     val subIssueCount: Int,
     val subIssueDoneCount: Int,
+    /** How many comments the issue has (on it and on the blocks of its body) and how many entries its history has besides "created"; shown in lists (D-219). */
+    val commentCount: Int,
+    val activityCount: Int,
     val createdBy: IssuePersonResponse,
     val version: Int,
     val createdAt: Instant,
@@ -155,6 +158,8 @@ data class IssueResponse(
                 labels = issue.labels,
                 subIssueCount = issue.subIssueCount,
                 subIssueDoneCount = issue.subIssueDoneCount,
+                commentCount = issue.commentCount,
+                activityCount = issue.activityCount,
                 createdBy = IssuePersonResponse.from(issue.createdBy),
                 version = issue.version,
                 createdAt = issue.createdAt,

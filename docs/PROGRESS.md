@@ -265,6 +265,13 @@
 
 ## 작업 기록
 
+### 2026-10-26 — 티켓 목록에 댓글 수와 활동 수 (D-219)
+
+- 사용자 요청: 내 티켓·전체 티켓 리스트의 티켓마다 활동과 댓글 수도 표시.
+- 한 것: 백엔드 `IssueQueries.select` 에 `comment_count`(티켓 댓글 + 본문 블록 스레드 댓글, 삭제 제외)·`activity_count`(`CREATED` 제외), `IssueView`·`IssueResponse` 에 `commentCount`·`activityCount`. 댓글 변경 때 목록이 새로 고침 없이 바뀌게 `IssueAnnouncer.commented`·`commentsChanged`·`ContentController.publish` 가 `issues`·`project:<id>` 를 알린다. 프런트 `Issue` 타입, `issue-list-row.tsx` 에 "댓글·활동" 칸(`IssueCounts`)과 머리말, `messages/ko.ts`. 명세(M3)·도움말·D-219 반영.
+- 테스트: `IssuesIntegrationTest` 에 "목록의 티켓마다 댓글 수와 활동 수가 있다"(목록과 상세가 같다, 답글·블록 댓글·삭제 포함). 화면은 확인하지 않았다.
+- 알아둘 것: 활동 수는 "만들었다"를 뺀 개수다. 좁은 화면에서는 이 칸이 숨는다.
+
 ### 2026-10-26 — 새 댓글은 구독자 모두에게, 답글은 태그된 사람과 대화한 사람에게만 (D-218)
 
 - 사용자 질문·지시: 태그한 뒤 다시 태그하면 알림이 오는지, 태그된(구독된) 사람에게 이후 댓글 정보도 와야 하지 않는지 → 다시 태그하면 오고(확인), 구독자에게는 댓글이 안 갔다. 새 댓글은 모두에게, 대댓글만 태그된 상대·댓글 단 사람·태그한 사람에게.

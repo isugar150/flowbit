@@ -248,5 +248,12 @@ class ContentController(
     private fun publish(
         user: AuthenticatedUser,
         context: ContentContext,
-    ) = context.topics.forEach { realtime.publish(it, user.id) }
+    ) {
+        context.topics.forEach { realtime.publish(it, user.id) }
+        // The lists of tickets show how many comments a ticket has, the ones on the blocks of its body too (D-219).
+        if (context.target.type == ContentTargetType.ISSUE) {
+            realtime.publish(RealtimeHub.ISSUES, user.id)
+            context.projectId?.let { realtime.publish("project:$it", user.id) }
+        }
+    }
 }

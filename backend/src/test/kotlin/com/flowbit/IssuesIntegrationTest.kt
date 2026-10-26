@@ -502,6 +502,51 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `목록의 티켓마다 댓글 수와 활동 수가 있다 (D-219)`() {
+        val created =
+            editor
+                .post(
+                    "/api/v1/projects/${p("PAY")}/issues",
+                    """{"title":"결제 실패","content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"본문"}]}]}}""",
+                ).json()
+
+        fun counts(): Pair<Any?, Any?> {
+            val listed = editor.get("/api/v1/issues").jsonList().single { it["key"] == "FB-1" }
+            val detail = editor.get("/api/v1/issues/1").json()
+            // The list and the page of one issue say the same.
+            assertEquals(listed["commentCount"] to listed["activityCount"], detail["commentCount"] to detail["activityCount"])
+            return listed["commentCount"] to listed["activityCount"]
+        }
+
+        // Making the issue is not an activity, and there are no comments yet.
+        assertEquals(0 to 0, counts())
+
+        // Two changes: two entries of the history (a title typed over and over would be one).
+        editor.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
+        editor.patch("/api/v1/issues/1", """{"priority":"HIGH"}""")
+        assertEquals(0 to 2, counts())
+
+        // A comment and a reply to it are two comments, not activities.
+        val parent = editor.post("/api/v1/issues/1/comments", commentJson("첫 댓글")).json()["id"]
+        val reply = editor.post("/api/v1/issues/1/comments", """{"parentId":"$parent","content":${commentDocument("답글")}}""").json()["id"]
+        assertEquals(2 to 2, counts())
+
+        // A comment on a block of the body counts too.
+        val block = ((editor.get("/api/v1/issues/1").json()["content"] as Map<String, Any?>)["content"] as List<Map<String, Any?>>).first()
+        val blockId = (block["attrs"] as Map<String, Any?>)["blockId"]
+        assertEquals(
+            201,
+            editor.post("/api/v1/content/issue/${created["id"]}/threads", """{"blockId":"$blockId","content":${commentDocument("블록 댓글")}}""").status,
+        )
+        assertEquals(3 to 2, counts())
+
+        // A deleted comment is not counted.
+        assertEquals(204, editor.delete("/api/v1/comments/$reply").status)
+        assertEquals(2 to 2, counts())
+    }
+
+    @Test
     fun `하위 티켓을 만들면 상위 티켓에 보이고 서로 물리는 관계는 만들 수 없다`() {
         val parent = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"상위"}""").json()
         val child = editor.post("/api/v1/issues", """{"title":"하위","projectId":"${p("PAY")}","parentId":"${parent["id"]}"}""").json()
