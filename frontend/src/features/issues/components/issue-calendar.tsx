@@ -352,6 +352,8 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
                               issueHref={issueHref}
                               cardOf={cardOf}
                               loadActivity={loadActivity}
+                              canDrag={(issue) => Boolean(onMove) && (canMove?.(issue) ?? true)}
+                              onDrag={(event, issue, started) => press(event, issue, "move", cell.key, started)}
                             />
                           </li>
                         ) : null}

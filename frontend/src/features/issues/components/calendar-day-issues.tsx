@@ -17,7 +17,8 @@ const m = messages.issues.views;
  * The "+N개 더" under a day of the calendar: opens every issue that is on that day, each with its
  * status, title and assignees, and opening one goes to its page. It is a button of its own, so
  * pressing it does not start a new issue on the day as pressing the empty part of the day does. With `cardOf` a line has the
- * same card as the bar of the issue in the calendar (D-201), opening to the side of the list.
+ * same card as the bar of the issue in the calendar (D-201), opening to the side of the list. A line can be dragged to another
+ * day like a bar (D-222): the list closes as soon as the drag starts, so that the days under it can be reached.
  */
 export function DayIssues<T extends CalendarIssue>({
   dayKey,
@@ -26,6 +27,8 @@ export function DayIssues<T extends CalendarIssue>({
   issueHref,
   cardOf,
   loadActivity,
+  canDrag,
+  onDrag,
 }: {
   dayKey: string;
   issues: T[];
@@ -36,6 +39,10 @@ export function DayIssues<T extends CalendarIssue>({
   cardOf?: (issue: T) => IssueCardData;
   /** The last history entries of an issue, for the card, when `cardOf` does not carry them. */
   loadActivity?: (issue: T) => Promise<CardActivity[]>;
+  /** Whether a line can be dragged to another day; without it none can. */
+  canDrag?: (issue: T) => boolean;
+  /** A line was pressed: starts the drag (the calendar's), and calls `started` once it has become one. */
+  onDrag?: (event: React.PointerEvent, issue: T, started: () => void) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { month, day, weekday } = dayParts(dayKey);
@@ -57,7 +64,8 @@ export function DayIssues<T extends CalendarIssue>({
         <ul className="max-h-72 overflow-y-auto">
           {issues.map((issue) => {
             const href = issueHref(issue);
-            const className = cn("flex items-center gap-2 rounded-md px-2 py-1.5 outline-none", href && "hover:bg-accent focus-visible:bg-accent");
+            const movable = Boolean(onDrag) && (canDrag?.(issue) ?? false);
+            const className = cn("flex items-center gap-2 rounded-md px-2 py-1.5 outline-none", href && "hover:bg-accent focus-visible:bg-accent", movable && "cursor-grab");
             const body = (
               <>
                 <StatusIcon status={issue.status} className="size-4 shrink-0" />
@@ -78,7 +86,13 @@ export function DayIssues<T extends CalendarIssue>({
                 {issue.assignees ? <IssueAssignee issue={{ assignees: issue.assignees }} className="shrink-0" /> : null}
               </>
             );
-            const element = href ? <Link href={href} onClick={() => setOpen(false)} className={className} /> : <div className={className} />;
+            const press = movable ? (event: React.PointerEvent) => onDrag?.(event, issue, () => setOpen(false)) : undefined;
+            const element = href ? (
+              // Dragging a line is the calendar's own (use-bar-drag.ts), not the browser's drag of a link.
+              <Link href={href} draggable={false} onPointerDown={press} onClick={() => setOpen(false)} className={className} />
+            ) : (
+              <div onPointerDown={press} className={className} />
+            );
             const card = cardOf?.(issue);
             return (
               <li key={issue.key}>

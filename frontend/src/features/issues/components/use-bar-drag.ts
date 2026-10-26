@@ -65,9 +65,10 @@ export function useBarDrag<T extends CalendarIssue>(issues: T[], onMove?: (issue
 
   /**
    * Starts dragging `issue` by the day `anchor` of its bar: all of it, or its first or last day. An issue without a date is pressed
-   * in its place under the calendar (`place`, no anchor).
+   * in its place under the calendar (`place`, no anchor). `onStart` is called when the press has become a drag (the pointer has
+   * moved): the list of a day closes then, so that the days under it can be reached.
    */
-  const press = useCallback((event: React.PointerEvent, issue: T, mode: BarDragMode, anchor: string) => {
+  const press = useCallback((event: React.PointerEvent, issue: T, mode: BarDragMode, anchor: string, onStart?: () => void) => {
     if (event.button !== 0 || event.pointerType === "touch" || !latest.current.onMove) return;
     if (mode === "place" ? issue.dueDate : !issue.dueDate) return;
     // No text selection and no native link drag from here on.
@@ -85,6 +86,7 @@ export function useBarDrag<T extends CalendarIssue>(issues: T[], onMove?: (issue
         dragging = true;
         document.body.style.cursor = mode === "start" || mode === "end" ? "ew-resize" : "grabbing";
         setDrag({ number: issue.number, mode, dates, settled: false });
+        onStart?.();
       }
       if (mode === "place") {
         // Off the calendar the issue is not on a day: it is drawn nowhere, and dropped there it is not placed.
