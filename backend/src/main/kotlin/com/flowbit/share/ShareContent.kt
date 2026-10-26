@@ -2,8 +2,6 @@ package com.flowbit.share
 
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ValidationException
-import com.flowbit.issue.application.IssueActivityStore
-import com.flowbit.issue.application.IssueActivityType
 import com.flowbit.issue.application.IssueQueries
 import com.flowbit.issue.application.MyIssueScope
 import com.flowbit.issue.application.Viewer
@@ -89,17 +87,9 @@ interface ShareContentProvider {
     ): Boolean = false
 }
 
-/** One entry of an issue's history as a shared page tells it: the kind of change, who made it, and when; never the values. */
-data class SharedActivity(
-    val type: IssueActivityType,
-    val actor: String?,
-    val at: Instant,
-)
-
 /**
  * An issue as the shared calendar shows it: where it is and what it is, and for the card over it (D-201) its priority, labels,
- * project, the display name of who made it, and the last three entries of its history without their values. No text, people
- * on it, comments or files.
+ * project and the display name of who made it. No text, people on it, history (D-214), comments or files.
  */
 data class SharedCalendarIssue(
     val number: Int,
@@ -112,7 +102,6 @@ data class SharedCalendarIssue(
     val project: String?,
     val createdBy: String?,
     val labels: List<SharedLabel>,
-    val recentActivity: List<SharedActivity>,
 )
 
 data class SharedCalendar(
@@ -170,7 +159,6 @@ private object MyIssuesParams {
 @Component
 class MyIssuesCalendarShare(
     private val queries: IssueQueries,
-    private val activities: IssueActivityStore,
 ) : ShareContentProvider {
     override val kind = ShareKind.MY_ISSUES_CALENDAR
 
@@ -178,11 +166,6 @@ class MyIssuesCalendarShare(
         val month = MyIssuesParams.requireMonth(params, "month")
         val scope = MyIssuesParams.requireScope(params)
         return mapOf("month" to month.toString(), "scope" to scope.name.lowercase())
-    }
-
-    private companion object {
-        /** How many of an issue's latest history entries its card shows. */
-        const val RECENT_ACTIVITY = 3
     }
 
     override suspend fun content(
@@ -201,7 +184,6 @@ class MyIssuesCalendarShare(
                     val due = issue.dueDate ?: return@filter false
                     due >= first && (issue.startDate ?: due) <= last
                 }
-        val recent = activities.briefsOf(inMonth.map { it.id }, RECENT_ACTIVITY)
         val issues =
             inMonth
                 .map { issue ->
@@ -217,7 +199,6 @@ class MyIssuesCalendarShare(
                         // Display names only: a login id may be an e-mail address.
                         createdBy = issue.createdBy.displayName?.takeIf(String::isNotBlank),
                         labels = issue.labels.map { SharedLabel(it.name, it.color) },
-                        recentActivity = recent[issue.id].orEmpty().map { SharedActivity(it.type, it.actor, it.at) },
                     )
                 }.sortedWith(compareBy({ it.startDate ?: it.dueDate }, { it.number }))
         return SharedCalendar(issues)

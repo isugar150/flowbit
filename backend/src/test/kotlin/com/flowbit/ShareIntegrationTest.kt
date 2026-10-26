@@ -67,16 +67,11 @@ class ShareIntegrationTest : IntegrationTest() {
         @Suppress("UNCHECKED_CAST")
         val issues = (body["content"] as Map<String, Any?>)["issues"] as List<Map<String, Any?>>
         assertEquals(listOf("9월 말부터 10월 초까지", "10월 중순"), issues.map { it["title"] })
-        // Where and what it is, and what the card over it says (D-201): no body, no people on it.
+        // Where and what it is, and what the card over it says (D-201): no body, no people on it, no history (D-214).
         assertEquals(
-            setOf("number", "key", "title", "status", "priority", "startDate", "dueDate", "project", "createdBy", "labels", "recentActivity"),
+            setOf("number", "key", "title", "status", "priority", "startDate", "dueDate", "project", "createdBy", "labels"),
             issues.first().keys,
         )
-        @Suppress("UNCHECKED_CAST")
-        val activity = issues.first()["recentActivity"] as List<Map<String, Any?>>
-        assertEquals(listOf("CREATED"), activity.map { it["type"] })
-        // Of an entry the kind, who and when: never the old or new values.
-        assertEquals(setOf("type", "actor", "at"), activity.first().keys)
         assertEquals("2026-09-28", issues.first()["startDate"])
         assertEquals("2026-10-02", issues.first()["dueDate"])
         assertEquals("BACKLOG", issues.last()["status"])
@@ -265,20 +260,19 @@ class ShareIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `공유 캘린더 카드에는 최근 활동 3건이 최신 순으로 값 없이 들어 있다`() {
+    fun `공유 캘린더 카드에는 활동 기록이 들어 있지 않다 (D-214)`() {
         issue("""{"title":"카드 티켓","assigneeIds":["$adminId"],"dueDate":"2026-10-15"}""")
         admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
         admin.patch("/api/v1/issues/1", """{"priority":"HIGH"}""")
-        admin.patch("/api/v1/issues/1", """{"dueDate":"2026-10-16"}""")
         val token = share(admin, "2026-10", "assigned")["token"]
 
         @Suppress("UNCHECKED_CAST")
         val issues = (client().get("/api/v1/public/shares/$token").json()["content"] as Map<String, Any?>)["issues"] as List<Map<String, Any?>>
 
-        @Suppress("UNCHECKED_CAST")
-        val activity = issues.single()["recentActivity"] as List<Map<String, Any?>>
-        assertEquals(listOf("DUE_DATE_CHANGED", "PRIORITY_CHANGED", "STATUS_CHANGED"), activity.map { it["type"] })
+        // The card has what the issue is, not what was done to it.
         assertEquals("HIGH", issues.single()["priority"])
+        assertEquals("IN_PROGRESS", issues.single()["status"])
+        assertEquals(false, "recentActivity" in issues.single())
     }
 
     @Test

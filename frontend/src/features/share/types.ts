@@ -1,5 +1,5 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
-import type { Issue, IssueActivityType } from "@/features/issues/types";
+import type { Issue } from "@/features/issues/types";
 
 /** The kinds of page that can be shared (docs/features/sharing.md). */
 export type ShareKind = "MY_ISSUES_CALENDAR" | "MY_ISSUES_TIMELINE" | "ISSUE";
@@ -38,19 +38,15 @@ export type ShareList = {
   items: ShareSummary[];
 };
 
-/** An entry of a shared issue's history: the kind of change, who made it (display name) and when; never the values (D-201). */
-export type SharedActivity = { type: IssueActivityType; actor: string | null; at: string };
-
 /**
  * An issue as the shared calendar shows it: where it is and what it is, and for the card over it its priority, labels,
- * project, who made it and the last three entries of its history.
+ * project and who made it. No history (D-214).
  */
 export type SharedCalendarIssue = Pick<Issue, "number" | "key" | "title" | "status" | "priority" | "startDate"> & {
   dueDate: string;
   project: string | null;
   createdBy: string | null;
   labels: { name: string; color: string }[];
-  recentActivity: SharedActivity[];
 };
 
 /** An issue as the shared timeline draws it, with the name of its project, which the chart groups by. */
