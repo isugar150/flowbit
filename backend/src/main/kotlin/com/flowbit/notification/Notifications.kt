@@ -79,6 +79,21 @@ data class ProjectAccessRequestNotification(
 }
 
 /**
+ * The daily summary of one member (docs/features/inbox-and-daily-summary.md, D-216): not a change to anything, so it
+ * has no issue, and it is told to that member alone. API notifications get it when they chose no kinds or chose [TYPE].
+ */
+data class DailySummaryNotification(
+    val recipientId: UUID,
+    val message: NotificationMessage,
+) {
+    companion object {
+        /** The kind of notification a webhook can choose, next to the IssueActivityType names. */
+        const val TYPE = "DAILY_SUMMARY"
+        const val EVENT = "summary.daily"
+    }
+}
+
+/**
  * One way of telling the world outside the app: mail (SMTP), web push (Firebase Cloud Messaging),
  * outgoing API calls (webhooks). To add one, implement this as a Spring bean; the dispatcher picks
  * it up. A channel checks for itself whether it is switched on, looks up what it needs for each

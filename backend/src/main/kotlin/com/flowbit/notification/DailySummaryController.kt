@@ -35,9 +35,18 @@ data class UpdateDailySummaryRequest(
     val time: String,
 )
 
-/** Whether the summary was sent; false when the member had nothing in it (D-216). */
+/**
+ * What "지금 보내기" came to (D-216). `hadContent` false: the member had nothing in the summary, so nothing was sent. `sent`: it
+ * reached the member by some way. `mailed`, `pushed`, `apiReached`: how many mails, browsers and API notifications; `apiFailed`:
+ * API notifications that did not answer well (see 관리자 설정 > 알림).
+ */
 data class SendDailySummaryResponse(
+    val hadContent: Boolean,
     val sent: Boolean,
+    val mailed: Int,
+    val pushed: Int,
+    val apiReached: Int,
+    val apiFailed: Int,
 )
 
 /**
@@ -88,7 +97,8 @@ class AdminDailySummaryController(
         @PathVariable id: UUID,
     ): SendDailySummaryResponse {
         requireMember(id)
-        return SendDailySummaryResponse(service.send(id))
+        val result = service.send(id)
+        return SendDailySummaryResponse(result.hadContent, result.delivered, result.mailed, result.pushed, result.apiReached, result.apiFailed)
     }
 
     private suspend fun response(id: UUID): DailySummaryResponse {

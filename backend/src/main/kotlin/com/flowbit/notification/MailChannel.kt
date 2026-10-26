@@ -95,29 +95,35 @@ class MailNotificationChannel(
         mail(notification.recipientIds, texts.of(notification), notification.title)
     }
 
-    /** Mails the message to each of these people who has an address and has not switched mail off. */
+    /**
+     * Mails the message to each of these people who has an address and has not switched mail off.
+     * Returns how many mails were handed to the server.
+     */
     suspend fun mail(
         recipientIds: List<java.util.UUID>,
         message: NotificationMessage,
         about: String,
-    ) {
-        if (recipientIds.isEmpty()) return
+    ): Int {
+        if (recipientIds.isEmpty()) return 0
         val settings = settingsService.settings()
-        if (!settings.smtpEnabled) return
+        if (!settings.smtpEnabled) return 0
         val addresses =
             userRepository
                 .findActiveByIds(recipientIds)
                 .toList()
                 .filter { it.notifyEmail }
                 .mapNotNull { it.email }
+        var sent = 0
         for (address in addresses) {
             try {
                 mailer.send(settings, address, message.title, textOf(message), htmlOf(message))
+                sent += 1
             } catch (e: Exception) {
                 // One bad address must not keep the mail from everyone after it.
                 log.warn("Could not mail the notification for {}: {}", about, e.message)
             }
         }
+        return sent
     }
 
     private fun textOf(message: NotificationMessage): String = (listOf(message.headline) + message.lines + listOf("", message.url)).joinToString("\n")

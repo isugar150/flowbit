@@ -87,7 +87,20 @@ export function saveMemberDailySummary(input: { memberId: string; enabled: boole
   });
 }
 
-/** Sends the member's summary now, as a try. `sent` is false when there was nothing to say. */
-export function sendMemberDailySummary(memberId: string): Promise<{ sent: boolean }> {
-  return apiFetch<{ sent: boolean }>(`/api/v1/admin/members/${memberId}/daily-summary/send`, { method: "POST" });
+/**
+ * What sending the member's summary now came to (D-220). `hadContent` false: nothing to say, nothing sent. `sent`: it reached them by
+ * some way; `mailed`, `pushed`, `apiReached`: how many of each; `apiFailed`: API notifications that did not answer well.
+ */
+export type MemberDailySummarySent = {
+  hadContent: boolean;
+  sent: boolean;
+  mailed: number;
+  pushed: number;
+  apiReached: number;
+  apiFailed: number;
+};
+
+/** Sends the member's summary now. */
+export function sendMemberDailySummary(memberId: string): Promise<MemberDailySummarySent> {
+  return apiFetch<MemberDailySummarySent>(`/api/v1/admin/members/${memberId}/daily-summary/send`, { method: "POST" });
 }

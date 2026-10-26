@@ -4,15 +4,19 @@ import com.flowbit.notification.DailySummaryBuilder
 import com.flowbit.notification.DailySummaryService
 import com.flowbit.support.ApiClient
 import com.flowbit.support.IntegrationTest
+import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import tools.jackson.databind.json.JsonMapper
+import java.net.InetSocketAddress
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -35,6 +39,7 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
 
     @BeforeEach
     fun start() {
+        received.clear()
         admin = client().also { it.setup("admin", PASSWORD) }
         kimId = admin.post("/api/v1/admin/members", """{"loginId":"kimjm","password":"$PASSWORD"}""").json()["id"] as String
         kim = client().also { it.login("kimjm", PASSWORD) }
@@ -110,6 +115,49 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
         admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
         admin.post("/api/v1/issues/1/notifications/flush", "{}")
         awaitUnread(kim, 5)
+    }
+
+    @Test
+    fun `하루 요약은 API 알림에도 가고 지금 보내기는 어디에 닿았는지 알려 준다 (D-220)`() {
+        val today = today()
+        admin.post("/api/v1/issues", """{"title":"오늘 마감 일","assigneeIds":["$kimId"],"dueDate":"$today"}""")
+        val send = "/api/v1/admin/members/$kimId/daily-summary/send"
+
+        fun webhook(
+            path: String,
+            kinds: String,
+        ) = admin.post(
+            "/api/v1/admin/notifications/webhooks",
+            """
+            {"name":"웍스 $path","enabled":true,"url":"$outside$path","method":"POST","contentType":"application/json","headers":{},
+             "bodyTemplate":"{\"to\":\"{{recipient.loginId}}\",\"text\":\"{{text}}\"}","signingSecret":null,"eventTypes":$kinds}
+            """.trimIndent(),
+        )
+
+        // Something to say and nowhere to say it: it is not "sent".
+        val nowhere = admin.post(send).json()
+        assertEquals(true, nowhere["hadContent"])
+        assertEquals(false, nowhere["sent"])
+        assertEquals(0, nowhere["apiReached"])
+
+        // An API notification that took no kinds gets it, addressed to the member; one that chose other kinds does not.
+        assertEquals(201, webhook("/works", "[]").status)
+        assertEquals(201, webhook("/only-created", """["CREATED"]""").status)
+        val reached = admin.post(send).json()
+        assertEquals(true, reached["sent"])
+        assertEquals(1, reached["apiReached"])
+        assertEquals(0, reached["apiFailed"])
+        assertEquals(listOf("/works"), received.map { it.first })
+        val body = mapper.readTree(received.single().second)
+        assertEquals("kimjm", body.get("to").asString())
+        assertTrue(body.get("text").asString().contains("오늘의 요약"))
+        assertTrue(body.get("text").asString().contains("오늘 마감 1건"))
+
+        // One that chose "하루 요약" gets it as well.
+        received.clear()
+        assertEquals(201, webhook("/chosen", """["DAILY_SUMMARY"]""").status)
+        assertEquals(2, admin.post(send).json()["apiReached"])
+        assertEquals(setOf("/works", "/chosen"), received.map { it.first }.toSet())
     }
 
     @Test
@@ -210,10 +258,10 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
         assertTrue(lines.none { it.contains("끝난 일") }, "$lines")
         assertTrue(lines.any { it == "내게 할당된 진행할 티켓 3건 (백로그 2 · 진행 중 1)" }, "$lines")
 
-        // "지금 보내 보기": sent for the member with tickets, nothing for the one with none.
-        assertEquals(true, admin.post("/api/v1/admin/members/$kimId/daily-summary/send").json()["sent"])
+        // "지금 보내기": there is something to say for the member with tickets, nothing for the one with none.
+        assertEquals(true, admin.post("/api/v1/admin/members/$kimId/daily-summary/send").json()["hadContent"])
         val adminId = admin.me().json()["id"]
-        assertEquals(false, admin.post("/api/v1/admin/members/$adminId/daily-summary/send").json()["sent"])
+        assertEquals(false, admin.post("/api/v1/admin/members/$adminId/daily-summary/send").json()["hadContent"])
     }
 
     /** Today in Seoul. Just after midnight there the clock is moved on two hours, so that "an hour ago" is still today. */
@@ -223,6 +271,24 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
     }
 
     private fun runBlockingSendDue() = kotlinx.coroutines.runBlocking { summaries.sendDue() }
+
+    companion object {
+        /** The path and body of each API notification Flowbit sent. */
+        private val received = CopyOnWriteArrayList<Pair<String, String>>()
+        private val mapper: JsonMapper = JsonMapper.builder().build()
+
+        private val server: HttpServer =
+            HttpServer.create(InetSocketAddress("localhost", 0), 0).apply {
+                createContext("/") { exchange ->
+                    received += exchange.requestURI.path to String(exchange.requestBody.readAllBytes())
+                    exchange.sendResponseHeaders(200, 2)
+                    exchange.responseBody.use { it.write("{}".toByteArray()) }
+                }
+                start()
+            }
+
+        private val outside = "http://localhost:${server.address.port}"
+    }
 
     private fun awaitUnread(
         person: ApiClient,

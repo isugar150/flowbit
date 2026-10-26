@@ -205,9 +205,26 @@ class DailySummaryBuilder(
 }
 
 /**
- * Sends the daily summary (D-216) by mail and web push, to the member alone. It is not held, merged or sent to
- * API notifications: those are for what changes. Whoever it is switched on for gets it once a day, at the time an
- * administrator set in the member's own time zone, unless there is nothing to say.
+ * What sending a member's summary came to: whether there was anything to say, and how many of each way reached them
+ * (mails handed to the server, browsers pushed to, API notifications that answered, and ones that did not).
+ */
+data class DailySummaryResult(
+    val hadContent: Boolean,
+    val mailed: Int = 0,
+    val pushed: Int = 0,
+    val apiReached: Int = 0,
+    val apiFailed: Int = 0,
+) {
+    /** Whether it reached the member by any way. */
+    val delivered: Boolean
+        get() = mailed + pushed + apiReached > 0
+}
+
+/**
+ * Sends the daily summary (D-216) to the member alone, by mail, web push and the API notifications that take it
+ * (those that chose no kinds or chose "하루 요약"). It is not held or merged, and it is not kept in the inbox. Whoever it
+ * is switched on for gets it once a day, at the time an administrator set in the member's own time zone, unless there
+ * is nothing to say.
  */
 @Service
 class DailySummaryService(
@@ -215,6 +232,7 @@ class DailySummaryService(
     private val builder: DailySummaryBuilder,
     private val mail: MailNotificationChannel,
     private val push: PushNotificationChannel,
+    private val webhooks: WebhookNotificationChannel,
     private val userService: UserService,
     private val instanceService: InstanceService,
     private val publicUrl: PublicUrl,
@@ -222,13 +240,13 @@ class DailySummaryService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** Sends the member's summary now. False when there was nothing to say, or the member cannot sign in. */
-    suspend fun send(userId: UUID): Boolean {
-        val user = userService.findActive(userId) ?: return false
+    /** Sends the member's summary now, and says which ways reached them. Nothing is sent when there is nothing to say. */
+    suspend fun send(userId: UUID): DailySummaryResult {
+        val user = userService.findActive(userId) ?: return DailySummaryResult(hadContent = false)
         val now = clock.instant()
         val today = now.atZone(zoneOf(user.timezone)).toLocalDate()
         val lines = builder.lines(userId, today, now.minus(LOOK_BACK))
-        if (lines.isEmpty()) return false
+        if (lines.isEmpty()) return DailySummaryResult(hadContent = false)
         val message =
             NotificationMessage(
                 title = "[${instanceService.workspace().name}] 오늘의 요약",
@@ -238,9 +256,10 @@ class DailySummaryService(
                 url = publicUrl.of(PATH),
                 linkLabel = "내 티켓 열기",
             )
-        mail.mail(listOf(userId), message, "the daily summary of $userId")
-        push.pushTo(listOf(userId), message.title, (listOf(message.headline) + message.lines).joinToString("\n"), "daily-summary", PATH)
-        return true
+        val mailed = mail.mail(listOf(userId), message, "the daily summary of $userId")
+        val pushed = push.pushTo(listOf(userId), message.title, (listOf(message.headline) + message.lines).joinToString("\n"), "daily-summary", PATH)
+        val api = webhooks.sendDailySummary(DailySummaryNotification(userId, message))
+        return DailySummaryResult(hadContent = true, mailed = mailed, pushed = pushed, apiReached = api.reached, apiFailed = api.failed)
     }
 
     /**

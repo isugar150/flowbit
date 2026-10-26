@@ -159,6 +159,17 @@ class WebhookSender(
         )
     }
 
+    /** The daily summary of a member (D-216): no issue; the member is the recipient and the summary is the message. */
+    fun contentOf(summary: DailySummaryNotification): WebhookContent =
+        WebhookContent(
+            event = DailySummaryNotification.EVENT,
+            types = setOf(DailySummaryNotification.TYPE),
+            about = "the daily summary of ${summary.recipientId}",
+            message = summary.message,
+            subject = mapOf("issue" to null, "changes" to emptyList<Any>()),
+            values = mapOf("summary.url" to summary.message.url),
+        )
+
     /** The standard payload: what is sent when a webhook has no body template, and `{{payload}}` in one that has. */
     fun payload(
         content: WebhookContent,
@@ -356,6 +367,12 @@ object WebhookHeaders {
     private const val MAX_HEADERS = 20
 }
 
+/** How many API notifications a daily summary reached, and how many did not answer well. */
+data class WebhookTally(
+    val reached: Int,
+    val failed: Int,
+)
+
 /**
  * Calls every enabled webhook that asked for this kind of change, once for each person the change
  * is told to (an API that messages one person at a time). A change nobody follows calls nothing.
@@ -390,6 +407,26 @@ class WebhookNotificationChannel(
     override suspend fun sendAccessRequest(request: ProjectAccessRequestNotification) {
         val content = sender.contentOf(request)
         deliverAll(request.recipientIds) { webhook -> content.takeIf { webhook.eventTypeSet.let { it.isEmpty() || it.any(content.types::contains) } } }
+    }
+
+    /**
+     * Sends the member their daily summary through each enabled webhook that chose no kinds or chose [DailySummaryNotification.TYPE]
+     * (D-216), and says how many answered and how many did not. A webhook addressed by e-mail skips a member without one.
+     */
+    suspend fun sendDailySummary(summary: DailySummaryNotification): WebhookTally {
+        val content = sender.contentOf(summary)
+        val wanted = webhooks.findEnabled().toList().filter { it.eventTypeSet.let { types -> types.isEmpty() || DailySummaryNotification.TYPE in types } }
+        val user = userRepository.findActiveByIds(listOf(summary.recipientId)).toList().firstOrNull() ?: return WebhookTally(0, 0)
+        val recipient = WebhookRecipient(user.id, user.loginId, user.displayName ?: user.loginId, user.email)
+        var reached = 0
+        var failed = 0
+        for (webhook in wanted) {
+            if (recipient.email == null && ("recipient.email" in webhook.url || "recipient.email" in webhook.bodyTemplate)) continue
+            val delivery = sender.deliver(webhook, content, recipient, retry = true)
+            record(webhook, content, delivery)
+            if (delivery.ok) reached += 1 else failed += 1
+        }
+        return WebhookTally(reached, failed)
     }
 
     private suspend fun deliverAll(

@@ -10,9 +10,22 @@ import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
-import { memberDailySummary, saveMemberDailySummary, sendMemberDailySummary, type MemberDailySummary } from "../api";
+import { memberDailySummary, saveMemberDailySummary, sendMemberDailySummary, type MemberDailySummary, type MemberDailySummarySent } from "../api";
 
 const m = messages.members.dailySummary;
+
+/** What came of sending it now, in words: where it arrived, or why it did not go anywhere (D-220). */
+function sentText(result: MemberDailySummarySent): string {
+  if (!result.hadContent) return m.nothingToSend;
+  const ways = [
+    result.mailed > 0 ? m.viaMail(result.mailed) : null,
+    result.pushed > 0 ? m.viaPush(result.pushed) : null,
+    result.apiReached > 0 ? m.viaApi(result.apiReached) : null,
+  ].filter((way): way is string => way !== null);
+  const failed = result.apiFailed > 0 ? m.apiFailed(result.apiFailed) : null;
+  if (ways.length === 0) return failed ?? m.nowhere;
+  return [m.sentVia(ways.join(", ")), failed].filter(Boolean).join(" · ");
+}
 
 /** A setting on one line: what it is on the left, the control on the right (as in the member's other sections). */
 function Row({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
@@ -100,7 +113,7 @@ export function MemberDailySummarySettings({ memberId, memberName }: { memberId:
         <div className="flex items-center gap-2">
           {send.isSuccess ? (
             <span role="status" className="text-[0.8125rem] leading-5 text-muted-foreground">
-              {send.data.sent ? m.sent : m.nothingToSend}
+              {sentText(send.data)}
             </span>
           ) : null}
           <Button type="button" variant="outline" size="sm" className="max-md:h-11" disabled={send.isPending} onClick={() => send.mutate()}>

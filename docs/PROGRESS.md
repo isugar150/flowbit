@@ -265,6 +265,14 @@
 
 ## 작업 기록
 
+### 2026-10-26 — 하루 요약을 API 알림으로도, "지금 보내기" 결과를 닿은 곳으로 (D-220)
+
+- 사용자 보고: "지금 보내 보기"에서 "보냈습니다"가 떴는데 웍스 메신저로 안 왔다. 문구는 "지금 보내기"로.
+- 원인: 하루 요약은 메일·푸시로만 갔고 API 알림(웹훅)은 뺐다(D-216 ⑦). "보냈습니다"는 내용이 있었다는 뜻이었다.
+- 한 것: `DailySummaryNotification`·`WebhookSender.contentOf`·`WebhookNotificationChannel.sendDailySummary`(보낼 변경을 비워 둔 API 알림과 `DAILY_SUMMARY` 를 고른 것이 받는다), `DailySummaryService.send` 가 `DailySummaryResult`(메일 수·푸시 수·API 알림 닿은/실패)를 돌려주고 `…/send` 응답이 `{ hadContent, sent, mailed, pushed, apiReached, apiFailed }`. 화면은 닿은 곳을 말로 쓰고("보냈습니다: 메일 1통, API 알림 1곳" / "보낼 곳이 없어 …"), 버튼은 "지금 보내기". 관리자 알림 화면의 종류 목록에 "하루 요약". 명세·도움말·D-220 반영.
+- 테스트: `InboxAndDailySummaryIntegrationTest` 에 "하루 요약은 API 알림에도 가고 …"(가짜 웹훅 서버에 보낸 것과 받는 쪽, 종류를 고른 것/다른 종류만 고른 것).
+- 알아둘 것: 웍스 메신저가 "보낼 변경"을 고른 API 알림이면 "하루 요약"을 목록에서 골라야 받는다. 본문 양식에는 `{{text}}` 와 받는 사람(`{{recipient.loginId}}`·`{{recipient.email}}`)을 쓴다.
+
 ### 2026-10-26 — 티켓 목록에 댓글 수와 활동 수 (D-219)
 
 - 사용자 요청: 내 티켓·전체 티켓 리스트의 티켓마다 활동과 댓글 수도 표시.
