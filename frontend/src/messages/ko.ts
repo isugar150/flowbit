@@ -579,6 +579,12 @@ export const ko = {
     },
     duplicate: {
       button: "티켓 복제",
+      // Asked before the copy is made (D-213).
+      title: "티켓을 복제할까요?",
+      description: (key: string) =>
+        `${key} 티켓을 “제목 - 복제됨”으로 복제합니다. 본문·속성·첨부 파일·문서가 그대로 복제되고, 하위 티켓과 댓글·활동 기록은 복제되지 않습니다.`,
+      cancel: "취소",
+      confirm: "복제",
     },
     labels: "라벨",
     columns: { key: "번호", title: "제목" },

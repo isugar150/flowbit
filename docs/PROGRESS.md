@@ -271,6 +271,7 @@
 - 한 것: 백엔드 `IssueDuplicationService`(새 파일), `POST /api/v1/issues/{번호}/duplicate`(201), `RichText.copy`(본문을 저장된 그대로 복사), `CustomPropertyService.copyIssueProperties`. 복제본에는 `CREATED`(+`duplicatedFrom`) 한 줄만 남기고, 알림 문구는 "N 티켓을 복제했습니다". 프런트: `issue-duplicate.tsx`(`DuplicateIssueButton`), `duplicateIssue` API, 활동 줄 "님이 다음 티켓에서 복제했습니다: FB-12"(`activity-event.tsx`), `messages/ko.ts`. 문서(`features/M3-projects-and-issues.md`)·도움말("티켓 복제")·D-212 반영.
 - 테스트: `IssuesIntegrationTest` 에 둘 추가(속성·본문·파일·문서·활동·구독, 하위 티켓은 복제되지 않고 하위 티켓을 복제하면 같은 상위 아래에 생김). `IssuesIntegrationTest`·`NotificationsIntegrationTest`·`CustomPropertiesIntegrationTest`·`ktlintCheck` 통과. 프런트 타입 검사·린트 통과. 화면은 확인하지 않았다.
 - 알아둘 것: **댓글·이모지·Git 연결은 복제하지 않는다**(D-212 ①).
+- **확인 창 (D-213)**: "티켓 복제"를 누르면 "티켓을 복제할까요?" 확인 창이 먼저 뜬다(`issue-duplicate.tsx`, `Dialog`). 처음에는 확인 없이 바로 만들었는데 사용자가 확인 창을 골랐다. 도움말·명세·`messages/ko.ts` 반영. 타입 검사·린트 통과, 화면은 확인하지 않았다.
 - **같은 날 고침**: 처음에는 하위 티켓까지 복제했는데, 사용자 지시("하위 티켓은 복제하지 말고 그 티켓 하나만")로 **그 티켓 하나만** 복제하게 바꿨다. 서비스에서 하위 티켓을 따라 내려가는 부분과 100개 한도(`DUPLICATE_TOO_LARGE`)를 없앴고, 테스트·명세·도움말·D-212 를 맞췄다.
 
 ### 2026-10-26 — 날짜 표시가 새로고침 없이 갱신되게 (D-211)
