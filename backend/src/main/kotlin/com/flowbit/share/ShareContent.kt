@@ -111,7 +111,8 @@ data class SharedCalendar(
 /**
  * An issue as the shared timeline draws it: the days it covers (`createdAt` and `updatedAt` are
  * for the issues that have no start or due date), its status, and the name of its project, which
- * the chart groups by. No project id, people, text, or the issues above it.
+ * the chart groups by; and for the card over a bar (D-215) its priority, labels and the display name of who made it.
+ * No project id, people on it, text, history, or the issues above it.
  */
 data class SharedTimelineIssue(
     val number: Int,
@@ -123,6 +124,10 @@ data class SharedTimelineIssue(
     val createdAt: Instant,
     val updatedAt: Instant,
     val project: String?,
+    /** For the card over a bar (D-215), as the calendar's: priority, who made it (display name) and the labels. */
+    val priority: IssuePriority,
+    val createdBy: String?,
+    val labels: List<SharedLabel>,
 )
 
 data class SharedTimeline(
@@ -249,7 +254,23 @@ class MyIssuesTimelineShare(
                     // The bar covers the days between the two, whichever comes first.
                     minOf(start, end) <= last && maxOf(start, end) >= first
                 }.sortedBy { it.number }
-                .map { SharedTimelineIssue(it.number, it.key, it.title, it.status, it.startDate, it.dueDate, it.createdAt, it.updatedAt, it.project?.name) }
+                .map { issue ->
+                    SharedTimelineIssue(
+                        number = issue.number,
+                        key = issue.key,
+                        title = issue.title,
+                        status = issue.status,
+                        startDate = issue.startDate,
+                        dueDate = issue.dueDate,
+                        createdAt = issue.createdAt,
+                        updatedAt = issue.updatedAt,
+                        project = issue.project?.name,
+                        priority = issue.priority,
+                        // Display names only: a login id may be an e-mail address.
+                        createdBy = issue.createdBy.displayName?.takeIf(String::isNotBlank),
+                        labels = issue.labels.map { SharedLabel(it.name, it.color) },
+                    )
+                }
         return SharedTimeline(issues)
     }
 

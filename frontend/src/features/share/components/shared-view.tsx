@@ -14,7 +14,7 @@ import { IssueTimeline } from "@/features/issues/components/issue-timeline";
 import { ApiError } from "@/lib/api/errors";
 import { messages } from "@/messages";
 import { fetchPublicItem, fetchPublicShare } from "../api";
-import { sharedCardOf } from "../shared-card";
+import { sharedCardOf, sharedTimelineCardOf } from "../shared-card";
 import type { PublicShare } from "../types";
 
 // A shared issue reads its text in the editor, which is large: only a link to an issue loads it.
@@ -85,7 +85,7 @@ function SharedContent({ share, token }: { share: PublicShare; token: string }) 
   return (
     <>
       <SharedHeader share={share} detail={range ? messages.share.range.summary(monthLabel(range.from), monthLabel(range.to)) : undefined} />
-      {range ? <IssueTimeline issues={issues} range={range} issueHref={opensNothing} /> : null}
+      {range ? <IssueTimeline issues={issues} range={range} issueHref={opensNothing} cardOf={sharedTimelineCardOf} /> : null}
       {range && issues.length === 0 ? <p className="px-4 pb-6 text-[0.8125rem] leading-5 text-muted-foreground">{m.emptyRange}</p> : null}
     </>
   );

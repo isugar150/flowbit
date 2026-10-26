@@ -1,5 +1,6 @@
 "use client";
 
+import { cloneElement } from "react";
 import Link from "next/link";
 import { useInBrowser, useToday } from "@/components/dates";
 import { MonthRangeFields } from "@/features/share/components/month-range-fields";
@@ -12,6 +13,7 @@ import { statusLabel } from "../meta";
 import { arrangeBySubIssues } from "../sub-issue-tree";
 import { dayOf, localDay, spanOf } from "../timeline-span";
 import type { Issue } from "../types";
+import { IssueHoverCard, cardOfIssue, type IssueCardData } from "./issue-card";
 import { SubIssueIndent } from "./sub-issue-rows";
 
 const m = messages.issues.views;
@@ -53,6 +55,18 @@ function barOf<T extends TimelineIssue>(issue: T, today: number): Bar<T> {
 }
 
 const defaultIssueHref = (issue: TimelineIssue) => `/issue/${issue.key}`;
+
+/** `children` inside `element`, with the card of the issue over it when there is one (D-215). Without a card the browser's own tooltip says it. */
+function WithCard({ element, card, children }: { element: React.ReactElement; card?: IssueCardData; children: React.ReactNode }) {
+  return card ? (
+    <IssueHoverCard render={element} card={card}>
+      {children}
+    </IssueHoverCard>
+  ) : (
+    cloneElement(element, undefined, children)
+  );
+}
+
 const monthLabel = (month: string) => m.monthTitle(Number(month.slice(0, 4)), Number(month.slice(5, 7)));
 
 /**
@@ -65,18 +79,22 @@ const monthLabel = (month: string) => m.monthTitle(Number(month.slice(0, 4)), Nu
  * The same chart is the shared page (docs/features/sharing.md): `range` fixes the months it shows (it then draws the
  * issues that fall in them, cut at its ends, without the week of air on either side), `issueHref` returning null draws
  * an issue that opens nothing (the page is read without signing in), and `share` adds the button that shares the months on
- * show, with a choice of which.
+ * show, with a choice of which. With `cardOf` the name and the bar of an issue have a card that opens when the pointer rests on
+ * them (D-215), as on the calendar, without the issue's history.
  */
 export function IssueTimeline<T extends TimelineIssue = TimelineIssue>({
   issues: all,
   range,
   issueHref = defaultIssueHref,
+  cardOf,
   share,
 }: {
   issues: T[];
   range?: MonthRange;
   /** Where an issue opens; null for an issue that opens nothing. */
   issueHref?: (issue: T) => string | null;
+  /** What the card over an issue says; without it the bar has the browser's own tooltip. */
+  cardOf?: (issue: T) => IssueCardData;
   /** What to share for the months picked (the share window starts with this month and the two after it). */
   share?: (range: MonthRange) => ShareTarget;
 }) {
@@ -251,27 +269,27 @@ export function IssueTimeline<T extends TimelineIssue = TimelineIssue>({
                       ...span(start, end),
                       backgroundColor: open || closed ? `color-mix(in oklab, ${group.color} 40%, transparent)` : group.color,
                     };
+                    const card = cardOf?.(issue);
+                    // With a card the browser's own tooltip would say the same thing twice.
+                    const nameElement = href ? (
+                      <Link href={href} className={nameClass} style={{ width: NAME_WIDTH }} />
+                    ) : (
+                      <div className={nameClass} style={{ width: NAME_WIDTH }} />
+                    );
+                    const barElement = href ? (
+                      <Link href={href} title={card ? undefined : title} className={barClass} style={barStyle} />
+                    ) : (
+                      <div title={card ? undefined : title} className={barClass} style={barStyle} />
+                    );
                     return (
                       <li key={issue.key} className={cn("flex h-8 items-center", href && "hover:bg-muted/60")}>
-                        {href ? (
-                          <Link href={href} className={nameClass} style={{ width: NAME_WIDTH }}>
-                            {nameBody}
-                          </Link>
-                        ) : (
-                          <div className={nameClass} style={{ width: NAME_WIDTH }}>
-                            {nameBody}
-                          </div>
-                        )}
+                        <WithCard element={nameElement} card={card}>
+                          {nameBody}
+                        </WithCard>
                         <div className="relative h-full" style={{ width }}>
-                          {href ? (
-                            <Link href={href} title={title} className={barClass} style={barStyle}>
-                              <span className="sr-only">{issue.title}</span>
-                            </Link>
-                          ) : (
-                            <div title={title} className={barClass} style={barStyle}>
-                              <span className="sr-only">{issue.title}</span>
-                            </div>
-                          )}
+                          <WithCard element={barElement} card={card}>
+                            <span className="sr-only">{issue.title}</span>
+                          </WithCard>
                           <span
                             aria-hidden="true"
                             // Fits in the two weeks of air right of the last bar, so a long title never leaves the chart.
@@ -292,4 +310,12 @@ export function IssueTimeline<T extends TimelineIssue = TimelineIssue>({
       </div>
     </>
   );
+}
+
+/**
+ * The timeline of the lists of issues the signed-in person reads: the name and the bar of each issue have its card (D-215),
+ * without the issue's history.
+ */
+export function IssuesTimelineView(props: Omit<React.ComponentProps<typeof IssueTimeline<Issue>>, "cardOf">) {
+  return <IssueTimeline<Issue> {...props} cardOf={cardOfIssue} />;
 }

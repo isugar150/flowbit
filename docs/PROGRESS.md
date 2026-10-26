@@ -265,6 +265,12 @@
 
 ## 작업 기록
 
+### 2026-10-26 — 타임라인 막대에도 마우스 오버 카드 (D-215)
+
+- 사용자 질문·지시: 공유 타임라인에서 티켓에 마우스를 올려도 상세가 안 나오는 이유 → 캘린더에만 만들어 둔 기능이라 답했고, 로그인한 타임라인과 공유 타임라인 모두 활동 영역 없이 넣어 달라고 했다.
+- 한 것: `issue-timeline.tsx` 에 `cardOf` 와 `WithCard`(이름 칸과 막대 모두 카드가 열린다), 로그인한 목록용 `IssuesTimelineView`(`cardOfIssue`)를 만들어 `issues-view.tsx` 가 쓰게 했다. 공유 쪽은 `shared-card.ts` 의 `sharedTimelineCardOf`, `shared-view.tsx` 가 건다. 백엔드 `SharedTimelineIssue` 에 `priority`·`createdBy`·`labels` 를 더했다. 문서(`sharing.md`)·공유 설정 문구·도움말·D-215 반영.
+- 테스트: `ShareIntegrationTest` 의 공유 타임라인 응답 필드를 고쳤다. 화면은 확인하지 않았다.
+
 ### 2026-10-26 — 공유(임베드) 캘린더 카드에서 활동 칸 제거 (D-214)
 
 - 사용자 질문·지시: 공유 캘린더의 막대 카드에 왜 "커밋 0개"가 나오는지, 임베드 쪽 활동 영역은 없애 달라.

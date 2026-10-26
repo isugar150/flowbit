@@ -149,11 +149,14 @@ class ShareIntegrationTest : IntegrationTest() {
         val issues = (body["content"] as Map<String, Any?>)["issues"] as List<Map<String, Any?>>
         assertEquals(listOf("프로젝트의 10월", "12월에서 내년 1월까지"), issues.map { it["title"] })
         assertEquals(listOf("결제 개편", null), issues.map { it["project"] })
-        // Where and what it is, and the project's name: no id of the project, no people, no text, nothing above it.
+        // Where and what it is, the project's name, and what the card over a bar says (D-215): no id of the project,
+        // no people on it, no text, no history, nothing above it.
         assertEquals(
-            setOf("number", "key", "title", "status", "startDate", "dueDate", "createdAt", "updatedAt", "project"),
+            setOf("number", "key", "title", "status", "startDate", "dueDate", "createdAt", "updatedAt", "project", "priority", "createdBy", "labels"),
             issues.first().keys,
         )
+        assertEquals("NONE", issues.first()["priority"])
+        assertEquals(emptyList<Any?>(), issues.first()["labels"])
     }
 
     @Test

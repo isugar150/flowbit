@@ -50,8 +50,11 @@ export type SharedCalendarIssue = Pick<Issue, "number" | "key" | "title" | "stat
 };
 
 /** An issue as the shared timeline draws it, with the name of its project, which the chart groups by. */
-export type SharedTimelineIssue = Pick<Issue, "number" | "key" | "title" | "status" | "startDate" | "dueDate" | "createdAt" | "updatedAt"> & {
+export type SharedTimelineIssue = Pick<Issue, "number" | "key" | "title" | "status" | "priority" | "startDate" | "dueDate" | "createdAt" | "updatedAt"> & {
   project: string | null;
+  /** Who made it (display name), for the card over a bar (D-215). */
+  createdBy: string | null;
+  labels: { name: string; color: string }[];
 };
 
 /** An issue named by where it stands, for the path at the top of a shared page. */
