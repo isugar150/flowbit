@@ -27,6 +27,11 @@ export function deleteIssue(number: number): Promise<void> {
   return apiFetch<void>(`/api/v1/issues/${number}`, { method: "DELETE" });
 }
 
+/** Makes a copy of the issue, without its sub-issues (D-212), and returns the copy. */
+export function duplicateIssue(number: number): Promise<Issue> {
+  return apiFetch<Issue>(`/api/v1/issues/${number}/duplicate`, { method: "POST" });
+}
+
 export function restoreIssue(number: number): Promise<Issue> {
   return apiFetch<Issue>(`/api/v1/issues/${number}/restore`, { method: "POST" });
 }

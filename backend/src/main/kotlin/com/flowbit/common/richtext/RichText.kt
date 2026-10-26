@@ -148,6 +148,24 @@ class RichText(
             .awaitSingle()
     }
 
+    /**
+     * Gives the row [toId] the document of the row [fromId] of the same table, as it is stored (a
+     * duplicate's body). Nothing is parsed again, so block numbers and the files it names stay as they are.
+     */
+    suspend fun copy(
+        table: ContentTable,
+        fromId: UUID,
+        toId: UUID,
+    ) {
+        databaseClient
+            .sql("update ${table.sqlName} set content = (select content from ${table.sqlName} where id = :from) where id = :to")
+            .bind("from", fromId)
+            .bind("to", toId)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
     /** The stored document of one row as raw JSON, or null when there is none. */
     suspend fun load(
         table: ContentTable,

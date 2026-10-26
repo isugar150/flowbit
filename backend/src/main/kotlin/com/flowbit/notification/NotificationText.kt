@@ -35,8 +35,10 @@ class NotificationText(
         val types = notification.events.map { it.type }
         // Changes a Git server made say so (D-141); they carry `via` in their details.
         val fromGit = notification.events.isNotEmpty() && notification.events.all { "via" in it.detail }
+        val duplicatedFrom = notification.events.firstNotNullOfOrNull { it.detail["duplicatedFrom"] as? String }
         val did =
             when {
+                "CREATED" in types && duplicatedFrom != null -> "$duplicatedFrom 티켓을 복제했습니다"
                 "CREATED" in types -> "티켓을 만들었습니다"
                 "DELETED" in types -> "티켓을 삭제했습니다"
                 "RESTORED" in types -> "티켓을 복원했습니다"

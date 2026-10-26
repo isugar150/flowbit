@@ -18,6 +18,7 @@ import { IssueActivity } from "./issue-activity";
 import { IssueBody } from "./issue-body";
 import { IssueLeaveNotifier } from "./issue-leave-notifier";
 import { DeleteIssueButton, DeletedIssueBanner } from "./issue-deletion";
+import { DuplicateIssueButton } from "./issue-duplicate";
 import { IssueProperties } from "./issue-properties";
 import { IssueReactions } from "./issue-reactions";
 import { IssueSubIssues } from "./issue-sub-issues";
@@ -120,7 +121,10 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
             <ShareButton target={{ kind: "ISSUE", params: { number: String(issue.number) } }} />
           </div>
         ) : null}
-        <DeleteIssueButton issue={issue} />
+        <div className="flex flex-col">
+          <DuplicateIssueButton issue={issue} />
+          <DeleteIssueButton issue={issue} />
+        </div>
       </aside>
     </div>
   );

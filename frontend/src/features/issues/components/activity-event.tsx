@@ -48,8 +48,13 @@ export function describe(item: IssueActivityItem): Described {
   const arrow = (before: string, after: string) => `${before} → ${after}`;
   const url = typeof item.detail.url === "string" && /^https?:\/\//.test(item.detail.url) ? item.detail.url : undefined;
   switch (item.type) {
-    case "CREATED":
-      return { action: m.created };
+    case "CREATED": {
+      // A copy says which ticket it came from instead (D-212).
+      const copiedFrom = item.detail.duplicatedFrom;
+      return typeof copiedFrom === "string" && copiedFrom
+        ? { action: m.duplicatedFrom, change: copiedFrom, href: `/issue/${copiedFrom}` }
+        : { action: m.created };
+    }
     case "TITLE_CHANGED":
       return { action: m.title, change: arrow(text(from), text(to)) };
     case "DESCRIPTION_CHANGED":

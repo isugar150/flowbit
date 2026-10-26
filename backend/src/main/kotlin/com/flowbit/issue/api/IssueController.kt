@@ -4,6 +4,7 @@ import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ValidationException
 import com.flowbit.issue.application.IssueCommentService
 import com.flowbit.issue.application.IssueDocumentService
+import com.flowbit.issue.application.IssueDuplicationService
 import com.flowbit.issue.application.IssueGitService
 import com.flowbit.issue.application.IssuePatch
 import com.flowbit.issue.application.IssueService
@@ -38,6 +39,7 @@ class IssueController(
     private val issueService: IssueService,
     private val commentService: IssueCommentService,
     private val documentService: IssueDocumentService,
+    private val duplicationService: IssueDuplicationService,
     private val gitService: IssueGitService,
     private val announcer: IssueAnnouncer,
     private val uploadReader: UploadReader,
@@ -123,6 +125,23 @@ class IssueController(
         val change = issueService.delete(user, number)
         announcer.changed(user, change)
         change.issue.parent?.let { announcer.touched(user, it.number) }
+    }
+
+    /**
+     * Makes a copy of the issue, without its sub-issues, and returns the copy (D-212). Needs the right
+     * to edit the issue.
+     */
+    @PostMapping("/{number}/duplicate")
+    @ResponseStatus(HttpStatus.CREATED)
+    suspend fun duplicate(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable number: Int,
+    ): IssueResponse {
+        val change = duplicationService.duplicate(user, number)
+        announcer.changed(user, change)
+        // A copy that sits under a parent shows on the parent's page.
+        change.issue.parent?.let { announcer.touched(user, it.number) }
+        return IssueResponse.from(change.issue)
     }
 
     @PostMapping("/{number}/restore")

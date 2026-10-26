@@ -122,6 +122,23 @@ class CustomPropertyService(
         }
     }
 
+    /**
+     * Gives an issue that is a copy of another (D-212) the same properties, value for value and in the same
+     * order. Like [addChecked] it writes no activity: the copy's one entry says where it came from.
+     */
+    @Transactional
+    suspend fun copyIssueProperties(
+        fromIssueId: UUID,
+        toIssueId: UUID,
+        now: Instant,
+    ) {
+        val owner = CustomPropertyOwner(CustomPropertyOwnerKind.ISSUE, toIssueId)
+        store.list(CustomPropertyOwner(CustomPropertyOwnerKind.ISSUE, fromIssueId)).forEachIndexed { index, property ->
+            val at = now.plusNanos(index * 1_000L)
+            store.insert(UuidV7.generate(at), owner, property.label, property.type, property.valueJson, at)
+        }
+    }
+
     /** Changes the fields present in `changes`: `label` and `value` (the kind of value cannot change). */
     @Transactional
     suspend fun update(

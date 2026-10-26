@@ -513,6 +513,8 @@ export const ko = {
       moreSubscribers: (count: number) => `구독 중인 사람 ${count}명 더`,
       none: "없음",
       created: "님이 티켓을 만들었습니다",
+      // A copy's one entry (D-212): which ticket it was copied from.
+      duplicatedFrom: "님이 다음 티켓에서 복제했습니다:",
       title: "님이 제목을 바꿨습니다:",
       description: "님이 본문을 수정했습니다",
       status: "님이 상태를 바꿨습니다:",
@@ -574,6 +576,9 @@ export const ko = {
       restore: "복원",
       delete: "티켓 삭제",
       deleteConfirm: "한 번 더 누르면 삭제됩니다",
+    },
+    duplicate: {
+      button: "티켓 복제",
     },
     labels: "라벨",
     columns: { key: "번호", title: "제목" },

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useInBrowser } from "@/components/dates";
+import { useInBrowser, useToday } from "@/components/dates";
 import { MonthRangeFields } from "@/features/share/components/month-range-fields";
 import { ShareButton } from "@/features/share/components/share-button";
 import { defaultRange, monthOfDate, type MonthRange } from "@/features/share/month-range";
@@ -82,6 +82,8 @@ export function IssueTimeline<T extends TimelineIssue = TimelineIssue>({
 }) {
   // Where today falls depends on the clock, which only the browser may read while rendering.
   const inBrowser = useInBrowser();
+  // Drawn again when the day turns, so the line for today moves on without a reload.
+  useToday();
   if (!inBrowser) return <div className="h-96" aria-hidden="true" />;
 
   const shareBar = share ? (

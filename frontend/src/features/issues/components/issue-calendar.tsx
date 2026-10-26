@@ -3,7 +3,7 @@
 import { cloneElement, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useInBrowser } from "@/components/dates";
+import { useInBrowser, useToday } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -125,6 +125,8 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
 }) {
   // The current month depends on the clock, which only the browser may read while rendering.
   const inBrowser = useInBrowser();
+  // Drawn again when the day turns, so "today" moves on without a reload.
+  useToday();
   const [chosen, setChosen] = useState<Month | null>(null);
   // The bar being dragged, drawn at the dates it is dragged to.
   const { drag, press } = useBarDrag(issues, onMove);

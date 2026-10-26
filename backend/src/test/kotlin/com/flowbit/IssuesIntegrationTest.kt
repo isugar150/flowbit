@@ -408,6 +408,100 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `티켓을 복제하면 제목에 복제됨이 붙고 속성과 본문과 파일과 문서가 따라오며 활동은 복제됐다는 한 줄뿐이다 (D-212)`() {
+        val bug = admin.get("/api/v1/labels").jsonList().first()["id"]
+        val body = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"본문 글"}]}]}"""
+        val original =
+            editor
+                .post(
+                    "/api/v1/projects/${p("PAY")}/issues",
+                    """
+                    {"title":"결제 실패","content":$body,"status":"IN_PROGRESS","priority":"HIGH","assigneeIds":["$editorId"],
+                     "startDate":"2026-11-01","dueDate":"2026-11-30","labelIds":["$bug"],
+                     "customProperties":[{"label":"환경","type":"TEXT","value":"운영"},{"label":"예산","type":"NUMBER","value":1500}]}
+                    """.trimIndent(),
+                ).json()
+        val file = editor.postFile("/api/v1/issues/1/attachments", "로그.txt", "text/plain", "로그 내용".toByteArray())
+        val document = editor.post("/api/v1/issues/1/documents", """{"title":"회의록"}""").json()
+        editor.patch("/api/v1/documents/${document["id"]}", """{"content":$body}""")
+        editor.post("/api/v1/issues/1/comments", commentJson("원래 티켓의 댓글"))
+        editor.post("/api/v1/issues/1/reactions", """{"emoji":"👍"}""")
+        editor.patch("/api/v1/issues/1", """{"status":"DONE"}""")
+
+        val copied = editor.post("/api/v1/issues/1/duplicate")
+
+        assertEquals(201, copied.status)
+        val copy = copied.json()
+        assertEquals("FB-2", copy["key"])
+        assertEquals("결제 실패 - 복제됨", copy["title"])
+        // Everything of the issue itself is the original's, as it is now.
+        assertEquals("DONE", copy["status"])
+        assertEquals("HIGH", copy["priority"])
+        assertEquals("2026-11-01" to "2026-11-30", copy["startDate"] to copy["dueDate"])
+        assertEquals((original["project"] as Map<*, *>)["id"], (copy["project"] as Map<*, *>)["id"])
+        assertEquals(listOf("버그"), labelNames(copy))
+        assertEquals(listOf("editor"), loginIdsOf(copy["assignees"]))
+        assertEquals(original["description"], copy["description"])
+        assertEquals("editor", (copy["createdBy"] as Map<*, *>)["loginId"])
+        // The original is untouched.
+        assertEquals("결제 실패", editor.get("/api/v1/issues/1").json()["title"])
+
+        val detail = editor.get("/api/v1/issues/2").json()
+        assertEquals("본문 글", firstText(detail["content"]))
+        val properties = editor.get("/api/v1/custom-properties/issue/${copy["id"]}").json()["items"] as List<Map<String, Any?>>
+        assertEquals(listOf("환경", "예산"), properties.map { it["label"] })
+        assertEquals("운영", properties.first()["value"])
+        val copiedFile = (detail["attachments"] as List<Map<String, Any?>>).single()
+        assertEquals("로그.txt", copiedFile["fileName"])
+        assertTrue(editor.get(copiedFile["url"] as String).bytes.contentEquals("로그 내용".toByteArray()))
+        // The document comes with its text.
+        val documents = detail["documents"] as List<Map<String, Any?>>
+        assertEquals(listOf("회의록"), documents.map { it["title"] })
+        assertEquals("본문 글", firstText(editor.get("/api/v1/documents/${documents.single()["id"]}").json()["content"]))
+
+        // What was said and done is not copied: the history is the one line, and no comments or emoji.
+        val feed = editor.get("/api/v1/issues/2/activity").json()
+        val items = activityOf(feed)
+        assertEquals(listOf("CREATED"), items.map { it["type"] })
+        assertEquals(mapOf("duplicatedFrom" to "FB-1", "duplicatedFromNumber" to 1), items.single()["detail"])
+        assertEquals(emptyList<Any?>(), commentsOf(feed))
+        assertEquals(emptyList<Any?>(), detail["reactions"])
+        // The one who copied it and the assignee follow the copy.
+        assertEquals(setOf<Any?>("editor"), subscribersOf(feed))
+
+        // The file is a file of its own: taking it off the copy leaves the original's.
+        assertEquals(204, editor.delete(copiedFile["url"] as String).status)
+        assertEquals(200, editor.get(file.json()["url"] as String).status)
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `티켓을 복제해도 하위 티켓은 복제되지 않고 하위 티켓을 복제하면 같은 상위 아래에 생긴다 (D-212)`() {
+        val parent = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"상위"}""").json()
+        editor.post("/api/v1/issues", """{"title":"하위","status":"DONE","projectId":"${p("PAY")}","parentId":"${parent["id"]}"}""")
+
+        val copied = editor.post("/api/v1/issues/1/duplicate").json()
+
+        // Only the issue itself: the copy is the next number and has no sub-issues; the original keeps its own.
+        assertEquals("FB-3", copied["key"])
+        assertEquals("상위 - 복제됨", copied["title"])
+        assertEquals(emptyList<Any?>(), editor.get("/api/v1/issues/3").json()["subIssues"])
+        assertEquals(listOf("FB-2"), (editor.get("/api/v1/issues/1").json()["subIssues"] as List<Map<String, Any?>>).map { it["key"] })
+
+        // A sub-issue copied on its own stays under the same parent, with its own title and a suffix.
+        val sibling = editor.post("/api/v1/issues/2/duplicate").json()
+        assertEquals("FB-4", sibling["key"])
+        assertEquals("하위 - 복제됨", sibling["title"])
+        assertEquals("DONE", sibling["status"])
+        assertEquals("FB-1", (sibling["parent"] as Map<*, *>)["key"])
+        assertEquals(
+            mapOf("duplicatedFrom" to "FB-2", "duplicatedFromNumber" to 2),
+            activityOf(editor.get("/api/v1/issues/4/activity").json()).single()["detail"],
+        )
+    }
+
+    @Test
     fun `하위 티켓을 만들면 상위 티켓에 보이고 서로 물리는 관계는 만들 수 없다`() {
         val parent = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"상위"}""").json()
         val child = editor.post("/api/v1/issues", """{"title":"하위","projectId":"${p("PAY")}","parentId":"${parent["id"]}"}""").json()
@@ -911,6 +1005,13 @@ class IssuesIntegrationTest : IntegrationTest() {
 
     @Suppress("UNCHECKED_CAST")
     private fun activityOf(feed: Map<String, Any?>): List<Map<String, Any?>> = feed["items"] as List<Map<String, Any?>>
+
+    /** The text of the first paragraph of an editor document as the API sends it. */
+    @Suppress("UNCHECKED_CAST")
+    private fun firstText(document: Any?): Any? {
+        val paragraph = ((document as Map<String, Any?>)["content"] as List<Map<String, Any?>>).first()
+        return (paragraph["content"] as List<Map<String, Any?>>).first()["text"]
+    }
 
     @Suppress("UNCHECKED_CAST")
     private fun loginIdsOf(people: Any?): List<Any?> = (people as List<Map<String, Any?>>).map { it["loginId"] }
