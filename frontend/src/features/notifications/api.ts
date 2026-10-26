@@ -109,3 +109,44 @@ export function markInboxPathRead(path: string): Promise<{ marked: number }> {
 export function markInboxRead(input: { ids: string[] } | { all: true }): Promise<void> {
   return apiFetch<void>("/api/v1/me/inbox/read", { method: "POST", body: input });
 }
+
+/** Whose daily summary: the signed-in person's own (内 설정), or a member's, as an administrator (관리자 설정 > 구성원). */
+export type DailySummaryTarget = { kind: "me" } | { kind: "member"; id: string };
+
+/** The daily summary of a person (D-216, D-221). `time` is `09:00`, in their own time zone. */
+export type DailySummary = {
+  enabled: boolean;
+  time: string;
+  timezone: string;
+  /** The person's own date it was last sent on. */
+  lastSentOn: string | null;
+};
+
+/**
+ * What sending it now came to (D-220). `hadContent` false: nothing to say, nothing sent. `sent`: it reached them by some way;
+ * `mailed`, `pushed`, `apiReached`: how many of each; `apiFailed`: API notifications that did not answer well.
+ */
+export type DailySummarySent = {
+  hadContent: boolean;
+  sent: boolean;
+  mailed: number;
+  pushed: number;
+  apiReached: number;
+  apiFailed: number;
+};
+
+const dailySummaryPath = (target: DailySummaryTarget) =>
+  target.kind === "me" ? "/api/v1/me/daily-summary" : `/api/v1/admin/members/${target.id}/daily-summary`;
+
+export function dailySummaryOf(target: DailySummaryTarget): Promise<DailySummary> {
+  return apiFetch<DailySummary>(dailySummaryPath(target));
+}
+
+export function saveDailySummary(target: DailySummaryTarget, input: { enabled: boolean; time: string }): Promise<DailySummary> {
+  return apiFetch<DailySummary>(dailySummaryPath(target), { method: "PUT", body: input });
+}
+
+/** Sends the summary now. */
+export function sendDailySummary(target: DailySummaryTarget): Promise<DailySummarySent> {
+  return apiFetch<DailySummarySent>(`${dailySummaryPath(target)}/send`, { method: "POST" });
+}

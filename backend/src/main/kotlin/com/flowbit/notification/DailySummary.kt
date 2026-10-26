@@ -119,7 +119,7 @@ class DailySummaryStore(
 /**
  * What goes into one member's daily summary (docs/features/inbox-and-daily-summary.md, D-216): their own tickets
  * (those assigned to them and not finished) by when they are due and by status, what was given to them since
- * yesterday, and how many notifications they have not read. Nothing to say gives no lines, and then nothing is sent.
+ * yesterday, and how many notifications they have not read. Nothing to say gives no parts, and then nothing is sent.
  */
 @Component
 class DailySummaryBuilder(
@@ -127,11 +127,15 @@ class DailySummaryBuilder(
     private val inbox: InboxStore,
     private val databaseClient: DatabaseClient,
 ) {
-    suspend fun lines(
+    /**
+     * The parts of the summary, in the order they matter: each a heading line and what stands under it. Laid out to be
+     * read as plain text (D-221): `■ 기한 지남 2건`, then a ticket to a line (`• FB-3 결제 오류 (10-24)`), the rest counted.
+     */
+    suspend fun sections(
         userId: UUID,
         today: LocalDate,
         since: Instant,
-    ): List<String> {
+    ): List<List<String>> {
         val open =
             queries
                 .listForUser(Viewer(userId, seesAllProjects = false), MyIssueScope.ASSIGNED, deleted = false)
@@ -145,34 +149,50 @@ class DailySummaryBuilder(
         val unread = inbox.unreadCount(userId)
 
         return listOfNotNull(
-            listed("기한 지남", overdue),
-            listed("오늘 마감", dueToday),
-            listed("${SOON_DAYS}일 안에 마감", dueSoon),
-            listed("어제 이후 새로 할당된 티켓", newlyAssigned),
-            statusLine(open),
-            "읽지 않은 알림 ${unread}건".takeIf { unread > 0 },
+            listed("기한 지남", overdue, today, withDue = true),
+            listed("오늘 마감", dueToday, today, withDue = false),
+            listed("${SOON_DAYS}일 안에 마감", dueSoon, today, withDue = true),
+            listed("어제 이후 새로 할당된 티켓", newlyAssigned, today, withDue = false),
+            statusPart(open),
+            unreadPart(unread),
         )
     }
 
-    /** "기한 지남 2건: FB-3 결제 오류, FB-8 환불 …"; null for none. */
+    /** `■ 기한 지남 2건`, the first few tickets one to a line, `… 외 1건`; null for none. */
     private fun listed(
         label: String,
         issues: List<IssueView>,
-    ): String? {
+        today: LocalDate,
+        withDue: Boolean,
+    ): List<String>? {
         if (issues.isEmpty()) return null
-        val shown = issues.take(SHOWN).joinToString(", ") { "${it.key} ${it.title.take(TITLE_LENGTH)}" }
-        return "$label ${issues.size}건: $shown" + if (issues.size > SHOWN) " 외 ${issues.size - SHOWN}건" else ""
+        val tickets = issues.take(SHOWN).map { "• ${it.key} ${shorten(it.title)}" + if (withDue) due(it, today) else "" }
+        val rest = issues.size - SHOWN
+        return listOf("■ $label ${issues.size}건") + tickets + listOfNotNull("… 외 ${rest}건".takeIf { rest > 0 })
     }
 
-    /** "진행할 티켓 5건 (백로그 1 · 준비됨 2 · 진행 중 2)"; null when there are none. */
-    private fun statusLine(open: List<IssueView>): String? {
+    /** ` (10-24)`: the due date, with its year only when it is not this year. */
+    private fun due(
+        issue: IssueView,
+        today: LocalDate,
+    ): String =
+        issue.dueDate
+            ?.let { " (${if (it.year == today.year) it.toString().substring(MONTH_FROM) else it.toString()})" }
+            .orEmpty()
+
+    private fun shorten(title: String): String = if (title.length > TITLE_LENGTH) title.take(TITLE_LENGTH) + "…" else title
+
+    /** `■ 내게 할당된 진행할 티켓 5건` and `백로그 1 · 준비됨 2 · 진행 중 2`; null when there are none. */
+    private fun statusPart(open: List<IssueView>): List<String>? {
         if (open.isEmpty()) return null
         val counts =
             STATUS_NAMES.mapNotNull { (status, name) ->
                 open.count { it.status == status }.takeIf { it > 0 }?.let { "$name $it" }
             }
-        return "내게 할당된 진행할 티켓 ${open.size}건 (${counts.joinToString(" · ")})"
+        return listOf("■ 내게 할당된 진행할 티켓 ${open.size}건", counts.joinToString(" · "))
     }
+
+    private fun unreadPart(unread: Int): List<String>? = if (unread > 0) listOf("■ 읽지 않은 알림 ${unread}건", "사이드바 아래 종에서 확인할 수 있습니다") else null
 
     /** The numbers of the issues the member was given since [since]. */
     private suspend fun assignedSince(
@@ -196,9 +216,12 @@ class DailySummaryBuilder(
     private companion object {
         const val SOON_DAYS = 7L
 
-        /** How many tickets a line names; the rest are counted. */
-        const val SHOWN = 3
+        /** How many tickets a part names; the rest are counted. */
+        const val SHOWN = 5
         const val TITLE_LENGTH = 40
+
+        /** Where the month starts in `2026-10-24`. */
+        const val MONTH_FROM = 5
         val STATUS_NAMES =
             listOf(IssueStatus.BACKLOG to "백로그", IssueStatus.READY to "준비됨", IssueStatus.IN_PROGRESS to "진행 중")
     }
@@ -245,19 +268,21 @@ class DailySummaryService(
         val user = userService.findActive(userId) ?: return DailySummaryResult(hadContent = false)
         val now = clock.instant()
         val today = now.atZone(zoneOf(user.timezone)).toLocalDate()
-        val lines = builder.lines(userId, today, now.minus(LOOK_BACK))
-        if (lines.isEmpty()) return DailySummaryResult(hadContent = false)
+        val sections = builder.sections(userId, today, now.minus(LOOK_BACK))
+        if (sections.isEmpty()) return DailySummaryResult(hadContent = false)
         val message =
             NotificationMessage(
                 title = "[${instanceService.workspace().name}] 오늘의 요약",
-                lines = lines,
+                // A blank line between the parts, so that it reads as a list of short blocks in a chat window.
+                lines = sections.flatMapIndexed { index, section -> if (index == 0) section else listOf("") + section },
                 headline = "${user.displayName ?: user.loginId} 님, 오늘의 요약입니다",
                 path = PATH,
                 url = publicUrl.of(PATH),
                 linkLabel = "내 티켓 열기",
+                spaced = true,
             )
         val mailed = mail.mail(listOf(userId), message, "the daily summary of $userId")
-        val pushed = push.pushTo(listOf(userId), message.title, (listOf(message.headline) + message.lines).joinToString("\n"), "daily-summary", PATH)
+        val pushed = push.pushTo(listOf(userId), message.title, (listOf(message.headline) + message.bodyLines).joinToString("\n"), "daily-summary", PATH)
         val api = webhooks.sendDailySummary(DailySummaryNotification(userId, message))
         return DailySummaryResult(hadContent = true, mailed = mailed, pushed = pushed, apiReached = api.reached, apiFailed = api.failed)
     }

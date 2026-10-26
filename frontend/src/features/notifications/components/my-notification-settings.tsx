@@ -10,6 +10,7 @@ import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage, fieldErrorsOf } from "@/lib/api/error-message";
 import { messages } from "@/messages";
 import { saveMyNotifications } from "../api";
+import { DailySummarySettings } from "./daily-summary-settings";
 import { disablePush, enablePush, PushError, pushState } from "../push";
 import type {
   MyNotificationSettings as Settings,
@@ -86,6 +87,20 @@ export function MyNotificationSettings({ settings }: { settings: Settings }) {
         </div>
       </form>
       <PushSetting config={settings.push} />
+      <DailySummary />
+    </div>
+  );
+}
+
+/** The person's own daily summary (D-221): on or off, and at what time. An administrator can set it for them too. */
+function DailySummary() {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h3 className="font-medium">{messages.dailySummary.mineTitle}</h3>
+        <p className="text-muted-foreground">{messages.dailySummary.mineDescription}</p>
+      </div>
+      <DailySummarySettings target={{ kind: "me" }} />
     </div>
   );
 }

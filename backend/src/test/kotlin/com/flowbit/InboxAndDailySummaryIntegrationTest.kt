@@ -249,14 +249,18 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/issues", """{"title":"진행 중 일","assigneeIds":["$kimId"],"status":"IN_PROGRESS"}""")
         admin.post("/api/v1/issues", """{"title":"끝난 일","assigneeIds":["$kimId"],"status":"DONE","dueDate":"${today.minusDays(3)}"}""")
 
-        val lines = kotlinx.coroutines.runBlocking { builder.lines(UUID.fromString(kimId), today, clock.instant().minus(Duration.ofHours(24))) }
+        val sections = kotlinx.coroutines.runBlocking { builder.sections(UUID.fromString(kimId), today, clock.instant().minus(Duration.ofHours(24))) }
+        val lines = sections.flatten()
 
-        assertTrue(lines.any { it.startsWith("기한 지남 1건: FB-1 기한 지난 일") }, "$lines")
-        assertTrue(lines.any { it.startsWith("오늘 마감 1건: FB-2 오늘 마감 일") }, "$lines")
-        assertTrue(lines.any { it.startsWith("어제 이후 새로 할당된 티켓 3건") }, "$lines")
+        // A heading to each part, then a ticket to a line.
+        assertTrue("■ 기한 지남 1건" in lines, "$lines")
+        assertTrue(lines.any { it.startsWith("• FB-1 기한 지난 일 (") }, "$lines")
+        assertTrue("■ 오늘 마감 1건" in lines, "$lines")
+        assertTrue("• FB-2 오늘 마감 일" in lines, "$lines")
+        assertTrue("■ 어제 이후 새로 할당된 티켓 3건" in lines, "$lines")
         // The finished one is in none of them.
         assertTrue(lines.none { it.contains("끝난 일") }, "$lines")
-        assertTrue(lines.any { it == "내게 할당된 진행할 티켓 3건 (백로그 2 · 진행 중 1)" }, "$lines")
+        assertTrue("■ 내게 할당된 진행할 티켓 3건" in lines && "백로그 2 · 진행 중 1" in lines, "$lines")
 
         // "지금 보내기": there is something to say for the member with tickets, nothing for the one with none.
         assertEquals(true, admin.post("/api/v1/admin/members/$kimId/daily-summary/send").json()["hadContent"])

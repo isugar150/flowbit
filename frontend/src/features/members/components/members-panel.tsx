@@ -25,7 +25,7 @@ import { messages } from "@/messages";
 import { updateMember } from "../api";
 import type { Member, MemberStatus, WorkspaceRole } from "../types";
 import { CreateMemberDialog } from "./create-member-dialog";
-import { MemberDailySummarySettings } from "./member-daily-summary";
+import { DailySummarySettings } from "@/features/notifications/components/daily-summary-settings";
 import { MemberProjectRoles } from "./member-project-roles";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 
@@ -321,8 +321,8 @@ function MemberDetail({
       <Section title={m.projectRoles} description={m.projectRolesDescription}>
         <MemberProjectRoles memberId={member.id} />
       </Section>
-      <Section title={m.dailySummary.title} description={m.dailySummary.description}>
-        <MemberDailySummarySettings memberId={member.id} memberName={name} />
+      <Section title={messages.dailySummary.adminTitle} description={messages.dailySummary.adminDescription}>
+        <DailySummarySettings target={{ kind: "member", id: member.id }} name={name} />
       </Section>
       {canResetPassword || !isSelf ? (
         <Section title={m.sections.manage}>

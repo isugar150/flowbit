@@ -17,14 +17,28 @@ data class NotificationMessage(
     val url: String,
     /** The words of the link in a mail. */
     val linkLabel: String = "티켓 열기",
+    /**
+     * The lines are laid out by whoever wrote them, blank lines between the parts included (the daily summary, D-221): a
+     * blank line also stands between the headline and the lines and before the link, and a mail shows them as they are
+     * rather than as a bulleted list.
+     */
+    val spaced: Boolean = false,
 ) {
+    /** What follows the headline: the lines, behind a blank one when they are [spaced]. */
+    val bodyLines: List<String>
+        get() = if (spaced && lines.isNotEmpty()) listOf("") + lines else lines
+
     /**
      * Everything in one paragraph, for places with a single text field (chat messages). The last
      * line is the address of the issue, so the reader can open it from the message; it is left out
      * when this installation does not know its own address, since a bare path opens nothing.
      */
     val text: String
-        get() = (listOf("$title — $headline") + lines + listOfNotNull(url.takeIf { it.startsWith("http") })).joinToString("\n")
+        get() {
+            val link = url.takeIf { it.startsWith("http") }
+            val body = listOf("$title — $headline") + bodyLines
+            return (if (spaced && link != null) body + "" + link else body + listOfNotNull(link)).joinToString("\n")
+        }
 }
 
 @Component

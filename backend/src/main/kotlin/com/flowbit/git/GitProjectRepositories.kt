@@ -143,14 +143,16 @@ class GitProjectRepositoryService(
                 .fetch()
                 .rowsUpdated()
                 .awaitSingle()
-            for (ref in repositories) {
+            val now = clock.instant()
+            // Each one a microsecond after the one before, so that the order they were chosen in is kept (the column is that order).
+            repositories.forEachIndexed { index, ref ->
                 databaseClient
                     .sql(
                         "insert into project_git_repositories (project_id, connection_id, repository, created_at) values (:project, :connection, :repository, :now)",
                     ).bind("project", access.project.id)
                     .bind("connection", ref.connectionId)
                     .bind("repository", ref.repository)
-                    .bind("now", clock.instant())
+                    .bind("now", now.plus(index.toLong(), java.time.temporal.ChronoUnit.MICROS))
                     .fetch()
                     .rowsUpdated()
                     .awaitSingle()

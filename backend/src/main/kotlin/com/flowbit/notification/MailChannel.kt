@@ -126,7 +126,7 @@ class MailNotificationChannel(
         return sent
     }
 
-    private fun textOf(message: NotificationMessage): String = (listOf(message.headline) + message.lines + listOf("", message.url)).joinToString("\n")
+    private fun textOf(message: NotificationMessage): String = (listOf(message.headline) + message.bodyLines + listOf("", message.url)).joinToString("\n")
 
     private fun htmlOf(message: NotificationMessage): String {
         val lines = message.lines.joinToString("") { "<li>${HtmlUtils.htmlEscape(it)}</li>" }
@@ -137,7 +137,13 @@ class MailNotificationChannel(
             } else {
                 ""
             }
-        return "<p><strong>${HtmlUtils.htmlEscape(message.title)}</strong></p><p>${HtmlUtils.htmlEscape(message.headline)}</p>" +
-            (if (lines.isEmpty()) "" else "<ul>$lines</ul>") + link
+        // A message laid out by its writer: the lines as they are, blank lines and all, not one bullet each.
+        val body =
+            when {
+                message.spaced -> """<p style="white-space: pre-line">${HtmlUtils.htmlEscape(message.lines.joinToString("\n"))}</p>"""
+                lines.isEmpty() -> ""
+                else -> "<ul>$lines</ul>"
+            }
+        return "<p><strong>${HtmlUtils.htmlEscape(message.title)}</strong></p><p>${HtmlUtils.htmlEscape(message.headline)}</p>" + body + link
     }
 }

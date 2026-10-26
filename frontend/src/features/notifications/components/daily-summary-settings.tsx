@@ -10,24 +10,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
-import { memberDailySummary, saveMemberDailySummary, sendMemberDailySummary, type MemberDailySummary, type MemberDailySummarySent } from "../api";
+import { dailySummaryOf, saveDailySummary, sendDailySummary, type DailySummary, type DailySummarySent, type DailySummaryTarget } from "../api";
 
-const m = messages.members.dailySummary;
+const m = messages.dailySummary;
 
-/** What came of sending it now, in words: where it arrived, or why it did not go anywhere (D-220). */
-function sentText(result: MemberDailySummarySent): string {
-  if (!result.hadContent) return m.nothingToSend;
-  const ways = [
-    result.mailed > 0 ? m.viaMail(result.mailed) : null,
-    result.pushed > 0 ? m.viaPush(result.pushed) : null,
-    result.apiReached > 0 ? m.viaApi(result.apiReached) : null,
-  ].filter((way): way is string => way !== null);
-  const failed = result.apiFailed > 0 ? m.apiFailed(result.apiFailed) : null;
-  if (ways.length === 0) return failed ?? m.nowhere;
-  return [m.sentVia(ways.join(", ")), failed].filter(Boolean).join(" · ");
-}
-
-/** A setting on one line: what it is on the left, the control on the right (as in the member's other sections). */
+/** A setting on one line: what it is on the left, the control on the right (as in the other settings sections). */
 function Row({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -40,25 +27,39 @@ function Row({ title, description, children }: { title: string; description?: st
   );
 }
 
+/** What came of sending it now, in words: where it arrived, or why it did not go anywhere (D-220). */
+function sentText(result: DailySummarySent): string {
+  if (!result.hadContent) return m.nothingToSend;
+  const ways = [
+    result.mailed > 0 ? m.viaMail(result.mailed) : null,
+    result.pushed > 0 ? m.viaPush(result.pushed) : null,
+    result.apiReached > 0 ? m.viaApi(result.apiReached) : null,
+  ].filter((way): way is string => way !== null);
+  const failed = result.apiFailed > 0 ? m.apiFailed(result.apiFailed) : null;
+  if (ways.length === 0) return failed ?? m.nowhere;
+  return [m.sentVia(ways.join(", ")), failed].filter(Boolean).join(" · ");
+}
+
 /**
- * The daily summary for one member, set by an administrator (D-216): on or off (off until switched on), the time of
- * day in the member's own time zone, when it last went out, and a try that sends it at once. Each choice is saved as it
- * is made; the time when the field is left.
+ * The daily summary of one person (D-216, D-221): on or off (off until someone switches it on), the time of day in their
+ * own time zone, when it last went out, and a button that sends it at once. The same setting is changed by the person under
+ * 내 설정 > 알림 (`target` "me") and by an administrator under 관리자 설정 > 구성원 (`target` "member"). Each choice is saved
+ * as it is made; the time when the field is left.
  */
-export function MemberDailySummarySettings({ memberId, memberName }: { memberId: string; memberName: string }) {
+export function DailySummarySettings({ target, name }: { target: DailySummaryTarget; name?: string }) {
   const queryClient = useQueryClient();
-  const queryKey = ["member-daily-summary", memberId];
-  const summary = useQuery({ queryKey, queryFn: () => memberDailySummary(memberId), staleTime: 0 });
+  const queryKey = ["daily-summary", target.kind, target.kind === "member" ? target.id : "me"];
+  const summary = useQuery({ queryKey, queryFn: () => dailySummaryOf(target), staleTime: 0 });
   // The time as it is being typed; null when it is the saved one that shows.
   const [typed, setTyped] = useState<string | null>(null);
   const save = useMutation({
-    mutationFn: (changes: { enabled: boolean; time: string }) => saveMemberDailySummary({ memberId, ...changes }),
+    mutationFn: (changes: { enabled: boolean; time: string }) => saveDailySummary(target, changes),
     onSuccess: (saved) => {
-      queryClient.setQueryData<MemberDailySummary>(queryKey, saved);
+      queryClient.setQueryData<DailySummary>(queryKey, saved);
       setTyped(null);
     },
   });
-  const send = useMutation({ mutationFn: () => sendMemberDailySummary(memberId) });
+  const send = useMutation({ mutationFn: () => sendDailySummary(target) });
 
   if (summary.isPending) {
     return (
@@ -94,7 +95,7 @@ export function MemberDailySummarySettings({ memberId, memberName }: { memberId:
           type="time"
           step={60}
           className="w-28 max-md:h-11"
-          aria-label={m.timeOf(memberName)}
+          aria-label={target.kind === "member" ? m.timeOf(name ?? "") : m.time}
           value={typed ?? current.time}
           onChange={(event) => setTyped(event.target.value)}
           onBlur={() => {

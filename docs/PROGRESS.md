@@ -265,6 +265,13 @@
 
 ## 작업 기록
 
+### 2026-10-26 — 하루 요약을 읽기 쉽게, 본인도 설정 (D-221)
+
+- 사용자 지시: 하루 요약을 단순 텍스트지만 줄바꿈을 적절히 해서 가독성 있게. 개인도 내 설정 > 알림에서 설정할 수 있게. 테스트는 됐다.
+- 한 것: `DailySummaryBuilder.sections`(부분마다 `■ 머리` + 티켓 한 줄씩 `•`, 기한 붙임, 5개까지 + `… 외 N건`), `NotificationMessage.spaced`/`bodyLines`(머리말·부분·링크 사이 빈 줄, 메일 HTML 은 줄바꿈 그대로), `DailySummarySettingsApi`(관리자·본인이 같이 쓰는 저장/조회/보내기)와 `MyDailySummaryController`(`/api/v1/me/daily-summary`). 프런트 `DailySummarySettings`(관리자 구성원 화면과 내 설정이 같이 씀, `features/notifications/components/daily-summary-settings.tsx`)와 내 설정 > 알림의 "하루 요약" 구역, 메시지를 `messages.dailySummary` 로 모음. 명세·도움말·D-221 반영.
+- 테스트: 새로 쓰지 않았다(요청). 요약의 줄 모양을 보던 기존 테스트만 새 모양에 맞췄다.
+- 알아둘 것: 같은 설정을 관리자와 본인이 함께 바꾸므로 마지막 저장이 이긴다.
+
 ### 2026-10-26 — 하루 요약을 API 알림으로도, "지금 보내기" 결과를 닿은 곳으로 (D-220)
 
 - 사용자 보고: "지금 보내 보기"에서 "보냈습니다"가 떴는데 웍스 메신저로 안 왔다. 문구는 "지금 보내기"로.
