@@ -137,18 +137,15 @@ class NotificationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `태그하지 않은 댓글은 구독자에게 메일이 가지 않고 구독자는 티켓이 바뀔 때만 받는다`() {
+    fun `태그하지 않은 새 댓글도 구독자에게 메일이 가고 구독자는 티켓이 바뀔 때도 받는다 (D-218)`() {
         saveSmtp()
         kim.patch("/api/v1/me/notifications", """{"email":"kim@example.com","notifyEmail":true}""")
         // kim follows the issue as its author.
         kim.post("/api/v1/issues", """{"title":"배포 일정"}""")
         val plain = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"내일 오전으로 옮깁니다"}]}]}}"""
 
+        // A new comment is told to everyone who follows the issue, whether or not they are tagged.
         assertEquals(201, admin.post("/api/v1/issues/1/comments", plain).status)
-        Thread.sleep(1_000)
-        assertEquals(0, mail.receivedMessages.size)
-
-        admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
         assertTrue(mail.waitForIncomingEmail(10_000, 1))
         assertEquals(
             "kim@example.com",
@@ -158,10 +155,14 @@ class NotificationsIntegrationTest : IntegrationTest() {
                 .single()
                 .toString(),
         )
+
+        // And what changes about the issue.
+        admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
+        assertTrue(mail.waitForIncomingEmail(10_000, 2))
     }
 
     @Test
-    fun `답글은 원 댓글을 쓴 사람에게만 메일이 가고 티켓을 구독한 사람에게는 가지 않는다`() {
+    fun `답글은 원 댓글을 쓴 사람에게만 메일이 가고 티켓을 구독한 사람에게는 가지 않는다 (D-218)`() {
         saveSmtp()
         kim.patch("/api/v1/me/notifications", """{"email":"kim@example.com","notifyEmail":true}""")
         admin.post("/api/v1/admin/members", """{"loginId":"leesj","password":"$PASSWORD"}""")
@@ -177,16 +178,31 @@ class NotificationsIntegrationTest : IntegrationTest() {
         ) = """{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"$text"}]}]}${parent?.let {
             ""","parentId":"$it""""
         } ?: ""}}"""
+        // A new comment is for the ones who follow the issue: lee (kim wrote it).
         val parent = kim.post("/api/v1/issues/1/comments", comment("옮깁니다")).json()["id"]
-        Thread.sleep(1_000)
-        assertEquals(0, mail.receivedMessages.size)
-
-        assertEquals(201, admin.post("/api/v1/issues/1/comments", comment("알겠습니다", parent)).status)
-
         assertTrue(mail.waitForIncomingEmail(10_000, 1))
+        assertEquals(
+            "lee@example.com",
+            mail.receivedMessages
+                .single()
+                .allRecipients
+                .single()
+                .toString(),
+        )
+
+        // The reply is for the author of the comment only: lee, who follows, is not told again.
+        assertEquals(201, admin.post("/api/v1/issues/1/comments", comment("알겠습니다", parent)).status)
+        assertTrue(mail.waitForIncomingEmail(10_000, 2))
         Thread.sleep(500)
-        val message = mail.receivedMessages.single()
-        assertEquals("kim@example.com", message.allRecipients.single().toString())
+        assertEquals(2, mail.receivedMessages.size)
+        assertEquals(
+            "kim@example.com",
+            mail.receivedMessages
+                .last()
+                .allRecipients
+                .single()
+                .toString(),
+        )
     }
 
     @Test

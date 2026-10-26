@@ -56,8 +56,9 @@ class ContentCommentService(
 
     /**
      * With `parentId` it is a reply to that comment (D-167): one level, so the comment must be on this
-     * page and not itself a reply. The author of the comment and whoever else has replied to it are told
-     * as well as the people tagged in the reply, and nobody else (the followers are not).
+     * page and not itself a reply. A new comment is told to the page's followers and the people tagged (D-218); a
+     * reply, to the author of the comment and whoever else has replied to it as well as the people tagged, and
+     * nobody else (the followers are not).
      */
     @Transactional
     suspend fun add(
@@ -80,7 +81,9 @@ class ContentCommentService(
         val names = tagged.map { directory.displayName(it) }
         followTagged(target, tagged)
         val detail = mapOf("text" to text, "mentions" to names) + (if (parent != null) mapOf("reply" to true) else emptyMap())
-        log.announce(target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, detail)), (tagged + conversation).distinct())
+        // A new comment is for everyone who follows the page; a reply is for the ones it is about (D-218).
+        val told = tagged + if (parent == null) directory.followers(context) else conversation
+        log.announce(target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, detail)), told.distinct())
         return ContentCommentResult(shown(user, context, id), context)
     }
 

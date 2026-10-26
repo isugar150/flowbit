@@ -169,8 +169,8 @@ class ContentThreadService(
     }
 
     /**
-     * Who hears about a comment: the people tagged in it and, for a reply, the others in the thread,
-     * and nobody else (D-166, D-167). Only the people tagged follow the page because of it.
+     * Who hears about a comment: the people tagged in it and, for a new comment, the page's followers (D-218); for a
+     * reply, the others in the thread, and nobody else (D-166, D-167). Only the people tagged follow the page because of it.
      */
     private suspend fun announce(
         user: AuthenticatedUser,
@@ -181,7 +181,9 @@ class ContentThreadService(
         reply: Boolean = false,
     ) {
         val tagged = taggedPeople(context, document.mentions, user.id)
-        announceTo(user, context, quote, document, tagged, told = (tagged + inConversation).distinct(), reply = reply)
+        // A new comment is for everyone who follows the page; a reply is for the ones it is about (D-218).
+        val told = tagged + if (reply) inConversation else directory.followers(context)
+        announceTo(user, context, quote, document, tagged, told = told.distinct(), reply = reply)
     }
 
     private suspend fun taggedPeople(

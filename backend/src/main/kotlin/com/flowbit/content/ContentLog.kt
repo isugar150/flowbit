@@ -80,8 +80,8 @@ class ContentLog(
 
     /**
      * Tells the people who follow the page about what happened to it, and the people in [told]
-     * about a comment (D-166, D-167): the ones tagged in it and, for a reply, the ones in the
-     * conversation, and nobody else, whoever follows the page. Never fails the request that made the
+     * about a comment (D-166, D-167, D-218): the ones tagged in it, for a new comment the page's followers, for a reply
+     * the ones in the conversation, and nobody else. Never fails the request that made the
      * change. Changes nobody follows, such as who joined a project, are only kept in the activity.
      */
     suspend fun announce(

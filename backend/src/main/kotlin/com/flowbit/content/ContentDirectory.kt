@@ -122,7 +122,7 @@ class ContentDirectory(
      * Who is told about what happens to the page: the people who follow the document itself (and may
      * still open it, D-166); for a project, the people who follow the project (and may
      * still enter it); for an issue, the people who follow it or its project. Active people only.
-     * Comments are not told to followers, only to the people tagged in them.
+     * A new comment is told to them as well as to the people tagged in it; a reply only to the people tagged and the ones in the conversation (D-218).
      */
     suspend fun followers(context: ContentContext): List<UUID> {
         if (context.target.type == ContentTargetType.DOCUMENT) return documentFollowers(context)

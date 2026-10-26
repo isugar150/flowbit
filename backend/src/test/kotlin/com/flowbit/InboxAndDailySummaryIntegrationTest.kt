@@ -74,6 +74,64 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `새 댓글은 구독자 모두에게 가고 답글은 태그된 사람과 대화한 사람에게만 간다 (D-218)`() {
+        admin.post("/api/v1/issues", """{"title":"태그 확인"}""")
+        val mention = """{"type":"mention","attrs":{"id":"$kimId","label":"kimjm"}}"""
+
+        fun comment(content: String) =
+            admin.post("/api/v1/issues/1/comments", """{"content":{"type":"doc","content":[{"type":"paragraph","content":[$content]}]}}""")
+        val text = """{"type":"text","text":"확인 부탁"}"""
+
+        // Tagged: told at once, and from then on following the issue.
+        assertEquals(201, comment("$mention,$text").status)
+        awaitUnread(kim, 1)
+        // Tagged again in another comment: told again.
+        assertEquals(201, comment("$mention,$text").status)
+        awaitUnread(kim, 2)
+        // A new comment that does not tag them is theirs too: they follow the issue.
+        val third = comment(text)
+        assertEquals(201, third.status)
+        awaitUnread(kim, 3)
+
+        // A reply is for the ones it is about: not for kim, who follows but is neither tagged nor in the conversation...
+        fun reply(content: String) =
+            admin.post(
+                "/api/v1/issues/1/comments",
+                """{"parentId":"${third.json()["id"]}","content":{"type":"doc","content":[{"type":"paragraph","content":[$content]}]}}""",
+            )
+        assertEquals(201, reply(text).status)
+        Thread.sleep(700)
+        assertEquals(3, kim.get("/api/v1/me/inbox/unread-count").json()["count"])
+        // ...unless the reply tags them.
+        assertEquals(201, reply("$mention,$text").status)
+        awaitUnread(kim, 4)
+
+        // What changes about the issue is told to its followers, the one tagged among them.
+        admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
+        admin.post("/api/v1/issues/1/notifications/flush", "{}")
+        awaitUnread(kim, 5)
+    }
+
+    @Test
+    fun `문서의 새 댓글도 문서를 구독한 사람에게 가고 답글은 가지 않는다 (D-218)`() {
+        admin.post("/api/v1/issues", """{"title":"문서 확인"}""")
+        val documentId = admin.post("/api/v1/issues/1/documents", """{"title":"설계"}""").json()["id"] as String
+        val path = "/api/v1/content/document/$documentId"
+        assertEquals(200, kim.put("$path/subscription", "{}").status)
+
+        fun body(text: String) = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"$text"}]}]}"""
+
+        // A new comment on the document is for the people who follow it.
+        val parent = admin.post("$path/comments", """{"content":${body("검토 부탁")}}""").json()["id"]
+        awaitUnread(kim, 1)
+
+        // A reply is for the author of the comment and whoever is tagged: not for kim.
+        assertEquals(201, admin.post("$path/comments", """{"content":${body("보충")},"parentId":"$parent"}""").status)
+        Thread.sleep(700)
+        assertEquals(1, kim.get("/api/v1/me/inbox/unread-count").json()["count"])
+    }
+
+    @Test
     fun `그 화면을 열면 그 화면에 대한 읽지 않은 알림이 읽음이 된다 (D-217)`() {
         admin.post("/api/v1/issues", """{"title":"로그인 오류","assigneeIds":["$kimId"]}""")
         admin.post("/api/v1/issues", """{"title":"결제 오류","assigneeIds":["$kimId"]}""")

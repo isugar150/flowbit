@@ -97,7 +97,10 @@ data class IssueChange(
     val recipientIds: List<UUID>,
     /** The projects whose lists the change shows in: the one it is linked to, and the one it left. */
     val projectIds: List<UUID> = listOfNotNull(issue.project?.id),
-    /** The people tagged by a comment or by the body in this change. A comment, and a tag in the body, is told to them alone (D-166). */
+    /**
+     * Whom a comment, or a tag in the body, in this change is told to, apart from [recipientIds] (D-166, D-218): the people
+     * tagged, and for a reply the ones in the conversation; for a new comment the issue's followers too. Told at once, not held.
+     */
     val taggedIds: List<UUID> = emptyList(),
 ) {
     companion object {

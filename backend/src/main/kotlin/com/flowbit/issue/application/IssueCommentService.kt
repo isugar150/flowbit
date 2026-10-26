@@ -59,7 +59,9 @@ class IssueCommentService(
 
     /**
      * Writes a comment on an issue; needs the right to edit it. The author and the people tagged
-     * in it with @ follow the issue from then on, and the people tagged are told. `attachmentIds` are
+     * in it with @ follow the issue from then on. A new comment is told to everyone who follows the issue or its
+     * project and to the people tagged (D-218); a reply, to the people tagged and the ones in the conversation only.
+     * `attachmentIds` are
      * files the caller uploaded for the comment ([attachToDraft]); with files, the text may be empty.
      *
      * With `parentId` it is a reply to that comment (D-167): one level, so the comment must be one of
@@ -86,12 +88,15 @@ class IssueCommentService(
         val tagged = tagging.tag(issue, document.mentions, user)
         val conversation = if (parent == null) emptyList() else inConversation(issue, parent, user)
         val comment = checkNotNull(comments.find(id)).withRights(user, access).withExtras(user)
+        val followers = lookup.recipients(issue.id, user)
+        // A new comment is for everyone who follows; a reply is for the ones it is about (D-218).
+        val told = tagged.map { it.first } + if (parent == null) followers else conversation
         val change =
             IssueChange(
                 checkNotNull(queries.find(number)),
                 listOf(commentEvent(document, tagged, files, reply = parent != null)),
-                lookup.recipients(issue.id, user),
-                taggedIds = (tagged.map { it.first } + conversation).distinct(),
+                followers,
+                taggedIds = told.distinct(),
             )
         return CommentResult(comment, change)
     }
