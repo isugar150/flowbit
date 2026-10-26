@@ -11,6 +11,10 @@ export default function manifest(): MetadataRoute.Manifest {
     // A link to this site is better opened in the installed app than in a browser tab (Chrome decides; see docs/10-install.md).
     handle_links: "preferred",
     // A link opened while the app is already running goes to that window, as a page in it, instead of a second window.
+    // The window's title bar and the splash use the manifest's colours until the page says its own (the `themeColor` of the
+    // layout, light and dark). With only the light ones, every navigation inside the app flashed a white bar before turning
+    // dark. A browser that does not know `color_scheme_dark` keeps the light colours.
+    color_scheme_dark: { theme_color: "#131416", background_color: "#131416" },
     launch_handler: { client_mode: ["navigate-existing", "auto"] as Array<"navigate-existing" | "auto"> },
   };
   return {
