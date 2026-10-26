@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     // A link to this site is better opened in the installed app than in a browser tab (Chrome decides; see docs/10-install.md).
     handle_links: "preferred",
     // A link opened while the app is already running goes to that window, as a page in it, instead of a second window.
-    launch_handler: { client_mode: ["navigate-existing", "auto"] },
-  } as const;
+    launch_handler: { client_mode: ["navigate-existing", "auto"] as Array<"navigate-existing" | "auto"> },
+  };
   return {
     ...links,
     id: "/",
