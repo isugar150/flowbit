@@ -6,7 +6,15 @@ import { messages } from "@/messages";
  * is cached for offline use. The icons come from `scripts/generate-icons.mjs`.
  */
 export default function manifest(): MetadataRoute.Manifest {
+  // Newer manifest members (`handle_links` is not in Next's type yet); browsers that do not know them ignore them.
+  const links = {
+    // A link to this site is better opened in the installed app than in a browser tab (Chrome decides; see docs/10-install.md).
+    handle_links: "preferred",
+    // A link opened while the app is already running goes to that window, as a page in it, instead of a second window.
+    launch_handler: { client_mode: ["navigate-existing", "auto"] },
+  } as const;
   return {
+    ...links,
     id: "/",
     name: messages.app.name,
     short_name: messages.app.name,
