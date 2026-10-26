@@ -95,7 +95,8 @@ class MailNotificationChannel(
         mail(notification.recipientIds, texts.of(notification), notification.title)
     }
 
-    private suspend fun mail(
+    /** Mails the message to each of these people who has an address and has not switched mail off. */
+    suspend fun mail(
         recipientIds: List<java.util.UUID>,
         message: NotificationMessage,
         about: String,

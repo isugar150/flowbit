@@ -49,6 +49,12 @@ flowbit:
     enabled: true
     initial-delay: 1m
     interval: 1h
+  daily-summary:
+    # Sends the daily summary to the members an administrator switched it on for, at the time set for them (D-216),
+    # and forgets inbox notifications older than 90 days. Integration tests switch it off and call the service themselves.
+    enabled: true
+    initial-delay: 30s
+    interval: 1m
   git:
     # GitHub App connections that cannot receive webhooks read the GitHub API this often (D-146).
     # Integration tests switch it off and sync by hand.

@@ -53,6 +53,8 @@ class PagePresence(
         topic: String,
     ): Boolean {
         if (topic == RealtimeHub.ISSUES || topic == RealtimeHub.PROJECTS) return true
+        // The inbox topic is a person's own.
+        if (topic == RealtimeHub.inbox(user.id)) return true
         return try {
             page(user, topic)
             true

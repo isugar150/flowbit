@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import type {
+  Inbox,
   MyNotificationSettings,
   NotificationSettings,
   PushInput,
@@ -92,4 +93,19 @@ export function unregisterPushToken(token: string): Promise<void> {
     method: "POST",
     body: { token },
   });
+}
+
+/** The latest notifications of the signed-in person and how many of all of them are not read yet (D-216). */
+export function fetchInbox(): Promise<Inbox> {
+  return apiFetch<Inbox>("/api/v1/me/inbox?limit=30");
+}
+
+/** The person opened the page `path` (`/issue/FB-12`): what they were told about it is read (D-217). `marked` is how many were unread. */
+export function markInboxPathRead(path: string): Promise<{ marked: number }> {
+  return apiFetch<{ marked: number }>("/api/v1/me/inbox/read-path", { method: "POST", body: { path } });
+}
+
+/** Marks these notifications read, or all of them. */
+export function markInboxRead(input: { ids: string[] } | { all: true }): Promise<void> {
+  return apiFetch<void>("/api/v1/me/inbox/read", { method: "POST", body: input });
 }

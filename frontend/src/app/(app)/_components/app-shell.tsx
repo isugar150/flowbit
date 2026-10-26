@@ -4,6 +4,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Me } from "@/features/auth/types";
 import type { ProjectSummary } from "@/features/projects/types";
+import { InboxBell } from "@/features/notifications/components/inbox-bell";
+import { InboxSeen } from "@/features/notifications/components/inbox-seen";
 import { RealtimeProvider } from "@/features/realtime/realtime-provider";
 import type { Workspace } from "@/features/settings/types";
 import { UploadLimitProvider } from "@/features/settings/upload-limit-provider";
@@ -25,6 +27,7 @@ export function AppShell({
   workspace,
   projects,
   uploadLimit,
+  unreadNotifications,
   children,
 }: {
   user: Me;
@@ -32,6 +35,8 @@ export function AppShell({
   projects: ProjectSummary[];
   /** The largest file the server takes, in bytes (FLOWBIT_MAX_UPLOAD_SIZE). */
   uploadLimit: number;
+  /** How many notifications the signed-in person has not read, for the bell (D-216). */
+  unreadNotifications: number;
   children: React.ReactNode;
 }) {
   return (
@@ -41,13 +46,17 @@ export function AppShell({
         <NewIssueProvider projects={projects}>
         <SearchProvider>
         <div className="flex h-dvh bg-sidebar text-foreground">
+          <InboxSeen unread={unreadNotifications} />
           <aside className="hidden w-60 shrink-0 flex-col md:flex">
             <div className="flex h-12 items-center px-2">
               <WorkspaceLink workspace={workspace} />
             </div>
             <SidebarNav projects={projects} />
-            <div className="p-2">
-              <UserMenu user={user} placement="sidebar" />
+            <div className="flex items-center gap-1 p-2">
+              <div className="min-w-0 flex-1">
+                <UserMenu user={user} placement="sidebar" />
+              </div>
+              <InboxBell unread={unreadNotifications} placement="sidebar" />
             </div>
           </aside>
           <div className="flex min-w-0 flex-1 flex-col md:py-2 md:pr-2">
@@ -61,6 +70,7 @@ export function AppShell({
                 <div className="flex items-center">
                   <SearchButton variant="icon" />
                   <NewIssueButton variant="icon" />
+                  <InboxBell unread={unreadNotifications} placement="header" />
                   <UserMenu user={user} placement="header" />
                 </div>
               </div>

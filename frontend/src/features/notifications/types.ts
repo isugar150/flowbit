@@ -116,3 +116,22 @@ export type MyNotificationSettings = {
   mailAvailable: boolean;
   push: PushClientConfig | null;
 };
+
+/** One notification in a person's inbox (GET /api/v1/me/inbox), D-216. */
+export type InboxItem = {
+  id: string;
+  title: string;
+  headline: string;
+  /** One line per change, as the mail has them. */
+  lines: string[];
+  /** Where it opens in the app. */
+  path: string;
+  createdAt: string;
+  read: boolean;
+};
+
+export type Inbox = {
+  items: InboxItem[];
+  /** Of all of them, not only the ones listed. */
+  unreadCount: number;
+};

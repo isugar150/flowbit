@@ -49,6 +49,11 @@ export const getProjects = cache(
   async (): Promise<ProjectSummary[]> => (await serverGet<ProjectSummary[]>("/api/v1/projects")) ?? [],
 );
 
+/** How many notifications the signed-in person has not read, for the bell (D-216). Zero when it cannot be read. */
+export const getUnreadNotifications = cache(
+  async (): Promise<number> => (await serverGet<{ count: number }>("/api/v1/me/inbox/unread-count"))?.count ?? 0,
+);
+
 const readOnce = cache(async (path: string): Promise<unknown> => {
   const cookieHeader = await sessionCookieHeader();
   return cookieHeader ? fetchJson<unknown>(path, cookieHeader) : null;

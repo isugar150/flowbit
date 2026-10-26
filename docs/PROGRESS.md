@@ -265,6 +265,21 @@
 
 ## 작업 기록
 
+### 2026-10-26 — 화면을 열면 그 화면의 알림이 읽음 (D-217)
+
+- 사용자 질문·지시: 알림 링크(메일·푸시)를 눌러도 읽음 처리가 안 되므로, 해당 티켓·문서·프로젝트 화면을 열면 그 대상의 읽지 않은 알림이 읽음 처리되게(종에서 누르는 것, 메일·푸시 링크, 주소 직접 입력 모두).
+- 한 것: 백엔드 `InboxStore.markPathRead`, `POST /api/v1/me/inbox/read-path`(`{path}` → `{marked}`). 프런트 `InboxSeen`(`inbox-seen.tsx`, `AppShell` 에 둠): 화면 주소가 바뀔 때·읽지 않은 수가 바뀔 때·탭이 앞으로 올 때 부르고, 읽은 것이 있으면 `router.refresh()` 로 종의 수를 고친다. 명세·도움말·D-217 반영.
+- 테스트: `InboxAndDailySummaryIntegrationTest` 에 "그 화면을 열면 그 화면의 알림만 읽음" 추가. 화면은 확인하지 않았다.
+- 알아둘 것: 한 화면에 알림이 여러 건이면 모두 읽음이 된다. `/issue/12`(번호만) 주소와 워크스페이스 키를 바꾸기 전의 알림은 맞지 않는다.
+
+### 2026-10-26 — 알림 수신함(종)과 하루 요약 (D-216)
+
+- 사용자 요청: 사이드바 아래 프로필 쪽에 알림 버튼과 목록, 읽지 않은 알림 수. 내 요약 항목과 읽지 않은 알림을 하루에 한 번 정한 시각에 노티. 이 설정은 관리자 설정 > 구성원에서, 기본값은 꺼짐.
+- 한 것(백엔드): `V6`(`inbox_notifications`, `member_daily_summaries`). `Inbox.kt`(`InboxStore`, `InboxNotificationChannel`), `InboxController`(`/api/v1/me/inbox`), 실시간 주제 `inbox:<id>`(`RealtimeHub.inbox`, `PagePresence.canRead`). `DailySummary.kt`(`DailySummaryStore`, `DailySummaryBuilder`, `DailySummaryService`, `DailySummaryJob`), `DailySummaryController`(`/api/v1/admin/members/{id}/daily-summary`, `…/send`), 감사 `MEMBER_DAILY_SUMMARY_CHANGED`. `MailNotificationChannel.mail` 을 공개로.
+- 한 것(프런트): `InboxBell`(종 + 읽지 않은 수 + 목록 팝오버, `features/notifications/components/inbox-bell.tsx`), `getUnreadNotifications`(`lib/current-user.ts`), `AppShell` 이 사이드바와 위쪽 줄에 종을 둔다, `MemberDailySummarySettings`(관리자 > 구성원 > 하루 요약 알림). 도움말·명세(`features/inbox-and-daily-summary.md`)·`05-data-model.md`·M7a·D-216 반영.
+- 테스트: `InboxAndDailySummaryIntegrationTest`(수신함 쌓기·읽음, 설정 기본 꺼짐·관리자만, 시각 지나면 보낸 날 남음, 요약 줄·보낼 것 없음). 화면은 확인하지 않았다.
+- 알아둘 것: 하루 요약은 **내 티켓 기준**이다(프로젝트/팀 요약은 하지 않았다). API 알림으로는 안 보낸다. 구성원 본인은 요약을 못 켜고 관리자만 켠다. 서버가 꺼져 있던 경우 정한 시각에서 6시간까지 늦게 보낸다.
+
 ### 2026-10-26 — 타임라인 막대에도 마우스 오버 카드 (D-215)
 
 - 사용자 질문·지시: 공유 타임라인에서 티켓에 마우스를 올려도 상세가 안 나오는 이유 → 캘린더에만 만들어 둔 기능이라 답했고, 로그인한 타임라인과 공유 타임라인 모두 활동 영역 없이 넣어 달라고 했다.

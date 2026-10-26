@@ -25,6 +25,7 @@ import { messages } from "@/messages";
 import { updateMember } from "../api";
 import type { Member, MemberStatus, WorkspaceRole } from "../types";
 import { CreateMemberDialog } from "./create-member-dialog";
+import { MemberDailySummarySettings } from "./member-daily-summary";
 import { MemberProjectRoles } from "./member-project-roles";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 
@@ -319,6 +320,9 @@ function MemberDetail({
       </Section>
       <Section title={m.projectRoles} description={m.projectRolesDescription}>
         <MemberProjectRoles memberId={member.id} />
+      </Section>
+      <Section title={m.dailySummary.title} description={m.dailySummary.description}>
+        <MemberDailySummarySettings memberId={member.id} memberName={name} />
       </Section>
       {canResetPassword || !isSelf ? (
         <Section title={m.sections.manage}>

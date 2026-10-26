@@ -66,3 +66,28 @@ export function memberProjectRoles(
     `/api/v1/admin/members/${memberId}/projects`,
   );
 }
+
+/** The daily summary an administrator set for a member (D-216). `time` is `09:00`, in the member's own time zone. */
+export type MemberDailySummary = {
+  enabled: boolean;
+  time: string;
+  timezone: string;
+  /** The member's own date it was last sent on. */
+  lastSentOn: string | null;
+};
+
+export function memberDailySummary(memberId: string): Promise<MemberDailySummary> {
+  return apiFetch<MemberDailySummary>(`/api/v1/admin/members/${memberId}/daily-summary`);
+}
+
+export function saveMemberDailySummary(input: { memberId: string; enabled: boolean; time: string }): Promise<MemberDailySummary> {
+  return apiFetch<MemberDailySummary>(`/api/v1/admin/members/${input.memberId}/daily-summary`, {
+    method: "PUT",
+    body: { enabled: input.enabled, time: input.time },
+  });
+}
+
+/** Sends the member's summary now, as a try. `sent` is false when there was nothing to say. */
+export function sendMemberDailySummary(memberId: string): Promise<{ sent: boolean }> {
+  return apiFetch<{ sent: boolean }>(`/api/v1/admin/members/${memberId}/daily-summary/send`, { method: "POST" });
+}

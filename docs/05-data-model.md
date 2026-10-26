@@ -79,6 +79,15 @@
 | `push_tokens` | `token` PK, `user_id` FK → `users`(함께 삭제), `user_agent`, `created_at`, `last_seen_at` | 푸시를 켠 브라우저 하나당 한 행. 같은 토큰을 다른 계정이 등록하면 주인이 바뀐다 |
 | `webhooks` | `id`, `name`, `enabled`, `url`, `method`(`GET`\|`POST`\|`PUT`\|`PATCH`\|`DELETE`, `V4`), `content_type`, `headers`, `body_template`, `signing_secret`, `event_types`, `last_status`, `last_error`, `last_attempt_at`, `created_at`, `updated_at` | `headers` 는 JSON 객체를 담은 `text`(엔티티에 그대로 매핑하려고 `jsonb` 를 쓰지 않았다). `event_types` 는 쉼표로 이은 `IssueActivityType` 이름, 빈 값은 전부. 항상 받는 사람마다 부르므로 `per_recipient` 컬럼은 없다(D-102) |
 
+### 수신함과 하루 요약 (`V6`, D-216)
+
+뜻은 [features/inbox-and-daily-summary.md](features/inbox-and-daily-summary.md).
+
+| 테이블 | 컬럼 | 비고 |
+|---|---|---|
+| `inbox_notifications` | `id` PK, `user_id` FK → `users`(함께 삭제), `title`, `headline`, `body`(변경 줄을 줄바꿈으로 이은 것), `path`, `created_at`, `read_at` null | 한 사람의 알림 한 건. 90일이 지나면 지운다. 인덱스 `(user_id, created_at desc)`, 안 읽은 것만 `(user_id) where read_at is null`. 백업에는 넣지 않는다 |
+| `member_daily_summaries` | `user_id` PK·FK → `users`(함께 삭제), `enabled` 기본 false, `send_time` 기본 09:00(구성원의 시간대), `last_sent_on` date null | 관리자가 구성원마다 정한 하루 요약. 행이 없으면 꺼짐. 백업에는 넣지 않는다 |
+
 ### `audit_events`
 
 보안상 의미 있는 사건의 기록. 추가만 하고 수정/삭제하지 않는다.

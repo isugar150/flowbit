@@ -152,6 +152,28 @@ export const ko = {
     projectRolesEmpty: "아직 프로젝트가 없습니다.",
     projectRoleIn: (project: string) => `${project}에서의 권한`,
     projectRoleNone: "권한 없음",
+    // Set here by an administrator, for the member (D-216).
+    dailySummary: {
+      title: "하루 요약 알림",
+      description: "정한 시각에 이 구성원에게 요약을 한 번 보냅니다: 기한이 지난 티켓·오늘 마감·7일 안에 마감, 내게 할당된 티켓의 상태별 수, 어제 이후 새로 할당된 티켓, 읽지 않은 알림 수. 메일(주소가 있고 메일을 켠 사람)과 웹 푸시(브라우저를 등록한 사람)로 가고, 보낼 내용이 없으면 보내지 않습니다. 처음에는 꺼져 있습니다.",
+      enabled: "하루 요약 보내기",
+      enabledHint: "켜면 아래 시각에 매일 보냅니다.",
+      off: "꺼짐",
+      on: "켜짐",
+      time: "보내는 시각",
+      timeHint: (timezone: string) => `${timezone} 시간대 기준입니다.`,
+      timeOf: (name: string) => `${name}에게 보내는 시각`,
+      lastSent: "마지막으로 보낸 날",
+      never: "아직 보낸 적 없음",
+      save: "저장",
+      saved: "저장했습니다",
+      sendNow: "지금 보내 보기",
+      sendNowHint: "저장한 설정과 상관없이 지금 한 번 보냅니다. 그날의 정해진 발송은 쓰이지 않습니다.",
+      sent: "보냈습니다",
+      nothingToSend: "보낼 내용이 없어 보내지 않았습니다",
+      loading: "불러오는 중",
+      failed: "설정을 불러오지 못했습니다.",
+    },
   },
   // Asked before a dialog or an edit is closed with text that is not saved yet (D-182).
   discard: {
@@ -1720,5 +1742,19 @@ export const ko = {
     help: "도움말",
     logout: "로그아웃",
     logoutFailed: "로그아웃하지 못했습니다. 다시 시도하세요.",
+  },
+  // The bell beside the user menu: the notifications a person was told about, and how many they have not read (D-216).
+  inbox: {
+    label: "알림",
+    labelUnread: (count: number) => `알림, 읽지 않은 알림 ${count}건`,
+    title: "알림",
+    unread: (count: number) => `읽지 않은 알림 ${count}건`,
+    allRead: "모든 알림을 읽었습니다",
+    markAllRead: "모두 읽음",
+    empty: "아직 받은 알림이 없습니다.",
+    loading: "불러오는 중",
+    failed: "알림을 불러오지 못했습니다.",
+    unreadMark: "읽지 않음",
+    moreLines: (count: number) => `외 ${count}줄`,
   },
 } as const;

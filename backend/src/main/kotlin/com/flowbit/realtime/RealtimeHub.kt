@@ -115,5 +115,8 @@ class RealtimeHub {
          * because someone who is not in a project yet cannot hear that project's own topic.
          */
         const val PROJECTS = "projects"
+
+        /** Topic for "something came into this person's inbox, or they read it" (D-216). Only the person can hear it. */
+        fun inbox(userId: UUID): String = "inbox:$userId"
     }
 }
