@@ -8,6 +8,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ChipOption<T extends string> = {
@@ -30,8 +31,42 @@ export const cellChipClass =
   "-mx-1 flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-[0.8125rem] leading-5 text-muted-foreground outline-none hover:bg-background hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none aria-expanded:bg-background max-md:h-9";
 
 /**
+ * The trigger of a chip that can be taken off (a filter that is on): the frame is drawn around it and its "x" by
+ * `RemovableChip`, so the trigger has none of its own and is a little shorter than the frame.
+ */
+export const removableChipClass = "h-6.5 max-w-60 rounded-l-full rounded-r-none border-0 pr-1.5 max-md:h-8.5";
+
+/** A chip with an "x" at its end that takes it off; `children` is the chip's trigger, drawn with `removableChipClass`. */
+export function RemovableChip({
+  onClear,
+  clearLabel,
+  children,
+}: {
+  onClear: () => void;
+  /** What the "x" does, for screen readers and the tooltip: "상태 필터 지우기". */
+  clearLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="flex shrink-0 items-center rounded-full border bg-background">
+      {children}
+      <button
+        type="button"
+        aria-label={clearLabel}
+        title={clearLabel}
+        onClick={onClear}
+        className="flex h-6.5 w-6 shrink-0 items-center justify-center rounded-r-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-8.5 max-md:w-8"
+      >
+        <XIcon className="size-3.5" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
+
+/**
  * A rounded chip that shows one property of an issue and opens a menu to change it.
  * `iconOnly` shows just the icon, for dense list rows; the label is still read by screen readers.
+ * With `onClear` it is a filter that is on: the chip names what it filters (`prefix`) and ends in an "x" that turns it off.
  */
 export function ChipSelect<T extends string>({
   label,
@@ -41,6 +76,9 @@ export function ChipSelect<T extends string>({
   disabled,
   iconOnly,
   plain,
+  prefix,
+  onClear,
+  clearLabel,
 }: {
   /** What this chip sets, for example "상태". */
   label: string;
@@ -51,10 +89,15 @@ export function ChipSelect<T extends string>({
   iconOnly?: boolean;
   /** Draw it as a plain row (icon and value) instead of a pill. */
   plain?: boolean;
+  /** Said before the value, in grey: "상태" in "상태 진행 중". */
+  prefix?: string;
+  /** Puts an "x" at the end of the chip that calls this. */
+  onClear?: () => void;
+  clearLabel?: string;
 }) {
   const current = options.find((option) => option.value === value);
 
-  return (
+  const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
@@ -65,10 +108,12 @@ export function ChipSelect<T extends string>({
             className={cn(
               plain ? plainChipClass : chipClass,
               iconOnly && "size-7 justify-center border-transparent bg-transparent px-0 max-md:size-9",
+              onClear && removableChipClass,
             )}
           />
         }
       >
+        {prefix ? <span className="shrink-0 text-muted-foreground">{prefix}</span> : null}
         {current?.icon}
         {iconOnly ? null : (
           <span className={cn("truncate", current?.muted && "font-normal text-muted-foreground")}>{current?.label}</span>
@@ -88,5 +133,12 @@ export function ChipSelect<T extends string>({
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+  return onClear ? (
+    <RemovableChip onClear={onClear} clearLabel={clearLabel ?? label}>
+      {menu}
+    </RemovableChip>
+  ) : (
+    menu
   );
 }

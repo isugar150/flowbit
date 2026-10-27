@@ -435,7 +435,6 @@ export const ko = {
     },
     noProjectHint: "프로젝트는 고르지 않아도 됩니다. 고르지 않은 티켓은 구성원 누구나 보고 수정할 수 있습니다.",
     followsParentHint: "하위 티켓의 프로젝트는 상위 티켓을 따릅니다.",
-    allProjects: "모든 프로젝트",
     projectFilter: "프로젝트로 거르기",
     subIssueOf: "상위 티켓",
     /** The card over an issue on a calendar (D-201). */
@@ -634,12 +633,30 @@ export const ko = {
     workspaceLabels: "워크스페이스 라벨",
     noLabelsFound: "맞는 라벨이 없습니다.",
     createLabel: (name: string) => `"${name}" 라벨 만들기`,
-    allStatuses: "모든 상태",
-    allPriorities: "모든 우선순위",
-    allAssignees: "모든 담당자",
     statusFilter: "상태로 거르기",
     priorityFilter: "우선순위로 거르기",
     assigneeFilter: "담당자로 거르기",
+    dueFilter: "기한으로 거르기",
+    // The "필터" menu above a list, and the chips of the filters that are on under it (D-224).
+    filter: "필터",
+    filterOn: "(적용 중)",
+    activeFilters: "적용 중인 필터",
+    filterNames: {
+      project: "프로젝트",
+      status: "상태",
+      priority: "우선순위",
+      assignee: "담당자",
+      due: "기한",
+      label: "라벨",
+    },
+    removeFilter: (name: string) => `${name} 필터 지우기`,
+    // Overdue, today and within a week count the tickets that are not finished (D-223).
+    dueFilters: {
+      none: "기한 설정 안 됨",
+      overdue: "기한 지남",
+      today: "오늘 마감",
+      week: "7일 안에 마감",
+    },
     searchLabel: "제목이나 번호로 찾기",
     searchPlaceholder: "제목·번호로 찾기",
     clearFilter: "필터 초기화",
@@ -1702,7 +1719,7 @@ export const ko = {
       },
       toolbar: {
         title: "찾기와 보기",
-        body: "제목이나 번호로 찾고, 프로젝트·상태·우선순위·담당자·라벨로 걸러 봅니다. 오른쪽에서 정렬 순서를 고르고 목록, 타임라인, 캘린더로 보기를 바꿉니다. 티켓은 왼쪽 메뉴 맨 위의 ‘새 티켓’이나 C 키로 만듭니다.",
+        body: "제목이나 번호로 찾고, ‘필터’ 버튼에서 프로젝트·상태·우선순위·담당자·기한·라벨로 걸러 봅니다. 오른쪽에서 정렬 순서를 고르고 목록, 타임라인, 캘린더로 보기를 바꿉니다. 티켓은 왼쪽 메뉴 맨 위의 ‘새 티켓’이나 C 키로 만듭니다.",
       },
       row: {
         title: "티켓 한 줄",

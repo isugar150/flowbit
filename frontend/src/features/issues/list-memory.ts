@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
  * filters, order and grouping the person used in any of them. The project filter
  * belong to one list and are not shared; nor is the search text.
  */
-const SHARED_KEYS = ["status", "priority", "assignee", "label", "sort", "group", "completed"] as const;
+const SHARED_KEYS = ["status", "priority", "assignee", "due", "label", "sort", "group", "completed"] as const;
 const STORAGE_KEY = "flowbit.issue-list";
 
 function read(): URLSearchParams | null {

@@ -3,22 +3,9 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import {
-  BoxIcon,
-  CircleDashedIcon,
-  FileTextIcon,
-  PlusIcon,
-  SearchIcon,
-  SignalIcon,
-  Trash2Icon,
-  UsersIcon,
-  XIcon,
-  ArrowUpDownIcon,
-  CircleCheckIcon,
-  LayersIcon,
-} from "lucide-react";
+import { FileTextIcon, PlusIcon, SearchIcon, Trash2Icon, XIcon, ArrowUpDownIcon, CircleCheckIcon, LayersIcon } from "lucide-react";
 
-import { useShownAt } from "@/components/dates";
+import { useShownAt, useToday } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Kbd } from "@/components/ui/kbd";
@@ -30,8 +17,9 @@ import { cn } from "@/lib/utils";
 import { isTyping } from "@/lib/is-typing";
 import { messages } from "@/messages";
 import { updateIssue } from "../api";
+import { DUE_FILTERS, NO_DUE, matchesDue } from "../due-filter";
 import { STATUS_ORDER } from "../meta";
-import { NONE, assigneeOptions, priorityOptions, statusOptions } from "../options";
+import { NONE, priorityOptions } from "../options";
 import { DEFAULT_ISSUE_GROUPING, ISSUE_GROUPS, groupIssues, type IssueGrouping } from "../grouping";
 import { useRememberedListQuery } from "../list-memory";
 import { useProgressiveCount, withinBudget } from "../progressive";
@@ -42,10 +30,9 @@ import { NEW_ISSUE_EVENT } from "./new-issue-launcher";
 import { DEFAULT_ISSUE_SORT, ISSUE_SORTS, sortIssues, type IssueSort } from "../sort";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import type { IssueDates } from "./issue-calendar";
-import { projectOptions } from "./issue-properties";
 import { IssueListHeader, IssueListRow } from "./issue-list-row";
+import { ActiveFilterChips, CHIP_KEYS, FILTER_ALL, FILTER_KEYS, IssueFilterMenu, type ChipKey } from "./issue-filter-menu";
 import { IssueViewSwitch, useIssueView, useListAddress, useReplaceListQuery } from "./issue-views";
-import { LabelFilterChip } from "./label-chip";
 import { SubIssueContextRow } from "./sub-issue-rows";
 
 const m = messages.issues;
@@ -59,13 +46,8 @@ const loadNewIssueDialog = () => import("./new-issue-dialog");
 const NewIssueDialog = dynamic(() => loadNewIssueDialog().then((module) => module.NewIssueDialog), { ssr: false });
 const preloadNewIssueDialog = () => void loadNewIssueDialog();
 
-/** "Every …" in a filter; NONE is "nobody" / "no label". */
-const ALL = "__all__";
-const FILTER_KEYS = ["project", "status", "priority", "assignee", "label"] as const;
-/** The filters with one value, drawn as a menu. Labels take several and have their own chip. */
-type ChipKey = Exclude<FilterKey, "label">;
-const CHIP_KEYS = FILTER_KEYS.filter((key): key is ChipKey => key !== "label");
-type FilterKey = (typeof FILTER_KEYS)[number];
+/** "Every …" in a filter; NONE is "nobody" / "no label" / "no due date". */
+const ALL = FILTER_ALL;
 /** The order of the list in the address: `?sort=`. The default is left out. */
 const SORT_KEY = "sort";
 const SORT_OPTIONS: ChipOption<IssueSort>[] = ISSUE_SORTS.map((value) => ({
@@ -99,7 +81,6 @@ const GROUP_KEY = "group";
 const GROUP_ICON = <LayersIcon className="size-4 text-muted-foreground" aria-hidden />;
 /** The title search in the address: `?q=`. */
 const SEARCH_KEY = "q";
-const ALL_ICON = { className: "size-4 text-muted-foreground", "aria-hidden": true } as const;
 /** `?assignee=none` in the address stands for NONE. */
 const NONE_PARAM = "none";
 
@@ -197,7 +178,10 @@ export function IssuesView({
   const status = readFilter("status", (value) => STATUS_ORDER.some((known) => known === value));
   const priority = readFilter("priority", (value) => priorityOptions.some((option) => option.value === value));
   const assignee = assigneeFilter ? readFilter("assignee", (value) => members.some((member) => member.userId === value)) : ALL;
-  const filters = { project, status, priority, assignee };
+  const due = readFilter("due", (value) => DUE_FILTERS.some((known) => known === value));
+  const filters = { project, status, priority, assignee, due };
+  // The day, for the due-date filter; null until the browser takes over, and then the filter leaves nothing out.
+  const today = useToday();
   // Labels are the one filter with several values at once: "?label=<id>,<id>,none".
   const labelParam = searchParams.get("label") ?? "";
   const labelFilter = useMemo(
@@ -231,6 +215,7 @@ export function IssuesView({
       // One person is picked: the issue passes when they are one of its assignees.
       (assignee === ALL ||
         (assignee === NONE ? issue.assignees.length === 0 : issue.assignees.some((person) => person.id === assignee))) &&
+      (due === ALL || matchesDue(issue, due === NONE ? NO_DUE : due, today)) &&
       (labelFilter.length === 0 ||
         (issue.labels.length === 0 ? labelFilter.includes(NONE) : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
       (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle));
@@ -249,42 +234,18 @@ export function IssuesView({
     clearFilters();
     setFiltersCleared(true);
   };
-  const all = (label: string, icon: React.ReactNode): ChipOption<string> => ({ value: ALL, label, icon });
-  const filterChips: { key: ChipKey; label: string; options: ChipOption<string>[] }[] = [
-    // Inside a project every issue has that project, so the filter is only on the list of all issues.
-    ...(projectId === null
-      ? [
-          {
-            key: "project" as const,
-            label: m.projectFilter,
-            options: [
-              all(m.allProjects, <BoxIcon {...ALL_ICON} />),
-              ...projectOptions(projects.filter((project) => project.myRole)),
-            ],
-          },
-        ]
-      : []),
-    {
-      key: "status",
-      label: m.statusFilter,
-      options: [all(m.allStatuses, <CircleDashedIcon {...ALL_ICON} />), ...statusOptions],
-    },
-    {
-      key: "priority",
-      label: m.priorityFilter,
-      options: [all(m.allPriorities, <SignalIcon {...ALL_ICON} />), ...priorityOptions],
-    },
-    ...(assigneeFilter
-      ? [
-          {
-            key: "assignee" as const,
-            label: m.assigneeFilter,
-            options: [all(m.allAssignees, <UsersIcon {...ALL_ICON} />), ...assigneeOptions(members)],
-          },
-        ]
-      : []),
-  ];
-  const labelChip = <LabelFilterChip labels={labels} value={labelFilter} onChange={setLabelFilter} noneValue={NONE} />;
+  // What the "필터" menu and the chips of the filters that are on are made from.
+  const filterProps = {
+    projectId,
+    projects,
+    members,
+    labels,
+    assigneeFilter,
+    values: filters,
+    labelValue: labelFilter,
+    onChange: setFilter,
+    onLabelChange: setLabelFilter,
+  };
   const [view, setView] = useIssueView();
   const { mutate } = mutation;
   const changeStatus = useCallback(
@@ -445,67 +406,58 @@ export function IssuesView({
       ) : (
         <div className="flex flex-col">
           {/*
-            One line at every width: the view switch stays at the right end, and what does not fit
-            beside it scrolls sideways instead of wrapping onto lines of its own. The padding inside the scroller keeps the focus rings from being cut off.
+            Nothing scrolls sideways (D-224). The first line has two groups that move as wholes when they do not fit side by side:
+            search and the "필터" menu on the left; the display options and the view switch on the right (and, when even those do not
+            fit, they wrap among themselves). The filters that are on are chips on a line of their own under it, so they can be as
+            many as there are kinds of filter.
           */}
-          <div data-tour="issue-toolbar" className="flex items-center gap-2 px-4 pb-2">
-            <div className="-m-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain p-1 [scrollbar-width:thin]">
-              <div className="relative shrink-0">
-                <SearchIcon
-                  className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <input
-                  type="search"
-                  value={search}
-                  placeholder={m.searchPlaceholder}
-                  aria-label={m.searchLabel}
-                  autoComplete="off"
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setSearch(value);
-                    replaceQuery((params) => {
-                      if (value) params.set(SEARCH_KEY, value);
-                      else params.delete(SEARCH_KEY);
-                    });
-                  }}
-                  className="h-7 w-44 rounded-full border bg-background pr-2.5 pl-7.5 text-[0.8125rem] leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-9"
-                />
+          <div data-tour="issue-toolbar" className="flex flex-col gap-2 px-4 pb-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <div className="relative shrink-0">
+                  <SearchIcon
+                    className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="search"
+                    value={search}
+                    placeholder={m.searchPlaceholder}
+                    aria-label={m.searchLabel}
+                    autoComplete="off"
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSearch(value);
+                      replaceQuery((params) => {
+                        if (value) params.set(SEARCH_KEY, value);
+                        else params.delete(SEARCH_KEY);
+                      });
+                    }}
+                    className="h-7 w-44 rounded-full border bg-background pr-2.5 pl-7.5 text-[0.8125rem] leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-9"
+                  />
+                </div>
+                <IssueFilterMenu {...filterProps} />
+                {filtered ? (
+                  <Button variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" onClick={clearFilters}>
+                    <XIcon data-icon="inline-start" />
+                    {m.clearFilter}
+                  </Button>
+                ) : null}
               </div>
-              {filterChips.map((chip) => (
-                <ChipSelect
-                  key={chip.key}
-                  label={chip.label}
-                  value={filters[chip.key]}
-                  options={chip.options}
-                  onChange={(value) => setFilter(chip.key, value)}
-                />
-              ))}
-              {/* Labels come after the assignee. */}
-              {labelChip}
-              {filtered ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground max-md:h-11"
-                  onClick={clearFilters}
-                >
-                  <XIcon data-icon="inline-start" />
-                  {m.clearFilter}
-                </Button>
-              ) : null}
-              <span className="flex-1" />
-              {deletedToggle}
-              {/* The timeline and the calendar have an order of their own (by project, by day). */}
-              {view === "list" ? (
-                <>
-                  <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />
-                  <ChipSelect label={m.groupBy} value={grouping} options={groupOptions} onChange={setGrouping} />
-                  <ChipSelect label={m.sort} value={sort} options={SORT_OPTIONS} onChange={setSort} />
-                </>
-              ) : null}
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                {deletedToggle}
+                {/* The timeline and the calendar have an order of their own (by project, by day). */}
+                {view === "list" ? (
+                  <>
+                    <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />
+                    <ChipSelect label={m.groupBy} value={grouping} options={groupOptions} onChange={setGrouping} />
+                    <ChipSelect label={m.sort} value={sort} options={SORT_OPTIONS} onChange={setSort} />
+                  </>
+                ) : null}
+                <IssueViewSwitch view={view} onChange={setView} />
+              </div>
             </div>
-            <IssueViewSwitch view={view} onChange={setView} />
+            <ActiveFilterChips {...filterProps} />
           </div>
           {deleted ? (
             <p className="border-t bg-muted/50 px-5 py-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.deletedNotice}</p>

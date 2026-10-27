@@ -9,7 +9,8 @@ import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
 import { createLabel } from "../api";
 import type { Label } from "../types";
-import { chipClass } from "./chip-select";
+import { cn } from "@/lib/utils";
+import { RemovableChip, chipClass, removableChipClass } from "./chip-select";
 
 const m = messages.issues;
 
@@ -129,39 +130,52 @@ export function LabelChip({
   );
 }
 
+/** What a label filter can tick: "no label" (`noneValue`) first, then every label of the workspace. */
+export function labelFilterOptions(labels: Label[], noneValue: string) {
+  return [
+    { id: noneValue, label: m.noLabels, icon: <TagIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> },
+    ...labels.map((label) => ({ id: label.id, label: label.name, icon: <LabelDot color={label.color} /> })),
+  ];
+}
+
 /**
- * The label filter of an issue list: any number of labels, and "no label". An issue passes when
- * it has one of the ticked labels. Labels are not made here.
+ * The label filter of an issue list that is on: any number of labels, and "no label". An issue passes when
+ * it has one of the ticked labels. Labels are not made here. It is drawn like the other filters that are on
+ * (`prefix` before the value, an "x" at the end that calls `onClear`).
  */
 export function LabelFilterChip({
   labels,
   value,
   onChange,
   noneValue,
+  prefix,
+  onClear,
+  clearLabel,
 }: {
   labels: Label[];
   /** Ids of the ticked labels; `noneValue` stands for issues without a label. */
   value: string[];
   onChange: (value: string[]) => void;
   noneValue: string;
+  prefix?: string;
+  onClear?: () => void;
+  clearLabel?: string;
 }) {
-  const options = [
-    { id: noneValue, label: m.noLabels, icon: <TagIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> },
-    ...labels.map((label) => ({ id: label.id, label: label.name, icon: <LabelDot color={label.color} /> })),
-  ];
+  const options = labelFilterOptions(labels, noneValue);
   const selected = options.filter((option) => value.includes(option.id));
 
-  return (
+  const chip = (
     <Popover>
       <PopoverTrigger
         render={
           <button
             type="button"
             aria-label={`${m.labelFilter}: ${selected.map((option) => option.label).join(", ") || m.allLabels}`}
-            className={chipClass}
+            className={cn(chipClass, onClear && removableChipClass)}
           />
         }
       >
+        {prefix ? <span className="shrink-0 text-muted-foreground">{prefix}</span> : null}
         {selected.length === 1 ? selected[0].icon : <TagIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
         <span className="truncate">
           {selected.length === 0 ? m.allLabels : selected.length === 1 ? selected[0].label : m.labelCount(selected.length)}
@@ -179,5 +193,12 @@ export function LabelFilterChip({
         />
       </PopoverContent>
     </Popover>
+  );
+  return onClear ? (
+    <RemovableChip onClear={onClear} clearLabel={clearLabel ?? m.labelFilter}>
+      {chip}
+    </RemovableChip>
+  ) : (
+    chip
   );
 }

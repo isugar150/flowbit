@@ -267,6 +267,21 @@
 
 ## 작업 기록
 
+### 2026-10-27 — 필터를 "필터" 버튼 하나로 모아 가로 스크롤 없애기 (D-224)
+
+- 사용자 요청: 필터 값이 너무 많아져 가로 스크롤이 힘들다. 스크롤 없이 이쁘게.
+- 한 것: `issue-filter-menu.tsx`(새, `IssueFilterMenu`: 필터 종류 → 값 하위 메뉴, 라벨은 체크 목록 / `ActiveFilterChips`: 건 필터만 칩 / `filterKindsOf`에 필터 종류 정의 / `FILTER_ALL`·`FILTER_KEYS`·`CHIP_KEYS`), `chip-select.tsx` 에 `RemovableChip`(끝에 ×)·`removableChipClass`·`ChipSelect` 의 `prefix`/`onClear`, `label-chip.tsx` 의 `labelFilterOptions`·`LabelFilterChip` 의 `prefix`/`onClear`. `issues-view.tsx` 의 도구 줄을 스크롤 영역에서 줄바꿈하는 두 묶음(왼쪽: 검색·필터·초기화 / 오른쪽: 삭제된 티켓·완료·묶음·정렬·보기 전환) + 아래 칩 줄로 바꿨고, 필터 정의를 새 파일로 옮겼다(React Compiler 린트가 도구 줄 안에서 만든 값을 거부해서 컴포넌트로 뺐다). 쓰지 않게 된 `messages.issues.allProjects` 등 "모든 …" 4개 삭제, `filter`·`filterNames`·`removeFilter` 등 추가. 도움말(티켓 목록)·투어 문구·04 "디자인 원칙"·D-224 반영.
+- 확인: 타입 검사·린트·단위 테스트. 화면 확인은 하지 않았다(메뉴가 열리는 모양, 좁은 폭의 줄바꿈, 칩의 ×와 메뉴 모두 코드로만 확인했다).
+- 알아둘 것: 필터 메뉴는 하위 메뉴(`DropdownMenuSub`)를 쓴다. 이 프로젝트에서 처음 쓰는 컴포넌트라, 휴대폰에서 누르면 열리는지는 직접 봐야 한다.
+
+### 2026-10-27 — 티켓 목록 필터에 "기한" 더하기 (D-223)
+
+- 사용자 요청: 내 티켓의 조건(필터)에 "기한 설정 안 됨"이 없다. 전체 티켓에도.
+- 원인: 필터가 프로젝트·상태·우선순위·담당자·라벨뿐이었고 기한 필터는 만든 적이 없었다.
+- 한 것: `features/issues/due-filter.ts`(`matchesDue`·`addDays`, 단위 테스트 `due-filter.test.ts`), `issues-view.tsx` 에 기한 칩(모든 기한 · 기한 설정 안 됨 · 기한 지남 · 오늘 마감 · 7일 안에 마감)과 `?due=`, `list-memory.ts` 의 기억할 키에 `due`, `messages.issues.dueFilter`·`allDueDates`·`dueFilters`. 목록이 한 컴포넌트라 내 티켓·요청한 티켓·전체 티켓·프로젝트의 티켓에 같이 생긴다. 도움말(티켓 목록)·D-223·M3 명세 반영.
+- 확인: 타입 검사·린트·단위 테스트. 화면 확인은 하지 않았다. 백엔드는 바뀐 것이 없다.
+- 알아둘 것: 기한 지남·오늘·7일 안은 완료·취소 티켓을 뺀다(하루 요약과 같은 기준). 기한 설정 안 됨은 상태와 상관없이 기한이 없는 티켓 전부다.
+
 ### 2026-10-27 — 캘린더 "+N개 더보기" 목록의 줄도 끌어서 날짜 바꾸기 (D-222)
 
 - 사용자 보고: 캘린더 > 더보기 > 항목을 끌어도 날짜가 안 바뀐다.
