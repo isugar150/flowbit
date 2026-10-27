@@ -4,6 +4,189 @@
 
 ## 현재 상태
 
+2026-10-28 정리. 예전의 긴 "현재 상태"(2026-10-12~23 의 항목별 기록)는 지우지 않고 아래 "작업 기록" 맨 위의 **"정리 전 '현재 상태' 전문"** 으로 그대로 옮겼다. 무엇이 어느 결정(D-번호)으로 생겼는지는 [09-decisions.md](09-decisions.md) 가 기준이다.
+
+### 구현된 것
+
+- **M0 뼈대, M1 로그인·초기 설정, M2a 설정 화면·이미지 업로드, M2b LDAP·SSO·이메일 아이디, M7a 알림 통로(메일·웹 푸시·API 알림)**. 명세는 [features/](features/) 에 있다. 백엔드는 WebFlux + 코루틴 + R2DBC 다(D-019).
+- **M3 프로젝트와 티켓**: 구성원 관리와 프로젝트 권한, 모든 구성원에게 열기(D-192), 접근 요청(D-128), 티켓(담당자 여러 명 D-125, 하위 티켓 5단계 D-190, 라벨, 사용자 속성 D-186, 복제 D-212), 문서 편집기(Tiptap)와 블록 댓글·활동(D-165), 목록·캘린더·타임라인 보기, 실시간 동기화와 "보는 사람" 아바타(D-044), 파일 첨부와 Word·Excel·PowerPoint 미리보기(D-187). **목표(마일스톤)는 없어졌고**(D-189) 프리셋도 화면에서 없앴다(D-060).
+- **마일스톤 밖**: 티켓·문서 검색(D-133), Git 연동(Gitea·GitLab·GitHub App, D-141~D-162), 공유 링크(캘린더·타임라인·티켓, D-197~D-200), 알림 수신함과 하루 요약(D-216~D-221), 데이터 보관(D-132), 파일 관리(D-171·D-172), 백업·복원(D-112), 도움말(D-154), 온보딩 투어(D-120), 앱으로 설치(PWA, D-110).
+
+### 검증 상태
+
+- **백엔드**: `FLOWBIT_BUILD_DIR=<다른 폴더> ./gradlew check` (ktlint + PostgreSQL 18 Testcontainers, Docker 필요). **전체를 돌려 통과를 적어 둔 마지막 기록은 282개 0 실패(2026-10-23, D-192)** 다. 그 뒤 변경 중 일부(D-197~D-206 의 `ShareIntegrationTest`·`RetentionIntegrationTest` 새 테스트 등)는 작업 기록에 "Docker 가 꺼져 있어 돌리지 못했다"고 적혀 있다. 다음 사람은 Docker 를 켜고 먼저 전체 `check` 를 돌려 본다.
+- **프런트엔드**: `npm run lint`, `npm run typecheck`, `npm test`(Vitest, 14개 파일), `npx next build`, `npm run test:e2e`(Playwright, `frontend/e2e/` 6개 파일. 돌리는 법은 [04-frontend-guide.md](04-frontend-guide.md) "테스트와 검사"). **낡아서 실패한다고 기록된 E2E 둘이 코드에 그대로 있다(고쳤다는 기록은 없다)**: `flows.spec.ts` 의 "files are attached and removed"(D-183 이 지운 `data-presence-id="attachments"` 영역을 찾는다)와 `changes.spec.ts` 의 "project overview: status and following show at once"(D-176 뒤 구독 버튼이 활동을 읽은 뒤에야 생긴다).
+- **화면 확인은 에이전트가 하지 않는다**(사용자 지시, 2026-10-23). 작업 기록의 "화면은 확인하지 않았다"는 그 뜻이다. **2026-10-28 에 사용자 요청으로 체크리스트에 남아 있던 화면 확인·실제 서버 확인·사용자 확인 항목을 모두 완료 처리했다**(에이전트가 확인한 것이 아니다). 코드가 없던 항목을 닫은 기준은 D-225.
+
+### 실행할 때 알아둘 것
+
+- **마이그레이션은 `V1__schema.sql`(첫 배포 전에 두 번 합쳤다, D-168·D-191) + `V2`~`V6`** 이다(`V2__project_open_access`, `V3__share_links`, `V4__share_access_item`, `V5__drop_share_accesses`, `V6__inbox_and_daily_summary`). 합친 `V1` 은 한 글자도 고치지 않고, 스키마 변경은 새 파일로 더한다. 예전 파일이 적용된 DB 는 `flyway_schema_history` 를 고치는 SQL 이 한 번 필요하다(D-191, 아래 전문). **백엔드를 다시 띄워야 새 마이그레이션이 적용된다.** 에이전트는 사용자의 개발 DB 를 지우거나 고치지 않는다.
+- IDE 로 백엔드를 띄워 둔 채 `./gradlew` 를 돌리면 그 서버가 깨진다. 검사는 `FLOWBIT_BUILD_DIR` 를 다른 폴더로 주고 돌린다(아래 "알아둘 것"). IDE 실행 설정의 VM 옵션에는 `--enable-native-access=ALL-UNNAMED` 를 직접 적는다([02-architecture.md](02-architecture.md) 개발 환경). JDK 25 는 `JAVA_HOME` 으로 지정한다(이 PC: `C:\Users\<사용자>\.jdks\corretto-25.0.4.1`).
+
+## 다음 작업
+
+사용자가 지시하기 전에는 새 기능을 임의로 시작하지 않는다. 지시를 받으면 ① 범위를 사용자에게 확인하고 ② `features/` 에 명세를 먼저 쓰고 ③ 구현한다. 화면은 [01-product.md](01-product.md) 의 해당 절을 따른다. ([08-roadmap.md](08-roadmap.md) 의 M2 이후는 초안이다.)
+
+**사용자가 정해야 하는 것**
+
+- **PDF 미리보기를 무엇으로 붙일지** (D-187 미정, 후보 비교는 아래 "열린 질문"). 정해지면 같은 창(`FileViewer`)에 `pdf` 종류를 더한다.
+- **M3 의 "아직 없는 것" 중 무엇을 먼저 할지** ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md)): 완료 조건 진행률(`3/5`) 표시, 본문 동시 편집 충돌 알림 등. 하나를 임의로 고르지 않는다.
+- 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다. [08-roadmap.md](08-roadmap.md) M2).
+
+**Git 연동**은 명세의 단계를 모두 마쳤다([features/git-integration.md](features/git-integration.md), D-145~D-162). 실제 Gitea·GitLab·GitHub 서버로 확인하는 일은 2026-10-28 에 사용자 요청으로 완료 처리했다. 견본과 다른 점이 나오면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"은 사용자에게 묻는다.
+
+### M0·M1 의 빈 곳 (2026-10-28 에 모두 닫음)
+
+"테스트는 내가 해 보고 문제 있으면 말하겠다"는 사용자 말에 멈춰 있던 항목이다. 아래 체크리스트(M0·M1)에도 같은 표시를 했다. 코드가 실제로 없는 것은 "만들지 않고 닫았다"고 적었고, 필요해지면 새 항목으로 다시 적는다(D-225).
+
+- [x] 프론트엔드 단위 테스트 (Vitest): `npm test` 로 돌리고 14개 파일이 있다(`branch-name`·`time-ago`·`timeline-span` 등). 처음 적은 `safeNextPath`, `features/auth/schema.ts`, `lib/api/errors.ts` 의 전용 테스트는 **만들지 않고 닫았다**
+- [x] E2E (Playwright): `frontend/e2e/` 에 6개 파일이 있고, `flowbit_e2e` DB 를 쓰는 별도 백엔드(8081)와 Next 서버(3100)로 돌린다(DB 는 `docker/postgres/init` 스크립트가 볼륨 생성 시 만들어 둔다). 처음 적은 시나리오(초기 설정 → 로그아웃 → 로그인, 리다이렉트 규칙, `next` 파라미터)는 **만들지 않고 닫았다** — 로그인은 `e2e/support.ts` 가 API 로 한다
+- [x] CI — **만들지 않고 닫았다**(저장소에 CI 설정 파일이 없다)
+- [x] 디자인 리뷰 스킬로 점검, 다크 모드와 360px 폭 확인, 키보드만으로 전체 흐름 확인 — 사용자 요청으로 완료 처리
+- [x] 429·네트워크 오류·서버 오류 문구가 화면에 제대로 나오는지 — 사용자 요청으로 완료 처리
+
+## 마일스톤 체크리스트
+
+2026-10-28: 남아 있던 체크 항목 24개를 모두 닫았다. "사용자 요청으로 완료 처리"는 에이전트가 확인한 것이 아니고, 코드가 실제로 없던 항목은 "만들지 않고 닫았다"고 적었다(D-225).
+
+### M0. 프로젝트 뼈대
+
+- [x] `docker-compose.yml` (PostgreSQL 18), `.env.example`, E2E 용 DB 생성 스크립트
+- [x] `backend/` WebFlux + R2DBC + Flyway, 공통 구성, ktlint, health 엔드포인트, 통합 테스트 기반
+- [x] `frontend/` Next.js 16 + shadcn(base-nova), `/api` rewrite, API 클라이언트, 디자인 토큰, Pretendard
+- [x] 루트 `README.md`
+- [x] 프론트엔드 테스트 설정과 테스트 (Vitest 14개 파일, Playwright 6개 파일)
+- [x] CI — 만들지 않고 닫았다 (D-225)
+
+### M1. 로그인 및 초기 설정
+
+- [x] 백엔드: 마이그레이션 `V1` (instance_settings, users, user_sessions, audit_events)
+- [x] 백엔드: 보안 설정 (세션 쿠키, CSRF, 공개 경로, 401/403 문제 문서)
+- [x] 백엔드: `setup`, `auth`, `user`, `instance` 모듈, 요청 제한, 잠금, 감사 로그
+- [x] 백엔드: 인수 기준 통합 테스트
+- [x] 프론트엔드: `/setup`, `/login`, 홈(빈 상태), 사이드바와 사용자 메뉴(테마, 로그아웃), `/unavailable`
+- [x] 프론트엔드: `proxy.ts` 리다이렉트 규칙
+- [x] 프론트엔드 자동 테스트, 디자인·접근성 점검 — 테스트는 Vitest·E2E 가 있고(전용 테스트를 만들지 않고 닫은 것은 위 "다음 작업" 의 "M0·M1 의 빈 곳"), 디자인·접근성 점검은 사용자 요청으로 완료 처리
+- [x] 세부 수치 사용자 확인 — 제안값이 그대로 쓰이고 있다(아이디 4~32자, 비밀번호 10자 이상, 5회 실패 시 15분 잠금, 세션 7일/최대 30일, IP당 분당 10회). 사용자 요청으로 완료 처리
+
+### M2a. 설정 화면과 이미지 업로드
+
+- [x] 백엔드: `V2` 마이그레이션, `media` 모듈(WebP 변환, 파일 저장, 파일 제공), 프로필·워크스페이스 API, `/api/v1/admin/**` 관리자 규칙, `.env` 읽기
+- [x] 백엔드: 통합 테스트 15개
+- [x] 프론트엔드: 사용자 메뉴의 설정/관리자 설정, `/settings/profile`, `/settings/workspace`, 사이드바의 로고·이름, 아바타
+- [x] 화면 확인 (명세의 "화면에서 확인이 필요한 것") — 사용자 요청으로 완료 처리
+- [x] 명세의 "확인이 필요한 것" 3가지 사용자 확인 — 사용자 요청으로 완료 처리
+
+### M2b. LDAP·SSO 연동, 이메일 아이디
+
+- [x] 백엔드: `V2`, LDAP 인증, OIDC SSO, 자동 가입, 이메일 아이디, 설정 API, 통합 테스트 22개
+- [x] 프론트엔드: `/admin/auth`, 로그인 화면의 SSO 버튼, 구성원 목록 표시
+- [x] 화면 확인, 실제 LDAP(특히 Active Directory)·SSO 서비스로 확인 — 사용자 요청으로 완료 처리
+
+### M7a. 알림 통로
+
+- [x] 백엔드: `V3`, 메일·웹 푸시·API 알림 통로, 설정·내 알림 API, 통합 테스트 14개
+- [x] 프론트엔드: `/admin/notifications`, 내 설정의 알림, 서비스 워커
+- [x] 프로젝트 구독, API 알림을 받는 사람마다로만 (D-102)
+- [x] 화면 확인(프로젝트 개요의 구독 버튼 포함), 실제 SMTP·Firebase·메신저 주소로 확인 — 사용자 요청으로 완료 처리
+
+### M3. 프로젝트와 티켓
+
+- [x] 1단계 백엔드: `V3` 마이그레이션, 구성원 관리 API(`/api/v1/admin/members`), 사람 목록(`/api/v1/users`), 프로젝트와 프로젝트 구성원 API, 접근 판단(`ProjectService.access`), 통합 테스트 21개
+- [x] 1단계 프론트엔드: `/settings/members`, 홈의 프로젝트 목록, 사이드바 프로젝트 목록, 새 프로젝트 대화상자, `/project/{key}`, `/project/{key}/settings`
+- [x] 1단계 화면 확인 — 사용자 요청으로 완료 처리
+- [x] 2단계: 프리셋, 문서형 티켓 쓰기 — 문서형 티켓 쓰기는 구현됨, 프리셋은 화면에서 없앴다(D-060)
+- [x] 3단계: 티켓 목록, 상태 변경, 실시간 — 구현됨
+- [x] 4단계: 댓글과 `@` 태그 (D-101, 2026-10-13). 변경 이력은 활동 기록(D-061)까지
+- [x] 4단계 화면 확인 — 사용자 요청으로 완료 처리. 본문 변경의 이전 판 보기는 **만들지 않고 닫았다**(변경 이력은 활동 기록까지, D-225)
+
+### M3 2·3단계 (티켓, 편집기, Linear 식 화면)
+
+- [x] 백엔드: `V4`(issues), `V5`(content), 티켓 API, 문서 검증(`RichText`), 프로젝트 개요 문서. 테스트 18개 추가
+- [x] 프론트엔드: 앱 틀 재구성(사이드바 + 둥근 패널, 경로 표시, 알약 탭, 속성 카드), 프로젝트 개요, 새 티켓 창, 티켓 목록·상세, 문서 편집기(Tiptap, `/` 메뉴), 자동 저장
+- [x] 화면 확인: 에이전트가 **테스트 전용 DB(`flowbit_e2e`)에 별도 서버(8081/3100)를 띄워** 직접 확인했다. 초기 설정, 홈, 프로젝트 개요, 편집기의 `/` 메뉴와 제목·체크리스트, 자동 저장 후 새로 고침 유지, 티켓 목록, `C` 로 새 티켓 창, 프리셋 목차, `Ctrl+Enter` 로 생성, 티켓 상세, 내 설정, 관리자 구성원 화면
+- [x] 확인하지 못한 것: 다크 모드, 모바일 폭, 이미지 올리기, 구성원 추가·프로젝트 구성원 관리 대화상자의 실제 조작, 줄에서 상태 바꾸기, 보기 역할로 본 화면 — 사용자 요청으로 완료 처리
+
+### 2026-10-12 뒤에 고친 것
+
+- [x] 내 설정(`/settings`)과 관리자 설정(`/admin/workspace`, `/admin/members`)을 별도 화면으로 분리. 테마 선택을 사용자 메뉴에서 내 설정으로 옮김 (D-037)
+- [x] 페이지 이동 속도: `proxy.ts` 의 백엔드 호출 제거, `/session-expired`, `(app)/loading.tsx`, `(app)/error.tsx`, 중복 조회 제거 (D-038, [04-frontend-guide.md](04-frontend-guide.md) "페이지 이동이 느려지지 않게 하는 규칙")
+- [x] 위 변경의 화면 확인 — 사용자 요청으로 완료 처리 (lint, typecheck, `next build` 는 통과했었다)
+- [x] 프로젝트 속성: 상태, 우선순위, 리드, 기간(시작일 → 종료일), 라벨. `V6` 마이그레이션, `PATCH /api/v1/projects/{key}` 확장, 개요의 속성 카드 (D-042, [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "프로젝트 속성")
+- [x] `/project/[key]` 의 "uncached data outside of `<Suspense>`" 오류: 프로젝트 레이아웃의 조회를 `<Suspense>` 안으로 옮기고 `project/[key]/loading.tsx` 추가 ([04-frontend-guide.md](04-frontend-guide.md) 규칙 추가)
+- [x] 날짜 선택을 달력 팝오버로 교체 (D-043): 티켓 기한은 `DateChip`, 프로젝트 기간은 `DateRangeChip`(첫 클릭 시작일, 두 번째 클릭 종료일). `react-day-picker` 추가
+- [x] 실시간 반영과 프레즌스 (D-044): 백엔드 `realtime` 모듈(`RealtimeHub`, `RealtimeWebSocketHandler`), `SessionService.isActive`, 프로젝트·티켓 컨트롤러의 알림, 프런트 `RealtimeProvider`·`RealtimeScope`·`PresenceAvatars`, 편집기·입력 칸의 원격 값 반영, `components/ui/tooltip.tsx`
+- [x] 마일스톤 (D-045): `V7`, `milestone` 모듈(API 4개), 티켓의 `milestoneId`, 개요의 마일스톤 목록과 진행률, 티켓 상세·새 티켓 창의 마일스톤 칩, 티켓 목록의 마일스톤 거르기(`?milestone=`)
+- [x] 전체 프로젝트(`/`)를 Linear 식 표로 (D-046): 프로젝트 목록 API 에 `issueCount`, `doneCount`, `currentMilestone` 추가
+- [x] 모든 프로젝트를 목록에 표시, 들어갈 수 없는 프로젝트는 `/no-access/{key}` 에서 관리자 안내 (D-047). `GET /api/v1/projects/{key}/access`, 프런트 `loadProject`(lib/current-user.ts). `ProjectsIntegrationTest` 의 해당 테스트를 고쳤다(통과 확인)
+- [x] 프로젝트 업데이트와 건강도 (D-048): `V8`, `ProjectUpdateService`/`ProjectUpdateController`, 개요의 "프로젝트 업데이트", 속성 카드와 목록의 건강도, `--success` 색
+- [x] 마일스톤 필터 고침: 개요의 `티켓 n/m` 링크로 오면 그 마일스톤만 보이게(필터를 주소에 둠), 거른 상태의 새 티켓에 마일스톤이 미리 골라지게(버튼·`C` 로 열 때도), "필터 초기화" 버튼
+- [x] 로그인 시 아이디·비밀번호가 주소(GET)에 들어가던 문제: 로그인·초기 설정 폼에 `method="post"`, `proxy.ts` 가 주소의 `password` 를 지움, 개발 서버를 사내망 주소로 열 수 있게 `FLOWBIT_DEV_ORIGINS`(`allowedDevOrigins`)
+- [x] 프로젝트 아이콘 (D-049): `V9`(`projects.icon_key`), `PUT/DELETE /api/v1/projects/{key}/icon`, 설정 화면의 올리기, `components/project-icon.tsx` 를 사이드바·목록·경로·개요에 사용
+- [x] 프로젝트 아이콘: 통합 테스트(관리 역할만, 이전 파일 삭제) — **만들지 않고 닫았다** (D-225)
+- [x] 프로젝트 업데이트: 전용 `ProjectUpdatesIntegrationTest` 는 만들지 않았다. `ProjectsIntegrationTest` 의 「업데이트는 쓴 사람과 관리 역할만 지울 수 있고 지우면 건강도가 앞의 것으로 돌아간다」가 권한과 건강도를 본다
+- [x] 마일스톤: 목표 기능이 없어져(D-189) 필요 없어졌다
+- [x] 실시간: `RealtimeIntegrationTest` 가 있다(같은 화면을 보는 사람 전달, 티켓 변경 알림, 프로젝트에 들어오고 빠질 때, 마지막으로 본 때). 두 계정으로 남은 것 확인은 사용자 요청으로 완료 처리 (프로젝트 목록 반영과 아바타는 2026-10-13 에 에이전트가 확인했다)
+- [x] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 — 통합 테스트는 **만들지 않고 닫았고**(D-225), 화면 확인(달력 팝오버 포함)은 사용자 요청으로 완료 처리
+
+## 화면을 직접 확인하는 방법 (사용자 계정 없이)
+
+개발 DB 의 계정은 사용자의 것이라 에이전트는 로그인할 수 없다. 대신 테스트 전용 DB 로 서버를 따로 띄운다.
+
+1. `flowbit_e2e` DB 를 비운다 (`docker compose exec -T postgres psql -U flowbit -d postgres` 에서 drop/create).
+2. 백엔드: `./gradlew bootJar` 뒤 환경 변수 `FLOWBIT_DB_NAME=flowbit_e2e`, `SERVER_PORT=8081`, `FLOWBIT_STORAGE_PATH=build/e2e-uploads` 로 jar 실행.
+3. 프론트엔드: `BACKEND_URL=http://localhost:8081` 로 `next build` 후, 같은 환경 변수로 `next start -p 3100` (`proxy.ts` 가 실행 시점의 `BACKEND_URL` 로 초기 설정 여부를 묻는다). `.claude/launch.json` 의 `frontend-e2e` 가 이 실행 설정이다. (개발 서버는 같은 폴더에서 두 개를 띄울 수 없다.)
+4. `http://localhost:3100` 에서 초기 설정부터 한다. 데이터는 API 로 넣는 편이 빠르다.
+5. 끝나면 두 서버를 끄고, **`BACKEND_URL` 없이 `next build` 를 다시 한다** (rewrite 주소가 빌드에 들어가기 때문).
+
+브라우저 창이 가려져 있으면 화면 캡처가 자주 실패한다. 그때는 페이지 글자를 읽어 확인한다.
+
+## 알아둘 것 (코드를 고치기 전에)
+
+- **블로킹 코드 금지.** 백엔드는 WebFlux 다. JDBC/JPA/`.block()` 을 쓰지 않는다. 규칙은 [03-backend-guide.md](03-backend-guide.md) 맨 위.
+- R2DBC 엔티티는 변경 감지가 없다. 값을 바꾸면 `save` 를 직접 부르고, 새 행은 `R2dbcEntityTemplate.insert` 로 넣는다.
+- `@AuthenticationPrincipal` 로 받는 `AuthenticatedUser` 에 `java.security.Principal` 을 구현하면 타입 오류가 난다 (실제로 겪었다).
+- shadcn 은 Base UI 기반이다. `asChild` 가 아니라 `render` prop 을 쓴다.
+- Next.js 16: `middleware.ts` 가 아니라 `src/proxy.ts`. `cacheComponents` 가 켜져 있어 요청별 데이터를 읽는 서버 컴포넌트는 `<Suspense>` 안에 둔다.
+- 개발 DB 를 지우고 다시 시작해도 Next 서버는 그대로 둬도 된다. `proxy.ts` 는 "초기 설정 완료"를 기억하지만 **로그인하지 않은 요청에서는 매번 백엔드에 다시 묻는다**. 예전 세션 쿠키가 남아 있으면 한 번 `/session-expired` 를 거쳐 `/login` → `/setup` 으로 간다.
+- Next 개발 서버를 켠 채로 `providers.tsx` 같은 최상위 클라이언트 모듈을 새로 만들면 "No QueryClient set" 오류가 날 수 있다. 개발 서버를 다시 시작하면 사라진다.
+- 프론트엔드에 `npm install` 로 패키지를 추가할 때 peer 충돌이 나면 `@types/node` 버전부터 확인한다 (Vitest 가 22 이상을 요구해서 22 로 맞췄다).
+- 이 PC(macOS)의 JDK 25 는 `~/Library/Java/JavaVirtualMachines/corretto-25.0.4.1/Contents/Home` 에 있다. Gradle 을 돌릴 때 `JAVA_HOME` 을 이 경로로 지정한다.
+- **사용자가 IDE 로 백엔드를 띄워 둔 채 `./gradlew` 를 돌리면 그 서버가 깨진다.** IDE 는 `backend/build/classes` 의 클래스로 서버를 띄우는데, 빌드가 그 파일들을 바꿔 놓으면 서버가 나중에 읽는 클래스가 새 버전이 되어 요청이 멈추거나 500 이 난다(2026-10-12 에 초기 설정의 로고 올리기에서 겪었다). 에이전트의 검사는 `FLOWBIT_BUILD_DIR=build-check ./gradlew check` 처럼 다른 폴더에 빌드한다(`backend/build.gradle.kts` 끝).
+- 같은 저장소를 다른 세션이나 에디터가 동시에 고치고 있을 수 있다. 문서를 통째로 다시 쓰기 전에 현재 내용을 다시 읽는다.
+
+## 열린 질문
+
+[09-decisions.md](09-decisions.md) 의 "미결정" 표 참고. 작업 중 새로 생긴 질문은 아래에 적는다.
+
+- **PDF 미리보기는 무엇으로 볼지**(D-187 미정). 2026-10-22 에 npm·GitHub 로 조회한 후보: ① `react-pdf` 11.0.0(MIT, pdf.js 를 React 로 감쌈, 주간 약 370만 내려받기, 별 1.1만, 최근 배포 2026-09)이나 `pdfjs-dist` 6.4.299(Apache-2.0, 별 5.4만, 주간 약 2,000만)를 직접 쓴다: 가장 검증됐고 파일을 밖으로 보내지 않지만 툴바·썸네일·찾기는 직접 만든다. 파일은 `apiBytes` 로 받은 바이트를 넘기면 되어 서버·보안 모델은 그대로다(`octet-stream` 유지). ② EmbedPDF `@embedpdf/react-pdf-viewer` 2.15.1(npm 표기 MIT, 저장소 README 는 Apache-2.0 에 일부 폴더만 별도 라이선스, 3.x 는 개발 중): 툴바·사이드바·썸네일·찾기·다크 모드가 갖춰진 화면이다. 다만 기본값이 **PDFium wasm·글꼴·도장 목록을 `cdn.jsdelivr.net` 에서 받는다**(`wasmUrl`·`fontFallback` 설정으로 직접 호스팅할 수 있으나, 그러면 밖으로 나가는 요청이 정말 없는지는 확인하지 못했다). ③ `@docmentis/udoc-viewer`: wasm 에 별도 라이선스, "Powered by" 링크와 사용 통계 전송을 끌 수 없어 제외. ④ 브라우저 기본 PDF 뷰어(`<iframe>`)는 모바일에서 첫 쪽만 보이는 일이 많고 파일을 `inline` 으로 내줘야 해서(D-182 의 "다운로드로만" 원칙에 어긋난다) 제외.
+
+- **"기본적으로 모두에게 오픈"은 워크스페이스 전체의 "새 프로젝트 기본값"이었나?**(D-192) 요청 문장("프로젝트를 기본적으로 모두에게 오픈할지 설정")을 **프로젝트마다 고르는 설정**(기본은 지정한 구성원만, 새 프로젝트를 만들 때도 고름)으로 읽고 만들었다. 관리자 설정에 "새 프로젝트는 처음부터 모두에게 열기" 같은 기본값이 따로 필요하면 알려 달라(새 프로젝트 창의 선택을 그 값으로 미리 채우면 된다).
+
+- LDAP·SSO: (아이디가 같은 계정은 전환하기로 정해졌다, D-097) 이메일만 같은 계정도 이을지, LDAP 그룹으로 역할을 정할지, 디렉터리에서 사라진 사람을 자동으로 비활성화할지, SAML 이 필요한지. ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) "확인이 필요한 것")
+- hrm `/api/works/send` 에 쓸 만료되지 않는 토큰을 받을 수 있는지(문서에 없다). 없으면 API 알림의 고정 헤더로는 못 쓴다.
+- 알림: 첨부 파일·문서 변경도 알릴지(지금은 안 간다), 프로젝트에서 빠진 사람의 티켓 구독을 정리할지, 이메일 주소 확인 절차와 수신함이 필요한지, 프로젝트 구독을 자동으로 걸지(만든 사람·리드·새 구성원)와 구독자 목록을 보일지, 사람마다 받을 변경 종류를 고르게 할지. ([features/M7a-notification-channels.md](features/M7a-notification-channels.md) "확인이 필요한 것")
+- DB 에 평문으로 둔 비밀 값(LDAP 검색 계정 비밀번호, SSO 시크릿, SMTP 비밀번호, Firebase 서비스 계정 키, 웹훅 서명 값·헤더)을 암호화할지. 하려면 암호화 키를 환경 변수로 받아야 한다.
+- 프로젝트 아카이브(D-115): 아카이브된 프로젝트를 읽기 전용으로 열어 볼 수 있게 할지(지금은 복원해야 볼 수 있다), 완전히 삭제하는 기능이 필요한지, 아카이브할 때 구성원에게 알릴지.
+- 사용성 점검(2026-10-13)에서 나온, 사용자가 정해야 하는 것: (①③④⑤⑥⑦ 은 D-123 으로 했다. 남은 것은 ②) ② 상태 이름 "백로그·준비됨"을 접수·처리에 맞는 말로 바꿀지 ③ "만든 사람"을 "요청자"로, 내 티켓의 첫 탭을 무엇으로 할지 ④ 사이드바에 항상 보이는 "새 티켓" 버튼(지금은 전체 프로젝트·프로젝트 개요 화면에 버튼이 없다. 거기서 `C` 키가 되는지는 보지 않았다) ⑤ 로그인 뒤 첫 화면이 전체 프로젝트인 것 ⑥ 전체 티켓 목록에서 프로젝트 칸이 좁은 폭(1024px 미만)에서 사라지고, 연결하지 않은 티켓은 빈칸인 것 ⑦ 프로젝트 개요에 그 프로젝트의 티켓 요약이 없는 것(목표의 `티켓 n/m` 뿐).
+- 데이터 보관(D-132): 아카이브된 프로젝트도 기간이 지나면 영구 삭제할지(그러면 그 안의 티켓도 함께 지울지 정해야 한다), 이 설정을 백업 파일에 넣을지, 화면에 마지막 정리 시각과 개수를 보여 줄지. (편집기에 넣은 이미지 정리는 D-171 로 정해졌다.)
+- Git 연동(D-141, D-145~D-147): "리뷰 중" 상태가 필요한지, 커밋을 활동에 남길지(지금은 남긴다), 가져오기 주기(2분), GitHub 를 웹훅으로 받을 때 외부에 열 주소. 명세의 "확인이 필요한 것".
+- 프로젝트로 거른 전체 티켓 목록(`/issues?project=…`, 프로젝트의 옛 "티켓" 주소가 넘어오는 곳)에서 `C`·"새 티켓"으로 만든 티켓에는 프로젝트가 붙지 않아 방금 만든 티켓이 그 목록에 안 보인다(D-135 이후). 거른 프로젝트를 기본값으로 할지 정해야 한다. 새 티켓 창의 `members`·`milestones` 가 "창을 연 프로젝트" 기준이라 `defaultProjectId` 만 바꾸면 담당자·목표 선택지가 틀어지니 함께 고쳐야 한다.
+- 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
+
+## 작업 기록
+
+### 2026-10-28 — 남은 체크 항목 24개 닫기, 요약부 정리 (D-225)
+
+- 사용자 요청: PROGRESS.md 의 미완료 처리된 항목을 완료 처리하고 내용을 정리.
+- 한 것: ① 체크리스트와 "다음 작업" 의 `- [ ]` 24개를 모두 `- [x]` 로 바꿨다. 화면 확인·실제 서버 확인·사용자 확인은 "사용자 요청으로 완료 처리", 목표 기능이 없어진 것(D-189)과 이미 구현된 것은 그 사실을 적었고, 코드가 실제로 없던 것은 "만들지 않고 닫았다"고 적었다(CI, `safeNextPath`·`auth/schema`·`api/errors` 전용 Vitest, 로그인·리다이렉트 E2E 시나리오, 프로젝트 아이콘·프로젝트 속성 통합 테스트, 본문 이전 판 보기) ② "현재 상태" 를 구현된 것·검증 상태·실행할 때 알아둘 것 세 묶음의 요약으로 줄이고 예전 전문은 아래로 그대로 옮겼다 ③ "다음 작업" 의 낡은 메모("이전 메모", M3 2단계 시작 전 확인)를 정리하고 "열린 질문" 의 없어진 목표 질문 한 줄을 지웠다 ④ `08-roadmap.md` 의 M0~M2b·M7a 상태와 M0 체크, M3 명세의 "본문 변경의 이전 판 보기", `09-decisions.md` D-225 에 반영했다.
+- 확인: 코드는 바꾸지 않았다(문서만). 닫기 전에 저장소와 맞춰 봤다 — CI 설정 파일 없음, Vitest 14개 파일, E2E 6개 파일, 프로젝트 아이콘·속성 테스트 없음, `RealtimeIntegrationTest`·`ProjectsIntegrationTest` 의 해당 테스트 있음. 옮긴 "현재 상태" 전문과 그 아래 작업 기록은 원문과 같은 것을 `diff` 로 확인했다.
+- 알아둘 것: "사용자 요청으로 완료 처리"한 항목은 에이전트가 확인한 것이 아니다. 낡아서 실패한다고 기록된 E2E 둘(`flows.spec.ts` "files are attached and removed", `changes.spec.ts` "project overview: status and following show at once")은 고치지 않았다.
+
+### 2026-10-28 — 정리 전 "현재 상태" 전문 (2026-10-12~23 의 항목별 기록)
+
+위 "현재 상태"를 짧게 고치면서 예전 내용을 **한 글자도 고치지 않고** 여기로 옮겼다. 그때그때의 사정("화면은 아무도 확인하지 않았다", "테스트는 돌리지 않았다", "백엔드를 다시 띄워야 한다", 테스트 개수 등)이 그대로 들어 있어 **지금과 다른 말이 있다.** 현재 상태는 위의 요약과 체크리스트를 따르고, 여기는 무엇을 왜 했는지 찾아볼 때만 본다.
+
 - **M1(로그인 및 초기 설정)이 구현되어 동작한다.** 사용자가 브라우저에서 초기 설정 → 로그아웃 → 로그인을 직접 확인했다 (2026-10-12).
 - 제품 방향은 **Linear식**이다 (D-020). 기준 문서는 [01-product.md](01-product.md). M2 이후의 화면은 아직 하나도 없다.
 - 백엔드는 **WebFlux + 코루틴 + R2DBC** 다 (D-019). `./gradlew check` 통과: ktlint, 테스트 96개(통합 86, 단위 10), PostgreSQL 18 Testcontainers. **실시간·마일스톤·건강도·프로젝트 아이콘(`V7`~`V9`)까지 포함한 현재 코드로 2026-10-12 에 다시 통과를 확인했다.** 다만 그 기능들의 전용 통합 테스트는 아직 없다(아래 체크리스트).
@@ -112,160 +295,6 @@
 - **타임라인에서 기한만 정한 티켓(시작일 없음)이 그 하루만 막대로 그려진다 — "설정한 날부터 오늘까지"로 보이던 것을 고쳤다** (D-207, 2026-10-23, 사용자 질문: "타임라인에 왜 하루동안했던 작업은 설정한 날로부터 오늘까지로 표기되어잇음?"). **원인**: 막대가 `시작일 ?? 만든 날` 부터 `기한` 까지였다(D-078). 하루짜리 일은 날짜를 하나만 정하고(시작일 없음) 보통 끝낸 뒤에 티켓을 만들거나 날짜를 적으므로, 기한이 만든 날(= 오늘)보다 앞이면 `min`/`max` 로 순서가 뒤집혀 기한 날에서 만든 날까지 이어졌다. 캘린더는 같은 티켓을 그 하루로 그려서 두 보기도 어긋났다. **고침**: 시작일이 없고 기한이 있으면 **기한 하루**(`timeline-span.ts` 의 `spanOf` 한 곳; `issue-timeline.tsx` 의 `barOf` 가 쓴다; 단위 테스트 5개). 그대로: 기한이 **없는** 티켓은 만든 날(시작일이 있으면 그날)부터 끝난 날·오늘까지(흐린 막대). 공유 타임라인의 서버 쪽 판단(`MyIssuesTimelineShare`: `시작일 ?: 기한 ?: 만든 날`)도 맞췄고 통합 테스트 1개를 더했다. 도움말·M3 명세·공유 명세·D-207 을 고쳤다. **영향**: 기한만 정해 둔 티켓은 전에는 만든 날~기한의 긴 막대였는데 이제 하루 막대다 — 만든 뒤 기한까지 걸리는 기간을 보던 사용자는 시작일도 정해야 한다(되돌리려면 알려 달라). **확인**: 백엔드 `compileKotlin`·`compileTestKotlin`·`ktlintCheck` 통과; 프런트 `typecheck`·eslint·`npm test`(12파일 83개). **통합 테스트는 Docker 가 꺼져 있어 돌리지 못했고 화면은 확인하지 않았다.**
 
 - **PWA 창 제목줄이 이동할 때 흰색으로 번쩍이던 것** (2026-10-22 이후). 원인(재현함): `viewport.themeColor` 의 `theme-color` 태그를 Next 가 페이지를 옮길 때마다 지웠다가 다시 넣어, 그 사이 제목줄이 흰색으로 돌아갔다. `layout.tsx` 가 태그를 직접 그려 같은 태그가 계속 남는다(개발 서버에서 태그가 지워지지 않는 것까지 확인). **설치한 앱에서는 확인하지 못했다.** 링크가 앱으로 열리지 않는 것은 HTTP 주소(`http://192.168.x.x`)로 "바로가기"를 만든 앱이면 PWA 가 아니라서 매니페스트·링크 열기 설정이 안 먹는 것으로 보인다(HTTPS 필요, 10-install.md).
-
-## 다음 작업
-
-**PDF 미리보기를 무엇으로 붙일지 정해야 한다**(아래 "열린 질문"의 후보 비교). 정해지면 같은 창(`FileViewer`)에 `pdf` 종류를 더한다.
-
-**다음 차례는 M3 의 남은 것이다**: 완료 조건 진행률, 본문 변경의 이전 판 보기 (명세의 "아직 없는 것"). 낙관적 업데이트는 2026-10-13 에 됐다(D-114). 댓글과 `@` 태그는 2026-10-13 에 만들었고 화면 확인이 남았다. 사용자가 순서를 정해 주기 전에는 하나를 임의로 고르지 않는다.
-
-(이전 메모) M3 2단계(프리셋과 문서형 티켓 쓰기)는 구현됐다. 시작하기 전에 명세의 "확인이 필요한 것"(특히 편집기 Tiptap, 프리셋 목차, 상태 이름, 동시 편집 방식)을 사용자에게 확인한다. 그 전에 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다).
-
-**Git 연동은 명세의 단계를 모두 마쳤다** ([features/git-integration.md](features/git-integration.md), D-145~D-162). 남은 것은 실제 서버로 확인하는 일이다: 사내 Gitea·GitLab 에 웹훅을 걸어 "마지막 수신"을 보고, GitHub 는 조직 소유자가 "GitHub 에서 앱 만들기" → "조직에 설치"를 해 본다(특히 `POST /app-manifests/{code}/conversions` 를 인증 없이 부르는 것이 실제로 되는지). 견본과 다르면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"도 사용자에게 묻는다.
-
-그 밖의 일은 사용자가 지시하기 전에 임의로 시작하지 않는다. 지시를 받으면:
-
-1. 해당 마일스톤의 범위를 사용자에게 확인한다 ([08-roadmap.md](08-roadmap.md) 의 M2 이후는 초안이다).
-2. `features/M<번호>-<이름>.md` 명세를 먼저 쓴다. 화면은 [01-product.md](01-product.md) 의 해당 절을 따른다.
-3. 구현한다.
-
-남아 있는 M0·M1 의 빈 곳 (사용자가 "테스트는 내가 해 보고 문제 있으면 말하겠다"고 해서 멈춘 것들):
-
-- [ ] 프론트엔드 단위 테스트 (Vitest): `safeNextPath`, `features/auth/schema.ts`, `lib/api/errors.ts`
-- [ ] E2E (Playwright): 초기 설정 → 로그아웃 → 로그인, 리다이렉트 규칙, `next` 파라미터. `flowbit_e2e` DB 를 쓰는 별도 백엔드(예: 8081)와 Next 서버(예: 3100)로 돌린다. DB 는 `docker/postgres/init` 스크립트가 볼륨 생성 시 만들어 둔다
-- [ ] CI
-- [ ] 디자인 리뷰 스킬로 점검, 다크 모드와 360px 폭 확인, 키보드만으로 전체 흐름 확인 (에이전트는 라이트 모드 데스크톱 폭의 초기 설정 화면과 검증 오류 표시까지만 직접 봤다)
-- [ ] 429·네트워크 오류·서버 오류 문구가 화면에 제대로 나오는지 (코드는 있고, 화면에서 확인하지 않았다)
-
-## 마일스톤 체크리스트
-
-### M0. 프로젝트 뼈대
-
-- [x] `docker-compose.yml` (PostgreSQL 18), `.env.example`, E2E 용 DB 생성 스크립트
-- [x] `backend/` WebFlux + R2DBC + Flyway, 공통 구성, ktlint, health 엔드포인트, 통합 테스트 기반
-- [x] `frontend/` Next.js 16 + shadcn(base-nova), `/api` rewrite, API 클라이언트, 디자인 토큰, Pretendard
-- [x] 루트 `README.md`
-- [ ] 프론트엔드 테스트 설정과 테스트
-- [ ] CI
-
-### M1. 로그인 및 초기 설정
-
-- [x] 백엔드: 마이그레이션 `V1` (instance_settings, users, user_sessions, audit_events)
-- [x] 백엔드: 보안 설정 (세션 쿠키, CSRF, 공개 경로, 401/403 문제 문서)
-- [x] 백엔드: `setup`, `auth`, `user`, `instance` 모듈, 요청 제한, 잠금, 감사 로그
-- [x] 백엔드: 인수 기준 통합 테스트
-- [x] 프론트엔드: `/setup`, `/login`, 홈(빈 상태), 사이드바와 사용자 메뉴(테마, 로그아웃), `/unavailable`
-- [x] 프론트엔드: `proxy.ts` 리다이렉트 규칙
-- [ ] 프론트엔드 자동 테스트, 디자인·접근성 점검 (위 "남아 있는 빈 곳")
-- [ ] 세부 수치 사용자 확인 (제안값으로 구현됨: 아이디 4~32자, 비밀번호 10자 이상, 5회 실패 시 15분 잠금, 세션 7일/최대 30일, IP당 분당 10회)
-
-### M2a. 설정 화면과 이미지 업로드
-
-- [x] 백엔드: `V2` 마이그레이션, `media` 모듈(WebP 변환, 파일 저장, 파일 제공), 프로필·워크스페이스 API, `/api/v1/admin/**` 관리자 규칙, `.env` 읽기
-- [x] 백엔드: 통합 테스트 15개
-- [x] 프론트엔드: 사용자 메뉴의 설정/관리자 설정, `/settings/profile`, `/settings/workspace`, 사이드바의 로고·이름, 아바타
-- [ ] 화면 확인 (명세의 "화면에서 확인이 필요한 것")
-- [ ] 명세의 "확인이 필요한 것" 3가지 사용자 확인
-
-### M2b. LDAP·SSO 연동, 이메일 아이디
-
-- [x] 백엔드: `V2`, LDAP 인증, OIDC SSO, 자동 가입, 이메일 아이디, 설정 API, 통합 테스트 22개
-- [x] 프론트엔드: `/admin/auth`, 로그인 화면의 SSO 버튼, 구성원 목록 표시
-- [ ] 화면 확인, 실제 LDAP(특히 Active Directory)·SSO 서비스로 확인
-
-### M7a. 알림 통로
-
-- [x] 백엔드: `V3`, 메일·웹 푸시·API 알림 통로, 설정·내 알림 API, 통합 테스트 14개
-- [x] 프론트엔드: `/admin/notifications`, 내 설정의 알림, 서비스 워커
-- [x] 프로젝트 구독, API 알림을 받는 사람마다로만 (D-102)
-- [ ] 화면 확인(프로젝트 개요의 구독 버튼 포함), 실제 SMTP·Firebase·메신저 주소로 확인
-
-### M3. 프로젝트와 티켓
-
-- [x] 1단계 백엔드: `V3` 마이그레이션, 구성원 관리 API(`/api/v1/admin/members`), 사람 목록(`/api/v1/users`), 프로젝트와 프로젝트 구성원 API, 접근 판단(`ProjectService.access`), 통합 테스트 21개
-- [x] 1단계 프론트엔드: `/settings/members`, 홈의 프로젝트 목록, 사이드바 프로젝트 목록, 새 프로젝트 대화상자, `/project/{key}`, `/project/{key}/settings`
-- [ ] 1단계 화면 확인 (에이전트는 로그인할 수 없어 보지 못했다)
-- [ ] 2단계: 프리셋, 문서형 티켓 쓰기
-- [ ] 3단계: 티켓 목록, 상태 변경, 실시간
-- [x] 4단계: 댓글과 `@` 태그 (D-101, 2026-10-13). 변경 이력은 활동 기록(D-061)까지
-- [ ] 4단계 화면 확인, 본문 변경의 이전 판 보기
-
-### M3 2·3단계 (티켓, 편집기, Linear 식 화면)
-
-- [x] 백엔드: `V4`(issues), `V5`(content), 티켓 API, 문서 검증(`RichText`), 프로젝트 개요 문서. 테스트 18개 추가
-- [x] 프론트엔드: 앱 틀 재구성(사이드바 + 둥근 패널, 경로 표시, 알약 탭, 속성 카드), 프로젝트 개요, 새 티켓 창, 티켓 목록·상세, 문서 편집기(Tiptap, `/` 메뉴), 자동 저장
-- [x] 화면 확인: 에이전트가 **테스트 전용 DB(`flowbit_e2e`)에 별도 서버(8081/3100)를 띄워** 직접 확인했다. 초기 설정, 홈, 프로젝트 개요, 편집기의 `/` 메뉴와 제목·체크리스트, 자동 저장 후 새로 고침 유지, 티켓 목록, `C` 로 새 티켓 창, 프리셋 목차, `Ctrl+Enter` 로 생성, 티켓 상세, 내 설정, 관리자 구성원 화면
-- [ ] 확인하지 못한 것: 다크 모드, 모바일 폭, 이미지 올리기, 구성원 추가·프로젝트 구성원 관리 대화상자의 실제 조작, 줄에서 상태 바꾸기, 보기 역할로 본 화면
-
-### 2026-10-12 뒤에 고친 것
-
-- [x] 내 설정(`/settings`)과 관리자 설정(`/admin/workspace`, `/admin/members`)을 별도 화면으로 분리. 테마 선택을 사용자 메뉴에서 내 설정으로 옮김 (D-037)
-- [x] 페이지 이동 속도: `proxy.ts` 의 백엔드 호출 제거, `/session-expired`, `(app)/loading.tsx`, `(app)/error.tsx`, 중복 조회 제거 (D-038, [04-frontend-guide.md](04-frontend-guide.md) "페이지 이동이 느려지지 않게 하는 규칙")
-- [ ] 위 변경의 화면 확인 (에이전트는 로그인할 수 없어 보지 못했다. lint, typecheck, `next build` 통과)
-- [x] 프로젝트 속성: 상태, 우선순위, 리드, 기간(시작일 → 종료일), 라벨. `V6` 마이그레이션, `PATCH /api/v1/projects/{key}` 확장, 개요의 속성 카드 (D-042, [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) "프로젝트 속성")
-- [x] `/project/[key]` 의 "uncached data outside of `<Suspense>`" 오류: 프로젝트 레이아웃의 조회를 `<Suspense>` 안으로 옮기고 `project/[key]/loading.tsx` 추가 ([04-frontend-guide.md](04-frontend-guide.md) 규칙 추가)
-- [x] 날짜 선택을 달력 팝오버로 교체 (D-043): 티켓 기한은 `DateChip`, 프로젝트 기간은 `DateRangeChip`(첫 클릭 시작일, 두 번째 클릭 종료일). `react-day-picker` 추가
-- [x] 실시간 반영과 프레즌스 (D-044): 백엔드 `realtime` 모듈(`RealtimeHub`, `RealtimeWebSocketHandler`), `SessionService.isActive`, 프로젝트·티켓 컨트롤러의 알림, 프런트 `RealtimeProvider`·`RealtimeScope`·`PresenceAvatars`, 편집기·입력 칸의 원격 값 반영, `components/ui/tooltip.tsx`
-- [x] 마일스톤 (D-045): `V7`, `milestone` 모듈(API 4개), 티켓의 `milestoneId`, 개요의 마일스톤 목록과 진행률, 티켓 상세·새 티켓 창의 마일스톤 칩, 티켓 목록의 마일스톤 거르기(`?milestone=`)
-- [x] 전체 프로젝트(`/`)를 Linear 식 표로 (D-046): 프로젝트 목록 API 에 `issueCount`, `doneCount`, `currentMilestone` 추가
-- [x] 모든 프로젝트를 목록에 표시, 들어갈 수 없는 프로젝트는 `/no-access/{key}` 에서 관리자 안내 (D-047). `GET /api/v1/projects/{key}/access`, 프런트 `loadProject`(lib/current-user.ts). `ProjectsIntegrationTest` 의 해당 테스트를 고쳤다(통과 확인)
-- [x] 프로젝트 업데이트와 건강도 (D-048): `V8`, `ProjectUpdateService`/`ProjectUpdateController`, 개요의 "프로젝트 업데이트", 속성 카드와 목록의 건강도, `--success` 색
-- [x] 마일스톤 필터 고침: 개요의 `티켓 n/m` 링크로 오면 그 마일스톤만 보이게(필터를 주소에 둠), 거른 상태의 새 티켓에 마일스톤이 미리 골라지게(버튼·`C` 로 열 때도), "필터 초기화" 버튼
-- [x] 로그인 시 아이디·비밀번호가 주소(GET)에 들어가던 문제: 로그인·초기 설정 폼에 `method="post"`, `proxy.ts` 가 주소의 `password` 를 지움, 개발 서버를 사내망 주소로 열 수 있게 `FLOWBIT_DEV_ORIGINS`(`allowedDevOrigins`)
-- [x] 프로젝트 아이콘 (D-049): `V9`(`projects.icon_key`), `PUT/DELETE /api/v1/projects/{key}/icon`, 설정 화면의 올리기, `components/project-icon.tsx` 를 사이드바·목록·경로·개요에 사용
-- [ ] 프로젝트 아이콘: 통합 테스트(관리 역할만, 이전 파일 삭제)
-- [ ] 프로젝트 업데이트: `ProjectUpdatesIntegrationTest`(권한, 최근 건강도가 목록에 반영) 작성
-- [ ] 마일스톤: `MilestonesIntegrationTest`(권한, 다른 프로젝트 마일스톤 거부, 진행률 계산, 삭제 시 티켓 유지)와 화면 확인
-- [ ] 실시간: 두 계정으로 남은 것 확인(티켓 생성·상태 변경이 상대 화면에 그려지는지, 티켓 상세의 제목·본문 원격 반영, 커서·블록 표시, 끊겼다 다시 붙기. 프로젝트 목록 반영과 아바타는 2026-10-13 에 확인함), `RealtimeIntegrationTest`(WebSocket 연결·권한·Origin·알림) 작성. 백엔드 컴파일과 기존 테스트는 통과한다
-- [ ] 프로젝트 속성의 백엔드 통합 테스트와 화면 확인 (달력 팝오버 포함) (사용자가 "작업 뒤 테스트하지 말 것"을 지정해 하지 않았다)
-
-## 화면을 직접 확인하는 방법 (사용자 계정 없이)
-
-개발 DB 의 계정은 사용자의 것이라 에이전트는 로그인할 수 없다. 대신 테스트 전용 DB 로 서버를 따로 띄운다.
-
-1. `flowbit_e2e` DB 를 비운다 (`docker compose exec -T postgres psql -U flowbit -d postgres` 에서 drop/create).
-2. 백엔드: `./gradlew bootJar` 뒤 환경 변수 `FLOWBIT_DB_NAME=flowbit_e2e`, `SERVER_PORT=8081`, `FLOWBIT_STORAGE_PATH=build/e2e-uploads` 로 jar 실행.
-3. 프론트엔드: `BACKEND_URL=http://localhost:8081` 로 `next build` 후, 같은 환경 변수로 `next start -p 3100` (`proxy.ts` 가 실행 시점의 `BACKEND_URL` 로 초기 설정 여부를 묻는다). `.claude/launch.json` 의 `frontend-e2e` 가 이 실행 설정이다. (개발 서버는 같은 폴더에서 두 개를 띄울 수 없다.)
-4. `http://localhost:3100` 에서 초기 설정부터 한다. 데이터는 API 로 넣는 편이 빠르다.
-5. 끝나면 두 서버를 끄고, **`BACKEND_URL` 없이 `next build` 를 다시 한다** (rewrite 주소가 빌드에 들어가기 때문).
-
-브라우저 창이 가려져 있으면 화면 캡처가 자주 실패한다. 그때는 페이지 글자를 읽어 확인한다.
-
-## 알아둘 것 (코드를 고치기 전에)
-
-- **블로킹 코드 금지.** 백엔드는 WebFlux 다. JDBC/JPA/`.block()` 을 쓰지 않는다. 규칙은 [03-backend-guide.md](03-backend-guide.md) 맨 위.
-- R2DBC 엔티티는 변경 감지가 없다. 값을 바꾸면 `save` 를 직접 부르고, 새 행은 `R2dbcEntityTemplate.insert` 로 넣는다.
-- `@AuthenticationPrincipal` 로 받는 `AuthenticatedUser` 에 `java.security.Principal` 을 구현하면 타입 오류가 난다 (실제로 겪었다).
-- shadcn 은 Base UI 기반이다. `asChild` 가 아니라 `render` prop 을 쓴다.
-- Next.js 16: `middleware.ts` 가 아니라 `src/proxy.ts`. `cacheComponents` 가 켜져 있어 요청별 데이터를 읽는 서버 컴포넌트는 `<Suspense>` 안에 둔다.
-- 개발 DB 를 지우고 다시 시작해도 Next 서버는 그대로 둬도 된다. `proxy.ts` 는 "초기 설정 완료"를 기억하지만 **로그인하지 않은 요청에서는 매번 백엔드에 다시 묻는다**. 예전 세션 쿠키가 남아 있으면 한 번 `/session-expired` 를 거쳐 `/login` → `/setup` 으로 간다.
-- Next 개발 서버를 켠 채로 `providers.tsx` 같은 최상위 클라이언트 모듈을 새로 만들면 "No QueryClient set" 오류가 날 수 있다. 개발 서버를 다시 시작하면 사라진다.
-- 프론트엔드에 `npm install` 로 패키지를 추가할 때 peer 충돌이 나면 `@types/node` 버전부터 확인한다 (Vitest 가 22 이상을 요구해서 22 로 맞췄다).
-- 이 PC(macOS)의 JDK 25 는 `~/Library/Java/JavaVirtualMachines/corretto-25.0.4.1/Contents/Home` 에 있다. Gradle 을 돌릴 때 `JAVA_HOME` 을 이 경로로 지정한다.
-- **사용자가 IDE 로 백엔드를 띄워 둔 채 `./gradlew` 를 돌리면 그 서버가 깨진다.** IDE 는 `backend/build/classes` 의 클래스로 서버를 띄우는데, 빌드가 그 파일들을 바꿔 놓으면 서버가 나중에 읽는 클래스가 새 버전이 되어 요청이 멈추거나 500 이 난다(2026-10-12 에 초기 설정의 로고 올리기에서 겪었다). 에이전트의 검사는 `FLOWBIT_BUILD_DIR=build-check ./gradlew check` 처럼 다른 폴더에 빌드한다(`backend/build.gradle.kts` 끝).
-- 같은 저장소를 다른 세션이나 에디터가 동시에 고치고 있을 수 있다. 문서를 통째로 다시 쓰기 전에 현재 내용을 다시 읽는다.
-
-## 열린 질문
-
-[09-decisions.md](09-decisions.md) 의 "미결정" 표 참고. 작업 중 새로 생긴 질문은 아래에 적는다.
-
-- **PDF 미리보기는 무엇으로 볼지**(D-187 미정). 2026-10-22 에 npm·GitHub 로 조회한 후보: ① `react-pdf` 11.0.0(MIT, pdf.js 를 React 로 감쌈, 주간 약 370만 내려받기, 별 1.1만, 최근 배포 2026-09)이나 `pdfjs-dist` 6.4.299(Apache-2.0, 별 5.4만, 주간 약 2,000만)를 직접 쓴다: 가장 검증됐고 파일을 밖으로 보내지 않지만 툴바·썸네일·찾기는 직접 만든다. 파일은 `apiBytes` 로 받은 바이트를 넘기면 되어 서버·보안 모델은 그대로다(`octet-stream` 유지). ② EmbedPDF `@embedpdf/react-pdf-viewer` 2.15.1(npm 표기 MIT, 저장소 README 는 Apache-2.0 에 일부 폴더만 별도 라이선스, 3.x 는 개발 중): 툴바·사이드바·썸네일·찾기·다크 모드가 갖춰진 화면이다. 다만 기본값이 **PDFium wasm·글꼴·도장 목록을 `cdn.jsdelivr.net` 에서 받는다**(`wasmUrl`·`fontFallback` 설정으로 직접 호스팅할 수 있으나, 그러면 밖으로 나가는 요청이 정말 없는지는 확인하지 못했다). ③ `@docmentis/udoc-viewer`: wasm 에 별도 라이선스, "Powered by" 링크와 사용 통계 전송을 끌 수 없어 제외. ④ 브라우저 기본 PDF 뷰어(`<iframe>`)는 모바일에서 첫 쪽만 보이는 일이 많고 파일을 `inline` 으로 내줘야 해서(D-182 의 "다운로드로만" 원칙에 어긋난다) 제외.
-
-- ~~목표(D-136)~~: 목표 기능이 없어져(D-189) 이 질문은 없어졌다.
-- **"기본적으로 모두에게 오픈"은 워크스페이스 전체의 "새 프로젝트 기본값"이었나?**(D-192) 요청 문장("프로젝트를 기본적으로 모두에게 오픈할지 설정")을 **프로젝트마다 고르는 설정**(기본은 지정한 구성원만, 새 프로젝트를 만들 때도 고름)으로 읽고 만들었다. 관리자 설정에 "새 프로젝트는 처음부터 모두에게 열기" 같은 기본값이 따로 필요하면 알려 달라(새 프로젝트 창의 선택을 그 값으로 미리 채우면 된다).
-
-- LDAP·SSO: (아이디가 같은 계정은 전환하기로 정해졌다, D-097) 이메일만 같은 계정도 이을지, LDAP 그룹으로 역할을 정할지, 디렉터리에서 사라진 사람을 자동으로 비활성화할지, SAML 이 필요한지. ([features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) "확인이 필요한 것")
-- hrm `/api/works/send` 에 쓸 만료되지 않는 토큰을 받을 수 있는지(문서에 없다). 없으면 API 알림의 고정 헤더로는 못 쓴다.
-- 알림: 첨부 파일·문서 변경도 알릴지(지금은 안 간다), 프로젝트에서 빠진 사람의 티켓 구독을 정리할지, 이메일 주소 확인 절차와 수신함이 필요한지, 프로젝트 구독을 자동으로 걸지(만든 사람·리드·새 구성원)와 구독자 목록을 보일지, 사람마다 받을 변경 종류를 고르게 할지. ([features/M7a-notification-channels.md](features/M7a-notification-channels.md) "확인이 필요한 것")
-- DB 에 평문으로 둔 비밀 값(LDAP 검색 계정 비밀번호, SSO 시크릿, SMTP 비밀번호, Firebase 서비스 계정 키, 웹훅 서명 값·헤더)을 암호화할지. 하려면 암호화 키를 환경 변수로 받아야 한다.
-- 프로젝트 아카이브(D-115): 아카이브된 프로젝트를 읽기 전용으로 열어 볼 수 있게 할지(지금은 복원해야 볼 수 있다), 완전히 삭제하는 기능이 필요한지, 아카이브할 때 구성원에게 알릴지.
-- 사용성 점검(2026-10-13)에서 나온, 사용자가 정해야 하는 것: (①③④⑤⑥⑦ 은 D-123 으로 했다. 남은 것은 ②) ② 상태 이름 "백로그·준비됨"을 접수·처리에 맞는 말로 바꿀지 ③ "만든 사람"을 "요청자"로, 내 티켓의 첫 탭을 무엇으로 할지 ④ 사이드바에 항상 보이는 "새 티켓" 버튼(지금은 전체 프로젝트·프로젝트 개요 화면에 버튼이 없다. 거기서 `C` 키가 되는지는 보지 않았다) ⑤ 로그인 뒤 첫 화면이 전체 프로젝트인 것 ⑥ 전체 티켓 목록에서 프로젝트 칸이 좁은 폭(1024px 미만)에서 사라지고, 연결하지 않은 티켓은 빈칸인 것 ⑦ 프로젝트 개요에 그 프로젝트의 티켓 요약이 없는 것(목표의 `티켓 n/m` 뿐).
-- 데이터 보관(D-132): 아카이브된 프로젝트도 기간이 지나면 영구 삭제할지(그러면 그 안의 티켓도 함께 지울지 정해야 한다), 이 설정을 백업 파일에 넣을지, 화면에 마지막 정리 시각과 개수를 보여 줄지. (편집기에 넣은 이미지 정리는 D-171 로 정해졌다.)
-- Git 연동(D-141, D-145~D-147): "리뷰 중" 상태가 필요한지, 커밋을 활동에 남길지(지금은 남긴다), 가져오기 주기(2분), GitHub 를 웹훅으로 받을 때 외부에 열 주소. 명세의 "확인이 필요한 것".
-- 프로젝트로 거른 전체 티켓 목록(`/issues?project=…`, 프로젝트의 옛 "티켓" 주소가 넘어오는 곳)에서 `C`·"새 티켓"으로 만든 티켓에는 프로젝트가 붙지 않아 방금 만든 티켓이 그 목록에 안 보인다(D-135 이후). 거른 프로젝트를 기본값으로 할지 정해야 한다. 새 티켓 창의 `members`·`milestones` 가 "창을 연 프로젝트" 기준이라 `defaultProjectId` 만 바꾸면 담당자·목표 선택지가 틀어지니 함께 고쳐야 한다.
-- 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
-
-## 작업 기록
 
 ### 2026-10-27 — 필터를 "필터" 버튼 하나로 모아 가로 스크롤 없애기 (D-224)
 

@@ -4,17 +4,17 @@
 
 | 마일스톤 | 내용 | 상태 | 명세 |
 |---|---|---|---|
-| M0 | 프로젝트 뼈대 | 대부분 완료 (CI, 프론트 테스트 남음) | 아래 |
-| M1 | 로그인 및 초기 설정 | 구현됨 (프론트 자동 테스트 남음) | [features/M1-auth-and-setup.md](features/M1-auth-and-setup.md) |
-| M2a | 설정 화면과 이미지 업로드 (M2 의 일부를 먼저) | 구현됨 (화면 확인 남음) | [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md) |
-| M2b | LDAP 연동, SSO(OpenID Connect) 연동, 이메일 아이디 | 구현됨 (화면·실제 서버 확인 남음) | [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) |
+| M0 | 프로젝트 뼈대 | 완료 (CI 는 만들지 않고 닫음, D-225) | 아래 |
+| M1 | 로그인 및 초기 설정 | 구현됨 | [features/M1-auth-and-setup.md](features/M1-auth-and-setup.md) |
+| M2a | 설정 화면과 이미지 업로드 (M2 의 일부를 먼저) | 구현됨 | [features/M2a-settings-and-images.md](features/M2a-settings-and-images.md) |
+| M2b | LDAP 연동, SSO(OpenID Connect) 연동, 이메일 아이디 | 구현됨 | [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md) |
 | M2 | 구성원과 워크스페이스 설정 (나머지: 내 비밀번호 변경, 언어·시간대) | 초안 | 미작성 |
 | M3 | 프로젝트와 티켓 (구성원, 프로젝트 권한, 프리셋, 문서형 티켓, 목록, 댓글) | **1단계 구현됨, 2·3단계 핵심 구현됨**(티켓·편집기), 4단계는 댓글·`@` 태그 구현됨 | [features/M3-projects-and-issues.md](features/M3-projects-and-issues.md) |
 | M4 | 커맨드 팔레트와 단축키, 실행 취소 | 초안 | 미작성 |
 | M5 | 보드 | 초안 | 미작성 |
 | M6 | 사이클 | 초안 | 미작성 |
 | M7 | 수신함과 트리아지 | 초안 | 미작성 |
-| M7a | 알림 통로: 메일(SMTP), 웹 푸시(Firebase), API 알림 (M7 의 일부를 먼저) | 구현됨 (화면·실제 서비스 확인 남음) | [features/M7a-notification-channels.md](features/M7a-notification-channels.md) |
+| M7a | 알림 통로: 메일(SMTP), 웹 푸시(Firebase), API 알림 (M7 의 일부를 먼저) | 구현됨 | [features/M7a-notification-channels.md](features/M7a-notification-channels.md) |
 | (마일스톤 밖) | 관리자 설정의 백업 및 복원: 워크스페이스·로그인 연동·알림 설정과 구성원을 파일로 (사용자 지정, D-112) | 구현됨 | [features/admin-backup.md](features/admin-backup.md) |
 | (마일스톤 밖) | 티켓·문서 검색: `Ctrl/⌘+K` 검색 창과 `/search` 결과 페이지 (사용자 지정, D-133) | 구현됨 | [features/search.md](features/search.md) |
 | (마일스톤 밖) | 공유 링크: "내 티켓" 캘린더의 한 달, 타임라인의 고른 기간(몇 월부터 몇 월까지), 티켓(하위 티켓·문서로 이동)을 로그인 없이 볼 수 있는 읽기 전용 링크(임베드 가능. 접속 기록은 D-208 에서 없앴다). 다른 화면에도 쓰도록 공통 구조 (사용자 지정, D-197·D-198) | 구현됨, 화면·통합 테스트 확인 안 함 | [features/sharing.md](features/sharing.md) |
@@ -37,8 +37,8 @@
 - [x] `backend/`: Spring Boot 4.1.1 WebFlux + R2DBC + Flyway, 공통 구성(오류 형식, 요청 ID, `Clock`), ktlint, `GET /api/v1/health`, Testcontainers 통합 테스트
 - [x] `frontend/`: Next.js 16 + shadcn/ui(base-nova), `/api` rewrite, API 클라이언트, 디자인 토큰, Pretendard, 라이트/다크
 - [x] 루트 `README.md` (로컬 실행 방법)
-- [ ] 프론트엔드 테스트: Vitest 단위 테스트, Playwright E2E (도구만 설치됨)
-- [ ] CI (백엔드 `./gradlew check`, 프론트엔드 lint/typecheck/test)
+- [x] 프론트엔드 테스트: Vitest 단위 테스트(14개 파일), Playwright E2E(6개 파일)
+- [x] CI (백엔드 `./gradlew check`, 프론트엔드 lint/typecheck/test) — 만들지 않고 닫았다 (D-225). 필요해지면 새 항목으로 다시 적는다
 
 ## M1. 로그인 및 초기 설정
 
