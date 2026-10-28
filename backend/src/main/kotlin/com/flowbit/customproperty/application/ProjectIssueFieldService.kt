@@ -131,6 +131,16 @@ class ProjectIssueFieldService(
         }
     }
 
+    /**
+     * A new sub-issue starts with the values its parent was given (D-239), like it starts with the parent's assignees. Called after
+     * [storeChecked], so a value the request itself gave wins; a field the parent has no value of its own for stays at the project's
+     * default. From then on the two are separate: changing one does not change the other.
+     */
+    suspend fun inheritValues(
+        parentId: UUID,
+        issueId: UUID,
+    ) = store.copy(parentId, issueId)
+
     suspend fun storeChecked(
         issueId: UUID,
         values: List<CheckedIssueField>,

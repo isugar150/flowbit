@@ -225,6 +225,8 @@ class IssueService(
         if (assigneeIds.isNotEmpty()) queries.replaceAssignees(issue.id, assigneeIds, now)
         if (properties.isNotEmpty()) customProperties.addChecked(issue.id, properties, now)
         projectFields.storeChecked(issue.id, fieldValues)
+        // A sub-issue starts with its parent's common property values (D-239), as with its assignees; what the request set stays.
+        if (parent != null) projectFields.inheritValues(parent.id, issue.id)
         relations.attach(user, issue, newRelations)
         val events = listOf(IssueEvent(IssueActivityType.CREATED))
         activities.record(issue.id, user.id, events, now)

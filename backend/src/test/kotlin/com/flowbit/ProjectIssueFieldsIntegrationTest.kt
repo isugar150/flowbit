@@ -176,6 +176,37 @@ class ProjectIssueFieldsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `하위 티켓은 만들 때 상위 티켓의 담당자와 공통 속성 값을 이어받고 이후에는 따로 바꾼다`() {
+        val fieldId = admin.post(path, definition(reviewerId)).json()["id"]
+        val parent = ticket("상위", ""","assigneeIds":["$reviewerId"],"projectFields":[{"fieldId":"$fieldId","value":"$secondId"}]""")
+        val child = admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"하위","parentId":"${parent["id"]}"}""").json()
+
+        fun assignees(number: Any?) = (admin.get("/api/v1/issues/$number").json()["assignees"] as List<Map<String, Any?>>).map { it["id"] }
+
+        // The parent's explicit value, not the field's default (the reviewer), and the parent's assignee.
+        assertEquals(secondId, properties(child["id"]).single()["value"])
+        assertEquals(listOf(reviewerId), assignees(child["number"]))
+
+        // Each is changed on its own: the sub-issue's change leaves the parent as it was.
+        assertEquals(200, admin.put(valuePath(child["id"], fieldId), """{"value":"$reviewerId"}""").status)
+        assertEquals(200, admin.patch("/api/v1/issues/${child["number"]}", """{"assigneeIds":["$secondId"]}""").status)
+        assertEquals(reviewerId, properties(child["id"]).single()["value"])
+        assertEquals(listOf(secondId), assignees(child["number"]))
+        assertEquals(secondId, properties(parent["id"]).single()["value"])
+        assertEquals(listOf(reviewerId), assignees(parent["number"]))
+
+        // A value the request gives wins over the parent's.
+        val own =
+            admin
+                .post(
+                    "/api/v1/projects/${p("PAY")}/issues",
+                    """{"title":"직접 지정","parentId":"${parent["id"]}","projectFields":[{"fieldId":"$fieldId","value":"$reviewerId"}]}""",
+                ).json()
+        assertEquals(reviewerId, properties(own["id"]).single()["value"])
+    }
+
+    @Test
     fun `관리자는 별도 관리자 경로에서 구성원이 아닌 프로젝트의 공통 속성을 설정한다`() {
         val other = reviewer.post("/api/v1/projects", """{"name":"관리자 설정 확인"}""").json()["id"]
         val adminPath = "/api/v1/admin/projects/$other/issue-fields"
