@@ -327,7 +327,7 @@ export function NewIssueDialog({
               ariaLabel={m.descriptionLabel}
               mentionables={mentionablesOf(members)}
               // -ml/pl: the scroll box reaches into the left padding so the block grip is not clipped.
-              className="-ml-4 max-h-[55dvh] min-h-[min(20rem,45dvh)] overflow-y-auto overscroll-contain pl-4 @min-[35rem]:min-h-[min(28rem,55dvh)]"
+              className="-ml-4 max-h-[55dvh] min-h-[var(--new-issue-body-height)] overflow-y-auto overscroll-contain pl-4 [--new-issue-body-height:min(20rem,45dvh)] @min-[35rem]:[--new-issue-body-height:min(28rem,55dvh)] [&_.tiptap]:min-h-[var(--new-issue-body-height)]"
               onChange={(doc) => {
                 content.current = doc;
                 setHasBody(doc !== null);
