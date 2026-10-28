@@ -1,5 +1,5 @@
 import type { Described } from "@/features/issues/components/activity-event";
-import { messages } from "@/messages";
+import { messages } from "../../messages";
 
 /** The lines both kinds of activity (an issue's and a project's) say about a custom property. */
 type Words = {
@@ -26,6 +26,20 @@ export function describeCustomProperty(detail: Record<string, unknown>, words: W
     case "REMOVED":
       return { action: words.customRemoved, change: label };
     default:
+      if (detail.propertyType === "PERSON") {
+        const names = (value: unknown): string[] => Array.isArray(value) ? value.filter((name): name is string => typeof name === "string" && name.length > 0) : [];
+        const added = names(detail.added);
+        const removed = names(detail.removed);
+        if (added.length || removed.length) {
+          return {
+            action: words.customChanged(label),
+            change: [
+              added.length ? messages.customProperties.peopleAdded(added.join(", ")) : null,
+              removed.length ? messages.customProperties.peopleRemoved(removed.join(", ")) : null,
+            ].filter(Boolean).join(" · "),
+          };
+        }
+      }
       return { action: words.customChanged(label), change: `${text(detail.from)} → ${text(detail.to)}` };
   }
 }

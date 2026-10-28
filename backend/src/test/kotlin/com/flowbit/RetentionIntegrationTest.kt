@@ -32,11 +32,11 @@ class RetentionIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `관리자만 보관 기간을 보고 바꾸며 처음에는 셋 다 영구 삭제하지 않는다`() {
+    fun `관리자만 보관 기간을 보고 바꾸며 처음에는 넷 다 영구 삭제하지 않는다`() {
         admin.post("/api/v1/admin/members", """{"loginId":"member","password":"$PASSWORD"}""")
         val member = client().also { it.login("member", PASSWORD) }
 
-        assertEquals(mapOf("issues" to null, "documents" to null, "comments" to null), admin.get("/api/v1/admin/retention").json())
+        assertEquals(mapOf("issues" to null, "documents" to null, "comments" to null, "rejectedRequests" to null), admin.get("/api/v1/admin/retention").json())
         assertEquals(403, member.get("/api/v1/admin/retention").status)
         assertEquals(403, member.put("/api/v1/admin/retention", "{}").status)
 
@@ -48,6 +48,7 @@ class RetentionIntegrationTest : IntegrationTest() {
                 "issues" to mapOf("amount" to 3, "unit" to "MONTHS"),
                 "documents" to null,
                 "comments" to mapOf("amount" to 2, "unit" to "WEEKS"),
+                "rejectedRequests" to null,
             )
         assertEquals(expected, saved.json())
         assertEquals(expected, admin.get("/api/v1/admin/retention").json())
@@ -61,7 +62,7 @@ class RetentionIntegrationTest : IntegrationTest() {
         assertEquals(expected, admin.get("/api/v1/admin/retention").json())
 
         assertEquals(
-            mapOf("issues" to null, "documents" to null, "comments" to null),
+            mapOf("issues" to null, "documents" to null, "comments" to null, "rejectedRequests" to null),
             admin.put("/api/v1/admin/retention", "{}").json(),
         )
     }
@@ -144,6 +145,43 @@ class RetentionIntegrationTest : IntegrationTest() {
 
         assertFalse(storedPicture(own))
         assertTrue(storedPicture(shared))
+    }
+
+    @Test
+    fun `거절된 요청은 거절 시각부터 보관하고 파일도 정리하며 일반 취소와 재요청은 남긴다`() {
+        val project = admin.post("/api/v1/projects", """{"name":"요청 정리"}""").json()["id"]
+        admin.patch("/api/v1/projects/$project", """{"triageEnabled":true}""")
+        for (number in 1..4) {
+            admin.post("/api/v1/projects/$project/issues", """{"title":"요청 $number","triage":true}""")
+        }
+        admin.patch("/api/v1/issues/1", """{"triage":false,"status":"CANCELED","triageRejected":true}""")
+        admin.patch("/api/v1/issues/2", """{"triage":false,"status":"CANCELED","triageRejected":true}""")
+        admin.patch("/api/v1/issues/3", """{"triage":false,"status":"CANCELED"}""")
+        admin.postFile("/api/v1/issues/1/attachments", "request.txt", "text/plain", "request".toByteArray())
+        val file = TestUploads.pathOf("files", text("select file_key from issue_attachments"))
+        assertTrue(Files.exists(file))
+        assertEquals(1, count("select count(*) from issues where number = 1 and triage_rejected_at is not null"))
+        clock.advance(Duration.ofDays(4))
+        assertEquals(PurgeResult(0, 0, 0), purge())
+        admin.login("admin", PASSWORD)
+        admin.patch("/api/v1/issues/1", """{"title":"거절 후 수정"}""")
+        admin.patch("/api/v1/issues/2", """{"triage":true}""")
+        assertEquals(1, count("select count(*) from issues where number = 2 and not triage_rejected and triage_rejected_at is null"))
+
+        val policy = """{"rejectedRequests":{"amount":5,"unit":"DAYS"}}"""
+        assertEquals(200, admin.put("/api/v1/admin/retention", policy).status)
+        assertEquals(mapOf("amount" to 5, "unit" to "DAYS"), admin.get("/api/v1/admin/retention").json()["rejectedRequests"])
+        assertEquals(422, admin.put("/api/v1/admin/retention", """{"rejectedRequests":{"amount":0,"unit":"DAYS"}}""").status)
+        assertEquals(PurgeResult(0, 0, 0), purge())
+        clock.advance(Duration.ofDays(2))
+        assertEquals(PurgeResult(0, 0, 0, rejectedRequests = 1), purge())
+        admin.login("admin", PASSWORD)
+        assertEquals(404, admin.get("/api/v1/issues/1").status)
+        for (number in 2..4) assertEquals(200, admin.get("/api/v1/issues/$number").status)
+        assertEquals(0, count("select count(*) from issue_attachments"))
+        assertFalse(Files.exists(file))
+        assertEquals(1, count("select count(*) from audit_events where event_type = 'DATA_PURGED' and detail ->> 'rejectedRequests' = '1'"))
+        assertEquals(PurgeResult(0, 0, 0), purge())
     }
 
     private fun purge(): PurgeResult = runBlocking { retention.purge() }

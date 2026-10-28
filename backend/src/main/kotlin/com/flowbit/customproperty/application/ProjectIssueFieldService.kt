@@ -187,12 +187,26 @@ class ProjectIssueFieldService(
                             "label" to item.label,
                             "from" to shown(before),
                             "to" to shown(item),
-                        ),
+                        ) + personChanges(before, item),
                     ),
                 )
             }
         activities.record(issueId, user.id, events, clock.instant())
         return CustomPropertyChange(item, IssueChange(checkNotNull(lookup.detail(issue.number)), events, lookup.recipients(issueId, user)), emptyList())
+    }
+
+    private fun personChanges(
+        before: CustomPropertyView,
+        after: CustomPropertyView,
+    ): Map<String, Any?> {
+        if (after.type != CustomPropertyType.PERSON) return emptyMap()
+        val added = after.people.filter { person -> before.people.none { it.id == person.id } }
+        val removed = before.people.filter { person -> after.people.none { it.id == person.id } }
+        return mapOf(
+            "propertyType" to "PERSON",
+            "added" to added.map { it.displayName ?: it.loginId },
+            "removed" to removed.map { it.displayName ?: it.loginId },
+        )
     }
 
     private fun shown(item: CustomPropertyView): String? =

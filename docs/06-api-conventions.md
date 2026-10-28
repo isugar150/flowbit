@@ -134,3 +134,7 @@ GET·POST /api/v1/projects/{id}/issue-fields, PUT·DELETE …/{fieldId}. 관리�
 ### 내 티켓 assigned 범위
 
 GET /api/v1/me/issues의 assigned는 기본 담당자 또는 현재 프로젝트 공통 PERSON 속성의 유효값에 요청자가 지정된 티켓을 반환한다. 단일 문자열·복수 배열 모두 지원. created 범위·접근 권한·페이지 한도는 유지한다. 기본값/빈 값 규칙은 [명세](features/project-issue-fields.md).
+
+일반 티켓 목록(`GET /api/v1/issues`, 프로젝트별 목록, `GET /api/v1/me/issues?scope=assigned|created`)은 요청함 대기(`triage=true`)·거절(`triage_rejected=true`) 티켓을 제외한다. 프로젝트 필터·삭제된 목록·limit 적용 전 동일하게 거른다. 요청함 전용 조회와 상세 접근 권한은 유지한다(2026-10-28 사용자 확정).
+
+`GET·PUT /api/v1/admin/retention`의 `rejectedRequests`는 거절된 요청 보관 기간(null 또는 amount·unit)이다. 거절 시각부터 계산하고 기본은 영구 삭제 안 함이다. 기존 관리 권한·기간 검증·전체 교체 규칙을 따른다.

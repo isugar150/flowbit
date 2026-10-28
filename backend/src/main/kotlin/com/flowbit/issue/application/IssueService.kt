@@ -291,6 +291,7 @@ class IssueService(
                 throw ValidationException("triageRejected", "INVALID", "대기 중인 티켓을 거절하고 취소할 때만 지정할 수 있습니다")
             }
             issue.triageRejected = true
+            issue.triageRejectedAt = clock.instant()
         }
         if (patch.has("triage")) {
             val next = patch.bool("triage")
@@ -299,7 +300,10 @@ class IssueService(
                 throw ForbiddenException("요청함은 프로젝트 관리 역할만 정할 수 있습니다")
             }
             issue.triage = next
-            if (next) issue.triageRejected = false
+            if (next) {
+                issue.triageRejected = false
+                issue.triageRejectedAt = null
+            }
         }
         patch.enum("priority", IssuePriority::valueOf)?.let { issue.priority = it }
         if (patch.has("dueDate")) issue.dueDate = patch.date("dueDate")

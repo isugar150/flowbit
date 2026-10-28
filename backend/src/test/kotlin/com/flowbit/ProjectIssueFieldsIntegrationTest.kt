@@ -35,6 +35,44 @@ class ProjectIssueFieldsIntegrationTest : IntegrationTest() {
         path = "/api/v1/projects/${p("PAY")}/issue-fields"
     }
 
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `리뷰어 추가와 제거는 담당자 변경 없이 속성 이름과 변경된 사람을 활동에 기록한다`() {
+        val fieldId = admin.post(path, """{"label":"리뷰어","type":"PERSON","defaultValue":["$reviewerId"]}""").json()["id"]
+        val issue = ticket("리뷰어 활동", ""","assigneeIds":["$reviewerId"]""")
+        val issueId = issue["id"]
+
+        fun changes() =
+            (admin.get("/api/v1/issues/1/activity").json()["items"] as List<Map<String, Any?>>)
+                .filter { it["type"] != "CREATED" }
+
+        fun latest() = changes().first()["detail"] as Map<String, Any?>
+
+        assertEquals(200, admin.put(valuePath(issueId, fieldId), """{"value":["$reviewerId","$secondId"]}""").status)
+        assertEquals("리뷰어", latest()["label"])
+        assertEquals("PERSON", latest()["propertyType"])
+        assertEquals(listOf("second"), latest()["added"])
+        assertEquals(emptyList<String>(), latest()["removed"])
+        assertEquals("reviewer", latest()["from"])
+        assertEquals("reviewer, second", latest()["to"])
+
+        clock.advance(Duration.ofSeconds(1))
+        assertEquals(200, admin.put(valuePath(issueId, fieldId), """{"value":[]}""").status)
+        assertEquals(emptyList<String>(), latest()["added"])
+        assertEquals(listOf("reviewer", "second"), latest()["removed"])
+        assertEquals(listOf("CUSTOM_PROPERTY_CHANGED", "CUSTOM_PROPERTY_CHANGED"), changes().map { it["type"] })
+        val assignees = admin.get("/api/v1/issues/1").json()["assignees"] as List<Map<String, Any?>>
+        assertEquals(listOf(reviewerId), assignees.map { it["id"] })
+
+        // A single-person field uses the same distinction.
+        val singleId = admin.post(path, """{"label":"승인자","type":"PERSON","multiple":false}""").json()["id"]
+        clock.advance(Duration.ofSeconds(1))
+        assertEquals(200, admin.put(valuePath(issueId, singleId), """{"value":"$secondId"}""").status)
+        assertEquals("승인자", latest()["label"])
+        assertEquals(listOf("second"), latest()["added"])
+        assertEquals(emptyList<String>(), latest()["removed"])
+    }
+
     /** A person field that takes one person; the field takes several unless it says otherwise (D-238). */
     private fun definition(person: String) = """{"label":"리뷰어","type":"PERSON","multiple":false,"defaultValue":"$person"}"""
 

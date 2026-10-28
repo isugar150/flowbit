@@ -149,6 +149,9 @@ private const val LIST_LIMIT = ISSUE_LIST_LIMIT
 private val VISIBLE =
     "(i.project_id is null or (p.archived_at is null and (:seesAll or ${ProjectAccessSql.mayEnter("i.project_id", ":viewerId")})))"
 
+/** Pending and rejected requests stay out of ordinary lists, regardless of status or ownership. */
+private const val CLASSIFIED = "not i.triage and not i.triage_rejected"
+
 /** Read side of issues: one query that joins the project, the assignees and the author. */
 @Component
 class IssueQueries(
@@ -163,7 +166,7 @@ class IssueQueries(
         limit: Int = LIST_LIMIT,
     ): List<IssueView> =
         select(
-            "where $VISIBLE and ${deletedIs(deleted)} ${if (projectId != null) "and i.project_id = :projectId" else ""} " +
+            "where $VISIBLE and $CLASSIFIED and ${deletedIs(deleted)} ${if (projectId != null) "and i.project_id = :projectId" else ""} " +
                 "order by i.number desc limit ${limit.coerceIn(1, ISSUE_LIST_MAX)}",
         ) {
             val spec = it.visibleTo(viewer)
@@ -199,7 +202,11 @@ class IssueQueries(
         deleted: Boolean,
         limit: Int = LIST_LIMIT,
     ): List<IssueView> =
-        select("where $VISIBLE and ${deletedIs(deleted)} and ${scope.condition} order by i.updated_at desc limit ${limit.coerceIn(1, ISSUE_LIST_MAX)}") {
+        select(
+            "where $VISIBLE and $CLASSIFIED and ${deletedIs(
+                deleted,
+            )} and ${scope.condition} order by i.updated_at desc limit ${limit.coerceIn(1, ISSUE_LIST_MAX)}",
+        ) {
             it.visibleTo(viewer)
         }
 

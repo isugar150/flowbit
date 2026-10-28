@@ -76,6 +76,55 @@ class TriageIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `요청함 대기와 거절 티켓은 일반 목록에서 제외하고 수락하면 표시한다`() {
+        val requesterId = requester.get("/api/v1/me").json()["id"]
+        for (title in listOf("일반 티켓", "일반 취소")) {
+            requester.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"$title","assigneeIds":["$requesterId"]}""")
+        }
+        admin.patch("/api/v1/issues/2", """{"status":"CANCELED"}""")
+        admin.patch("/api/v1/projects/${p("PAY")}", """{"triageEnabled":true}""")
+        for (title in listOf("대기", "거절")) {
+            requester.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"$title","assigneeIds":["$requesterId"]}""")
+        }
+        admin.patch("/api/v1/issues/4", """{"triage":false,"status":"CANCELED","triageRejected":true}""")
+
+        val lists = listOf("/api/v1/issues", "/api/v1/issues?project=${p("PAY")}", "/api/v1/me/issues?scope=assigned", "/api/v1/me/issues?scope=created")
+        for (path in lists) {
+            assertEquals(
+                listOf("FB-1", "FB-2"),
+                requester
+                    .get(path)
+                    .jsonList()
+                    .map { it["key"] }
+                    .sortedBy { it.toString() },
+                path,
+            )
+        }
+        assertEquals(listOf("FB-2"), requester.get("/api/v1/issues?limit=1").jsonList().map { it["key"] })
+        assertEquals(listOf("FB-3"), admin.get("/api/v1/triage").jsonList().map { it["key"] })
+        assertEquals(listOf("FB-4"), admin.get("/api/v1/triage?rejected=true").jsonList().map { it["key"] })
+        assertEquals(200, requester.get("/api/v1/issues/4").status)
+
+        admin.patch("/api/v1/issues/3", """{"triage":false}""")
+        for (path in lists) {
+            assertEquals(3, requester.get(path).jsonList().size, path)
+        }
+        for (number in 1..4) admin.delete("/api/v1/issues/$number")
+        for (path in lists) {
+            val separator = if ('?' in path) '&' else '?'
+            assertEquals(
+                listOf("FB-1", "FB-2", "FB-3"),
+                requester
+                    .get("${path}${separator}deleted=true")
+                    .jsonList()
+                    .map { it["key"] }
+                    .sortedBy { it.toString() },
+                path,
+            )
+        }
+    }
+
+    @Test
     @Suppress("UNCHECKED_CAST")
     fun `새 요청은 구독하지 않은 모든 프로젝트 관리 역할에게 분류 요청 알림을 보낸다`() {
         val managerId = admin.post("/api/v1/admin/members", """{"loginId":"manager","password":"$PASSWORD"}""").json()["id"]

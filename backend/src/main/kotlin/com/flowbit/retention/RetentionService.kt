@@ -27,6 +27,7 @@ enum class RetentionItem {
     ISSUES,
     DOCUMENTS,
     COMMENTS,
+    REJECTED_REQUESTS,
 }
 
 enum class RetentionUnit {
@@ -60,12 +61,14 @@ data class RetentionSettings(
     val issues: RetentionPeriod?,
     val documents: RetentionPeriod?,
     val comments: RetentionPeriod?,
+    val rejectedRequests: RetentionPeriod? = null,
 ) {
     fun of(item: RetentionItem): RetentionPeriod? =
         when (item) {
             RetentionItem.ISSUES -> issues
             RetentionItem.DOCUMENTS -> documents
             RetentionItem.COMMENTS -> comments
+            RetentionItem.REJECTED_REQUESTS -> rejectedRequests
         }
 }
 
@@ -74,9 +77,10 @@ data class PurgeResult(
     val issues: Long,
     val documents: Long,
     val comments: Long,
+    val rejectedRequests: Long = 0,
 ) {
     val isEmpty: Boolean
-        get() = issues == 0L && documents == 0L && comments == 0L
+        get() = issues == 0L && documents == 0L && comments == 0L && rejectedRequests == 0L
 }
 
 /**
@@ -114,6 +118,7 @@ class RetentionService(
             rows[RetentionItem.ISSUES],
             rows[RetentionItem.DOCUMENTS],
             rows[RetentionItem.COMMENTS],
+            rows[RetentionItem.REJECTED_REQUESTS],
         )
     }
 
@@ -196,6 +201,7 @@ class RetentionService(
                             deleteOlder("content_thread_comments", cutoff)
                     } ?: 0
                 val documents = settings.documents?.let { deleteOlder("documents", it.cutoff(now)) } ?: 0
+                val rejectedRequests = settings.rejectedRequests?.let { purgeRejected(it.cutoff(now), removedFiles) } ?: 0
                 val issues =
                     settings.issues?.let { period ->
                         removedFiles +=
@@ -223,20 +229,26 @@ class RetentionService(
                     .awaitSingle()
                 // Comments, threads and activity are kept by the page's id without a foreign key (D-165): what a page deleted for good left behind goes too.
                 removedFiles += sweepOrphans()
-                val result = PurgeResult(issues = issues, documents = documents, comments = comments)
+                val result = PurgeResult(issues = issues, documents = documents, comments = comments, rejectedRequests = rejectedRequests)
                 if (!result.isEmpty) {
                     auditService.record(
                         AuditEventType.DATA_PURGED,
                         null,
                         ClientInfo(null, null),
-                        mapOf("issues" to "$issues", "documents" to "$documents", "comments" to "$comments"),
+                        mapOf("issues" to "$issues", "documents" to "$documents", "comments" to "$comments", "rejectedRequests" to "$rejectedRequests"),
                     )
                 }
                 result
             }
         removedFiles.forEach { fileStorage.delete(it) }
         if (!result.isEmpty) {
-            log.info("Removed for good: {} issues, {} documents, {} comments", result.issues, result.documents, result.comments)
+            log.info(
+                "Removed for good: {} issues, {} documents, {} comments, {} rejected requests",
+                result.issues,
+                result.documents,
+                result.comments,
+                result.rejectedRequests,
+            )
         }
         if (!result.isEmpty || removedFiles.isNotEmpty()) cleanUpPictures()
         return result
@@ -254,6 +266,36 @@ class RetentionService(
         } catch (e: Exception) {
             log.warn("Could not clean up the pictures of what was removed", e)
         }
+    }
+
+    /** Lock before collecting files so reclassifying a request cannot race with its removal. */
+    private suspend fun purgeRejected(
+        cutoff: Instant,
+        removedFiles: MutableList<String>,
+    ): Long {
+        val ids =
+            databaseClient
+                .sql("select id from issues where triage_rejected and not triage and triage_rejected_at < :cutoff for update")
+                .bind("cutoff", at(cutoff))
+                .map { row -> checkNotNull(row.get("id", UUID::class.java)) }
+                .all()
+                .collectList()
+                .awaitSingle()
+        if (ids.isEmpty()) return 0
+        removedFiles +=
+            databaseClient
+                .sql("select file_key from issue_attachments where issue_id = any(:ids)")
+                .bind("ids", ids.toTypedArray())
+                .map { row -> checkNotNull(row.get("file_key", String::class.java)) }
+                .all()
+                .collectList()
+                .awaitSingle()
+        return databaseClient
+            .sql("delete from issues where id = any(:ids)")
+            .bind("ids", ids.toTypedArray())
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
     }
 
     /**
@@ -332,6 +374,7 @@ class RetentionService(
             RetentionItem.ISSUES -> "issues"
             RetentionItem.DOCUMENTS -> "documents"
             RetentionItem.COMMENTS -> "comments"
+            RetentionItem.REJECTED_REQUESTS -> "rejectedRequests"
         }
 
     private companion object {

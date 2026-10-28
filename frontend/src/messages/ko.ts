@@ -372,6 +372,8 @@ export const ko = {
   },
   /** Properties people add to one project or issue on their own (D-186). */
   customProperties: {
+    peopleAdded: (names: string) => `추가: ${names}`,
+    peopleRemoved: (names: string) => `제거: ${names}`,
     add: "속성 추가",
     addHint: "이름과 값 형식을 정해 이 항목에만 속성을 더합니다.",
     nameLabel: "속성 이름",
@@ -1600,7 +1602,7 @@ export const ko = {
   },
   retention: {
     title: "데이터 보관",
-    description: "삭제한 티켓·문서·댓글을 얼마 동안 보관할지 정합니다. 보관 기간이 지나면 영구 삭제됩니다.",
+    description: "삭제한 티켓·문서·댓글과 요청함에서 거절된 요청의 보관 기간을 정합니다. 기간이 지나면 영구 삭제됩니다.",
     notice: "영구 삭제된 데이터는 복원할 수 없습니다. 데이터를 백업하려면 PostgreSQL 덤프와 업로드 폴더를 따로 보관하세요.",
     items: {
       issues: {
@@ -1615,6 +1617,10 @@ export const ko = {
         label: "삭제된 댓글",
         hint: "삭제한 댓글을 영구 삭제합니다.",
       },
+      rejectedRequests: {
+        label: "거절된 요청",
+        hint: "요청함에서 거절한 시점부터 계산합니다. 티켓과 댓글·첨부 파일·문서·활동 기록이 영구 삭제되며 하위 티켓은 남습니다. 대기 중인 요청은 지우지 않습니다.",
+      },
     },
     modeLabel: (item: string) => `${item} 보관`,
     keep: "영구 삭제 안 함",
@@ -1624,7 +1630,7 @@ export const ko = {
     units: { DAYS: "일", WEEKS: "주", MONTHS: "개월" },
     after: "뒤 영구 삭제",
     amountInvalid: "1~999 사이의 숫자를 입력하세요.",
-    schedule: "정리는 1시간마다 실행되며, 삭제한 시점부터 보관 기간이 지난 데이터를 지웁니다.",
+    schedule: "정리는 1시간마다 실행됩니다. 삭제한 시점(거절된 요청은 거절한 시점)부터 보관 기간을 계산합니다. 거절 시각을 기록하기 전의 요청은 기능 업데이트 시점부터 계산합니다.",
     save: "저장",
     saving: "저장하는 중",
     saved: "저장했습니다.",
