@@ -67,8 +67,17 @@ class ProjectIssueFieldService(
         if (id == null && current.size >= 20) throw ValidationException("label", "TOO_MANY", "프로젝트 공통 속성은 20개까지 만들 수 있습니다")
         if (current.any { it.id != id && it.label.equals(label, true) }) throw ConflictException("CUSTOM_PROPERTY_EXISTS", "같은 이름의 속성이 이미 있습니다")
         if (existing != null && existing.type != input.type) throw ValidationException("type", "IMMUTABLE", "속성 형식은 만든 뒤 변경할 수 없습니다")
-        val checked = input.copy(label = label, defaultValue = properties.normalizeForProject(input.type, input.defaultValue, projectId))
+        // Only a person field has the choice between several people and one (D-238); every other type stores the default.
+        val multiple = input.multiple || input.type != CustomPropertyType.PERSON
+        val checked =
+            input.copy(
+                label = label,
+                multiple = multiple,
+                defaultValue = properties.normalizeForProject(input.type, input.defaultValue, projectId, multiple),
+            )
         val field = store.save(projectId, id, checked)
+        // Changing it changes the shape of the values the tickets hold: one becomes a list of one, of several the first stays.
+        if (existing != null && existing.type == CustomPropertyType.PERSON && existing.multiple != multiple) store.convertPersonValues(field.id, multiple)
         audit.record(
             AuditEventType.PROJECT_ISSUE_FIELDS_CHANGED,
             user.id,
@@ -118,7 +127,7 @@ class ProjectIssueFieldService(
         }
         return inputs.map { input ->
             val definition = definitions.firstOrNull { it.id == input.fieldId } ?: throw missing()
-            CheckedIssueField(input.fieldId, properties.normalizeForProject(definition.type, input.value, projectId))
+            CheckedIssueField(input.fieldId, properties.normalizeForProject(definition.type, input.value, projectId, definition.multiple))
         }
     }
 
@@ -151,7 +160,7 @@ class ProjectIssueFieldService(
         val issue = access.issue
         val projectId = issue.projectId ?: throw missing()
         val before = store.values(issueId, projectId).firstOrNull { it.id == fieldId } ?: throw missing()
-        val value = properties.normalizeForProject(before.type, rawValue, projectId)
+        val value = properties.normalizeForProject(before.type, rawValue, projectId, before.multiple)
         store.putValue(issueId, fieldId, value)
         val item = store.values(issueId, projectId).first { it.id == fieldId }
         val events =
@@ -180,7 +189,7 @@ class ProjectIssueFieldService(
         if (item.type ==
             CustomPropertyType.PERSON
         ) {
-            item.person?.let { it.displayName ?: it.loginId }
+            item.people.joinToString(", ") { it.displayName ?: it.loginId }.ifEmpty { null }
         } else {
             item.value?.toString()
         }

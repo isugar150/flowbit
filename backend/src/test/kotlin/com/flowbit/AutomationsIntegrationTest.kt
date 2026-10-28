@@ -83,10 +83,8 @@ class AutomationsIntegrationTest : IntegrationTest() {
             val inbox = reviewer.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
             assertTrue(
                 inbox.any {
-                    (it["lines"] as List<String>).any { line ->
-                        line.contains("리뷰 요청") &&
-                            line.contains("리뷰해 주세요 FB-1 결제 기능 진행 중 → 리뷰 준비됨 admin 결제")
-                    }
+                    it["headline"] == "리뷰해 주세요 FB-1 결제 기능 진행 중 → 리뷰 준비됨 admin 결제" &&
+                        (it["lines"] as List<String>).none { line -> line.contains("자동화:") }
                 },
             )
         }

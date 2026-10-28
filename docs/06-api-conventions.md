@@ -106,6 +106,7 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 - `GET /api/v1/issue-statuses`, `POST·PATCH·DELETE /api/v1/admin/issue-statuses`. 티켓: `statusId`·`estimate`·`triage`·`cycleId`(요청), `statusName`·`openBlockers`·`cycle`(응답).
 - `GET·POST·PATCH·DELETE /api/v1/views` — 저장한 뷰. `GET·POST /api/v1/issues/{번호}/relations`, `DELETE …/{id}` — 관계. `GET /api/v1/triage` — 트리아지 대기열.
 - `GET /api/v1/projects/{id}/cycles`, `PUT …/cycles/settings` — 사이클. 프로젝트: `estimatesEnabled`·`triageEnabled`.
+- `/api/v1/admin/projects/{id}/…` (D-236) — 관리자가 구성원이 아닌 프로젝트의 설정을 바꾸는 길. `PATCH`(이름·공개 범위·추정치·트리아지), `icon`, `archive`·`restore`, `members`, `access-requests`, `cycles`, `git`, `issue-fields`, `automations` 가 프로젝트 쪽 `/api/v1/projects/{id}/…` 와 같은 요청·응답이다. 프로젝트의 티켓·문서·개요는 열어 주지 않는다. [features/admin-projects.md](features/admin-projects.md).
 
 ## API 문서
 
@@ -129,3 +130,7 @@ GET·POST /api/v1/projects/{id}/issue-fields, PUT·DELETE …/{fieldId}. 관리�
 ### 자동화 메시지 변수
 
 자동화 actions의 message는 변수 템플릿 원문으로 저장·조회하며 실행 시 실제 값으로 치환한다. 지원 변수와 단일 치환 정책은 [자동화 명세](features/project-automations.md). 스키마·요청 필드는 추가하지 않는다.
+
+### 내 티켓 assigned 범위
+
+GET /api/v1/me/issues의 assigned는 기본 담당자 또는 현재 프로젝트 공통 PERSON 속성의 유효값에 요청자가 지정된 티켓을 반환한다. 단일 문자열·복수 배열 모두 지원. created 범위·접근 권한·페이지 한도는 유지한다. 기본값/빈 값 규칙은 [명세](features/project-issue-fields.md).

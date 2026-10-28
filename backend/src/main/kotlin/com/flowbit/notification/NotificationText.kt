@@ -47,12 +47,28 @@ class NotificationText(
 ) {
     fun of(notification: IssueNotification): NotificationMessage {
         val types = notification.events.map { it.type }
+        if (types.isNotEmpty() && types.all { it == "AUTOMATION_TRIGGERED" }) {
+            val message =
+                notification.events
+                    .mapNotNull { it.detail["message"]?.toString()?.takeIf(String::isNotBlank) }
+                    .joinToString("\n")
+                    .ifBlank { "티켓 상태가 변경되었습니다." }
+                    .lines()
+            val path = "/issue/${notification.issueKey}"
+            return NotificationMessage(
+                title = "[${notification.issueKey}] ${notification.issueTitle}",
+                headline = message.first(),
+                lines = message.drop(1),
+                path = path,
+                url = publicUrl.of(path),
+                spaced = true,
+            )
+        }
         // Changes a Git server made say so (D-141); they carry `via` in their details.
         val fromGit = notification.events.isNotEmpty() && notification.events.all { "via" in it.detail }
         val duplicatedFrom = notification.events.firstNotNullOfOrNull { it.detail["duplicatedFrom"] as? String }
         val did =
             when {
-                "AUTOMATION_TRIGGERED" in types -> "상태를 변경해 자동화가 실행되었습니다"
                 "TRIAGE_REQUESTED" in types -> "새 티켓의 분류를 요청했습니다"
                 "CREATED" in types && duplicatedFrom != null -> "$duplicatedFrom 티켓을 복제했습니다"
                 "CREATED" in types -> "티켓을 만들었습니다"
@@ -160,7 +176,7 @@ class NotificationText(
     private fun line(event: IssueNotification.Event): String? {
         val detail = event.detail
         return when (event.type) {
-            "AUTOMATION_TRIGGERED" -> "자동화: ${detail["ruleName"]}" + (detail["message"]?.toString()?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: "")
+            "AUTOMATION_TRIGGERED" -> detail["message"]?.toString()?.takeIf(String::isNotBlank)
             "TRIAGE_REQUESTED" -> "새로운 티켓이 트리아지에 도착했습니다. 요청을 확인하고 분류해 주세요."
             "CREATED", "DELETED", "RESTORED" -> null
             "TITLE_CHANGED" -> change("제목", detail)

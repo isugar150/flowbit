@@ -56,3 +56,7 @@ DB 에 평문으로 있던 비밀 값을 **AES-256-GCM** 으로 암호화한다.
 ## 프로젝트 공통 속성 감사
 
 PROJECT_ISSUE_FIELDS_CHANGED: 공통 속성 생성·수정·삭제. 프로젝트·필드 ID와 변경 종류를 기록하며 값은 기록하지 않는다.
+
+## 관리자 설정 > 프로젝트 감사
+
+PROJECT_ADMIN_CHANGED(화면 이름 "프로젝트 설정 변경(관리자 설정)", D-236): 관리자가 관리자 설정 > 프로젝트에서 프로젝트의 이름·공개 범위·추정치·트리아지(`change`=`settings`, `fields`=바꾼 항목 이름)·아이콘(`icon`)·구성원(`member`, `member-removed`)·승인 대기(`access-approved`, `access-rejected`)·사이클(`cycles`)·Git 저장소(`git`)를 바꾼 기록. 프로젝트 ID 와 변경 종류, 사람이면 `memberId`·`role` 을 남기고 이름·값 같은 내용은 남기지 않는다. 보관·복원은 `PROJECT_ARCHIVED`·`PROJECT_RESTORED` 로 남는다. 명세 [admin-projects.md](admin-projects.md).

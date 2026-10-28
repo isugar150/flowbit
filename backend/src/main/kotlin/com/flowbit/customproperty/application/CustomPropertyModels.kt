@@ -54,6 +54,10 @@ data class CustomPropertyView(
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val person: CustomPropertyPerson?,
     val projectFieldId: UUID? = null,
+    /** For a person-type common field: whether it takes several people, as a list of ids in `value`, or one (D-238). */
+    val multiple: Boolean = false,
+    /** Who a multi-person value names, in order; [person] is the first of them. */
+    val people: List<CustomPropertyPerson> = emptyList(),
 )
 
 /** A property asked for together with the item it belongs to (a new issue), before it is checked. */

@@ -64,8 +64,8 @@ export function DraftProperties({
                       plain
                       members={members}
                       onChange={(changes) => {
-                        // A date, a checkbox and a person are never a number.
-                        if (changes.value !== undefined && typeof changes.value !== "number") set(draft.key, changes.value);
+                        // A date, a checkbox and a person are never a number, and a property of one ticket takes one person, not a list.
+                        if (changes.value !== undefined && typeof changes.value !== "number" && !Array.isArray(changes.value)) set(draft.key, changes.value);
                       }}
                     />
                   )}

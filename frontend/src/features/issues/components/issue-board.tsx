@@ -58,12 +58,15 @@ function CardBody({
   options,
   movable,
   showEstimate,
+  showProject,
   onMove,
 }: {
   issue: Issue;
   options: ReturnType<typeof statusChoices>;
   movable: boolean;
   showEstimate: boolean;
+  /** On a board of more than one project the card says which one it is in, like a line of the list does. */
+  showProject: boolean;
   onMove: (number: number, statusId: string) => void;
 }) {
   const finished = issue.status === "DONE" || issue.status === "CANCELED";
@@ -71,9 +74,14 @@ function CardBody({
   return (
     <>
       <div className="flex items-start gap-1.5">
-        <span className="pt-0.5 text-xs leading-4 text-muted-foreground tabular-nums">{issue.key}</span>
-        {issue.triage ? <span className="rounded-full border border-dashed px-1.5 text-xs leading-4 text-muted-foreground">{messages.triage.badge}</span> : null}
-        <span className="ml-auto flex items-center gap-1">
+        <span className="shrink-0 pt-0.5 text-xs leading-4 text-muted-foreground tabular-nums">{issue.key}</span>
+        {showProject && issue.project ? (
+          <span className="min-w-0 truncate pt-0.5 text-xs leading-4 text-muted-foreground" title={issue.project.name}>
+            {issue.project.name}
+          </span>
+        ) : null}
+        {issue.triage ? <span className="shrink-0 rounded-full border border-dashed px-1.5 text-xs leading-4 text-muted-foreground">{messages.triage.badge}</span> : null}
+        <span className="ml-auto flex shrink-0 items-center gap-1">
           <PriorityMark priority={issue.priority} />
           {/* The same move as the drag, for the keyboard and for a touch screen. Pressing it is not the start of a drag. */}
           {movable ? (
@@ -153,12 +161,14 @@ function BoardCard({
   options,
   movable,
   showEstimate,
+  showProject,
   onMove,
 }: {
   issue: Issue;
   options: ReturnType<typeof statusChoices>;
   movable: boolean;
   showEstimate: boolean;
+  showProject: boolean;
   onMove: (number: number, statusId: string) => void;
 }) {
   const router = useRouter();
@@ -183,7 +193,7 @@ function BoardCard({
       onClick={open}
       className={cn(cardClass, "cursor-pointer", movable && "active:cursor-grabbing", isDragging && "opacity-40")}
     >
-      <CardBody issue={issue} options={options} movable={movable} showEstimate={showEstimate} onMove={onMove} />
+      <CardBody issue={issue} options={options} movable={movable} showEstimate={showEstimate} showProject={showProject} onMove={onMove} />
     </li>
   );
 }
@@ -220,7 +230,10 @@ export function IssueBoard({
   canMove,
   onMove,
   hiddenFinished,
+  showProject,
 }: {
+  /** Whether the cards say which project they are in: on the board of every project, not on one project's own. */
+  showProject: boolean;
   /** In the order the cards are to have inside a column. */
   issues: Issue[];
   statuses: IssueStatusItem[];
@@ -272,6 +285,7 @@ export function IssueBoard({
                         options={options}
                         movable={canMove(issue)}
                         showEstimate={issue.project !== null && estimatesOn.has(issue.project.id)}
+                        showProject={showProject}
                         onMove={onMove}
                       />
                     ))}
@@ -290,6 +304,7 @@ export function IssueBoard({
                   options={options}
                   movable={false}
                   showEstimate={active.project !== null && estimatesOn.has(active.project.id)}
+                  showProject={showProject}
                   onMove={onMove}
                 />
               </div>

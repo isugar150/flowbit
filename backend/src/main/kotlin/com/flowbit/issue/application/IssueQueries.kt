@@ -110,7 +110,21 @@ private data class AncestorRow(
 enum class MyIssueScope(
     val condition: String,
 ) {
-    ASSIGNED("exists(select 1 from issue_assignees ia where ia.issue_id = i.id and ia.user_id = :viewerId)"),
+    ASSIGNED(
+        """
+        (
+          exists(select 1 from issue_assignees ia where ia.issue_id = i.id and ia.user_id = :viewerId)
+          or exists(
+            select 1 from project_issue_fields f
+            left join issue_field_values fv on fv.field_id = f.id and fv.issue_id = i.id
+            where f.project_id = i.project_id and f.type = 'PERSON' and (
+              (case when fv.issue_id is null then f.default_value else fv.value end) = to_jsonb(cast(:viewerId as text))
+              or (case when fv.issue_id is null then f.default_value else fv.value end) @> jsonb_build_array(cast(:viewerId as text))
+            )
+          )
+        )
+        """.trimIndent(),
+    ),
     CREATED("i.created_by = :viewerId"),
 }
 

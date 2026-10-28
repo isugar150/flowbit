@@ -36,7 +36,8 @@ export function AdminProjectList({
   const shown = needle ? projects.filter((project) => project.name.toLowerCase().includes(needle)) : projects;
 
   return (
-    <div className="flex flex-col gap-2">
+    // Stays in view while the settings on the right scroll (the page header and the tabs are sticky above it, hence top-24).
+    <div className="flex flex-col gap-2 md:sticky md:top-24 md:max-h-[calc(100dvh-8rem)] md:overflow-y-auto md:overscroll-contain">
       <InputGroup className="h-9 max-md:h-11">
         <InputGroupAddon>
           <SearchIcon />
@@ -59,7 +60,7 @@ export function AdminProjectList({
       ) : (
         <ul
           aria-label={m.listLabel}
-          className="flex flex-col gap-0.5 overflow-y-auto rounded-xl border p-1 max-md:max-h-64 md:max-h-[34rem]"
+          className="flex flex-col gap-0.5 rounded-xl border p-1 max-md:max-h-64 max-md:overflow-y-auto"
         >
           {shown.map((project) => {
             const current = project.id === selectedId;

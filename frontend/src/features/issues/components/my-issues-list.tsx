@@ -37,8 +37,8 @@ export async function MyIssuesList({ scope, deleted = false, pages = 1 }: { scop
       deleted={deleted}
       // The sidebar's "새 티켓" and `C` open this list's dialog: the person is the assignee to begin with.
       defaultAssigneeId={me.id}
-      // Every issue on this tab is assigned to the person; picking an assignee would only hide them.
-      assigneeFilter={scope !== "assigned"}
+      // A common person field can also put an issue here, independently of its ordinary assignees.
+      assigneeFilter
       // The calendar of the deleted issues is not shared: a shared one shows the issues in use.
       shareScope={deleted ? undefined : scope}
       empty={

@@ -35,7 +35,8 @@ class ProjectIssueFieldsIntegrationTest : IntegrationTest() {
         path = "/api/v1/projects/${p("PAY")}/issue-fields"
     }
 
-    private fun definition(person: String) = """{"label":"리뷰어","type":"PERSON","defaultValue":"$person"}"""
+    /** A person field that takes one person; the field takes several unless it says otherwise (D-238). */
+    private fun definition(person: String) = """{"label":"리뷰어","type":"PERSON","multiple":false,"defaultValue":"$person"}"""
 
     private fun ticket(
         title: String,
@@ -101,7 +102,7 @@ class ProjectIssueFieldsIntegrationTest : IntegrationTest() {
         for ((person, key) in listOf(reviewer to "FB-1", second to "FB-2")) {
             await().atMost(Duration.ofSeconds(5)).untilAsserted {
                 val inbox = person.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
-                assertTrue(inbox.any { it["path"] == "/issue/$key" && (it["lines"] as List<String>).any { line -> line.contains("검토해 주세요") } })
+                assertTrue(inbox.any { it["path"] == "/issue/$key" && it["headline"].toString().contains("검토해 주세요") })
             }
         }
     }
@@ -119,6 +120,59 @@ class ProjectIssueFieldsIntegrationTest : IntegrationTest() {
         assertEquals("확인 필요", properties(original).single()["value"])
         admin.patch("/api/v1/issues/1", """{"projectId":"${p("PAY")}"}""")
         assertEquals(secondId, properties(original).single()["value"])
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `사람 속성은 기본으로 여러 명을 고르고 한 명으로 바꾸면 첫 사람만 남고 다시 여러 명으로 바꾸면 한 명 목록이 된다`() {
+        val field = admin.post(path, """{"label":"리뷰어","type":"PERSON","defaultValue":["$reviewerId"]}""")
+        assertEquals(201, field.status)
+        assertEquals(true, field.json()["multiple"])
+        assertEquals(listOf(reviewerId), field.json()["defaultValue"])
+        val fieldId = field.json()["id"]
+
+        val issue = ticket("여러 리뷰어", ""","projectFields":[{"fieldId":"$fieldId","value":["$reviewerId","$secondId"]}]""")["id"]
+        val both = properties(issue).single()
+        assertEquals(listOf(reviewerId, secondId), both["value"])
+        assertEquals(true, both["multiple"])
+        assertEquals(listOf("reviewer", "second"), (both["people"] as List<Map<String, Any?>>).map { it["loginId"] })
+
+        // A single id is taken as a list of one.
+        assertEquals(200, admin.put(valuePath(issue, fieldId), """{"value":"$secondId"}""").status)
+        assertEquals(listOf(secondId), properties(issue).single()["value"])
+        assertEquals(200, admin.put(valuePath(issue, fieldId), """{"value":["$secondId","$reviewerId"]}""").status)
+
+        // One person: the first of the list stays.
+        val single = admin.put("$path/$fieldId", """{"label":"리뷰어","type":"PERSON","multiple":false,"defaultValue":"$reviewerId"}""")
+        assertEquals(200, single.status)
+        assertEquals(false, single.json()["multiple"])
+        assertEquals(secondId, properties(issue).single()["value"])
+        assertEquals(200, admin.put(valuePath(issue, fieldId), """{"value":"$reviewerId"}""").status)
+
+        // Several again: one person becomes a list of one.
+        assertEquals(200, admin.put("$path/$fieldId", """{"label":"리뷰어","type":"PERSON","multiple":true,"defaultValue":["$reviewerId"]}""").status)
+        assertEquals(listOf(reviewerId), properties(issue).single()["value"])
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `여러 명을 받는 사람 속성은 자동화가 지정된 모두에게 알림을 보낸다`() {
+        val fieldId = admin.post(path, """{"label":"리뷰어","type":"PERSON","defaultValue":["$reviewerId","$secondId"]}""").json()["id"]
+        val rule =
+            """
+            {"name":"속성 리뷰어에게 알림","fromStatusId":"$PROGRESS","toStatusId":"$REVIEW",
+             "actions":[{"id":"${UUID.randomUUID()}","type":"NOTIFY","audience":"PROJECT_FIELD",
+             "fieldId":"$fieldId","message":"함께 검토해 주세요"}]}
+            """.trimIndent()
+        assertEquals(201, admin.post("/api/v1/projects/${p("PAY")}/automations", rule).status)
+        ticket("함께 검토")
+        assertEquals(200, admin.patch("/api/v1/issues/1", """{"statusId":"$REVIEW"}""").status)
+        for (person in listOf(reviewer, second)) {
+            await().atMost(Duration.ofSeconds(5)).untilAsserted {
+                val inbox = person.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
+                assertTrue(inbox.any { it["path"] == "/issue/FB-1" && it["headline"].toString().contains("함께 검토해 주세요") })
+            }
+        }
     }
 
     @Test

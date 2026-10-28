@@ -303,7 +303,35 @@ class CustomPropertyService(
         type: CustomPropertyType,
         raw: Any?,
         projectId: UUID?,
-    ): Any? = normalize(type, raw, projectId, current = null)
+        multiple: Boolean = false,
+    ): Any? = if (type == CustomPropertyType.PERSON && multiple) normalizePeople(raw, projectId) else normalize(type, raw, projectId, current = null)
+
+    /**
+     * The value of a person field that takes several people (D-238): a list of user ids, in the order given and without repeats,
+     * or null when empty. A single id is taken as a list of one. Every one of them must be in the project.
+     */
+    private suspend fun normalizePeople(
+        raw: Any?,
+        projectId: UUID?,
+    ): List<String>? {
+        fun invalid() = ValidationException("value", "INVALID", "값이 올바르지 않습니다")
+        val items =
+            when (raw) {
+                null -> return null
+                is List<*> -> raw
+                is String -> listOf(raw)
+                else -> throw invalid()
+            }
+        val ids =
+            items
+                .map { (it as? String ?: throw invalid()).trim() }
+                .filter { it.isNotEmpty() }
+                .map { text -> runCatching { UUID.fromString(text) }.getOrElse { throw invalid() } }
+                .distinct()
+        if (ids.size > PEOPLE_MAX) throw ValidationException("value", "TOO_MANY", "사람은 ${PEOPLE_MAX}명까지 고를 수 있습니다")
+        if (ids.any { !isPersonAllowed(projectId, it) }) throw ValidationException("value", "NOT_A_MEMBER", "이 프로젝트의 구성원을 고르세요")
+        return ids.map { it.toString() }.ifEmpty { null }
+    }
 
     private suspend fun normalize(
         type: CustomPropertyType,
@@ -372,6 +400,9 @@ class CustomPropertyService(
         const val LABEL_MAX_LENGTH = 30
         const val TEXT_MAX_LENGTH = 500
         const val MAX_PER_ITEM = 20
+
+        /** The most people one value of a person field that takes several may name. */
+        const val PEOPLE_MAX = 50
         private val NUMBER_LIMIT = BigDecimal("1000000000000")
     }
 }

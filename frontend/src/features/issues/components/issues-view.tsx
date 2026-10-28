@@ -571,6 +571,7 @@ export function IssuesView({
               canMove={mayEdit}
               onMove={changeStatus}
               hiddenFinished={hiddenFinished}
+              showProject={projectId === null}
             />
           ) : view === "timeline" ? (
             <IssueTimeline

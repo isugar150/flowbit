@@ -1,5 +1,24 @@
 # 진행 상황
 
+## 2026-10-28 자동화 알림 실행 안내 제거 완료
+
+- [x] 자동화 전용 알림에서 변경자 실행 안내와 자동화 규칙 이름 접두사 제거. 설정 메시지 첫 줄을 요약·나머지를 본문으로 표시하며 티켓 제목·열기 링크 유지. 빈 메시지는 기본 상태 변경 문구 제공. 도움말·명세·결정 갱신.
+- 검증: 관련 백엔드 테스트 14 개 통과(메시지 표시 단위 테스트·자동화·공통 속성 알림), ktlintFormat·변경 프런트 문구 lint 완료. 전체 테스트·빌드·화면 조작 생략. DB 변경 없음.
+
+
+## 2026-10-28 공통 사람 속성의 한 명/여러 명 선택 완료 (D-238)
+
+- [x] 프로젝트 공통 티켓 속성의 사람 형식에 `multiple`(기본 true = 여러 명). `V17`(`project_issue_fields.multiple`, 기존 사람 속성은 여러 명으로 두고 값·기본값을 한 명짜리 배열로 감쌈). 여러 명이면 값이 사용자 id 배열(50명까지·중복 없음·구성원만), 한 명이면 id 문자열. 만든 뒤에도 바꿀 수 있고 값이 따라 바뀐다(여러 → 한 명이면 맨 앞 사람만). 속성 정의·티켓 속성 응답에 `multiple`·`people`. 자동화 "티켓의 사람 속성"은 고른 사람 모두에게 알림.
+- [x] 프런트: 공통 속성 편집에 "여러 명 선택 가능" 체크(사람 형식, 기본 켜짐), 티켓·새 티켓 창의 값은 여러 명이면 체크 목록(`PeopleValue`), 한 명이면 예전 목록. 개별 사용자 속성의 사람은 한 명 그대로. 문구는 `ko.ts` `projectFields`·`customProperties`, 도움말 "사용자 속성", 명세 `features/project-issue-fields.md`.
+- 검증: 백엔드 `ktlintCheck` 와 `ProjectIssueFieldsIntegrationTest`(새 2개: 여러 명 값·한/여러 명 전환·자동화 알림. 기존 단일 테스트는 `multiple:false` 로 둠)·`CustomPropertiesIntegrationTest`·`AdminProjectSettingsIntegrationTest` 통과. 프런트 `tsc --noEmit`·`lint`·`npm test`(21개 파일 109개) 통과. `./gradlew check` 전체와 `npm run build` 는 돌리지 않았고 화면은 확인하지 않았다(사용자 지시). 내 티켓의 assigned 조회는 이미 배열을 지원한다(아래).
+
+## 2026-10-28 공통 사람 속성의 내 티켓 포함 완료
+
+- [x] 내 티켓 assigned 조회에 기본 담당자 OR 현재 프로젝트 공통 PERSON 유효값 포함. 단일 문자열·복수 배열 지원. 지정값이 없을 때만 프로젝트 기본값 적용, 명시적 null·빈 배열은 미지정으로 취급하지 않음. 중복 없음.
+- [x] 기존 접근 권한·삭제·정렬·한도 및 created 범위 유지. assigned 범위를 쓰는 공유·일일 요약에도 같은 조건 적용. 기본 담당자가 다를 수 있으므로 내 티켓에도 담당자 필터 표시. 빈 목록·도움말·명세·API·결정 갱신.
+- 검증: 전용 통합 테스트 2개 통과(단일·복수, 기본값·명시적 빈 값·직접 지정, 담당자 중복·프로젝트 이동·created 범위), 변경 프런트 파일 lint 통과. 별도 build-my-common-fields 및 프로젝트 캐시 사용. 전체 테스트·빌드·화면 조작 생략. DB 변경 없음.
+- 병행 작업: 공통 사람 속성의 단일/복수 선택 옵션·기본값 여러 명은 다른 에이전트 담당. 관련 파일을 덮어쓰지 않고 조회 조건과 별도 테스트만 추가했다. 다음 작업은 사용 피드백 반영.
+
 ## 2026-10-28 자동화 조건 기반 알림 템플릿 수정 완료
 
 - [x] 잘못 추가한 고정 문구 12종 선택을 제거. 알림 블록 추가 시 상태 조건에 맞는 변수 템플릿 자동 입력. 조건 변경은 자동 문구만 갱신하고 직접 수정한 문구는 보존. 현재 조건 문구 재적용 버튼 제공.
@@ -91,13 +110,10 @@
 - **마이그레이션은 `V1__schema.sql`(첫 배포 전에 두 번 합쳤다, D-168·D-191) + `V2`~`V11`** 이다(`V2__project_open_access`, `V3__share_links`, `V4__share_access_item`, `V5__drop_share_accesses`, `V6__inbox_and_daily_summary`, 2026-10-28 에 `V7__issue_statuses_and_estimates`, `V8__saved_views`, `V9__issue_relations`, `V10__triage`, `V11__cycles`). **개발 DB 는 백엔드를 다시 띄우면 `V7`~`V11` 이 적용된다**. DB 의 비밀 값을 암호화하려면 `.env` 에 `FLOWBIT_SECRET_KEY`(16자 이상)를 적고 다시 띄운다(시작할 때 기존 평문이 모두 암호화되고, 잃어버리면 못 읽는다, [10-install.md](10-install.md)). 합친 `V1` 은 한 글자도 고치지 않고, 스키마 변경은 새 파일로 더한다. 예전 파일이 적용된 DB 는 `flyway_schema_history` 를 고치는 SQL 이 한 번 필요하다(D-191, 아래 전문). **백엔드를 다시 띄워야 새 마이그레이션이 적용된다.** 에이전트는 사용자의 개발 DB 를 지우거나 고치지 않는다.
 - IDE 로 백엔드를 띄워 둔 채 `./gradlew` 를 돌리면 그 서버가 깨진다. 검사는 `FLOWBIT_BUILD_DIR` 를 다른 폴더로 주고 돌린다(아래 "알아둘 것"). IDE 실행 설정의 VM 옵션에는 `--enable-native-access=ALL-UNNAMED` 를 직접 적는다([02-architecture.md](02-architecture.md) 개발 환경). JDK 25 는 `JAVA_HOME` 으로 지정한다(이 PC: `C:\Users\<사용자>\.jdks\corretto-25.0.4.1`).
 
-## 미완료: 관리자 설정 > 프로젝트 (D-236, 2026-10-28, 사용 한도로 중단)
+## 관리자 설정 > 프로젝트 완료 (D-236, 2026-10-28)
 
-코드는 끝났고 문서·검증이 덜 끝났다. **같은 작업을 이어서 마친다.**
-
-- **한 것**: 백엔드 `/api/v1/admin/projects/{id}/**`(`AdminProjectController`, `AdminCycleController`, `AdminProjectGitController`, `AdminProjectAudit`, 감사 종류 `PROJECT_ADMIN_CHANGED`, 서비스의 `administrator` 인자). 통합 테스트 `AdminProjectSettingsIntegrationTest` 4개(정상 동작만). `ktlintCheck` 와 `ProjectsIntegrationTest`·`AuditLogIntegrationTest`·`CyclesIntegrationTest` 와 새 테스트 통과(`./gradlew check` 전체는 아직). 프런트: `/admin/projects`(목록 + 선택한 프로젝트의 설정, `AdminProjectList`, `ProjectSettingsSections` 로 `/project/[id]/settings` 와 섹션 공유), 탭 "프로젝트"("구성원" 오른쪽), `ko.ts`(`admin.projectsTab`, `adminProjects`, 감사 종류·`change`·`fields` 문구), `features/projects/scope.ts`(+테스트). `npm run typecheck`·`lint`·`test`(18개 파일 102개) 통과. 결정은 [09-decisions.md](09-decisions.md) D-236.
-- **남은 것**: ① `npm run build` 와 백엔드 `./gradlew check` 전체 ② 명세 `docs/features/admin-projects.md` 새로 쓰기(관리자 API 표, 인수 기준), `docs/06-api-conventions.md` 의 API 목록과 `docs/features/account-security.md` 의 감사 종류 표에 `PROJECT_ADMIN_CHANGED` 더하기 ③ 도움말 `frontend/src/features/help/content.ts`, [features/help.md](features/help.md) 에 관리자 설정의 "프로젝트" 탭 설명 더하기(화면 이름은 `ko.ts` 와 같게) ④ 이 절을 지우고 위 "구현된 것"에 한 줄 더하기. 화면은 확인하지 않았다(사용자 지시).
-- 일반 구성원은 `admin/layout.tsx` 가 `/` 로 돌려보내고 백엔드는 `/api/v1/admin/**` 를 403 으로 막는다(기존 규칙, 새 테스트는 거부 경로를 보지 않는다).
+- [x] 관리자 설정의 "구성원" 오른쪽에 "프로젝트" 탭. 관리자가 구성원이 아닌 프로젝트의 설정(정보·공개 범위·사이클·트리아지·티켓 속성·자동화·추정치·구성원과 승인 대기·Git·아카이브/복원)을 바꾼다. 백엔드 `/api/v1/admin/projects/{id}/**`(기존 `/api/v1/projects/**` 와 D-131 은 그대로), 감사 `PROJECT_ADMIN_CHANGED`. 프런트 `/admin/projects`(왼쪽 목록은 스크롤해도 붙어 있다), 설정 섹션은 `ProjectSettingsSections` 를 프로젝트 설정과 공유. 명세 [features/admin-projects.md](features/admin-projects.md), 도움말 "관리자 설정 > 프로젝트".
+- 검증: 백엔드 `./gradlew check` 전체(ktlint 포함, 362개 0 실패), 프런트 `tsc --noEmit`·`lint`·`npm test`(21개 파일 109개)·`npm run build` 통과. 화면은 확인하지 않았다(사용자 지시). 거부 경로(허용되지 않은 `PATCH` 항목, 일반 구성원의 403)는 사용자 지시로 전용 테스트가 없다.
 
 ## 다음 작업
 

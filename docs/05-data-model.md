@@ -186,7 +186,7 @@
 | `created_at`, `updated_at` | `timestamptz` | 화면 순서는 `created_at`, `id` |
 
 한 항목에 20개까지(서비스가 확인). 사람 값이 가리키는 사용자는 외래 키가 아니라 서비스가 프로젝트 구성원인지 확인한다(담당자처럼, 구성원에서 빠져도 값은 남는다).
-
+
 
 ### 이번에 더한 표와 열 (`V7`~`V11`, D-228~D-232)
 
@@ -226,4 +226,4 @@ V13: 리뷰 준비됨·리뷰 중을 IN_PROGRESS에 추가(기존 같은 이름�
 
 ## V16 프로젝트 공통 티켓 속성
 
-project_issue_fields에 프로젝트별 이름·불변 형식·기본값을 저장한다. issue_field_values는 (issue_id, field_id) 기본 키이며 행 부재는 기본값, NULL 행은 명시적 빈 값이다. FK 삭제는 CASCADE. [명세](features/project-issue-fields.md) 참고.
+project_issue_fields에 프로젝트별 이름·불변 형식·기본값을 저장한다. 사람 형식은 `multiple`(기본 true, V17, D-238)로 한 명(id 문자열)/여러 명(id 배열)을 구분하고, 값(`issue_field_values.value`)과 기본값이 그 모양을 따른다. issue_field_values는 (issue_id, field_id) 기본 키이며 행 부재는 기본값, NULL 행은 명시적 빈 값이다. FK 삭제는 CASCADE. [명세](features/project-issue-fields.md) 참고.

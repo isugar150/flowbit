@@ -8,8 +8,11 @@ export const CUSTOM_PROPERTY_TYPES: CustomPropertyType[] = ["TEXT", "NUMBER", "D
 /** The item a property belongs to: the word in the address and the id of its row (an issue's `id`, not its number). */
 export type CustomPropertyOwner = { type: "project" | "issue"; id: string };
 
-/** A string for TEXT, LINK, DATE (`YYYY-MM-DD`) and PERSON (the user's id), a number, a boolean; null while empty. */
-export type CustomPropertyValue = string | number | boolean | null;
+/**
+ * A string for TEXT, LINK, DATE (`YYYY-MM-DD`) and PERSON (the user's id), a number, a boolean; null while empty. A PERSON
+ * of a common field that takes several people (D-238) is a list of their ids.
+ */
+export type CustomPropertyValue = string | number | boolean | string[] | null;
 
 export type CustomProperty = {
   id: string;
@@ -19,6 +22,9 @@ export type CustomProperty = {
   /** Who a PERSON value is. */
   person: IssuePerson | null;
   projectFieldId?: string | null;
+  /** A PERSON of a common field: whether it takes several people (`value` is a list of ids, `people` who they are) or one. */
+  multiple?: boolean;
+  people?: IssuePerson[];
 };
 
 /** GET /api/v1/custom-properties/{type}/{id} */

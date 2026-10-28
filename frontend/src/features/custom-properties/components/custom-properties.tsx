@@ -14,7 +14,8 @@ import {
   UserIcon,
   type LucideIcon,
 } from "lucide-react";
-import { PersonAvatar, personName } from "@/components/person";
+import { MultiCombobox } from "@/components/multi-combobox";
+import { PeopleAvatars, PersonAvatar, personName } from "@/components/person";
 import { PropertyPanelRow, PropertyRow } from "@/components/property-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { FormAlert } from "@/features/auth/components/form-alert";
-import { ChipSelect, type ChipOption } from "@/features/issues/components/chip-select";
+import { ChipSelect, chipClass, plainChipClass, type ChipOption } from "@/features/issues/components/chip-select";
 import { DateChip } from "@/features/issues/components/date-chips";
 import { NONE } from "@/features/issues/options";
 import type { IssuePerson } from "@/features/issues/types";
@@ -210,7 +211,11 @@ export function PropertyValue({
         </span>
       );
     case "PERSON":
-      return <PersonValue item={item} canEdit={canEdit} plain={plain} members={members} onChange={onChange} />;
+      return item.multiple ? (
+        <PeopleValue item={item} canEdit={canEdit} plain={plain} members={members} onChange={onChange} />
+      ) : (
+        <PersonValue item={item} canEdit={canEdit} plain={plain} members={members} onChange={onChange} />
+      );
     default:
       return <TextValue item={item} canEdit={canEdit} plain={plain} onChange={onChange} />;
   }
@@ -345,6 +350,64 @@ function PersonValue({
       disabled={!canEdit}
       onChange={(value) => onChange({ value: value === NONE ? null : value }, value === NONE ? null : (known.find((person) => person.id === value) ?? null))}
     />
+  );
+}
+
+/**
+ * Several people, ticked from the members of the project (or whoever has been named already, who may have left it). Only a
+ * common field of the project can take several (D-238); each tick is saved at once, as a list of ids.
+ */
+function PeopleValue({
+  item,
+  canEdit,
+  plain,
+  members,
+  onChange,
+}: {
+  item: CustomProperty;
+  canEdit: boolean;
+  plain: boolean;
+  members: ProjectMember[];
+  onChange: (changes: CustomPropertyChanges, person?: IssuePerson | null) => void;
+}) {
+  const known: IssuePerson[] = members.map(({ userId, loginId, displayName, avatarUrl }) => ({ id: userId, loginId, displayName, avatarUrl }));
+  for (const person of item.people ?? []) if (!known.some((other) => other.id === person.id)) known.push(person);
+  const ids = Array.isArray(item.value) ? item.value : typeof item.value === "string" ? [item.value] : [];
+  // In the order they were ticked.
+  const selected = ids.flatMap((id) => known.filter((person) => person.id === id));
+  const summary =
+    selected.length === 0 ? m.noPerson : selected.length === 1 ? personName(selected[0]) : m.peopleSummary(personName(selected[0]), selected.length - 1);
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={<button type="button" disabled={!canEdit} aria-label={`${item.label}: ${summary}`} className={plain ? plainChipClass : chipClass} />}
+      >
+        {selected.length === 0 ? (
+          <UserIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        ) : selected.length === 1 ? (
+          <PersonAvatar person={selected[0]} />
+        ) : (
+          <PeopleAvatars people={selected} />
+        )}
+        <span className="truncate">{summary}</span>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0">
+        <MultiCombobox
+          options={known.map((person) => ({
+            id: person.id,
+            label: personName(person),
+            hint: person.displayName ? person.loginId : undefined,
+            icon: <PersonAvatar person={person} />,
+          }))}
+          value={ids}
+          onChange={(next) => onChange({ value: next.length > 0 ? next : null })}
+          placeholder={m.searchPerson}
+          listLabel={m.personCandidates}
+          emptyText={m.noPeopleCandidates}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 
