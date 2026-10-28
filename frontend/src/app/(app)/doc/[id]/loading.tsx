@@ -1,12 +1,11 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { DocumentSkeleton, HeaderSkeleton } from "@/components/skeletons";
 
-/** Shown while the page reads its data. */
+/** Shown while the document is read: the path above it, then the title and the body. */
 export default function PageLoading() {
   return (
-    <div className="flex flex-col gap-3 px-5 py-4" aria-hidden="true">
-      <Skeleton className="h-8 w-full" />
-      <Skeleton className="h-8 w-full" />
-      <Skeleton className="h-8 w-2/3" />
-    </div>
+    <>
+      <HeaderSkeleton crumbs={["w-24", "w-32"]} />
+      <DocumentSkeleton />
+    </>
   );
 }

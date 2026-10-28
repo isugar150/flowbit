@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { SearchIcon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { SearchBodySkeleton } from "@/components/skeletons";
 import { SearchResults, type SearchTab } from "@/features/search/components/search-results";
 import { messages } from "@/messages";
 
@@ -17,7 +18,7 @@ export default function SearchPage({ searchParams }: PageProps<"/search">) {
   return (
     <>
       <PageHeader crumbs={[{ label: m.title, icon: <SearchIcon /> }]} />
-      <Suspense>
+      <Suspense fallback={<SearchBodySkeleton />}>
         <SearchBody searchParams={searchParams} />
       </Suspense>
     </>

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { SharedContentSkeleton } from "@/components/skeletons";
 import { SharedView } from "@/features/share/components/shared-view";
 import { messages } from "@/messages";
 
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 export default function SharedPage({ params }: PageProps<"/s/[token]">) {
   return (
     // The address is read per request, so this part streams in.
-    <Suspense fallback={null}>
+    <Suspense fallback={<SharedContentSkeleton />}>
       <SharedContent params={params} />
     </Suspense>
   );

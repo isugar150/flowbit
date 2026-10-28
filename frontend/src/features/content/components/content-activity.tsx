@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import type { MentionPerson } from "@/components/editor/mention";
+import { ActivitySkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ActivityEvent } from "@/features/issues/components/activity-event";
@@ -72,11 +73,14 @@ export function ContentActivity({
   const timeline = useCollapsedEntries(data ? timelineOf(data.items, data.comments, data.threads) : []);
 
   if (!data) {
+    // Until the feed arrives the section is drawn as it will be, so what is under it does not move when it does.
     return feed.isError ? (
       <p role="alert" className="border-t pt-5 text-[0.8125rem] leading-5 text-destructive">
         {m.block.loadFailed}
       </p>
-    ) : null;
+    ) : (
+      <ActivitySkeleton />
+    );
   }
 
   // Nothing to read and nothing can be added (the example of the tour): no heading over nothing.

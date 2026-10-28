@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { AuthFormSkeleton } from "@/components/skeletons";
 import { LoginForm } from "@/features/auth/components/login-form";
 import { fetchAuthMethods } from "@/lib/backend";
 import { safeNextPath } from "@/lib/safe-next-path";
@@ -24,7 +25,7 @@ export default function LoginPage({
       description={messages.login.description}
     >
       {/* The address and the backend are read per request, so this part streams in. */}
-      <Suspense fallback={null}>
+      <Suspense fallback={<AuthFormSkeleton />}>
         <LoginContent searchParams={searchParams} />
       </Suspense>
     </AuthShell>

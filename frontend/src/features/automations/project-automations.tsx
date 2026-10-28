@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TimeAgo } from "@/components/dates";
+import { ListRowsSkeleton } from "@/components/skeletons";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { useProjectApiScope } from "@/features/projects/project-api-scope";
 import type { ProjectMember } from "@/features/projects/types";
@@ -42,7 +43,7 @@ export function ProjectAutomations({ projectId, members }: { projectId: string; 
     if (typeof editing === "object" && editing?.id === id) setEditing(null);
   });
   const statusName = (id: string | null) => id ? statuses.find((status) => status.id === id)?.name ?? m.missing : m.any;
-  if (rules.isPending) return <p className="text-sm text-muted-foreground">{m.loading}</p>;
+  if (rules.isPending) return <ListRowsSkeleton rows={3} label={m.loading} />;
   if (rules.error || labels.error || fields.error) return <FormAlert>{apiErrorMessage(rules.error ?? labels.error ?? fields.error)}</FormAlert>;
   const refresh = () => { void rules.refetch(); void runs.refetch(); };
   return (

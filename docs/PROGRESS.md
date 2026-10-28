@@ -1,5 +1,14 @@
 # 진행 상황
 
+## 2026-10-28 모든 화면의 로딩 스켈레톤 (D-240)
+
+- [x] 사용자 지시: 로딩 중에 스켈레톤이 없거나 짧아서 화면 높이가 좁았다가 데이터가 오면 확 늘어나는 문제. 공용 `(app)/loading.tsx` 한 장과 3~4줄짜리 `loading.tsx` 로 때우던 것을 화면마다 자기 모양·높이의 스켈레톤으로 바꿨다.
+- [x] 조각 모음 `frontend/src/components/skeletons.tsx` 신설(헤더·탭·툴바·티켓 줄·프로젝트 표·설정 블록/목록/카드·프로젝트 개요·프로젝트 설정·티켓 창·활동·문서·로그인 폼·공유 화면). 목록은 `SkeletonFill` 로 화면 높이까지 채우고 잘라 낸다.
+- [x] `loading.tsx` 추가/교체: `(app)`(공용), `issues`, `issue/[key]`, `my-issues`, `archived`, `triage`, `help`, `doc/[id]`, `no-access/[id]`, `project/[id]`(개요 모양), `project/[id]/settings`, `settings`, `settings/shares`, `admin`(폼), `admin/{members,projects,auth,notifications,git,statuses,audit}`. 홈(`/`)은 페이지 안 `<Suspense fallback>`, 검색은 기존 `Suspense` 에 fallback, 로그인(`Suspense fallback={null}` → 입력란 모양)·공유 페이지(`/s/[token]`)·프로젝트 헤더/탭 스켈레톤도 같은 조각으로 통일.
+- [x] 화면 안 `useQuery` 구역의 "불러오는 중" 한 줄을 스켈레톤으로: 활동(`ContentActivity`), 자동화 규칙 목록, 프로젝트 공통 속성 목록, 사이클 설정, 공유 페이지. 티켓 창(`IssueDialogSkeleton`)은 네 줄에서 티켓 창 자체의 두 단 모양으로 바꿨다. 있을 수도 없을 수도 있는 구역(사이클 카드, 지운 문서)은 일부러 그대로 둔다.
+- 검증: `npm run typecheck`·변경 파일 `eslint`·`npm test`(21개 파일 109개)·`npm run build` 통과. 사용자 지시에 따라 화면은 확인하지 않았다 — 높이가 실제로 맞는지(특히 관리자 `Auth`/`Notifications` 카드 수, 프로젝트 설정 블록 수)는 눈으로 한 번 봐 주면 좋다. 백엔드·DB 변경 없음. 도움말은 바꿀 동작이 아니라 건드리지 않았다.
+- 다음: 스켈레톤 높이는 근사치다. 어긋나는 화면이 있으면 `skeletons.tsx` 의 해당 조각(줄 수·간격)만 고치면 된다. 새 화면을 만들 때는 `loading.tsx` 를 함께 만든다(`docs/04-frontend-guide.md` "속도" 절).
+
 ## 2026-10-28 자동화 알림 실행 안내 제거 완료
 
 - [x] 자동화 전용 알림에서 변경자 실행 안내와 자동화 규칙 이름 접두사 제거. 설정 메시지 첫 줄을 요약·나머지를 본문으로 표시하며 티켓 제목·열기 링크 유지. 빈 메시지는 기본 상태 변경 문구 제공. 도움말·명세·결정 갱신.

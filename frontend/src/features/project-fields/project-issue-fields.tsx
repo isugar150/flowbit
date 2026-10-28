@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { ListRowsSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -60,7 +61,7 @@ export function ProjectIssueFields({ projectId, members }: { projectId: string; 
   const save = useRefreshingMutation((input: ProjectFieldInput) => saveProjectField(projectId, scope, editing && editing !== "new" ? editing.id : undefined, input), () => { invalidate(); setEditing(null); });
   const remove = useRefreshingMutation((id: string) => deleteProjectField(projectId, scope, id), invalidate);
   return <div className="flex flex-col gap-4">
-    {fields.isPending ? <p className="text-sm text-muted-foreground">{m.loading}</p> : null}
+    {fields.isPending ? <ListRowsSkeleton rows={2} label={m.loading} /> : null}
     {fields.error || remove.error ? <FormAlert>{apiErrorMessage(fields.error ?? remove.error)}</FormAlert> : null}
     <ul className="flex flex-col gap-2">{fields.data?.map((field) => <li key={field.id} className="flex items-center gap-2 rounded-lg border p-3">
       <div className="mr-auto min-w-0"><p className="truncate text-sm font-medium">{field.label}</p><p className="text-xs text-muted-foreground">{messages.customProperties.types[field.type]}{field.type === "PERSON" ? ` · ${field.multiple ? m.multipleBadge : m.singleBadge}` : ""}</p></div>

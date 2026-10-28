@@ -2,9 +2,11 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMutation } from "@tanstack/react-query";
+import { TextLine } from "@/components/skeletons";
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Skeleton } from "@/components/ui/skeleton";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { useProjectApiScope } from "@/features/projects/project-api-scope";
 import { apiErrorMessage } from "@/lib/api/error-message";
@@ -25,7 +27,26 @@ export function CycleSettingsField({ projectId }: { projectId: string }) {
     onSuccess: (next) => client.setQueryData(key, next),
   });
   const settings = save.isPending && save.variables ? save.variables : cycles.data?.settings;
-  if (!settings) return <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.loading}</p>;
+  if (!settings) {
+    // The legend and the two choices, as they will be (a name over a hint each).
+    return (
+      <div role="status" aria-busy="true" className="flex flex-col gap-4">
+        <span className="sr-only">{m.loading}</span>
+        <div aria-hidden="true" className="flex flex-col gap-3">
+          <TextLine className="w-24" />
+          {[0, 1].map((index) => (
+            <div key={index} className="flex items-start gap-2">
+              <Skeleton className="mt-0.5 size-4 shrink-0 rounded-full" />
+              <div className="flex flex-col">
+                <TextLine className="w-20" />
+                <TextLine className="w-64" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const change = (changes: Partial<CycleSettings>) => {
     save.reset();

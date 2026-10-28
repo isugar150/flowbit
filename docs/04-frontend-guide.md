@@ -16,7 +16,7 @@ frontend/
 │  │  │  ├─ settings/        내 설정 (개인이 정하는 것: 프로필, 화면 테마)
 │  │  │  ├─ admin/           관리자 설정 (워크스페이스, 구성원, 로그인 연동, 알림, 백업 및 복원, 데이터 보관, Git 연동). `search/` 는 티켓·문서 검색 결과 페이지(D-133). 내 설정과 섞지 않는다. 폭은 max-w-2xl 이고, 두 단으로 짜는 화면은 뿌리에 data-wide 를 달아 넓힌다
 │  │  │  ├─ project/[id]/   프로젝트
-│  │  │  ├─ loading.tsx      페이지를 옮길 때 바로 보이는 스켈레톤
+│  │  │  ├─ loading.tsx      페이지를 옮길 때 바로 보이는 스켈레톤 (화면마다 자기 폴더에도 둔다)
 │  │  │  └─ error.tsx        데이터를 못 불러왔을 때
 │  │  ├─ session-expired/    쓸 수 없게 된 세션 쿠키를 지우고 로그인으로 보낸다
 │  │  ├─ layout.tsx          lang="ko", Providers
@@ -72,6 +72,7 @@ frontend/
 - 유효하지 않은 쿠키는 `requireUser` 가 `/session-expired` 로 보내고, 거기서 쿠키를 지운 뒤 로그인으로 간다. 서버 컴포넌트에서 `redirect("/login")` 을 직접 쓰지 않는다(쿠키가 남아 있으면 proxy 가 다시 돌려보내 무한히 돈다).
 - 한 요청 안에서 같은 데이터를 두 번 가져오지 않는다. 여러 곳에서 쓰는 조회는 `lib/current-user.ts` 에 React `cache()` 로 감싸 둔다(`getCurrentUser`, `getWorkspace`, `getProjects`). 서로 무관한 조회는 `Promise.all` 로 함께 보낸다.
 - `(app)/loading.tsx` 가 있어서 링크를 누르면 내용 영역이 바로 스켈레톤으로 바뀐다. 데이터를 오래 읽는 구역을 새로 만들면 그 구역에 맞는 `loading.tsx` 를 둔다.
+- **스켈레톤은 그 화면의 모양과 높이로 그린다** (D-240). 짧게 그렸다가 데이터가 오면 확 늘어나는 것이 문제이므로 공용 한 장으로 때우지 않는다. 조각은 `components/skeletons.tsx` 에 있다: `HeaderSkeleton`(PageHeader, h-11)·`TabsSkeleton`(PillTabs)·`ListToolbarSkeleton`·`IssueListSkeleton`(티켓 줄 h-10)·`ProjectTableSkeleton`(표 줄 h-11)·`SettingsSectionSkeleton`/`SettingsListSkeleton`/`SettingsCardsSkeleton`(설정 블록)·`ProjectOverviewSkeleton`·`ProjectSettingsBodySkeleton`·`IssueDetailSkeleton`(티켓 창)·`ActivitySkeleton`·`DocumentSkeleton`·`AuthFormSkeleton`·`ListRowsSkeleton`. **새 화면을 만들면 `loading.tsx` 를 같이 만들고**, 실제 컴포넌트의 높이를 따라 조각을 조합한다(없는 모양이면 `skeletons.tsx` 에 조각을 더한다). 규칙: ① 줄이 많은 목록은 화면보다 많이 그리고 `SkeletonFill`(`flex-1 min-h-0 overflow-hidden`)로 남는 높이에서 잘라 패널이 스크롤되지 않게 한다. 이 상자는 `<main>` 바로 아래 자식일 때만 남는 높이를 받으니, 감싸는 레이아웃이 있는 화면(설정·관리자)은 조각의 높이를 실제 내용에 맞게 정한다 ② 레이아웃이 `data-wide` 로 폭을 바꾸는 화면(관리자 구성원·프로젝트·파일)은 스켈레톤 뿌리에도 `data-wide` 를 달아 폭이 튀지 않게 한다 ③ 화면 안에서 `useQuery` 로 읽는 구역은 `<p>불러오는 중</p>` 대신 같은 자리·같은 높이의 스켈레톤을 쓰고 스크린 리더용 글은 `sr-only` 로 둔다. 있을 수도 없을 수도 있는 구역(사이클 카드, 지운 문서 목록)은 그리지 않는다 ④ 홈(`/`)처럼 `(app)/loading.tsx` 가 아닌 모양이 필요한데 폴더가 없는 화면은 페이지 안에서 `<Suspense fallback>` 으로 감싼다.
 - **비밀번호를 받는 폼은 `method="post"` 를 단다.** 스크립트가 붙기 전에(느린 로딩, 개발 서버의 다른 호스트 차단) 사용자가 제출하면 브라우저가 폼을 직접 보내는데, `method` 가 없으면 GET 이라 아이디와 비밀번호가 주소에 들어간다(실제로 겪었다). `proxy.ts` 는 주소에 `password` 가 있으면 지우고 다시 보낸다.
 - **목록의 필터처럼 주소로 열 수 있는 화면 상태는 `useState` 가 아니라 주소(`useSearchParams`)에 둔다.** Next 16 은 다녀간 화면을 살려 두므로, 처음 값만 받는 `useState` 는 다른 주소로 다시 들어와도 예전 값을 보여 줄 수 있다(마일스톤 필터에서 겪었다). 바꿀 때는 `useReplaceListQuery()`(`issue-views.tsx`)를 쓴다: `window.history.replaceState` 로 주소를 바로 바꾸고(화면이 기다리지 않는다) **이어서 `router.replace` 로 라우터에도 같은 주소를 알린다.** `history` 만 바꾸면 라우터는 예전 주소에 있다고 믿는다. 그 상태에서 티켓을 대화상자로 열고 무엇이든 저장하면 `router.refresh()` 의 응답이 라우터가 아는 화면과 맞지 않아 Next 가 문서를 통째로 다시 불러온다: 화면이 깜빡이고, 뒤의 목록이 보기·필터를 잃고 전체 티켓 목록으로 돌아온다(2026-10-13 에 재현하고 고쳤다). **주소를 `history` 로만 바꾸는 코드를 새로 만들지 않는다.**
 - **레이아웃은 최상위에서 `params` 나 백엔드 데이터를 `await` 하지 않는다.** `cacheComponents` 에서는 같은 레이아웃 안에서 이동할 때(예: 프로젝트의 개요 → 티켓 탭) 그 레이아웃 아래에 `<Suspense>` 가 없으면 "uncached data ... outside of `<Suspense>`" 오류가 난다. 데이터를 읽는 부분은 별도 비동기 컴포넌트로 빼서 `<Suspense>` 로 감싸고, 그 레이아웃 바로 아래 페이지들을 위해 같은 폴더에 `loading.tsx` 를 둔다 (`project/[id]/layout.tsx`, `project/[id]/loading.tsx` 가 예).
@@ -96,6 +97,7 @@ frontend/
 | 사람 | `components/person.tsx` | `personName()`(표시 이름. `displayName ?? loginId` 를 직접 쓰지 않는다), `PersonAvatar`(작은 아바타), `PersonMark`(아바타 + 이름 툴팁), `Person`(아바타·이름·아이디) |
 | 티켓 줄의 조각 | `features/issues/components/issue-row.tsx` | `PriorityMark`, `StatusMark`, `IssueTitleLink`, `IssueProjectName`, `IssueLabels`, `IssueDue`. 티켓을 한 줄로 그리는 곳(목록, 하위 티켓)은 이것을 조합한다 |
 | 내비게이션 항목 | `app/(app)/_components/nav-destinations.ts` | 사이드바와 좁은 화면 메뉴가 함께 쓰는 목적지 목록, `isCurrentPath()` |
+| 스켈레톤 조각 | `components/skeletons.tsx` | 데이터를 기다리는 동안의 모양: `loading.tsx`, `<Suspense fallback>`, 화면 안 `useQuery` 구역 (D-240, "속도" 절) |
 
 - **자주 고치는 내용은 설정 화면에 넣지 않는다.** 보이는 그 자리에서 고치고 자동 저장한다(프로젝트 요약·설명, 티켓 제목·본문). 설정 화면에는 드물게 바꾸는 것(이름, 구성원)만 둔다.
 - 편집기에 새 블록을 추가하려면 세 곳을 함께 고친다: 편집기의 `/` 메뉴(`SLASH_ITEMS`), 백엔드의 허용 목록(`RichText.kt` 의 `NODE_TYPES`), 글꼴·간격(`globals.css` 의 `.rich-text`).

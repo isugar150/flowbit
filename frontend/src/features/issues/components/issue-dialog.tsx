@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
+import { IssueDetailSkeleton } from "@/components/skeletons";
 import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
 import { messages } from "@/messages";
 
@@ -63,15 +63,12 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
   );
 }
 
-/** What the dialog shows while the issue is being read. */
+/** What the dialog shows while the issue is being read: the issue's own layout, so it does not grow when the issue arrives. */
 export function IssueDialogSkeleton() {
   return (
-    <div className="flex flex-col gap-4 p-5 pt-1">
+    <>
       <DialogTitle className="sr-only">{messages.issues.loading}</DialogTitle>
-      <Skeleton className="h-7 w-2/3" />
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-5/6" />
-      <Skeleton className="h-4 w-1/2" />
-    </div>
+      <IssueDetailSkeleton />
+    </>
   );
 }

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import { PillTabs } from "@/components/pill-tabs";
 import { ProjectIcon } from "@/components/project-icon";
-import { Skeleton } from "@/components/ui/skeleton";
+import { HeaderSkeleton, TabsSkeleton } from "@/components/skeletons";
 import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
 import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import type { Project } from "@/features/projects/types";
@@ -63,15 +63,9 @@ async function ProjectNav({ params }: { params: LayoutProps<"/project/[id]">["pa
 /** Same height as the header and the tabs, so the page does not jump when they arrive. */
 function ProjectNavSkeleton() {
   return (
-    <div aria-hidden="true">
-      <div className="flex h-11 items-center px-4">
-        <Skeleton className="h-4 w-40" />
-      </div>
-      <div className="flex gap-1.5 px-4 pb-2">
-        <Skeleton className="h-7 w-14 rounded-full max-md:h-9" />
-        <Skeleton className="h-7 w-14 rounded-full max-md:h-9" />
-        <Skeleton className="h-7 w-14 rounded-full max-md:h-9" />
-      </div>
-    </div>
+    <>
+      <HeaderSkeleton crumbs={["w-20", "w-32"]} actions />
+      <TabsSkeleton count={2} />
+    </>
   );
 }

@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { LinkIcon } from "lucide-react";
 import { Wordmark } from "@/components/brand/wordmark";
-import { Spinner } from "@/components/ui/spinner";
+import { SharedContentSkeleton } from "@/components/skeletons";
 import { buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { IssueCalendarView } from "@/features/issues/components/issue-calendar";
@@ -115,10 +115,10 @@ export function SharedView({ token }: { token: string }) {
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col">
       <main className="flex flex-1 flex-col gap-2 pb-4">
         {share.isPending ? (
-          <p role="status" className="flex items-center gap-2 px-4 pt-6 text-[0.8125rem] leading-5 text-muted-foreground">
-            <Spinner aria-hidden="true" />
-            {m.loading}
-          </p>
+          <div role="status" aria-busy="true">
+            <span className="sr-only">{m.loading}</span>
+            <SharedContentSkeleton />
+          </div>
         ) : null}
         {share.isError ? (
           <Empty className="pt-16">
