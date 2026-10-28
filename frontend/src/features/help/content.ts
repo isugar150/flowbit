@@ -1216,7 +1216,7 @@ const managing: HelpSection[] = [
     id: "admin-retention",
     title: "데이터 보관",
     icon: Trash2Icon,
-    summary: "삭제한 데이터를 얼마나 보관할지",
+    summary: "삭제한 데이터와 거절된 요청을 얼마나 보관할지",
     blocks: [
       {
         kind: "list",

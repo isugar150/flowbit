@@ -167,6 +167,10 @@ class RetentionIntegrationTest : IntegrationTest() {
         admin.patch("/api/v1/issues/1", """{"title":"거절 후 수정"}""")
         admin.patch("/api/v1/issues/2", """{"triage":true}""")
         assertEquals(1, count("select count(*) from issues where number = 2 and not triage_rejected and triage_rejected_at is null"))
+        admin.post("/api/v1/projects/$project/issues", """{"title":"최근 거절","triage":true}""")
+        admin.patch("/api/v1/issues/5", """{"triage":false,"status":"CANCELED","triageRejected":true}""")
+        val parentId = admin.get("/api/v1/issues/1").json()["id"]
+        admin.post("/api/v1/issues", """{"title":"남길 하위 티켓","parentId":"$parentId"}""")
 
         val policy = """{"rejectedRequests":{"amount":5,"unit":"DAYS"}}"""
         assertEquals(200, admin.put("/api/v1/admin/retention", policy).status)
@@ -177,7 +181,8 @@ class RetentionIntegrationTest : IntegrationTest() {
         assertEquals(PurgeResult(0, 0, 0, rejectedRequests = 1), purge())
         admin.login("admin", PASSWORD)
         assertEquals(404, admin.get("/api/v1/issues/1").status)
-        for (number in 2..4) assertEquals(200, admin.get("/api/v1/issues/$number").status)
+        for (number in 2..6) assertEquals(200, admin.get("/api/v1/issues/$number").status)
+        assertEquals(1, count("select count(*) from issues where number = 6 and parent_id is null"))
         assertEquals(0, count("select count(*) from issue_attachments"))
         assertFalse(Files.exists(file))
         assertEquals(1, count("select count(*) from audit_events where event_type = 'DATA_PURGED' and detail ->> 'rejectedRequests' = '1'"))
