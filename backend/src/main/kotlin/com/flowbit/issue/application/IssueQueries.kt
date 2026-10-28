@@ -156,9 +156,25 @@ class IssueQueries(
             if (projectId != null) spec.bind("projectId", projectId) else spec
         }
 
+    /** Active members who can classify requests in this project. */
+    suspend fun triageManagers(projectId: UUID): List<UUID> =
+        databaseClient
+            .sql(
+                "select pm.user_id from project_members pm join users u on u.id = pm.user_id where pm.project_id = :projectId and pm.role = 'MANAGER' and u.status = 'ACTIVE'",
+            ).bind("projectId", projectId)
+            .map { row -> checkNotNull(row.get("user_id", UUID::class.java)) }
+            .all()
+            .collectList()
+            .awaitSingle()
+
     /** The issues waiting in the triage queue that the viewer may see, the oldest first (D-231). */
-    suspend fun triageQueue(viewer: Viewer): List<IssueView> =
-        select("where $VISIBLE and i.deleted_at is null and i.triage and i.project_id is not null order by i.created_at limit $LIST_LIMIT") {
+    suspend fun triageQueue(
+        viewer: Viewer,
+        rejected: Boolean = false,
+    ): List<IssueView> =
+        select(
+            "where $VISIBLE and i.deleted_at is null and ${if (rejected) "i.triage_rejected" else "i.triage"} and i.project_id is not null order by i.created_at limit $LIST_LIMIT",
+        ) {
             it.visibleTo(viewer)
         }
 

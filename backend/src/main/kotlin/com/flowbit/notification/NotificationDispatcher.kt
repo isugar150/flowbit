@@ -96,6 +96,11 @@ class NotificationDispatcher(
         }
     }
 
+    /** A targeted request, sent without holding it or merging its recipients with followers. */
+    fun dispatchImmediate(notification: IssueNotification) {
+        if (notification.recipientIds.isNotEmpty()) send(notification)
+    }
+
     /**
      * Sends a comment at once, to the people tagged in it (D-166). It is not held and not merged
      * with what else the same person did: another change's followers must not read the comment,

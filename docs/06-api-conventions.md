@@ -111,3 +111,5 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 
 - 아직 OpenAPI 문서를 만들지 않는다. 엔드포인트의 기준은 각 기능 명세의 "API" 절이고, 프론트엔드 타입은 `features/<기능>/types.ts` 에 직접 적는다.
 - 엔드포인트가 늘어나는 M3 에서 OpenAPI 생성(springdoc 의 WebFlux 지원 버전)과 타입 생성을 도입한다 (D-023).
+
+트리아지: `GET /api/v1/triage?rejected=true`는 거절됨 목록, 생략 시 대기 중 목록이다. `PATCH /api/v1/issues/{번호}`의 `triageRejected: true`는 관리 역할이 대기 티켓을 `triage: false`, 취소 상태로 함께 바꾸는 경우에 사용한다.

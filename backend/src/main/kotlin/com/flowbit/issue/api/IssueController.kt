@@ -312,7 +312,8 @@ class TriageController(
     @GetMapping
     suspend fun queue(
         @AuthenticationPrincipal user: AuthenticatedUser,
-    ): List<IssueResponse> = issueService.triageQueue(user).map(IssueResponse::from)
+        @RequestParam(defaultValue = "false") rejected: Boolean,
+    ): List<IssueResponse> = issueService.triageQueue(user, rejected).map(IssueResponse::from)
 }
 
 /** "내 티켓": the caller's issues across projects. `scope` is `assigned` (default) or `created`. */

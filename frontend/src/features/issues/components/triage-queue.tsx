@@ -20,7 +20,7 @@ const m = messages.triage;
 /** A plain paragraph as an editor document, for the reason a request is declined. */
 const textDoc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
-function TriageRow({ issue }: { issue: Issue }) {
+function TriageRow({ issue, rejected }: { issue: Issue; rejected: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
@@ -29,7 +29,7 @@ function TriageRow({ issue }: { issue: Issue }) {
   const accept = useRefreshingMutation(updateIssue, done);
   const setPriority = useRefreshingMutation(updateIssue);
   const decline = useRefreshingMutation(async () => {
-    await updateIssue({ number: issue.number, changes: { triage: false, status: "CANCELED" } });
+    await updateIssue({ number: issue.number, changes: { triage: false, status: "CANCELED", triageRejected: true } });
     if (reason.trim()) await createComment({ number: issue.number, content: textDoc(reason.trim()), attachmentIds: [] });
   }, done);
   const close = useRefreshingMutation(updateIssue, done);
@@ -46,7 +46,7 @@ function TriageRow({ issue }: { issue: Issue }) {
           {m.requestedBy(personName(issue.createdBy))} · <TimeAgo iso={issue.createdAt} />
         </span>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      {!rejected ? <div className="flex flex-wrap items-center gap-2">
         <ChipSelect
           label={m.priorityOf(issue.key)}
           value={issue.priority}
@@ -65,7 +65,7 @@ function TriageRow({ issue }: { issue: Issue }) {
         <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setDeclining((current) => !current)}>
           {m.decline}
         </Button>
-      </div>
+      </div> : null}
       {declining ? (
         <form
           className="flex flex-col gap-2"
@@ -101,16 +101,16 @@ function TriageRow({ issue }: { issue: Issue }) {
 }
 
 /** The issues waiting to be sorted, oldest first (docs/features/triage.md). */
-export function TriageQueue({ issues }: { issues: Issue[] }) {
+export function TriageQueue({ issues, rejected = false }: { issues: Issue[]; rejected?: boolean }) {
   if (issues.length === 0) {
-    return <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">{m.empty}</p>;
+    return <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">{rejected ? m.rejectedEmpty : m.empty}</p>;
   }
   return (
     <div className="flex flex-col">
-      <p className="px-5 pb-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.waiting(issues.length)}</p>
+      <p className="px-5 pb-2 text-[0.8125rem] leading-5 text-muted-foreground">{rejected ? m.rejectedCount(issues.length) : m.waiting(issues.length)}</p>
       <ul className="border-t">
         {issues.map((issue) => (
-          <TriageRow key={issue.id} issue={issue} />
+          <TriageRow key={issue.id} issue={issue} rejected={rejected} />
         ))}
       </ul>
     </div>

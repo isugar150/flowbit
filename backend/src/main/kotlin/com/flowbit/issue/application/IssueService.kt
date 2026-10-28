@@ -60,8 +60,11 @@ class IssueService(
     ): List<IssueView> = queries.list(lookup.viewer(user), projectId?.let { projectService.access(user, it).project.id }, deleted, limit)
 
     /** The issues waiting in the triage queue of the projects the caller manages, the oldest first (D-231). */
-    suspend fun triageQueue(user: AuthenticatedUser): List<IssueView> =
-        queries.triageQueue(lookup.viewer(user)).filter { view ->
+    suspend fun triageQueue(
+        user: AuthenticatedUser,
+        rejected: Boolean = false,
+    ): List<IssueView> =
+        queries.triageQueue(lookup.viewer(user), rejected).filter { view ->
             view.project?.let { projectService.accessById(user, it.id)?.role?.canManage } == true
         }
 
@@ -234,6 +237,7 @@ class IssueService(
                 tagged.map {
                     it.first
                 },
+            triageRecipientIds = triageRecipients(issue, user),
         )
     }
 
@@ -269,6 +273,15 @@ class IssueService(
             }
         }
         if (patch.has("estimate")) issue.estimate = estimateOf(patch.int("estimate"))
+        if (patch.has("triageRejected")) {
+            if (issue.projectId?.let { projectService.accessById(user, it)?.role?.canManage } != true) {
+                throw ForbiddenException("트리아지는 프로젝트 관리 역할만 정할 수 있습니다")
+            }
+            if (!patch.bool("triageRejected") || !issue.triage || !patch.has("triage") || patch.bool("triage") || issue.status != IssueStatus.CANCELED) {
+                throw ValidationException("triageRejected", "INVALID", "대기 중인 티켓을 거절하고 취소할 때만 지정할 수 있습니다")
+            }
+            issue.triageRejected = true
+        }
         if (patch.has("triage")) {
             val next = patch.bool("triage")
             // Sorting the queue is for the people who manage the project, not for the one who asked (D-231).
@@ -276,6 +289,7 @@ class IssueService(
                 throw ForbiddenException("트리아지는 프로젝트 관리 역할만 정할 수 있습니다")
             }
             issue.triage = next
+            if (next) issue.triageRejected = false
         }
         patch.enum("priority", IssuePriority::valueOf)?.let { issue.priority = it }
         if (patch.has("dueDate")) issue.dueDate = patch.date("dueDate")
@@ -333,8 +347,14 @@ class IssueService(
             lookup.recipients(issue.id, user),
             listOfNotNull(before.project?.id, after.project?.id).distinct(),
             tagged.map { it.first },
+            triageRecipientIds = if (!before.triage && issue.triage) triageRecipients(issue, user) else emptyList(),
         )
     }
+
+    private suspend fun triageRecipients(
+        issue: Issue,
+        user: AuthenticatedUser,
+    ): List<UUID> = if (issue.triage) issue.projectId?.let { queries.triageManagers(it).filter { id -> id != user.id } }.orEmpty() else emptyList()
 
     /** Story points: a whole number from 0 to 1000, or none. */
     private fun estimateOf(value: Int?): Int? {

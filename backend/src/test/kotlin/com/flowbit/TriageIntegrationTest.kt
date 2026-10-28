@@ -2,9 +2,12 @@ package com.flowbit
 
 import com.flowbit.support.ApiClient
 import com.flowbit.support.IntegrationTest
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.time.Duration
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 private const val PASSWORD = "correct-horse-battery"
 
@@ -54,11 +57,13 @@ class TriageIntegrationTest : IntegrationTest() {
         requester.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"거절할 티켓"}""")
 
         val accepted = admin.patch("/api/v1/issues/1", """{"triage":false,"priority":"HIGH"}""")
-        val declined = admin.patch("/api/v1/issues/2", """{"triage":false,"status":"CANCELED"}""")
+        val declined = admin.patch("/api/v1/issues/2", """{"triage":false,"status":"CANCELED","triageRejected":true}""")
 
         assertEquals(false, accepted.json()["triage"])
         assertEquals("HIGH", accepted.json()["priority"])
         assertEquals("CANCELED", declined.json()["status"])
+        assertEquals(listOf("FB-2"), admin.get("/api/v1/triage?rejected=true").jsonList().map { it["key"] })
+        assertEquals("거절할 티켓", requester.get("/api/v1/issues/2").json()["title"])
         assertEquals(emptyList(), admin.get("/api/v1/triage").jsonList())
     }
 
@@ -68,5 +73,33 @@ class TriageIntegrationTest : IntegrationTest() {
 
         assertEquals(false, asked.json()["triage"])
         assertEquals(emptyList(), admin.get("/api/v1/triage").jsonList())
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `새 요청은 구독하지 않은 모든 프로젝트 관리 역할에게 분류 요청 알림을 보낸다`() {
+        val managerId = admin.post("/api/v1/admin/members", """{"loginId":"manager","password":"$PASSWORD"}""").json()["id"]
+        admin.put("/api/v1/projects/${p("PAY")}/members/$managerId", """{"role":"MANAGER"}""")
+        val manager = client().also { it.login("manager", PASSWORD) }
+        admin.patch("/api/v1/projects/${p("PAY")}", """{"triageEnabled":true}""")
+        requester.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"분류할 새 요청"}""")
+
+        for (recipient in listOf(admin, manager)) {
+            await().atMost(Duration.ofSeconds(5)).untilAsserted {
+                val items = recipient.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
+                val request = items.single { (it["headline"] as String).contains("분류를 요청") }
+                assertEquals("[FB-1] 분류할 새 요청", request["title"])
+                assertEquals("/issue/FB-1", request["path"])
+                assertTrue((request["lines"] as List<String>).single().contains("분류해 주세요"))
+            }
+        }
+        assertEquals(0, requester.get("/api/v1/me/inbox").json()["unreadCount"])
+        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"관리자의 요청","triage":true}""")
+        await().atMost(Duration.ofSeconds(5)).untilAsserted {
+            val items = manager.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
+            assertEquals(2, items.count { (it["headline"] as String).contains("분류를 요청") })
+        }
+        val own = admin.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
+        assertEquals(1, own.count { (it["headline"] as String).contains("분류를 요청") })
     }
 }

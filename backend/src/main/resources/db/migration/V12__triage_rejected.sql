@@ -1,0 +1,1 @@
+ALTER TABLE issues ADD COLUMN triage_rejected boolean NOT NULL DEFAULT false;

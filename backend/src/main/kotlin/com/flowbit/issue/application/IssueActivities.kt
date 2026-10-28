@@ -102,6 +102,8 @@ data class IssueChange(
      * tagged, and for a reply the ones in the conversation; for a new comment the issue's followers too. Told at once, not held.
      */
     val taggedIds: List<UUID> = emptyList(),
+    /** Managers to ask to classify a newly queued issue, independently of subscriptions. */
+    val triageRecipientIds: List<UUID> = emptyList(),
 ) {
     companion object {
         /** What is said on an issue rather than done to it: told to the people tagged, not to the subscribers. */

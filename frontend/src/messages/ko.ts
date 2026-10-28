@@ -1104,6 +1104,10 @@ export const ko = {
     option: (label: string, number: number, span: string) => `${label ? `${label} · ` : ""}사이클 ${number} (${span})`,
   },
   triage: {
+    pending: "대기 중",
+    rejected: "거절됨",
+    rejectedEmpty: "거절된 티켓이 없습니다.",
+    rejectedCount: (count: number) => `거절된 티켓 ${count}개`,
     title: "트리아지",
     description: "요청한 사람이 만든 티켓이 처리 전에 여기서 기다립니다. 관리 역할인 프로젝트의 것만 보이고, 수락하면 목록에 평소처럼 남고, 거절하면 취소되고, 이미 있는 티켓이면 중복으로 닫습니다.",
     empty: "분류를 기다리는 티켓이 없습니다.",
@@ -1842,6 +1846,7 @@ export const ko = {
       neverCalled: "아직 호출한 적 없음",
       events: {
         CREATED: "티켓 생성",
+        TRIAGE_REQUESTED: "트리아지 분류 요청",
         TITLE_CHANGED: "제목",
         DESCRIPTION_CHANGED: "본문",
         STATUS_CHANGED: "상태",

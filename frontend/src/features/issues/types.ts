@@ -177,6 +177,7 @@ export type NewSubIssueInput = Omit<NewIssueInput, "projectId" | "assigneeIds" |
 
 /** Only the fields present are changed; null clears the due date. `labelIds` and `assigneeIds` replace all labels and assignees. */
 export type IssueChanges = Partial<{
+  triageRejected: boolean;
   title: string;
   content: RichDoc | null;
   status: IssueStatus;

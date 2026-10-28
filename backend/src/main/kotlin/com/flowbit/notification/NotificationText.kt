@@ -52,6 +52,7 @@ class NotificationText(
         val duplicatedFrom = notification.events.firstNotNullOfOrNull { it.detail["duplicatedFrom"] as? String }
         val did =
             when {
+                "TRIAGE_REQUESTED" in types -> "새 티켓의 분류를 요청했습니다"
                 "CREATED" in types && duplicatedFrom != null -> "$duplicatedFrom 티켓을 복제했습니다"
                 "CREATED" in types -> "티켓을 만들었습니다"
                 "DELETED" in types -> "티켓을 삭제했습니다"
@@ -158,6 +159,7 @@ class NotificationText(
     private fun line(event: IssueNotification.Event): String? {
         val detail = event.detail
         return when (event.type) {
+            "TRIAGE_REQUESTED" -> "새로운 티켓이 트리아지에 도착했습니다. 요청을 확인하고 분류해 주세요."
             "CREATED", "DELETED", "RESTORED" -> null
             "TITLE_CHANGED" -> change("제목", detail)
             "DESCRIPTION_CHANGED" -> "본문을 수정했습니다"
