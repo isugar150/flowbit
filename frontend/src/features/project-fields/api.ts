@@ -1,0 +1,10 @@
+import { apiFetch } from "@/lib/api/client";
+import { projectPath, type ProjectApiScope } from "@/features/projects/scope";
+import type { CustomProperty, CustomPropertyValue } from "@/features/custom-properties/types";
+import type { ProjectFieldInput, ProjectIssueField } from "./types";
+export const projectFieldsKey = (projectId: string | null, scope: ProjectApiScope = "project") => ["project-issue-fields", projectId, scope];
+const path = (projectId: string, scope: ProjectApiScope) => `${projectPath(projectId, scope)}/issue-fields`;
+export const getProjectFields = (projectId: string, scope: ProjectApiScope = "project") => apiFetch<ProjectIssueField[]>(path(projectId, scope));
+export const saveProjectField = (projectId: string, scope: ProjectApiScope, id: string | undefined, input: ProjectFieldInput) => apiFetch<ProjectIssueField>(`${path(projectId, scope)}${id ? `/${id}` : ""}`, { method: id ? "PUT" : "POST", body: input });
+export const deleteProjectField = (projectId: string, scope: ProjectApiScope, id: string) => apiFetch<void>(`${path(projectId, scope)}/${id}`, { method: "DELETE" });
+export const changeProjectField = (issueId: string, fieldId: string, value: CustomPropertyValue) => apiFetch<CustomProperty>(`/api/v1/custom-properties/issue/${issueId}/project-fields/${fieldId}`, { method: "PUT", body: { value } });

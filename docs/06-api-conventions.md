@@ -121,3 +121,7 @@ PUT /api/v1/issues/{number}/subscription: 선택 본문 {"includeDescendants":tr
 ### 프로젝트 자동화
 
 `GET·POST /api/v1/projects/{id}/automations`, `PUT·DELETE …/{ruleId}`, `GET …/runs`(최근 50개). 같은 계약을 `/api/v1/admin/projects/{id}/automations`에서도 제공한다. 일반 경로는 프로젝트 관리 역할, 관리자 경로는 워크스페이스 관리자가 설정한다. 입력: `name`, `enabled`, `fromStatusId`(null=모든 상태), `toStatusId`, `actions`(id·type·audience·userIds·labelIds·message). 감사 종류 `PROJECT_AUTOMATIONS_CHANGED`, 알림 종류 `AUTOMATION_TRIGGERED`. [명세](features/project-automations.md).
+
+## 프로젝트 공통 티켓 속성 API
+
+GET·POST /api/v1/projects/{id}/issue-fields, PUT·DELETE …/{fieldId}. 관리자 경로는 /api/v1/admin/projects/{id}/issue-fields. PUT /api/v1/custom-properties/issue/{issueId}/project-fields/{fieldId}로 값을 변경한다. 생성은 projectFields 배열, 조회는 projectFieldId로 공통 항목을 구분한다. [명세](features/project-issue-fields.md) 참고.

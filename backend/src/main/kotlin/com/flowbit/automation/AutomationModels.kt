@@ -5,7 +5,7 @@ import java.util.UUID
 
 enum class AutomationActionType { NOTIFY, ASSIGN, ADD_LABELS, REMOVE_LABELS }
 
-enum class AutomationAudience { PEOPLE, ASSIGNEES, CREATOR, MANAGERS }
+enum class AutomationAudience { PEOPLE, ASSIGNEES, CREATOR, MANAGERS, PROJECT_FIELD }
 
 data class AutomationAction(
     val id: UUID,
@@ -14,6 +14,7 @@ data class AutomationAction(
     val userIds: List<UUID> = emptyList(),
     val labelIds: List<UUID> = emptyList(),
     val message: String = "",
+    val fieldId: UUID? = null,
 )
 
 data class AutomationInput(

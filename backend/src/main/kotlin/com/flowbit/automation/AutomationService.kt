@@ -24,6 +24,7 @@ class AutomationService(
     private val store: AutomationStore,
     private val audit: AuditService,
     private val db: DatabaseClient,
+    private val projectFields: com.flowbit.customproperty.application.ProjectIssueFieldStore,
 ) {
     suspend fun list(
         user: AuthenticatedUser,
@@ -82,6 +83,14 @@ class AutomationService(
                     if (action.userIds.any { it !in members }) invalid("actions", "담당자는 프로젝트의 편집·관리 역할 구성원이어야 합니다")
                 }
                 AutomationActionType.NOTIFY -> {
+                    if (action.audience == AutomationAudience.PROJECT_FIELD &&
+                        projectFields.fields(projectId).none {
+                            it.id == action.fieldId &&
+                                it.type == com.flowbit.customproperty.application.CustomPropertyType.PERSON
+                        }
+                    ) {
+                        invalid("actions", "알림 대상으로 이 프로젝트의 사람 형식 티켓 속성을 골라 주세요")
+                    }
                     if (action.audience == AutomationAudience.PEOPLE && action.userIds.isEmpty()) invalid("actions", "알림을 받을 구성원을 골라 주세요")
                     if (action.userIds.any { !queries.isProjectMember(projectId, it) }) invalid("actions", "알림 대상은 프로젝트에 접근할 수 있는 활성 구성원이어야 합니다")
                 }

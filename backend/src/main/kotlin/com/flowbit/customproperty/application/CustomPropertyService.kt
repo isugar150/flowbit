@@ -38,6 +38,7 @@ import java.util.UUID
 @Service
 class CustomPropertyService(
     private val store: CustomPropertyStore,
+    private val projectFields: ProjectIssueFieldStore,
     private val projectService: ProjectService,
     private val issueLookup: IssueLookup,
     private val issueQueries: IssueQueries,
@@ -53,7 +54,13 @@ class CustomPropertyService(
         id: UUID,
     ): CustomPropertyList {
         val target = resolve(user, kind, id)
-        return CustomPropertyList(target.canEdit, views(store.list(target.owner)))
+        return CustomPropertyList(
+            target.canEdit,
+            target.projectId
+                ?.takeIf { kind == CustomPropertyOwnerKind.ISSUE }
+                ?.let { projectFields.values(id, it) }
+                .orEmpty() + views(store.list(target.owner)),
+        )
     }
 
     @Transactional
@@ -70,7 +77,11 @@ class CustomPropertyService(
         if (store.count(target.owner) >= MAX_PER_ITEM) {
             throw ValidationException("label", "TOO_MANY", "속성은 한 항목에 ${MAX_PER_ITEM}개까지 추가할 수 있습니다")
         }
-        if (store.labelTaken(target.owner, label)) throw taken()
+        if (store.labelTaken(target.owner, label) ||
+            (kind == CustomPropertyOwnerKind.ISSUE && target.projectId?.let { projectFields.hasLabel(it, label) } == true)
+        ) {
+            throw taken()
+        }
         val value = normalize(type, rawValue, target.projectId, current = null)
         val now = clock.instant()
         val propertyId = UuidV7.generate(now)
@@ -96,7 +107,7 @@ class CustomPropertyService(
         val seen = mutableSetOf<String>()
         return inputs.map { input ->
             val label = validLabel(input.label)
-            if (!seen.add(label.lowercase())) throw taken()
+            if (!seen.add(label.lowercase()) || projectId?.let { projectFields.hasLabel(it, label) } == true) throw taken()
             val value = normalize(input.type, input.value, projectId, current = null)
             CheckedCustomProperty(label, input.type, value?.let(jsonMapper::writeValueAsString))
         }
@@ -132,6 +143,7 @@ class CustomPropertyService(
         toIssueId: UUID,
         now: Instant,
     ) {
+        projectFields.copy(fromIssueId, toIssueId)
         val owner = CustomPropertyOwner(CustomPropertyOwnerKind.ISSUE, toIssueId)
         store.list(CustomPropertyOwner(CustomPropertyOwnerKind.ISSUE, fromIssueId)).forEachIndexed { index, property ->
             val at = now.plusNanos(index * 1_000L)
@@ -151,6 +163,7 @@ class CustomPropertyService(
         val before = views(listOf(row)).single()
         val label = if ("label" in changes) validLabel(changes["label"] as? String ?: "") else row.label
         if (!label.equals(row.label, ignoreCase = true) && store.labelTaken(target.owner, label, propertyId)) throw taken()
+        if (target.issueId != null && target.projectId?.let { projectFields.hasLabel(it, label) } == true) throw taken()
         val currentPerson = (before.value as? String)?.takeIf { row.type == CustomPropertyType.PERSON }?.let(UUID::fromString)
         val value = if ("value" in changes) normalize(row.type, changes["value"], target.projectId, currentPerson) else before.value
         val valueJson = value?.let(jsonMapper::writeValueAsString)
@@ -286,6 +299,12 @@ class CustomPropertyService(
      * `YYYY-MM-DD`, a link is an http or https address, and a person is someone who is in the project
      * (a person who already is the value stays valid, whatever has become of their membership).
      */
+    suspend fun normalizeForProject(
+        type: CustomPropertyType,
+        raw: Any?,
+        projectId: UUID?,
+    ): Any? = normalize(type, raw, projectId, current = null)
+
     private suspend fun normalize(
         type: CustomPropertyType,
         raw: Any?,

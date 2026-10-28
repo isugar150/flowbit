@@ -53,6 +53,7 @@ data class CustomPropertyView(
     /** Who a PERSON value is. */
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val person: CustomPropertyPerson?,
+    val projectFieldId: UUID? = null,
 )
 
 /** A property asked for together with the item it belongs to (a new issue), before it is checked. */

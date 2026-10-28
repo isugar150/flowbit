@@ -143,3 +143,7 @@ com.flowbit
 서로 다른 빌드 폴더에서 검사를 동시에 실행할 때는 Gradle 프로젝트 캐시도 분리한다. 예: `FLOWBIT_BUILD_DIR=build-check ./gradlew --project-cache-dir build-check/.gradle check`(backend 폴더). 출력 폴더만 바꾸고 프로젝트 캐시를 공유하면 Gradle이 이전 실행의 출력 클래스를 정리할 수 있다.
 
 관계처럼 표시 순서를 명세하지 않은 목록의 통합 테스트는 결과를 정렬해서 비교한다. 고정 시계에서 만든 UUID v7의 무작위 부분 순서를 생성 순서로 가정하지 않는다.
+
+## 프로젝트 공통 티켓 속성
+
+customproperty의 ProjectIssueFieldService·Store가 정의와 값을 관리하고 기존 값 검증을 공유한다. AutomationEngine은 실행 당시 사람 값을 조회한다. V16 및 [명세](features/project-issue-fields.md) 참고.

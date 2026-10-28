@@ -1,5 +1,6 @@
 "use client";
 
+import { getProjectFields, projectFieldsKey } from "@/features/project-fields/api";
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ export function ProjectAutomations({ projectId, members }: { projectId: string; 
   const runKey = ["automation-runs", projectId, scope];
   const rules = useQuery({ queryKey: ruleKey, queryFn: () => getAutomations(projectId, scope) });
   const runs = useQuery({ queryKey: runKey, queryFn: () => getAutomationRuns(projectId, scope) });
+  const fields = useQuery({ queryKey: projectFieldsKey(projectId, scope), queryFn: () => getProjectFields(projectId, scope) });
   const labels = useQuery({ queryKey: ["labels"], queryFn: () => apiFetch<Label[]>("/api/v1/labels") });
   const save = useRefreshingMutation((input: AutomationInput) => saveAutomation(projectId, scope, typeof editing === "object" && editing ? editing.id : undefined, input), (rule) => {
     client.setQueryData<AutomationRule[]>(ruleKey, (current = []) => current.some((item) => item.id === rule.id) ? current.map((item) => item.id === rule.id ? rule : item) : [...current, rule]);
@@ -41,7 +43,7 @@ export function ProjectAutomations({ projectId, members }: { projectId: string; 
   });
   const statusName = (id: string | null) => id ? statuses.find((status) => status.id === id)?.name ?? m.missing : m.any;
   if (rules.isPending) return <p className="text-sm text-muted-foreground">{m.loading}</p>;
-  if (rules.error || labels.error) return <FormAlert>{apiErrorMessage(rules.error ?? labels.error)}</FormAlert>;
+  if (rules.error || labels.error || fields.error) return <FormAlert>{apiErrorMessage(rules.error ?? labels.error ?? fields.error)}</FormAlert>;
   const refresh = () => { void rules.refetch(); void runs.refetch(); };
   return (
     <div className="flex flex-col gap-4">
@@ -55,7 +57,7 @@ export function ProjectAutomations({ projectId, members }: { projectId: string; 
         </li>)}
       </ul>
       {remove.error ? <FormAlert>{apiErrorMessage(remove.error)}</FormAlert> : null}
-      {editing ? <AutomationEditor key={editing === "new" ? "new" : editing.id} initial={editing === "new" ? undefined : editing} members={members} labels={labels.data ?? []} onSave={(input) => save.mutate(input)} onCancel={() => setEditing(null)} pending={save.isPending} error={save.error} /> : null}
+      {editing ? <AutomationEditor key={editing === "new" ? "new" : editing.id} initial={editing === "new" ? undefined : editing} members={members} fields={fields.data ?? []} labels={labels.data ?? []} onSave={(input) => save.mutate(input)} onCancel={() => setEditing(null)} pending={save.isPending} error={save.error} /> : null}
       <details className="rounded-lg border p-3">
         <summary className="cursor-pointer text-sm font-medium">{m.runs}</summary>
         <div className="mt-3 flex flex-col gap-3">

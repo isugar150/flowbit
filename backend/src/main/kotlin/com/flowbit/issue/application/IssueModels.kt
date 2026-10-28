@@ -43,6 +43,7 @@ data class NewIssue(
     val triage: Boolean? = null,
     /** Relations to give the issue as it is made (D-237): how it stands to each other issue. The same as adding each one afterwards. */
     val relations: List<NewRelation> = emptyList(),
+    val projectFields: List<com.flowbit.customproperty.application.IssueFieldInput> = emptyList(),
 )
 
 /**

@@ -160,6 +160,7 @@ export type NewIssueInput = {
   parentId?: string;
   /** Properties to give the issue as it is made, in order (D-193); left out for none. */
   customProperties?: NewCustomPropertyInput[];
+  projectFields?: import("@/features/project-fields/types").IssueFieldInput[];
   /** True sends the issue to the project's triage queue when a manager makes it (D-236); anyone else's goes there anyway where triage is on. */
   triage?: boolean;
   /** Relations to make together with the issue (D-237): how it stands to each other issue, as `POST …/relations` takes them. */

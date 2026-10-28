@@ -20,10 +20,12 @@ export function DraftProperties({
   drafts,
   onChange,
   members,
+  reservedLabels = [],
 }: {
   drafts: DraftProperty[];
   onChange: (drafts: DraftProperty[]) => void;
   members: ProjectMember[];
+  reservedLabels?: string[];
 }) {
   const [problem, setProblem] = useState<string | null>(null);
   const set = (key: string, value: DraftProperty["value"]) => onChange(drafts.map((draft) => (draft.key === key ? { ...draft, value } : draft)));
@@ -80,7 +82,7 @@ export function DraftProperties({
         onAdd={({ label, type }, done) => {
           if (drafts.length >= MAX_DRAFTS) return setProblem(m.tooMany(MAX_DRAFTS));
           // The same as on a saved ticket: a name is taken whatever its case.
-          if (drafts.some((draft) => draft.label.toLowerCase() === label.toLowerCase())) return setProblem(m.exists);
+          if (drafts.some((draft) => draft.label.toLowerCase() === label.toLowerCase()) || reservedLabels.some((reserved) => reserved.toLowerCase() === label.toLowerCase())) return setProblem(m.exists);
           onChange([...drafts, newDraft(label, type)]);
           setProblem(null);
           done();

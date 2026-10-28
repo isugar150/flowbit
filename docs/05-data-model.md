@@ -223,3 +223,7 @@
 ### 프로젝트 자동화 (V13·V14)
 
 V13: 리뷰 준비됨·리뷰 중을 IN_PROGRESS에 추가(기존 같은 이름은 ID 유지). V14: `project_automations(id, project_id, name, enabled, from_status_id NULL, to_status_id, actions JSONB, created_at, updated_at)`, `automation_runs(id, rule_id, project_id, issue_id, issue_version, rule_name, results JSONB, created_at)`. 규칙·티켓·버전은 유일하다. 프로젝트·티켓 영구 삭제 시 실행 기록은 함께 삭제된다. 규칙 삭제는 기록을 보존한다. 조건으로 사용한 상태 삭제 시 규칙을 함께 삭제한다.
+
+## V16 프로젝트 공통 티켓 속성
+
+project_issue_fields에 프로젝트별 이름·불변 형식·기본값을 저장한다. issue_field_values는 (issue_id, field_id) 기본 키이며 행 부재는 기본값, NULL 행은 명시적 빈 값이다. FK 삭제는 CASCADE. [명세](features/project-issue-fields.md) 참고.

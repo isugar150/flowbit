@@ -12,6 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { ShortcutKeys } from "@/components/shortcut-keys";
 import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
+import { DraftProjectFields } from "@/features/project-fields/draft-project-fields";
+import { getProjectFields, projectFieldsKey } from "@/features/project-fields/api";
+import type { CustomPropertyValue } from "@/features/custom-properties/types";
 import { DraftProperties } from "@/features/custom-properties/components/draft-properties";
 import { draftsToInput, draftWithBadNumber, withoutPeople, type DraftProperty } from "@/features/custom-properties/drafts";
 import type { UserSummary } from "@/features/members/types";
@@ -85,6 +88,7 @@ export function NewIssueDialog({
   const [properties, setProperties] = useState<Properties>(DEFAULT_PROPERTIES);
   // What people add to the ticket on their own (D-193): kept here and sent with the ticket, since it has no id to save them under yet.
   const [drafts, setDrafts] = useState<DraftProperty[]>([]);
+  const [projectValues, setProjectValues] = useState<Record<string, CustomPropertyValue>>({});
   const [draftProblem, setDraftProblem] = useState<string | null>(null);
   // The relations to other tickets, kept here and made together with the ticket (D-237).
   const [relations, setRelations] = useState<DraftRelation[]>([]);
@@ -138,6 +142,7 @@ export function NewIssueDialog({
       }));
       // A person property names a member of the project, and the project starts over, so the properties do too.
       changeDrafts([]);
+      setProjectValues({});
       setRelations([]);
       setTouched(false);
       setTitleError(false);
@@ -176,6 +181,7 @@ export function NewIssueDialog({
   // Who can be assigned follows the chosen project. For the project the
   // dialog was opened in they came with the page; for another one they are fetched.
   const projectId = properties.projectId;
+  const projectFields = useQuery({ queryKey: projectFieldsKey(projectId), queryFn: () => getProjectFields(projectId as string), enabled: open && !!projectId });
   const other = projectId !== defaultProjectId;
   const fetched = useQuery({
     queryKey: ["new-issue-project", projectId],
@@ -199,6 +205,7 @@ export function NewIssueDialog({
     }));
     // The same for the people named in the added properties: they were members of the other project.
     setDrafts(withoutPeople);
+    setProjectValues({});
   };
 
   const submit = () => {
@@ -219,6 +226,7 @@ export function NewIssueDialog({
       content: content.current,
       ...properties,
       ...(drafts.length > 0 ? { customProperties: draftsToInput(drafts) } : null),
+      projectFields: Object.entries(projectValues).map(([fieldId, value]) => ({ fieldId, value })),
       ...(relations.length > 0 ? { relations: relations.map((relation) => ({ kind: relation.kind, targetNumber: relation.target.number })) } : null),
       ...(canChooseTriage && sendToTriage ? { triage: true } : null),
     });
@@ -340,7 +348,10 @@ export function NewIssueDialog({
               labels={labels}
               projects={projects}
               afterDueDate={
+                <>
+                <DraftProjectFields fields={projectFields.data ?? []} values={projectValues} members={members} onChange={(fieldId, value) => { setProjectValues((current) => ({ ...current, [fieldId]: value })); setTouched(true); }} />
                 <DraftProperties
+                  reservedLabels={projectFields.data?.map((field) => field.label)}
                   drafts={drafts}
                   onChange={(next) => {
                     changeDrafts(next);
@@ -348,6 +359,7 @@ export function NewIssueDialog({
                   }}
                   members={members}
                 />
+                </>
               }
             />
             <NewIssueRelations

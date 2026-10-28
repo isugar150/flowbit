@@ -13,6 +13,7 @@ class AutomationEngine(
     private val queries: IssueQueries,
     private val members: ProjectMemberStore,
     private val clock: Clock,
+    private val projectFields: com.flowbit.customproperty.application.ProjectIssueFieldStore,
 ) {
     suspend fun apply(
         before: IssueView,
@@ -42,6 +43,7 @@ class AutomationEngine(
                                     AutomationAudience.PEOPLE -> action.userIds
                                     AutomationAudience.ASSIGNEES -> current.assignees.map { it.id }
                                     AutomationAudience.CREATOR -> listOf(current.createdBy.id)
+                                    AutomationAudience.PROJECT_FIELD -> listOfNotNull(projectFields.personValue(after.id, projectId, action.fieldId))
                                     AutomationAudience.MANAGERS -> eligible.filter { it.role.canManage }.map { it.userId }
                                 }.distinct()
                             val allowed = ids.filter { id -> eligible.any { it.userId == id } }

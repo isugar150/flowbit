@@ -119,7 +119,7 @@ export function CustomProperties({
                 onChange={(changes, person) => change.mutate({ id: item.id, changes, person })}
               />
             </div>
-            {canEdit ? <RemoveMenu label={item.label} onRemove={() => remove.mutate(item.id)} /> : null}
+            {canEdit && !item.projectFieldId ? <RemoveMenu label={item.label} onRemove={() => remove.mutate(item.id)} /> : null}
           </div>
         </Row>
       ))}

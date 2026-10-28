@@ -1,3 +1,5 @@
+import { ProjectSettingsIndex, type ProjectSettingsEntry } from "./project-settings-index";
+import { ProjectIssueFields } from "@/features/project-fields/project-issue-fields";
 import { ProjectAutomations } from "@/features/automations/project-automations";
 import { SettingsSection } from "@/components/settings-section";
 import { CycleSettingsField } from "@/features/cycles/components/cycle-settings-field";
@@ -43,28 +45,28 @@ export function ProjectSettingsSections({
   currentUserId: string;
   scope?: ProjectApiScope;
 }) {
-  return (
-    <ProjectApiScopeProvider scope={scope}>
-      <SettingsSection title={m.settingsTitle} description={m.settingsDescription}>
+  const sections: ProjectSettingsEntry[] = [
+    { id: "general", title: m.settingsTitle, content: (<SettingsSection title={m.settingsTitle} description={m.settingsDescription}>
         <ProjectIconField projectId={project.id} iconUrl={project.iconUrl} />
         <ProjectDetailsForm project={project} canManage />
-      </SettingsSection>
-      <SettingsSection title={m.accessTitle} description={m.accessDescription}>
+      </SettingsSection>) },
+    { id: "access", title: m.accessTitle, content: (<SettingsSection title={m.accessTitle} description={m.accessDescription}>
         <ProjectAccessField projectId={project.id} openToAll={project.openToAll} />
-      </SettingsSection>
-      <SettingsSection title={messages.cycles.settingsTitle} description={messages.cycles.settingsDescription}>
+      </SettingsSection>) },
+    { id: "cycles", title: messages.cycles.settingsTitle, content: (<SettingsSection title={messages.cycles.settingsTitle} description={messages.cycles.settingsDescription}>
         <CycleSettingsField projectId={project.id} />
-      </SettingsSection>
-      <SettingsSection title={m.triageTitle} description={m.triageDescription}>
+      </SettingsSection>) },
+    { id: "triage", title: m.triageTitle, content: (<SettingsSection title={m.triageTitle} description={m.triageDescription}>
         <ProjectTriageField projectId={project.id} enabled={project.triageEnabled} />
-      </SettingsSection>
-      <SettingsSection title={messages.automations.title} description={messages.automations.description}>
+      </SettingsSection>) },
+    { id: "fields", title: messages.projectFields.title, content: <SettingsSection title={messages.projectFields.title} description={messages.projectFields.description}><ProjectIssueFields projectId={project.id} members={members} /></SettingsSection> },
+    { id: "automations", title: messages.automations.title, content: (<SettingsSection title={messages.automations.title} description={messages.automations.description}>
         <ProjectAutomations projectId={project.id} members={members} />
-      </SettingsSection>
-      <SettingsSection title={m.estimatesTitle} description={m.estimatesDescription}>
+      </SettingsSection>) },
+    { id: "estimates", title: m.estimatesTitle, content: (<SettingsSection title={m.estimatesTitle} description={m.estimatesDescription}>
         <ProjectEstimatesField projectId={project.id} enabled={project.estimatesEnabled} />
-      </SettingsSection>
-      <SettingsSection title={m.membersTitle} description={m.membersDescription}>
+      </SettingsSection>) },
+    { id: "members", title: m.membersTitle, content: (<SettingsSection title={m.membersTitle} description={m.membersDescription}>
         <ProjectMembersPanel
           projectId={project.id}
           // Only the people who were added: a project open to everyone lists every member of the workspace (D-192).
@@ -76,16 +78,17 @@ export function ProjectSettingsSections({
         />
         {/* Below the members: people waiting to be let in (D-128). Notifications about a request open this. */}
         <ProjectAccessRequests projectId={project.id} requests={requests} />
-      </SettingsSection>
-      {/* Only while Git is in use (D-145); a project that already chose repositories keeps seeing them. */}
-      {git && (git.enabled || git.repositories.length > 0) ? (
-        <SettingsSection title={messages.git.repositories.title} description={messages.git.repositories.description}>
+      </SettingsSection>) },
+    ...(git && (git.enabled || git.repositories.length > 0) ? [{ id: "git", title: messages.git.repositories.title, content: (<SettingsSection title={messages.git.repositories.title} description={messages.git.repositories.description}>
           <ProjectGitRepositories projectId={project.id} settings={git} />
-        </SettingsSection>
-      ) : null}
-      <SettingsSection title={m.archiveTitle} description={m.archiveDescription}>
+        </SettingsSection>) }] : []),
+    { id: "archive", title: m.archiveTitle, content: (<SettingsSection title={m.archiveTitle} description={m.archiveDescription}>
         <ArchiveProjectSection projectId={project.id} />
-      </SettingsSection>
+      </SettingsSection>) },
+  ];
+  return (
+    <ProjectApiScopeProvider scope={scope}>
+      <ProjectSettingsIndex projectId={project.id} sections={sections} />
     </ProjectApiScopeProvider>
   );
 }

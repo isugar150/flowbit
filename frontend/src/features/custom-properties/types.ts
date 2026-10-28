@@ -18,6 +18,7 @@ export type CustomProperty = {
   value: CustomPropertyValue;
   /** Who a PERSON value is. */
   person: IssuePerson | null;
+  projectFieldId?: string | null;
 };
 
 /** GET /api/v1/custom-properties/{type}/{id} */

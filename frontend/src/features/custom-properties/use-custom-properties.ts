@@ -1,5 +1,6 @@
 "use client";
 
+import { changeProjectField } from "@/features/project-fields/api";
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { IssuePerson } from "@/features/issues/types";
@@ -41,7 +42,9 @@ export function useCustomProperties(owner: CustomPropertyOwner, watch?: unknown)
   const change = useMutation({
     // `person` is who a picked PERSON value is, so that the face shows before the server answers.
     mutationFn: (input: { id: string; changes: CustomPropertyChanges; person?: IssuePerson | null }) =>
-      changeCustomProperty({ id: input.id, changes: input.changes }),
+      queryClient.getQueryData<CustomPropertyList>(key)?.items.find((item) => item.id === input.id)?.projectFieldId
+        ? changeProjectField(owner.id, input.id, input.changes.value ?? null)
+        : changeCustomProperty({ id: input.id, changes: input.changes }),
     onMutate: ({ id, changes, person }) =>
       show((list) => ({
         ...list,

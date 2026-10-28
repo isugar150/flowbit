@@ -45,6 +45,7 @@ enum class AuditEventType {
     ISSUE_STATUSES_CHANGED,
     PROJECT_ADMIN_CHANGED,
     PROJECT_AUTOMATIONS_CHANGED,
+    PROJECT_ISSUE_FIELDS_CHANGED,
 }
 
 /** Append-only record of security-relevant events. Never pass passwords or other secrets in `detail`. */

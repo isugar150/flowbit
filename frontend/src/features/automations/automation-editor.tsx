@@ -12,6 +12,7 @@ import { CheckSetting } from "@/components/setting-fields";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MultiCombobox, type ComboboxOption } from "@/components/multi-combobox";
 import type { ProjectMember } from "@/features/projects/types";
+import type { ProjectIssueField } from "@/features/project-fields/types";
 import type { Label } from "@/features/issues/types";
 import { useIssueStatuses } from "@/features/issues/statuses";
 import { FormAlert } from "@/features/auth/components/form-alert";
@@ -58,9 +59,9 @@ function Gap({ index, empty }: { index: number; empty: boolean }) {
   return <div ref={setNodeRef} aria-label={m.drop} className={cn("flex items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground", empty ? "min-h-20 p-4" : "h-7 border-transparent", isOver && "border-primary bg-accent")}>{empty || isOver ? m.drop : <ArrowDownIcon className="size-3" aria-hidden="true" />}</div>;
 }
 
-function ActionBlock({ action, index, last, onChange, onRemove, onMove, members, labels }: {
+function ActionBlock({ action, index, last, onChange, onRemove, onMove, members, labels, fields }: {
   action: AutomationAction; index: number; last: boolean; onChange: (action: AutomationAction) => void;
-  onRemove: () => void; onMove: (direction: number) => void; members: ProjectMember[]; labels: Label[];
+  onRemove: () => void; onMove: (direction: number) => void; members: ProjectMember[]; labels: Label[]; fields: ProjectIssueField[];
 }) {
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: action.id, data: { source: "action" } });
   const id = useId();
@@ -81,6 +82,14 @@ function ActionBlock({ action, index, last, onChange, onRemove, onMove, members,
           {Object.entries(m.audiences).map(([value, label]) => <NativeSelectOption key={value} value={value}>{label}</NativeSelectOption>)}
         </NativeSelect>
       </Field> : null}
+      {action.type === "NOTIFY" && action.audience === "PROJECT_FIELD" ? <Field>
+        <FieldLabel htmlFor={id + "-field"}>{messages.projectFields.fieldAudience}</FieldLabel>
+        <NativeSelect id={id + "-field"} required value={action.fieldId ?? ""} onChange={(event) => onChange({ ...action, fieldId: event.target.value || null })}>
+          <NativeSelectOption value="">{messages.projectFields.fieldAudience}</NativeSelectOption>
+          {fields.filter((field) => field.type === "PERSON").map((field) => <NativeSelectOption key={field.id} value={field.id}>{field.label}</NativeSelectOption>)}
+        </NativeSelect>
+        {!fields.some((field) => field.type === "PERSON") ? <FieldDescription>{messages.projectFields.fieldAudienceEmpty}</FieldDescription> : null}
+      </Field> : null}
       {action.type === "ASSIGN" || (action.type === "NOTIFY" && action.audience === "PEOPLE") ? <>
         <MultiPick label={action.type === "ASSIGN" ? m.assignees : m.people} options={eligible.map((member) => ({ id: member.userId, label: member.displayName ?? member.loginId, hint: member.loginId }))} value={action.userIds} onChange={(userIds) => onChange({ ...action, userIds })} />
         {action.type === "ASSIGN" ? <p className="text-xs text-muted-foreground">{m.clearAssignees}</p> : null}
@@ -91,8 +100,8 @@ function ActionBlock({ action, index, last, onChange, onRemove, onMove, members,
   );
 }
 
-export function AutomationEditor({ initial, members, labels, onSave, onCancel, pending, error }: {
-  initial?: AutomationInput; members: ProjectMember[]; labels: Label[]; onSave: (input: AutomationInput) => void; onCancel: () => void; pending: boolean; error: unknown;
+export function AutomationEditor({ initial, members, labels, fields, onSave, onCancel, pending, error }: {
+  initial?: AutomationInput; members: ProjectMember[]; labels: Label[]; fields: ProjectIssueField[]; onSave: (input: AutomationInput) => void; onCancel: () => void; pending: boolean; error: unknown;
 }) {
   const statuses = useIssueStatuses();
   const id = useId();
@@ -125,7 +134,7 @@ export function AutomationEditor({ initial, members, labels, onSave, onCancel, p
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setDragged((active.data.current?.type ?? input.actions.find((action) => action.id === active.id)?.type) as ActionType)} onDragEnd={end} onDragCancel={() => setDragged(null)}>
         <div className="flex flex-col gap-2"><h4 className="text-sm font-medium">{m.palette}</h4><p className="text-xs text-muted-foreground">{m.paletteHint}</p><div className="flex flex-wrap gap-2">{actionTypes.map((type) => <PaletteBlock key={type} type={type} onAdd={() => add(type)} disabled={input.actions.length >= 10} />)}</div>{input.actions.length >= 10 ? <p className="text-xs text-muted-foreground">{m.actionLimit}</p> : null}</div>
         <div aria-label={m.pipeline} className="flex flex-col">
-          {input.actions.map((action, index) => <div key={action.id}><Gap index={index} empty={false} /><ActionBlock action={action} index={index} last={index === input.actions.length - 1} members={members} labels={labels} onChange={(next) => setActions(input.actions.map((current) => current.id === action.id ? next : current))} onRemove={() => setActions(input.actions.filter((current) => current.id !== action.id))} onMove={(direction) => setActions(moveBlock(input.actions, action.id, direction < 0 ? index - 1 : index + 2))} /></div>)}
+          {input.actions.map((action, index) => <div key={action.id}><Gap index={index} empty={false} /><ActionBlock action={action} index={index} last={index === input.actions.length - 1} fields={fields} members={members} labels={labels} onChange={(next) => setActions(input.actions.map((current) => current.id === action.id ? next : current))} onRemove={() => setActions(input.actions.filter((current) => current.id !== action.id))} onMove={(direction) => setActions(moveBlock(input.actions, action.id, direction < 0 ? index - 1 : index + 2))} /></div>)}
           <Gap index={input.actions.length} empty={input.actions.length === 0} />
         </div>
         <DragOverlay>{dragged ? <div className="rounded-lg border bg-background p-3 text-sm shadow-lg">{m.actions[dragged]}</div> : null}</DragOverlay>

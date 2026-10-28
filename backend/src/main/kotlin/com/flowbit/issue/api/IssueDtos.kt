@@ -364,6 +364,7 @@ data class CreateIssueRequest(
     val triage: Boolean? = null,
     /** Relations to give the issue as it is made (D-237), from its point of view like `POST …/relations`. */
     val relations: List<NewRelationRequest>? = null,
+    val projectFields: List<com.flowbit.customproperty.application.IssueFieldInput> = emptyList(),
 ) {
     fun toNewIssue(projectId: String? = this.projectId) =
         NewIssue(
@@ -383,6 +384,7 @@ data class CreateIssueRequest(
             estimate,
             triage,
             relations.orEmpty().map { NewRelation(it.kind, it.targetNumber) },
+            projectFields,
         )
 }
 

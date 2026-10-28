@@ -8,6 +8,7 @@ import com.flowbit.customproperty.application.CustomPropertyOwnerKind
 import com.flowbit.customproperty.application.CustomPropertyService
 import com.flowbit.customproperty.application.CustomPropertyType
 import com.flowbit.customproperty.application.CustomPropertyView
+import com.flowbit.customproperty.application.ProjectIssueFieldService
 import com.flowbit.issue.api.IssueAnnouncer
 import com.flowbit.realtime.RealtimeHub
 import org.springframework.http.HttpStatus
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -38,6 +40,7 @@ data class CreateCustomPropertyRequest(
 @RequestMapping("/api/v1/custom-properties")
 class CustomPropertyController(
     private val service: CustomPropertyService,
+    private val projectFields: ProjectIssueFieldService,
     private val realtime: RealtimeHub,
     private val issueAnnouncer: IssueAnnouncer,
 ) {
@@ -56,6 +59,14 @@ class CustomPropertyController(
         @PathVariable id: UUID,
         @RequestBody body: CreateCustomPropertyRequest,
     ): CustomPropertyView? = announce(user, service.create(user, kind(type), id, body.label, body.type, body.value))
+
+    @PutMapping("/issue/{id}/project-fields/{fieldId}")
+    suspend fun projectFieldValue(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+        @PathVariable fieldId: UUID,
+        @RequestBody body: Map<String, Any?>,
+    ): CustomPropertyView? = announce(user, projectFields.updateValue(user, id, fieldId, body["value"]))
 
     @PatchMapping("/{propertyId}")
     suspend fun update(

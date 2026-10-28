@@ -52,3 +52,7 @@ DB 에 평문으로 있던 비밀 값을 **AES-256-GCM** 으로 암호화한다.
 테스트: `SecretsIntegrationTest`(키를 켠 별도 컨텍스트: 저장된 값이 `enc:v1:`, API 에서는 그대로 쓰임, 평문→암호화 이전과 반복 안전). 일반 통합 테스트는 키를 비워 평문 그대로 돈다(`IntegrationTest` 의 `flowbit.secrets.key=`).
 
 감사 로그 `PROJECT_AUTOMATIONS_CHANGED`: 프로젝트 자동화 저장·삭제(`projectId`, `ruleId`, `change`).
+
+## 프로젝트 공통 속성 감사
+
+PROJECT_ISSUE_FIELDS_CHANGED: 공통 속성 생성·수정·삭제. 프로젝트·필드 ID와 변경 종류를 기록하며 값은 기록하지 않는다.

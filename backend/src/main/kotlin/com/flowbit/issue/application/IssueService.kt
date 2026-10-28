@@ -44,6 +44,7 @@ class IssueService(
     private val activities: IssueActivityStore,
     private val extras: IssueExtrasStore,
     private val customProperties: CustomPropertyService,
+    private val projectFields: com.flowbit.customproperty.application.ProjectIssueFieldService,
     private val statuses: IssueStatuses,
     private val cycles: CycleService,
     private val relations: IssueRelations,
@@ -188,6 +189,7 @@ class IssueService(
         val labelIds = requireLabels(input.labelIds)
         // Checked before anything is stored, so that a bad property does not use up an issue number.
         val properties = customProperties.checkAll(input.customProperties, project?.id)
+        val fieldValues = projectFields.checkValues(project?.id, input.projectFields)
         val newRelations = relations.check(user, input.relations)
 
         val now = clock.instant()
@@ -222,6 +224,7 @@ class IssueService(
         if (labelIds.isNotEmpty()) queries.replaceLabels(issue.id, labelIds)
         if (assigneeIds.isNotEmpty()) queries.replaceAssignees(issue.id, assigneeIds, now)
         if (properties.isNotEmpty()) customProperties.addChecked(issue.id, properties, now)
+        projectFields.storeChecked(issue.id, fieldValues)
         relations.attach(user, issue, newRelations)
         val events = listOf(IssueEvent(IssueActivityType.CREATED))
         activities.record(issue.id, user.id, events, now)
