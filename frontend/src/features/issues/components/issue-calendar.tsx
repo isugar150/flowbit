@@ -2,6 +2,7 @@
 
 import { cloneElement, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { DndContext } from "@dnd-kit/core";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useInBrowser, useToday } from "@/components/dates";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { StatusIcon, statusLabel } from "../meta";
 import { DayIssues } from "./calendar-day-issues";
 import { dateKey, issuesByDay, weeksOf, type CalendarIssue, type IssueDates, type Month } from "./calendar-dates";
 import { IssueHoverCard, cardOfIssue, type IssueCardData } from "./issue-card";
-import { useBarDrag } from "./use-bar-drag";
+import { useBarHandle, useCalendarDnd, useCreateHandle, type BarDrag } from "./use-calendar-dnd";
 
 export type { CalendarIssue, IssueDates } from "./calendar-dates";
 
@@ -45,24 +46,17 @@ const defaultIssueHref = (issue: CalendarIssue) => `/issue/${issue.key}`;
  * the last day (the right end) and leaves the other where it is. A grip shows where to take hold
  * of it when the pointer is over the bar, and stays while that end is being dragged.
  */
-function BarEdge({
-  edge,
-  label,
-  active,
-  onPress,
-}: {
-  edge: "start" | "end";
-  label: string;
-  active: boolean;
-  onPress: (event: React.PointerEvent) => void;
-}) {
+function BarEdge({ edge, number, anchor, label, active }: { edge: "start" | "end"; number: number; anchor: string; label: string; active: boolean }) {
+  const { ref, listeners } = useBarHandle({ id: `${edge}:${number}:${anchor}`, number, mode: edge, anchor, disabled: false });
   return (
     <span
+      ref={ref}
+      {...listeners}
       title={label}
-      onPointerDown={(event) => {
+      onMouseDown={(event) => {
         // Not the bar's own drag, which moves the whole span.
         event.stopPropagation();
-        onPress(event);
+        listeners?.onMouseDown?.(event);
       }}
       // The bar is a link; pressing its end must not open the issue.
       onClick={(event) => event.preventDefault()}
@@ -78,11 +72,182 @@ function BarEdge({
   );
 }
 
+/** A day's piece of an issue's bar: the whole bar is taken by it to move the span, or by one of its ends to change a day. */
+function CalendarBar<T extends CalendarIssue>({
+  issue,
+  cellKey,
+  drag,
+  movable,
+  issueHref,
+  cardOf,
+  loadActivity,
+}: {
+  issue: T;
+  cellKey: string;
+  drag: BarDrag | null;
+  movable: boolean;
+  issueHref: (issue: T) => string | null;
+  cardOf?: (issue: T) => IssueCardData;
+  loadActivity?: (issue: T) => Promise<CardActivity[]>;
+}) {
+  const { ref, listeners } = useBarHandle({
+    id: `move:${issue.number}:${cellKey}`,
+    number: issue.number,
+    mode: "move",
+    anchor: cellKey,
+    disabled: !movable || !issue.dueDate,
+  });
+  const dates = issue.startDate ? `${issue.startDate} ~ ${issue.dueDate}` : issue.dueDate;
+  const dragged = drag?.number === issue.number ? drag : null;
+  const first = cellKey === (issue.startDate ?? issue.dueDate);
+  const last = cellKey === issue.dueDate;
+  const href = issueHref(issue);
+  const title = `${issue.key} ${issue.title} · ${statusLabel(issue.status)} · ${dates}`;
+  const className = cn(
+    "group/bar relative flex h-6 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+    href && "hover:bg-accent",
+    // A span reads as one bar: its inner days are joined to their neighbours.
+    issue.startDate && !first && "-ml-1 rounded-l-none",
+    issue.startDate && !last && "-mr-1 rounded-r-none",
+    issue.startDate && "bg-primary/15",
+    issue.startDate && href && "hover:bg-primary/25",
+    (issue.status === "DONE" || issue.status === "CANCELED") && "text-muted-foreground line-through",
+    movable && "cursor-grab",
+    // The bar as it is dragged: outlined all round, as one bar over the days it covers.
+    dragged && "border-y border-primary bg-primary/25 shadow-sm hover:bg-primary/25",
+    dragged && first && "border-l",
+    dragged && last && "border-r",
+  );
+  const card = cardOf?.(issue);
+  const body = (
+    <>
+      <StatusIcon status={issue.status} className="size-3" />
+      <span className="truncate">{issue.title}</span>
+      {movable && first ? <BarEdge edge="start" number={issue.number} anchor={cellKey} label={m.resizeStart} active={dragged?.mode === "start"} /> : null}
+      {movable && last ? <BarEdge edge="end" number={issue.number} anchor={cellKey} label={m.resizeEnd} active={dragged?.mode === "end"} /> : null}
+    </>
+  );
+  // With a card the browser's own tooltip would say the same thing twice.
+  const element = href ? (
+    // Dragging a bar is dnd-kit's (use-calendar-dnd.ts), not the browser's drag of a link.
+    <Link href={href} draggable={false} title={card ? undefined : title} className={className} />
+  ) : (
+    <div title={card ? undefined : title} className={className} />
+  );
+  return (
+    <li ref={ref} {...listeners}>
+      {card ? (
+        // No card over a bar that is being dragged, or while any is.
+        <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} disabled={drag !== null}>
+          {body}
+        </IssueHoverCard>
+      ) : (
+        cloneElement(element, undefined, body)
+      )}
+    </li>
+  );
+}
+
+/** An issue without a date, under the calendar: dragged onto a day it gets that day (D-205). */
+function UndatedChip<T extends CalendarIssue>({
+  issue,
+  drag,
+  movable,
+  issueHref,
+  cardOf,
+  loadActivity,
+}: {
+  issue: T;
+  drag: BarDrag | null;
+  movable: boolean;
+  issueHref: (issue: T) => string | null;
+  cardOf?: (issue: T) => IssueCardData;
+  loadActivity?: (issue: T) => Promise<CardActivity[]>;
+}) {
+  const { ref, listeners } = useBarHandle({ id: `place:${issue.number}`, number: issue.number, mode: "place", anchor: "", disabled: !movable });
+  const href = issueHref(issue);
+  const card = cardOf?.(issue);
+  const closed = issue.status === "DONE" || issue.status === "CANCELED";
+  const className = cn(
+    "flex h-6 max-w-72 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+    href && "hover:bg-accent",
+    closed && "text-muted-foreground line-through",
+    movable && "cursor-grab",
+    // The one being dragged stays here, dimmed, while its bar is on the day it is over.
+    drag?.number === issue.number && drag.mode === "place" && "opacity-50",
+  );
+  const element = href ? (
+    <Link href={href} draggable={false} title={card ? undefined : `${issue.key} ${issue.title} · ${statusLabel(issue.status)}`} className={className} />
+  ) : (
+    <div title={card ? undefined : `${issue.key} ${issue.title}`} className={className} />
+  );
+  const body = (
+    <>
+      <StatusIcon status={issue.status} className="size-3" />
+      <span className="shrink-0 text-muted-foreground tabular-nums">{issue.key}</span>
+      <span className="truncate">{issue.title}</span>
+    </>
+  );
+  return (
+    <li ref={ref} {...listeners} className="min-w-0">
+      {card ? (
+        <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} disabled={drag !== null}>
+          {body}
+        </IssueHoverCard>
+      ) : (
+        cloneElement(element, undefined, body)
+      )}
+    </li>
+  );
+}
+
+/**
+ * A day of the month. Its empty part makes a new issue: pressing it once makes one for that day, dragging across days marks a
+ * span for it. What is in the day (an issue to open or drag, a button) is not the day's.
+ */
+function DayCell({
+  day,
+  inMonth,
+  marked,
+  onCreate,
+  children,
+}: {
+  day: string;
+  inMonth: boolean;
+  marked: boolean;
+  onCreate?: (dates: IssueDates) => void;
+  children: React.ReactNode;
+}) {
+  const { ref, listeners } = useCreateHandle({ day, disabled: !onCreate });
+  // Only the empty part of a day starts a new issue; an issue in it is opened or dragged, and what a button of the day opens (its
+  // list of issues, drawn elsewhere in the page) is not the day's. React sends events from there up to this cell too, so it is the
+  // target that tells.
+  const notTheDays = (event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target as Element;
+    return !onCreate || event.button !== 0 || !event.currentTarget.contains(target) || Boolean(target.closest("a, button"));
+  };
+  return (
+    <td
+      ref={ref}
+      data-day={day}
+      className={cn("h-28 border p-1 align-top", inMonth ? null : "bg-muted/40", onCreate && "cursor-cell", marked && "bg-primary/10")}
+      onMouseDown={(event) => {
+        if (!notTheDays(event)) listeners?.onMouseDown?.(event);
+      }}
+      onClick={(event) => {
+        if (!notTheDays(event)) onCreate?.({ startDate: null, dueDate: day });
+      }}
+    >
+      {children}
+    </td>
+  );
+}
+
 /**
  * Issues on a month calendar: on their due date, or on every day from their start to their due
  * date. Dragging an issue moves its dates by as many days as the pointer moves, and dragging one
  * end of its bar changes only its first or last day; the bar follows the pointer meanwhile and is
- * saved when it is let go. Clicking an empty part of a day, or dragging across days, starts a new
+ * saved when it is let go (all of this is dnd-kit, D-235). Clicking an empty part of a day, or dragging across days, starts a new
  * issue with those dates. A day with more than three issues says how many more, and that opens a
  * list of all of them. Issues without a due date cannot be placed; how many there are is said
  * under the calendar.
@@ -128,28 +293,8 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
   // Drawn again when the day turns, so "today" moves on without a reload.
   useToday();
   const [chosen, setChosen] = useState<Month | null>(null);
-  // The bar being dragged, drawn at the dates it is dragged to.
-  const { drag, press } = useBarDrag(issues, onMove);
-  // The span being marked for a new issue.
-  const [marking, setMarking] = useState<{ from: string; to: string } | null>(null);
-  const markingRef = useRef(marking);
-  const onCreateRef = useRef(onCreate);
-  useEffect(() => {
-    markingRef.current = marking;
-    onCreateRef.current = onCreate;
-  });
-  // The span is finished wherever the button is released, even outside the calendar.
-  useEffect(() => {
-    const finish = () => {
-      const span = markingRef.current;
-      if (!span) return;
-      setMarking(null);
-      const [first, last] = span.from <= span.to ? [span.from, span.to] : [span.to, span.from];
-      onCreateRef.current?.({ startDate: first === last ? null : first, dueDate: last });
-    };
-    window.addEventListener("mouseup", finish);
-    return () => window.removeEventListener("mouseup", finish);
-  }, []);
+  // The bar being dragged, drawn at the dates it is dragged to, and the span being marked for a new issue.
+  const { drag, marking, dndProps } = useCalendarDnd(issues, onMove, onCreate);
 
   // The wheel over the calendar turns the months: down for the next, up for the one before. The
   // listener is added by hand because the page must not scroll with it, and React's own wheel
@@ -203,223 +348,112 @@ export function IssueCalendarView<T extends CalendarIssue = CalendarIssue>({
   const undated = fixedMonth ? [] : issues.filter((issue) => !issue.dueDate);
   const marked = (key: string) =>
     marking !== null && key >= (marking.from <= marking.to ? marking.from : marking.to) && key <= (marking.from <= marking.to ? marking.to : marking.from);
+  const movableIssue = (issue: T) => Boolean(onMove) && (canMove?.(issue) ?? true);
 
   return (
-    <div className="flex flex-col gap-2 px-4 pb-6">
-      <div className="flex flex-wrap items-center gap-1">
-        <h2 className="mr-2 text-[0.9375rem] leading-[1.375rem] font-semibold tabular-nums">{m.monthTitle(month.year, month.month + 1)}</h2>
-        {fixedMonth ? null : (
-          <>
-            <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label={m.previousMonth} onClick={() => move(-1)}>
-              <ChevronLeftIcon />
-            </Button>
-            <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label={m.nextMonth} onClick={() => move(1)}>
-              <ChevronRightIcon />
-            </Button>
-            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" onClick={() => setChosen(null)}>
-              {m.today}
-            </Button>
-          </>
-        )}
-        {share ? <ShareButton target={share(`${month.year}-${String(month.month + 1).padStart(2, "0")}`)} /> : null}
-        {onCreate || onMove ? <p className="ml-auto text-xs leading-4 text-muted-foreground max-md:hidden">{m.calendarHint}</p> : null}
-      </div>
-      <div ref={gridRef} className="overflow-x-auto">
-        <table
-          className={cn(
-            "w-full min-w-[42rem] table-fixed border-collapse text-[0.8125rem] leading-5 select-none",
-            // One cursor all over while a bar is dragged, whatever the pointer is over.
-            drag && !drag.settled && (drag.mode === "start" || drag.mode === "end" ? "[&_*]:cursor-ew-resize!" : "[&_*]:cursor-grabbing!"),
+    <DndContext {...dndProps}>
+      <div className="flex flex-col gap-2 px-4 pb-6">
+        <div className="flex flex-wrap items-center gap-1">
+          <h2 className="mr-2 text-[0.9375rem] leading-[1.375rem] font-semibold tabular-nums">{m.monthTitle(month.year, month.month + 1)}</h2>
+          {fixedMonth ? null : (
+            <>
+              <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label={m.previousMonth} onClick={() => move(-1)}>
+                <ChevronLeftIcon />
+              </Button>
+              <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label={m.nextMonth} onClick={() => move(1)}>
+                <ChevronRightIcon />
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" onClick={() => setChosen(null)}>
+                {m.today}
+              </Button>
+            </>
           )}
-        >
-          <thead>
-            <tr>
-              {m.weekdays.map((weekday) => (
-                <th key={weekday} scope="col" className="border px-2 py-1 text-left font-medium text-muted-foreground">
-                  {weekday}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {weeks.map((week) => (
-              <tr key={week[0].key}>
-                {week.map((cell) => {
-                  // The days of the months around a fixed month are left empty: only that month is shown.
-                  const items = fixedMonth && !cell.inMonth ? [] : (byDay.get(cell.key) ?? []);
-                  return (
-                    <td
-                      key={cell.key}
-                      data-day={cell.key}
-                      className={cn("h-28 border p-1 align-top", cell.inMonth ? null : "bg-muted/40", onCreate && "cursor-cell", marked(cell.key) && "bg-primary/10")}
-                      onMouseDown={(event) => {
-                        // Only the empty part of a day starts a new issue; an issue in it is opened or dragged, and
-                        // what a button of the day opens (its list of issues, drawn elsewhere in the page) is not
-                        // the day's. React sends events from there up to this cell too, so it is the target that tells.
-                        const target = event.target as Element;
-                        if (!onCreate || event.button !== 0 || !event.currentTarget.contains(target) || target.closest("a, button")) return;
-                        setMarking({ from: cell.key, to: cell.key });
-                      }}
-                      onMouseEnter={() => setMarking((current) => (current ? { ...current, to: cell.key } : current))}
-                    >
-                      <div
-                        className={cn(
-                          "mb-1 flex size-6 items-center justify-center rounded-full text-xs tabular-nums",
-                          cell.key === now.key ? "bg-primary font-semibold text-primary-foreground" : cell.inMonth ? null : "text-muted-foreground",
-                        )}
-                      >
-                        {cell.day}
-                      </div>
-                      <ul className="flex flex-col gap-0.5">
-                        {visibleOf(items).map((issue) => {
-                          const movable = Boolean(onMove) && (canMove?.(issue) ?? true);
-                          const dates = issue.startDate ? `${issue.startDate} ~ ${issue.dueDate}` : issue.dueDate;
-                          const dragged = drag?.number === issue.number ? drag : null;
-                          const first = cell.key === (issue.startDate ?? issue.dueDate);
-                          const last = cell.key === issue.dueDate;
-                          const href = issueHref(issue);
-                          const title = `${issue.key} ${issue.title} · ${statusLabel(issue.status)} · ${dates}`;
-                          const className = cn(
-                            "group/bar relative flex h-6 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                            href && "hover:bg-accent",
-                            // A span reads as one bar: its inner days are joined to their neighbours.
-                            issue.startDate && !first && "-ml-1 rounded-l-none",
-                            issue.startDate && !last && "-mr-1 rounded-r-none",
-                            issue.startDate && "bg-primary/15",
-                            issue.startDate && href && "hover:bg-primary/25",
-                            (issue.status === "DONE" || issue.status === "CANCELED") && "text-muted-foreground line-through",
-                            movable && "cursor-grab",
-                            // The bar as it is dragged: outlined all round, as one bar over the days it covers.
-                            dragged && "border-y border-primary bg-primary/25 shadow-sm hover:bg-primary/25",
-                            dragged && first && "border-l",
-                            dragged && last && "border-r",
-                          );
-                          const card = cardOf?.(issue);
-                          const body = (
-                            <>
-                              <StatusIcon status={issue.status} className="size-3" />
-                              <span className="truncate">{issue.title}</span>
-                              {movable && first ? (
-                                <BarEdge
-                                  edge="start"
-                                  label={m.resizeStart}
-                                  active={dragged?.mode === "start"}
-                                  onPress={(event) => press(event, issue, "start", cell.key)}
-                                />
-                              ) : null}
-                              {movable && last ? (
-                                <BarEdge
-                                  edge="end"
-                                  label={m.resizeEnd}
-                                  active={dragged?.mode === "end"}
-                                  onPress={(event) => press(event, issue, "end", cell.key)}
-                                />
-                              ) : null}
-                            </>
-                          );
-                          // With a card the browser's own tooltip would say the same thing twice.
-                          const element = href ? (
-                            <Link
-                              href={href}
-                              // Dragging a bar is the calendar's own (use-bar-drag.ts), not the browser's drag of a link.
-                              draggable={false}
-                              onPointerDown={movable ? (event) => press(event, issue, "move", cell.key) : undefined}
-                              title={card ? undefined : title}
-                              className={className}
-                            />
-                          ) : (
-                            <div title={card ? undefined : title} className={className} />
-                          );
-                          return (
-                            <li key={issue.key}>
-                              {card ? (
-                                // No card over a bar that is being dragged, or while any is.
-                                <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} disabled={drag !== null}>
-                                  {body}
-                                </IssueHoverCard>
-                              ) : (
-                                cloneElement(element, undefined, body)
-                              )}
-                            </li>
-                          );
-                        })}
-                        {items.length > MAX_PER_DAY ? (
-                          <li>
-                            <DayIssues
-                              dayKey={cell.key}
-                              issues={items}
-                              hidden={items.length - MAX_PER_DAY}
+          {share ? <ShareButton target={share(`${month.year}-${String(month.month + 1).padStart(2, "0")}`)} /> : null}
+          {onCreate || onMove ? <p className="ml-auto text-xs leading-4 text-muted-foreground max-md:hidden">{m.calendarHint}</p> : null}
+        </div>
+        <div ref={gridRef} className="overflow-x-auto">
+          <table
+            className={cn(
+              "w-full min-w-[42rem] table-fixed border-collapse text-[0.8125rem] leading-5 select-none",
+              // One cursor all over while a bar is dragged, whatever the pointer is over.
+              drag && !drag.settled && (drag.mode === "start" || drag.mode === "end" ? "[&_*]:cursor-ew-resize!" : "[&_*]:cursor-grabbing!"),
+            )}
+          >
+            <thead>
+              <tr>
+                {m.weekdays.map((weekday) => (
+                  <th key={weekday} scope="col" className="border px-2 py-1 text-left font-medium text-muted-foreground">
+                    {weekday}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {weeks.map((week) => (
+                <tr key={week[0].key}>
+                  {week.map((cell) => {
+                    // The days of the months around a fixed month are left empty: only that month is shown.
+                    const items = fixedMonth && !cell.inMonth ? [] : (byDay.get(cell.key) ?? []);
+                    return (
+                      <DayCell key={cell.key} day={cell.key} inMonth={cell.inMonth} marked={marked(cell.key)} onCreate={onCreate}>
+                        <div
+                          className={cn(
+                            "mb-1 flex size-6 items-center justify-center rounded-full text-xs tabular-nums",
+                            cell.key === now.key ? "bg-primary font-semibold text-primary-foreground" : cell.inMonth ? null : "text-muted-foreground",
+                          )}
+                        >
+                          {cell.day}
+                        </div>
+                        <ul className="flex flex-col gap-0.5">
+                          {visibleOf(items).map((issue) => (
+                            <CalendarBar
+                              key={issue.key}
+                              issue={issue}
+                              cellKey={cell.key}
+                              drag={drag}
+                              movable={movableIssue(issue)}
                               issueHref={issueHref}
                               cardOf={cardOf}
                               loadActivity={loadActivity}
-                              canDrag={(issue) => Boolean(onMove) && (canMove?.(issue) ?? true)}
-                              onDrag={(event, issue, started) => press(event, issue, "move", cell.key, started)}
                             />
-                          </li>
-                        ) : null}
-                      </ul>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                          ))}
+                          {items.length > MAX_PER_DAY ? (
+                            <li>
+                              <DayIssues
+                                dayKey={cell.key}
+                                issues={items}
+                                hidden={items.length - MAX_PER_DAY}
+                                issueHref={issueHref}
+                                cardOf={cardOf}
+                                loadActivity={loadActivity}
+                                canDrag={movableIssue}
+                              />
+                            </li>
+                          ) : null}
+                        </ul>
+                      </DayCell>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {undated.length > 0 ? (
+          <section aria-label={m.undatedTitle(undated.length)} className="flex flex-col gap-2 rounded-lg border px-3 py-2.5">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+              <h3 className="text-[0.8125rem] leading-5 font-medium">{m.undatedTitle(undated.length)}</h3>
+              {onMove ? <p className="text-xs leading-4 text-muted-foreground">{m.undatedHint}</p> : null}
+            </div>
+            <ul className={cn("flex max-h-44 flex-wrap gap-1.5 overflow-y-auto", drag?.mode === "place" && !drag.settled && "[&_*]:cursor-grabbing!")}>
+              {undated.map((issue) => (
+                <UndatedChip key={issue.key} issue={issue} drag={drag} movable={movableIssue(issue)} issueHref={issueHref} cardOf={cardOf} loadActivity={loadActivity} />
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </div>
-      {undated.length > 0 ? (
-        <section aria-label={m.undatedTitle(undated.length)} className="flex flex-col gap-2 rounded-lg border px-3 py-2.5">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-            <h3 className="text-[0.8125rem] leading-5 font-medium">{m.undatedTitle(undated.length)}</h3>
-            {onMove ? <p className="text-xs leading-4 text-muted-foreground">{m.undatedHint}</p> : null}
-          </div>
-          <ul className={cn("flex max-h-44 flex-wrap gap-1.5 overflow-y-auto", drag?.mode === "place" && !drag.settled && "[&_*]:cursor-grabbing!")}>
-            {undated.map((issue) => {
-              const movable = Boolean(onMove) && (canMove?.(issue) ?? true);
-              const href = issueHref(issue);
-              const card = cardOf?.(issue);
-              const closed = issue.status === "DONE" || issue.status === "CANCELED";
-              const className = cn(
-                "flex h-6 max-w-72 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                href && "hover:bg-accent",
-                closed && "text-muted-foreground line-through",
-                movable && "cursor-grab",
-                // The one being dragged stays here, dimmed, while its bar is on the day it is over.
-                drag?.number === issue.number && drag.mode === "place" && "opacity-50",
-              );
-              const element = href ? (
-                <Link
-                  href={href}
-                  draggable={false}
-                  onPointerDown={movable ? (event) => press(event, issue, "place", "") : undefined}
-                  title={card ? undefined : `${issue.key} ${issue.title} · ${statusLabel(issue.status)}`}
-                  className={className}
-                />
-              ) : (
-                <div title={card ? undefined : `${issue.key} ${issue.title}`} className={className} />
-              );
-              const body = (
-                <>
-                  <StatusIcon status={issue.status} className="size-3" />
-                  <span className="shrink-0 text-muted-foreground tabular-nums">{issue.key}</span>
-                  <span className="truncate">{issue.title}</span>
-                </>
-              );
-              return (
-                <li key={issue.key} className="min-w-0">
-                  {card ? (
-                    <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} disabled={drag !== null}>
-                      {body}
-                    </IssueHoverCard>
-                  ) : (
-                    cloneElement(element, undefined, body)
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-    </div>
+    </DndContext>
   );
 }
 

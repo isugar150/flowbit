@@ -226,6 +226,8 @@ export const ko = {
     embedOpen: "새 탭에서 열기",
     embedTitle: (service: string) => `${service} 임베드`,
     dragBlock: "끌어서 블록 옮기기",
+    // What the block being carried says under the pointer when it has no text (a picture, a divider).
+    dragBlockGhost: "블록",
     imageUploading: "이미지를 올리는 중…",
     imageFailed: "이미지를 올리지 못했습니다.",
     // A file placed in the text as a block of its own (D-182).

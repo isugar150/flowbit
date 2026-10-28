@@ -39,7 +39,7 @@ async function newPage(): Promise<Page> {
 }
 
 async function openIssue(page: Page, issue: Issue) {
-  await page.goto(`/project/${project.id}/issues`);
+  await page.goto(`/project/${project.id}/issues?view=list`);
   await page.locator(`li[data-presence-id="issue-row:${issue.number}"] a`).click();
   await expect(page.getByRole("dialog").getByRole("button", { name: /^상태:/ })).toBeVisible();
 }
@@ -173,7 +173,7 @@ test("issue list: a status picked on a line moves that line at once and greys no
   const issue = await newIssue("목록에서 상태 바꾸기");
   await newIssue("옆에 있는 다른 티켓");
   const page = await newPage();
-  await page.goto(`/project/${project.id}/issues`);
+  await page.goto(`/project/${project.id}/issues?view=list`);
   const row = page.locator(`li[data-presence-id="issue-row:${issue.number}"]`);
   await expect(row).toBeVisible();
   const noReloads = watchForReloads(page);
@@ -289,7 +289,7 @@ test("issue dialog: a new sub-issue is never missing from both the field and the
 test("issue dialog: the body is there in the first frame the issue is", async () => {
   const issue = await newIssue("본문이 있는 티켓", { content: paragraph("본문 첫 줄입니다") });
   const page = await newPage();
-  await page.goto(`/project/${project.id}/issues`);
+  await page.goto(`/project/${project.id}/issues?view=list`);
   await expect(page.locator(`li[data-presence-id="issue-row:${issue.number}"]`)).toBeVisible();
   await recordFrames(page, "body", () => {
     const body = document.querySelector('[role=dialog] [data-presence-id="body"]');

@@ -9,7 +9,7 @@ import { KeyCaps } from "@/components/shortcut-keys";
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useNewIssue } from "@/features/issues/components/new-issue-launcher";
-import { useListAddress, useReplaceListQuery } from "@/features/issues/components/issue-views";
+import { DEFAULT_ISSUE_VIEW, useListAddress, useReplaceListQuery } from "@/features/issues/components/issue-views";
 import { VIEW_PATHS } from "@/features/issues/components/saved-views-menu";
 import { currentNotice, dismissNotice, hasUndo, subscribeUndo, undoLast } from "@/features/issues/undo";
 import type { ProjectSummary } from "@/features/projects/types";
@@ -302,7 +302,7 @@ export function CommandCenter({ projects, isAdmin }: { projects: ProjectSummary[
       keywords: mode,
       run: () => {
         const params = new URLSearchParams(searchParams.toString());
-        if (mode === "list") params.delete("view");
+        if (mode === DEFAULT_ISSUE_VIEW) params.delete("view");
         else params.set("view", mode);
         replaceListQuery(pathname, params);
       },
@@ -315,7 +315,7 @@ export function CommandCenter({ projects, isAdmin }: { projects: ProjectSummary[
       { id: "theme-light", group: m.groups.do, label: m.theme(messages.settings.appearance.light), keywords: "테마 밝게 light", run: () => setTheme("light") },
       { id: "theme-dark", group: m.groups.do, label: m.theme(messages.settings.appearance.dark), keywords: "테마 어둡게 dark", run: () => setTheme("dark") },
       { id: "theme-system", group: m.groups.do, label: m.theme(messages.settings.appearance.system), keywords: "테마 기기 설정 system", run: () => setTheme("system") },
-      ...(VIEW_PATHS.includes(pathname) ? (["list", "board", "timeline", "calendar"] as const).map(view) : []),
+      ...(VIEW_PATHS.includes(pathname) ? (["board", "list", "timeline", "calendar"] as const).map(view) : []),
       go("go-my", messages.myIssues.title, "/my-issues", "내 티켓 assigned"),
       go("go-created", messages.myIssues.created, "/my-issues/created", "요청한 티켓 created"),
       go("go-all", messages.issues.all, "/issues", "전체 티켓 all issues"),

@@ -56,6 +56,8 @@ export function TourDemo({
           rememberFilters={false}
           // The example tickets have no page to go to.
           openCreated={false}
+          // The tour points at the lines of the list, so the example opens as the list, not as the board.
+          defaultView="list"
           // The two lists are different screens: each starts on its own.
           key={screen}
           projectId={null}

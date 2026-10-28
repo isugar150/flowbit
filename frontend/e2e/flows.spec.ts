@@ -39,7 +39,7 @@ async function newPage(from: BrowserContext = context): Promise<Page> {
 }
 
 async function openIssue(page: Page, issue: Issue) {
-  await page.goto(`/project/${project.id}/issues`);
+  await page.goto(`/project/${project.id}/issues?view=list`);
   await page.locator(`li[data-presence-id="issue-row:${issue.number}"] a`).click();
   await expect(page.getByRole("dialog").getByRole("button", { name: /^상태:/ })).toBeVisible();
 }
@@ -65,7 +65,7 @@ test("a new issue is made with C and Ctrl+Enter, opens as its own dialog (D-194)
   const page = await newPage();
   // The list of all issues: the project's own address sends you to it filtered by the project (D-135), and a ticket made
   // there does not take the filter's project, so it would not show in that list.
-  await page.goto("/issues");
+  await page.goto("/issues?view=list");
   // The one button for it is in the sidebar; on a list it opens that list's dialog.
   await expect(page.getByRole("button", { name: /새 티켓/ })).toBeVisible();
   // The button is in the page as the server sent it; the shortcut works once the scripts have run.
@@ -216,7 +216,7 @@ test("the view role sees everything and can change nothing", async ({ browser, b
   const viewer = await browser.newContext({ baseURL, locale: "ko-KR", viewport: { width: 1440, height: 900 } });
   await logIn(viewer, VIEWER);
   const page = await newPage(viewer);
-  await page.goto(`/project/${project.id}/issues`);
+  await page.goto(`/project/${project.id}/issues?view=list`);
   const row = page.locator(`li[data-presence-id="issue-row:${issue.number}"]`);
   await expect(row).toBeVisible();
   await expect(row.getByRole("button", { name: /상태 바꾸기/ })).toHaveCount(0);

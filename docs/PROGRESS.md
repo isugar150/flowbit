@@ -12,12 +12,12 @@
 - **M3 프로젝트와 티켓**: 구성원 관리와 프로젝트 권한, 모든 구성원에게 열기(D-192), 접근 요청(D-128), 티켓(담당자 여러 명 D-125, 하위 티켓 5단계 D-190, 라벨, 사용자 속성 D-186, 복제 D-212), 문서 편집기(Tiptap)와 블록 댓글·활동(D-165), 목록·캘린더·타임라인 보기, 실시간 동기화와 "보는 사람" 아바타(D-044), 파일 첨부와 Word·Excel·PowerPoint 미리보기(D-187). **목표(마일스톤)는 없어졌고**(D-189) 프리셋도 화면에서 없앴다(D-060).
 - **마일스톤 밖**: 티켓·문서 검색(D-133), Git 연동(Gitea·GitLab·GitHub App, D-141~D-162), 공유 링크(캘린더·타임라인·티켓, D-197~D-200), 알림 수신함과 하루 요약(D-216~D-221), 데이터 보관(D-132), 파일 관리(D-171·D-172), 백업·복원(D-112), 도움말(D-154), 온보딩 투어(D-120), 앱으로 설치(PWA, D-110).
 
-- **2026-10-28 에 더한 것**(사용자 지시, 모두 [features/](features/) 에 명세): 내 비밀번호 변경·감사 로그 탭·DB 비밀 값 암호화([account-security.md](features/account-security.md), D-226), 티켓 목록 1,000개씩 더 불러오기(D-227), 상태 추가와 추정치([statuses-and-estimates.md](features/statuses-and-estimates.md), D-228), 저장한 뷰([saved-views.md](features/saved-views.md), D-229), 티켓 관계([issue-relations.md](features/issue-relations.md), D-230), 트리아지([triage.md](features/triage.md), D-231), 사이클([cycles.md](features/cycles.md), D-232), 커맨드 팔레트·단축키 통합·실행 취소([command-palette.md](features/command-palette.md), D-233), 보드(칸반, [board.md](features/board.md), D-234), CI(`.github/workflows/ci.yml`).
+- **2026-10-28 에 더한 것**(사용자 지시, 모두 [features/](features/) 에 명세): 내 비밀번호 변경·감사 로그 탭·DB 비밀 값 암호화([account-security.md](features/account-security.md), D-226), 티켓 목록 1,000개씩 더 불러오기(D-227), 상태 추가와 추정치([statuses-and-estimates.md](features/statuses-and-estimates.md), D-228), 저장한 뷰([saved-views.md](features/saved-views.md), D-229), 티켓 관계([issue-relations.md](features/issue-relations.md), D-230), 트리아지([triage.md](features/triage.md), D-231), 사이클([cycles.md](features/cycles.md), D-232), 커맨드 팔레트·단축키 통합·실행 취소([command-palette.md](features/command-palette.md), D-233), 보드(칸반, [board.md](features/board.md), D-234), CI(`.github/workflows/ci.yml`). 같은 날 이어서 **보드를 기본 보기로**(보기 순서 보드 · 목록 · 타임라인 · 캘린더)·보드 정렬·카드 전체 누르기·댓글/활동 수, **끌어 놓는 모든 곳을 dnd-kit 으로**(D-235).
 
 ### 검증 상태
 
 - **백엔드**: `FLOWBIT_BUILD_DIR=<다른 폴더> ./gradlew check` (ktlint + PostgreSQL 18 Testcontainers, Docker 필요). **2026-10-28 에 전체를 돌려 338개 0 실패(ktlint 포함)를 확인했다**(위의 새 기능과 새 통합 테스트 포함). 새 테스트는 정상 동작만 본다(사용자 지시).
-- **프런트엔드**: `npm run lint`, `npm run typecheck`, `npm test`(Vitest, 17개 파일 100개), `npm run build` 를 2026-10-28 에 돌려 통과했다. `npm run test:e2e`(Playwright, `frontend/e2e/` 6개 파일. 돌리는 법은 [04-frontend-guide.md](04-frontend-guide.md) "테스트와 검사")는 **돌리지 않았다**: 낡았던 둘(`flows.spec.ts` 첨부 흐름, `changes.spec.ts` 프로젝트 개요 구독)은 2026-10-28 에 코드를 고쳤지만 실행으로 확인하지 못했다(새 기능의 E2E 는 없다). **화면은 새 기능 어느 것도 에이전트가 확인하지 않았다.**
+- **프런트엔드**: `npm run lint`, `npm run typecheck`, `npm test`(Vitest, 17개 파일 100개), `npm run build` 를 2026-10-28 에 돌려 통과했다. `npm run test:e2e`(Playwright, `frontend/e2e/` 6개 파일. 돌리는 법은 [04-frontend-guide.md](04-frontend-guide.md) "테스트와 검사")는 **돌리지 않았다**: 낡았던 둘(`flows.spec.ts` 첨부 흐름, `changes.spec.ts` 프로젝트 개요 구독)은 2026-10-28 에 코드를 고쳤지만 실행으로 확인하지 못했다(새 기능의 E2E 는 없다). 기본 보기가 보드가 되면서 목록을 전제로 한 E2E 의 주소에 `?view=list` 를 붙였다(`changes`·`features`·`flows` 세 파일, D-235). 이것도 돌려 보지 못했고, 캘린더 끌기를 다루는 E2E 가 있다면 dnd-kit 의 마우스 끌기(6px·4px 이상 움직여야 시작)에 맞게 `mouse.move` 를 여러 번 나눠야 할 수 있다. **화면은 새 기능 어느 것도 에이전트가 확인하지 않았다.**
 - **화면 확인은 에이전트가 하지 않는다**(사용자 지시, 2026-10-23). 작업 기록의 "화면은 확인하지 않았다"는 그 뜻이다. **2026-10-28 에 사용자 요청으로 체크리스트에 남아 있던 화면 확인·실제 서버 확인·사용자 확인 항목을 모두 완료 처리했다**(에이전트가 확인한 것이 아니다). 코드가 없던 항목을 닫은 기준은 D-225.
 
 ### 실행할 때 알아둘 것
@@ -29,7 +29,7 @@
 
 사용자가 지시하기 전에는 새 기능을 임의로 시작하지 않는다. 지시를 받으면 ① 범위를 사용자에게 확인하고 ② `features/` 에 명세를 먼저 쓰고 ③ 구현한다. 화면은 [01-product.md](01-product.md) 의 해당 절을 따른다. ([08-roadmap.md](08-roadmap.md) 의 M2 이후는 초안이다.)
 
-**먼저 해 볼 것(2026-10-28 에 만든 것의 확인)**: Docker 를 켜고 백엔드를 다시 띄워 `V7`~`V11` 을 적용하고 새 화면을 직접 써 본다 — 보드 끌어 놓기, 뷰 저장·적용, 관계 맺기, 트리아지 켜고 요청 만들기, 사이클 켜기, `Ctrl/⌘+K`·`?`·`G`+글자·`Ctrl/⌘+Z`, 관리자 설정의 상태·감사 로그, 내 설정의 비밀번호. 에이전트는 화면을 보지 못했다. 그 뒤 `npm run test:e2e` 로 낡은 E2E 둘의 수정을 확인한다.
+**먼저 해 볼 것(2026-10-28 에 만든 것의 확인)**: Docker 를 켜고 백엔드를 다시 띄워 `V7`~`V11` 을 적용하고 새 화면을 직접 써 본다 — 보드 끌어 놓기·카드 누르기·정렬(기본 보기가 보드), 캘린더 막대·기한 없는 티켓·날짜 목록 줄 끌기, 편집기 블록 손잡이 끌기(놓을 자리 선, 표·이미지·목록 블록), 뷰 저장·적용, 관계 맺기, 트리아지 켜고 요청 만들기, 사이클 켜기, `Ctrl/⌘+K`·`?`·`G`+글자·`Ctrl/⌘+Z`, 관리자 설정의 상태·감사 로그, 내 설정의 비밀번호. 에이전트는 화면을 보지 못했다. 그 뒤 `npm run test:e2e` 로 낡은 E2E 둘의 수정을 확인한다.
 
 **사용자가 정해야 하는 것**
 
@@ -161,7 +161,8 @@
 
 ## 열린 질문
 
-- **보드를 기본 보기로 할지**(D-234): 지금은 목록이 기본이고 보드는 보기 전환의 하나다. "기존 리스트 나오는 화면을 칸반으로 변경"을 목록을 *없애라*는 뜻으로 읽지 않았다. 기본 보기를 보드로 하거나 목록을 없애려면 알려 달라.
+- **목록 보기를 없앨지**(D-234, D-235): 기본 보기는 사용자 지시로 보드가 됐다(D-235). 목록은 보기 전환의 하나로 남아 있다(묶음·하위 티켓 들여쓰기·일괄 줄 편집이 목록에만 있다). 목록을 없애려면 알려 달라.
+- **dnd-kit 으로 하지 않은 끌어 놓기**(D-235): 글 안에서 글자·노드를 끄는 ProseMirror 자체의 끌어 놓기와, 운영체제에서 파일을 끌어 오는 일(편집기·댓글)은 브라우저 기능이라 그대로다. 파일·페이지 링크·임베드 블록에 `draggable: true` 가 남아 있어 손잡이 말고도 블록 자체를 끌어 옮길 수 있다 — 한 가지 방식으로 맞추려면 그 설정을 끄면 된다.
 - **실행 취소의 범위**(D-233): 티켓 속성(상태·우선순위·담당자·기한·라벨·프로젝트·추정치) 변경만 되돌린다. 제목·본문·댓글·삭제·관계·사이클을 더할지.
 - **트리아지를 누구에게 적용할지**(D-231): "관리 역할이 아닌 사람이 만든 티켓"으로 정했다. 구성원이 아닌 사람의 요청(이메일·요청 양식)을 받는 것은 아직 없다.
 - **사이클의 "이월"**(D-232): 끝나지 않은 티켓을 저절로 다음 사이클로 넘긴다. 이월한 티켓의 활동 기록과, 이월을 끄는 설정이 필요한지.
@@ -184,6 +185,13 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-28 — 보드를 기본 보기로, 끌어 놓는 모든 곳을 dnd-kit 으로 (D-235)
+
+- 사용자 요청: ① 끌기를 쓰는 모든 곳을 dnd-kit 으로 ② 보드 카드 영역을 누르면 상세가 뜨게(지금은 제목만) ③ 보드에도 목록의 정렬 ④ 보기 순서를 보드 먼저로 바꾸고 기본을 보드로 ⑤ 보드 카드에 댓글 수·활동 수.
+- 한 것: `@dnd-kit/core`·`@dnd-kit/utilities` 를 더했다(`package.json`). **보드**(`issue-board.tsx` 다시 씀): `DndContext`+`useDraggable`/`useDroppable`+`DragOverlay`, 마우스 6px·터치 0.25초, 카드 `<li>` 전체가 누르는 곳(상태 버튼 등 따로 동작하는 곳과 끌기 직후는 제외), 정렬은 `issues-view.tsx` 가 미리 정렬해 넘김, 카드 아래 줄에 댓글·활동 수. **보기 순서·기본값**: `issue-views.tsx`(`ISSUE_VIEWS`, `DEFAULT_ISSUE_VIEW`, `useIssueView(defaultView)`), `issues-view.tsx`(`defaultView` prop), 투어 예시는 `defaultView="list"`(`tour-demo.tsx`), 명령 팔레트의 보기 명령 순서, E2E 의 목록 주소에 `?view=list`. **캘린더**: `use-bar-drag.ts` 를 지우고 `use-calendar-dnd.ts`(`useCalendarDnd`·`useBarHandle`·`useCreateHandle`)로, `issue-calendar.tsx`·`calendar-day-issues.tsx` 를 다시 썼다(동작은 D-205·D-222 와 같다: 막대 이동·양 끝·기한 없는 티켓·날짜 목록 줄·빈 날짜 끌어 새 티켓). 어느 날짜 위인지는 dnd-kit 의 놓는 자리 대신 마우스 밑의 `[data-day]` 로 읽는다(끄는 동안 막대가 다시 그려져 눌렀던 요소가 사라질 수 있어서). **편집기 블록 손잡이**(`block-drag-handle.tsx` 다시 씀): 손잡이를 dnd-kit 이 잡고, 마우스 밑의 최상위 블록 위쪽 절반이면 그 앞, 아래쪽 절반이면 그 뒤에 파란 선을 그리고, 놓으면 블록을 지우고 다시 넣는 변경 한 번(실행 취소 한 번)으로 옮긴다. 끄는 동안 블록의 첫 글자들이 마우스를 따라온다. `lib/dnd.ts` 에 스크린 리더 안내(한국어). 문구 `messages.editor.dragBlockGhost`.
+- 확인: `tsc --noEmit`·`npm run lint`·`npm test`(17개 파일 100개)·`npm run build` 통과. **화면은 확인하지 않았고 E2E 는 돌리지 않았다.** 끌어 놓기는 직접 해 봐야 아는 부분이 많다: 보드에서 짧게 누를 때와 끌 때의 구분, 캘린더에서 막대 안쪽 끝을 잡을 때, 날짜 목록 줄을 끌면 목록이 닫히는 것, 편집기에서 표·이미지·목록 블록을 옮길 때의 선 위치, 긴 글에서 끌 때 화면이 따라 스크롤되는 것.
+- 알아둘 것: ① 글 안의 글자·노드 끌기(ProseMirror)와 파일을 운영체제에서 끌어 오는 일은 그대로다(D-235 ⑥, 위 열린 질문). ② dnd-kit 의 키보드 센서는 쓰지 않는다 — 키보드는 상태 버튼·속성 메뉴·블록 메뉴가 맡는다. ③ 기본 보기가 보드라서 저장한 뷰 중 `view` 가 없던 것은 이제 보드로 열린다. 목록으로 열리게 하려면 뷰를 다시 저장한다. ④ 터치에서 캘린더 끌기는 여전히 없다(스크롤을 막지 않으려고, 마우스 센서만 쓴다).
 
 ### 2026-10-28 — 먼저 손볼 것 여섯 가지와 통상 기능 일곱 가지 (D-226~D-234)
 

@@ -224,7 +224,7 @@ test("others see where a person clicked or types, not where their pointer passes
   const watching = await newPage(editor);
   const acting = await newPage();
   for (const page of [watching, acting]) {
-    await page.goto(`/project/${project.id}/issues`);
+    await page.goto(`/project/${project.id}/issues?view=list`);
     await page.locator(`li[data-presence-id="issue-row:${issue.number}"] a`).click();
     await expect(page.getByRole("dialog").getByRole("button", { name: /^상태:/ })).toBeVisible();
     await settled(page);

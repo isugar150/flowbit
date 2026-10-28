@@ -35,7 +35,7 @@ import { ChipSelect, chipClass, type ChipOption } from "./chip-select";
 import type { IssueDates } from "./issue-calendar";
 import { IssueListHeader, IssueListRow } from "./issue-list-row";
 import { ActiveFilterChips, CHIP_KEYS, FILTER_ALL, FILTER_KEYS, IssueFilterMenu, type ChipKey } from "./issue-filter-menu";
-import { IssueViewSwitch, useIssueView, useListAddress, useReplaceListQuery } from "./issue-views";
+import { IssueViewSwitch, useIssueView, useListAddress, useReplaceListQuery, type IssueViewMode } from "./issue-views";
 import { SavedViewsMenu, VIEW_PATHS } from "./saved-views-menu";
 import { SubIssueContextRow } from "./sub-issue-rows";
 
@@ -114,7 +114,10 @@ export function IssuesView({
   shareScope,
   hasMore = false,
   pages = 1,
+  defaultView,
 }: {
+  /** The view the list opens in when its address says none; the board unless a screen needs another (the tour's example list). */
+  defaultView?: IssueViewMode;
   /** True when the server has issues beyond the ones in `issues`: the list is loaded a thousand at a time (D-227). */
   hasMore?: boolean;
   /** How many thousands of issues `issues` was asked to hold (`?pages=`). */
@@ -271,7 +274,7 @@ export function IssuesView({
     onChange: setFilter,
     onLabelChange: setLabelFilter,
   };
-  const [view, setView] = useIssueView();
+  const [view, setView] = useIssueView(defaultView);
   const { mutate } = mutation;
   // What the list showed a moment ago, for putting a change back (Ctrl/⌘+Z): read when a change is made, not when it is drawn.
   const shown = useRef(allIssues);
@@ -410,7 +413,10 @@ export function IssuesView({
   }, [issues, grouping, projects, statuses, sort, completed, now]);
 
   // The board: every issue the list would show (the same "completed" window), in a column for its status.
-  const boardIssues = issues.filter((issue) => now === null || !finishedLongAgo(issue, completed, now));
+  const boardIssues = sortIssues(
+    issues.filter((issue) => now === null || !finishedLongAgo(issue, completed, now)),
+    sort,
+  );
   const hiddenFinished = issues.length - boardIssues.length;
 
   // The last filters, order and grouping are shared by the three lists and kept across visits.
@@ -506,7 +512,12 @@ export function IssuesView({
               <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                 {deletedToggle}
                 {/* The timeline and the calendar have an order of their own (by project, by day). */}
-                {view === "board" ? <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} /> : null}
+                {view === "board" ? (
+                  <>
+                    <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />
+                    <ChipSelect label={m.sort} value={sort} options={SORT_OPTIONS} onChange={setSort} />
+                  </>
+                ) : null}
                 {view === "list" ? (
                   <>
                     <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />

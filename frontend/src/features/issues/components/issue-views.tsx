@@ -8,8 +8,12 @@ import { messages } from "@/messages";
 
 const m = messages.issues.views;
 
-export const ISSUE_VIEWS = ["list", "board", "timeline", "calendar"] as const;
+/** In the order of the buttons: the board comes first and is what a list opens as (D-235). */
+export const ISSUE_VIEWS = ["board", "list", "timeline", "calendar"] as const;
 export type IssueViewMode = (typeof ISSUE_VIEWS)[number];
+
+/** The view a list of issues opens in when its address says none. */
+export const DEFAULT_ISSUE_VIEW: IssueViewMode = "board";
 
 /**
  * The address of the list itself. While an issue is open in a dialog over the list the browser's
@@ -54,27 +58,28 @@ export function useReplaceListQuery(): (pathname: string, params: URLSearchParam
 }
 
 /**
- * Which way a list of issues is shown: as the list, as a timeline chart by project
+ * Which way a list of issues is shown: as the board (the default), as the list, as a timeline chart by project
  * (issue-timeline.tsx), or on a calendar (issue-calendar.tsx). Kept
- * in the address (`?view=timeline`), so a reload, the back button and a shared link keep it.
+ * in the address (`?view=list`; the default is left out), so a reload, the back button and a shared link keep it.
+ * A screen can open in another view than the board with `defaultView` (the tour's example list).
  */
-export function useIssueView(): [IssueViewMode, (view: IssueViewMode) => void] {
+export function useIssueView(defaultView: IssueViewMode = DEFAULT_ISSUE_VIEW): [IssueViewMode, (view: IssueViewMode) => void] {
   const { pathname, searchParams } = useListAddress();
   const replaceListQuery = useReplaceListQuery();
   const param = searchParams.get("view");
-  const view = ISSUE_VIEWS.find((item) => item === param) ?? "list";
+  const view = ISSUE_VIEWS.find((item) => item === param) ?? defaultView;
   const setView = (next: IssueViewMode) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === "list") params.delete("view");
+    if (next === defaultView) params.delete("view");
     else params.set("view", next);
     replaceListQuery(pathname, params);
   };
   return [view, setView];
 }
 
-const VIEW_ICONS = { list: ListIcon, board: Columns3Icon, timeline: ChartGanttIcon, calendar: CalendarIcon };
+const VIEW_ICONS = { board: Columns3Icon, list: ListIcon, timeline: ChartGanttIcon, calendar: CalendarIcon };
 
-/** The three buttons that switch between the views. */
+/** The buttons that switch between the views. */
 export function IssueViewSwitch({ view, onChange }: { view: IssueViewMode; onChange: (view: IssueViewMode) => void }) {
   return (
     <div role="group" aria-label={m.label} className="flex shrink-0 items-center rounded-full border p-0.5">
