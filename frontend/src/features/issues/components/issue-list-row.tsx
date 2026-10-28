@@ -193,7 +193,7 @@ export const IssueListRow = memo(function IssueListRow({
         />
       ) : (
         <span className="flex size-7 items-center justify-center">
-          <StatusIcon status={issue.status} />
+          <StatusIcon status={issue.status} statusId={issue.statusId} statusName={issue.statusName} />
         </span>
       )}
       {edit ? (

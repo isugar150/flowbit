@@ -18,6 +18,7 @@ import { useIssueStatuses } from "@/features/issues/statuses";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { cn } from "@/lib/utils";
+import { randomId } from "@/lib/random-id";
 import { messages } from "@/messages";
 import { moveBlock } from "./pipeline";
 import type { ActionType, Audience, AutomationAction, AutomationInput } from "./types";
@@ -25,7 +26,7 @@ import type { ActionType, Audience, AutomationAction, AutomationInput } from "./
 const m = messages.automations;
 const actionTypes: ActionType[] = ["NOTIFY", "ASSIGN", "ADD_LABELS", "REMOVE_LABELS"];
 const icons = { NOTIFY: BellIcon, ASSIGN: UserRoundIcon, ADD_LABELS: TagIcon, REMOVE_LABELS: TagIcon };
-const newAction = (type: ActionType): AutomationAction => ({ id: crypto.randomUUID(), type, audience: "PEOPLE", userIds: [], labelIds: [], message: "" });
+const newAction = (type: ActionType): AutomationAction => ({ id: randomId(), type, audience: "PEOPLE", userIds: [], labelIds: [], message: "" });
 
 function MultiPick({ label, options, value, onChange }: { label: string; options: ComboboxOption[]; value: string[]; onChange: (ids: string[]) => void }) {
   return (

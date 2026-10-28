@@ -46,7 +46,7 @@ function DayIssueRow<T extends CalendarIssue>({
   const className = cn("flex items-center gap-2 rounded-md px-2 py-1.5 outline-none", href && "hover:bg-accent focus-visible:bg-accent", movable && "cursor-grab");
   const body = (
     <>
-      <StatusIcon status={issue.status} className="size-4 shrink-0" />
+      <StatusIcon status={issue.status} statusId={issue.statusId} statusName={issue.statusName} className="size-4 shrink-0" />
       <span className="min-w-0 flex-1">
         <span
           className={cn(

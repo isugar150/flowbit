@@ -40,7 +40,7 @@ export function groupIssues(
   switch (grouping) {
     case "status":
       return fixed(
-        listOrder(statuses).map((status) => ({ key: status.id, label: status.name, icon: <StatusIcon status={status.category} /> })),
+        listOrder(statuses).map((status) => ({ key: status.id, label: status.name, icon: <StatusIcon status={status.category} statusId={status.id} statusName={status.name} /> })),
         issues,
         (issue) => [issue.statusId],
       );

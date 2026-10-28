@@ -5,6 +5,8 @@ import {
   CircleDotIcon,
   CircleIcon,
   CircleXIcon,
+  ClipboardListIcon,
+  EyeIcon,
   MinusIcon,
   SignalHighIcon,
   SignalLowIcon,
@@ -27,8 +29,17 @@ export const priorityLabel = (priority: IssuePriority) => m.priorities[priority]
 
 // Each state has its own shape as well as its own colour, so colour is never the only cue.
 
-export function StatusIcon({ status, className }: { status: IssueStatus; className?: string }) {
+export function StatusIcon({ status, statusId, statusName, className }: { status: IssueStatus; statusId?: string; statusName?: string; className?: string }) {
   const props = { className: cn("size-4 shrink-0", className), "aria-hidden": true } as const;
+  if (status === "IN_PROGRESS") {
+    const name = statusName?.replace(/\s/g, "");
+    if (statusId === "00000000-0000-7000-8000-0000000000a6" || name === "리뷰준비됨") {
+      return <ClipboardListIcon {...props} className={cn(props.className, "text-warning")} />;
+    }
+    if (statusId === "00000000-0000-7000-8000-0000000000a7" || name === "리뷰중") {
+      return <EyeIcon {...props} className={cn(props.className, "text-warning")} />;
+    }
+  }
   switch (status) {
     case "BACKLOG":
       return <CircleDashedIcon {...props} className={cn(props.className, "text-muted-foreground")} />;

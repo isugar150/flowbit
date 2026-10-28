@@ -121,7 +121,7 @@ function CalendarBar<T extends CalendarIssue>({
   const card = cardOf?.(issue);
   const body = (
     <>
-      <StatusIcon status={issue.status} className="size-3" />
+      <StatusIcon status={issue.status} statusId={issue.statusId} statusName={issue.statusName} className="size-3" />
       <span className="truncate">{issue.title}</span>
       {movable && first ? <BarEdge edge="start" number={issue.number} anchor={cellKey} label={m.resizeStart} active={dragged?.mode === "start"} /> : null}
       {movable && last ? <BarEdge edge="end" number={issue.number} anchor={cellKey} label={m.resizeEnd} active={dragged?.mode === "end"} /> : null}
@@ -183,7 +183,7 @@ function UndatedChip<T extends CalendarIssue>({
   );
   const body = (
     <>
-      <StatusIcon status={issue.status} className="size-3" />
+      <StatusIcon status={issue.status} statusId={issue.statusId} statusName={issue.statusName} className="size-3" />
       <span className="shrink-0 text-muted-foreground tabular-nums">{issue.key}</span>
       <span className="truncate">{issue.title}</span>
     </>

@@ -21,11 +21,12 @@ export function PriorityMark({ priority }: { priority: IssuePriority }) {
 }
 
 /** The status icon, with its name as a tooltip and for screen readers. */
-export function StatusMark({ status }: { status: IssueStatus }) {
+export function StatusMark({ status, statusId, statusName }: { status: IssueStatus; statusId?: string; statusName?: string }) {
+  const label = statusName ?? statusLabel(status);
   return (
-    <span title={statusLabel(status)} className="flex shrink-0">
-      <StatusIcon status={status} />
-      <span className="sr-only">{statusLabel(status)}</span>
+    <span title={label} className="flex shrink-0">
+      <StatusIcon status={status} statusId={statusId} statusName={statusName} />
+      <span className="sr-only">{label}</span>
     </span>
   );
 }
@@ -118,7 +119,7 @@ export function IssueRow({ issue, depth = 0, withStatus }: { issue: Issue; depth
       <SubIssueIndent depth={depth} />
       <PriorityMark priority={issue.priority} />
       <span className={`w-20 shrink-0 truncate tabular-nums ${metaText}`}>{issue.key}</span>
-      {withStatus ? <StatusMark status={issue.status} /> : null}
+      {withStatus ? <StatusMark status={issue.status} statusId={issue.statusId} statusName={issue.statusName} /> : null}
       <IssueTitleLink issue={issue} />
       <SubIssueProgress issue={issue} />
       <IssueProjectName issue={issue} />

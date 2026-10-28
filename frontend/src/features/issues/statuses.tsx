@@ -19,7 +19,7 @@ export function useIssueStatuses(): IssueStatusItem[] {
 
 /** The options of a status menu: the value is the status id, the icon the shape of its category. */
 export function statusChoices(statuses: IssueStatusItem[]): ChipOption<string>[] {
-  return statuses.map((status) => ({ value: status.id, label: status.name, icon: <StatusIcon status={status.category} /> }));
+  return statuses.map((status) => ({ value: status.id, label: status.name, icon: <StatusIcon status={status.category} statusId={status.id} statusName={status.name} /> }));
 }
 
 export function useStatusOptions(): ChipOption<string>[] {

@@ -65,6 +65,11 @@ const typeIcon: Record<CustomPropertyType, LucideIcon> = {
   PERSON: UserIcon,
 };
 
+export function PropertyTypeIcon({ type }: { type: CustomPropertyType }) {
+  const Icon = typeIcon[type];
+  return <Icon className="size-4 shrink-0" aria-hidden="true" />;
+}
+
 /** The kinds of value to choose from, each with its mark. */
 const TYPE_OPTIONS: ChipOption<CustomPropertyType>[] = CUSTOM_PROPERTY_TYPES.map((kind) => {
   const Icon = typeIcon[kind];
@@ -108,7 +113,7 @@ export function CustomProperties({
   const rows = (
     <>
       {list.items.map((item) => (
-        <Row key={item.id} label={item.label}>
+        <Row key={item.id} label={item.label} icon={<PropertyTypeIcon type={item.type} />}>
           <div className="flex min-w-0 flex-1 items-center gap-1">
             <div className="min-w-0 flex-1">
               <PropertyValue

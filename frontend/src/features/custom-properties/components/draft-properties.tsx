@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { MAX_DRAFTS, draftWithBadNumber, isTyped, newDraft, type DraftProperty } from "../drafts";
 import type { CustomProperty } from "../types";
-import { AddPropertyPopover, PropertyValue, RemoveMenu, fieldClass } from "./custom-properties";
+import { AddPropertyPopover, PropertyTypeIcon, PropertyValue, RemoveMenu, fieldClass } from "./custom-properties";
 
 const m = messages.customProperties;
 
@@ -36,7 +36,7 @@ export function DraftProperties({
       {drafts.length > 0 ? (
         <dl className="flex flex-col">
           {drafts.map((draft) => (
-            <PropertyPanelRow key={draft.key} label={draft.label}>
+            <PropertyPanelRow key={draft.key} label={draft.label} icon={<PropertyTypeIcon type={draft.type} />}>
               <div className="flex min-w-0 flex-1 items-center gap-1">
                 <div className="min-w-0 flex-1">
                   {isTyped(draft.type) ? (

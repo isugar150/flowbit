@@ -21,24 +21,25 @@ export function PropertyCard({
 }
 
 /** One label and value inside a PropertyCard. */
-export function PropertyRow({ label, children }: { label: string; children: React.ReactNode }) {
+export function PropertyRow({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     // data-presence-id: others see who is pointing at this row (features/realtime/presence-focus.tsx).
     <div data-presence-id={`property:${label}`} className="flex min-h-8 items-center gap-2 px-1 text-[0.8125rem] leading-5">
-      <dt className="w-20 shrink-0 text-muted-foreground">{label}</dt>
+      <dt className="flex w-28 shrink-0 items-center gap-2 text-muted-foreground" title={label}>{icon}<span className="truncate">{label}</span></dt>
       <dd className="flex min-w-0 flex-1 items-center gap-2 font-medium">{children}</dd>
     </div>
   );
 }
 
 /** One label and value on a line of a narrow side panel (an issue's): a shorter gap, as the panel is 16rem wide. */
-export function PropertyPanelRow({ label, children }: { label: string; children: React.ReactNode }) {
+export function PropertyPanelRow({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex min-h-8 items-center gap-3 text-[0.8125rem] leading-5">
-      <dt className="w-16 shrink-0 truncate text-muted-foreground" title={label}>
-        {label}
+    <div className="grid min-h-8 grid-cols-[minmax(0,35fr)_minmax(0,65fr)] items-center gap-3 text-[0.8125rem] leading-5">
+      <dt className="flex min-w-0 items-center gap-2 text-muted-foreground" title={label}>
+        {icon}
+        <span className="truncate">{label}</span>
       </dt>
-      <dd className="min-w-0 flex-1">{children}</dd>
+      <dd className="min-w-0">{children}</dd>
     </div>
   );
 }

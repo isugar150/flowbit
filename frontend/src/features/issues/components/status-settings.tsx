@@ -30,7 +30,7 @@ function StatusLine({ status, first, last, only }: { status: IssueStatusItem; fi
   return (
     <li className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
-        <StatusIcon status={status.category} />
+        <StatusIcon status={status.category} statusId={status.id} statusName={status.name} />
         <Input
           aria-label={m.nameLabel(status.name)}
           value={name}

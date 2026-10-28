@@ -67,7 +67,7 @@ export function IssueCard({ card, activity, loading }: { card: IssueCardData; ac
     <div className="flex flex-col gap-3 text-[0.8125rem] leading-5">
       <div className="flex flex-col gap-0.5">
         <p className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground">
-          <StatusIcon status={card.status} className="size-3.5" />
+          <StatusIcon status={card.status} statusName={card.statusName} className="size-3.5" />
           <span className="tabular-nums">{card.key}</span>
         </p>
         <h3 className="line-clamp-3 text-sm leading-5 font-medium break-words">{card.title}</h3>

@@ -199,7 +199,7 @@ function BoardColumn({ status, count, children }: { status: IssueStatusItem; cou
       className={cn("flex w-72 shrink-0 snap-start flex-col gap-2 rounded-xl bg-muted/50 p-2 transition-colors max-md:w-[85vw]", isOver && "bg-muted ring-2 ring-ring/40")}
     >
       <h2 className="flex h-7 items-center gap-2 px-1 text-[0.8125rem] leading-5 font-medium">
-        <StatusIcon status={status.category} />
+        <StatusIcon status={status.category} statusId={status.id} statusName={status.name} />
         <span className="truncate">{status.name}</span>
         <span className="font-normal text-muted-foreground tabular-nums">{count}</span>
       </h2>

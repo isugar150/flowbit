@@ -1,6 +1,7 @@
 "use client";
 
-import { CircleSlashIcon, RepeatIcon } from "lucide-react";
+import { CalendarIcon, CircleDotIcon, CircleSlashIcon, FolderIcon, GaugeIcon, RepeatIcon, SignalHighIcon, TagIcon, UserIcon } from "lucide-react";
+import { PropertyPanelRow } from "@/components/property-card";
 import { ProjectIcon } from "@/components/project-icon";
 import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
 import { FormAlert } from "@/features/auth/components/form-alert";
@@ -48,10 +49,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 /** One value in a section. `id` lets others see who is pointing at it (features/realtime/presence-focus.tsx). */
 function Row({ id, children }: { id: string; children: React.ReactNode }) {
+  const Icon = id === m.status ? CircleDotIcon
+    : id === m.priority ? SignalHighIcon
+    : id === m.estimate ? GaugeIcon
+    : id === m.assignee ? UserIcon
+    : id === m.dueDate ? CalendarIcon
+    : id === m.labels ? TagIcon
+    : id === m.project ? FolderIcon : RepeatIcon;
   return (
-    <div data-presence-id={`property:${id}`} className="flex min-h-8 items-center">
-      {children}
-    </div>
+    <dl data-presence-id={`property:${id}`}>
+      <PropertyPanelRow label={id} icon={<Icon className="size-4 shrink-0" aria-hidden="true" />}>
+        {children}
+      </PropertyPanelRow>
+    </dl>
   );
 }
 
