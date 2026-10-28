@@ -99,6 +99,14 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 
 변경은 REST 로 하고, 다른 사용자에게 전파하는 것은 WebSocket `GET /api/v1/realtime` 으로 한다. 설계는 [02-architecture.md](02-architecture.md) "실시간 동기화".
 
+## 이번에 더한 엔드포인트 (D-226~D-234)
+
+- `GET·PUT /api/v1/me/password` — 내 비밀번호 변경(LDAP 가 꺼져 있을 때). `GET /api/v1/admin/audit` — 감사 로그(종류·사람·날짜·쪽).
+- 티켓 목록 `GET /api/v1/issues`·`/me/issues`·`/projects/{id}/issues` 는 `limit`(기본 1000, 최대 10000)을 받는다.
+- `GET /api/v1/issue-statuses`, `POST·PATCH·DELETE /api/v1/admin/issue-statuses`. 티켓: `statusId`·`estimate`·`triage`·`cycleId`(요청), `statusName`·`openBlockers`·`cycle`(응답).
+- `GET·POST·PATCH·DELETE /api/v1/views` — 저장한 뷰. `GET·POST /api/v1/issues/{번호}/relations`, `DELETE …/{id}` — 관계. `GET /api/v1/triage` — 트리아지 대기열.
+- `GET /api/v1/projects/{id}/cycles`, `PUT …/cycles/settings` — 사이클. 프로젝트: `estimatesEnabled`·`triageEnabled`.
+
 ## API 문서
 
 - 아직 OpenAPI 문서를 만들지 않는다. 엔드포인트의 기준은 각 기능 명세의 "API" 절이고, 프론트엔드 타입은 `features/<기능>/types.ts` 에 직접 적는다.

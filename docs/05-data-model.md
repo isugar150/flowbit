@@ -188,6 +188,15 @@
 한 항목에 20개까지(서비스가 확인). 사람 값이 가리키는 사용자는 외래 키가 아니라 서비스가 프로젝트 구성원인지 확인한다(담당자처럼, 구성원에서 빠져도 값은 남는다).
 
 
+### 이번에 더한 표와 열 (`V7`~`V11`, D-228~D-232)
+
+- `V7`: `issue_statuses(id, category, name, position)` 와 `issues.status_id`(NOT NULL, 범주가 `issues.status`), `issues.estimate`, `projects.estimates_enabled`.
+- `V8`: `saved_views(owner_id, name, path, query, shared)` — 목록의 주소 조건을 저장.
+- `V9`: `issue_relations(issue_id, related_id, type: BLOCKS|DUPLICATES|RELATED)` — "앞이 뒤를 …" 한 줄로 두 방향을 나타냄.
+- `V10`: `issues.triage`, `projects.triage_enabled`.
+- `V11`: `cycles(project_id, number, starts_on, ends_on)`, `issues.cycle_id`, `projects.cycles_enabled·cycle_weeks·cycle_start_day`.
+- DB 의 비밀 값 열(`ldap_settings.bind_password` 등 아홉 개)은 `enc:v1:…` 로 암호화되어 저장된다(`FLOWBIT_SECRET_KEY`, [features/account-security.md](features/account-security.md)).
+
 ### `share_links` (`V3`, D-197)
 
 공유 링크 ([features/sharing.md](features/sharing.md)). 링크는 한 사람이 한 종류의 화면을 정해진 매개변수로 공유한 것이다.

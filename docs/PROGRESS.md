@@ -12,26 +12,30 @@
 - **M3 프로젝트와 티켓**: 구성원 관리와 프로젝트 권한, 모든 구성원에게 열기(D-192), 접근 요청(D-128), 티켓(담당자 여러 명 D-125, 하위 티켓 5단계 D-190, 라벨, 사용자 속성 D-186, 복제 D-212), 문서 편집기(Tiptap)와 블록 댓글·활동(D-165), 목록·캘린더·타임라인 보기, 실시간 동기화와 "보는 사람" 아바타(D-044), 파일 첨부와 Word·Excel·PowerPoint 미리보기(D-187). **목표(마일스톤)는 없어졌고**(D-189) 프리셋도 화면에서 없앴다(D-060).
 - **마일스톤 밖**: 티켓·문서 검색(D-133), Git 연동(Gitea·GitLab·GitHub App, D-141~D-162), 공유 링크(캘린더·타임라인·티켓, D-197~D-200), 알림 수신함과 하루 요약(D-216~D-221), 데이터 보관(D-132), 파일 관리(D-171·D-172), 백업·복원(D-112), 도움말(D-154), 온보딩 투어(D-120), 앱으로 설치(PWA, D-110).
 
+- **2026-10-28 에 더한 것**(사용자 지시, 모두 [features/](features/) 에 명세): 내 비밀번호 변경·감사 로그 탭·DB 비밀 값 암호화([account-security.md](features/account-security.md), D-226), 티켓 목록 1,000개씩 더 불러오기(D-227), 상태 추가와 추정치([statuses-and-estimates.md](features/statuses-and-estimates.md), D-228), 저장한 뷰([saved-views.md](features/saved-views.md), D-229), 티켓 관계([issue-relations.md](features/issue-relations.md), D-230), 트리아지([triage.md](features/triage.md), D-231), 사이클([cycles.md](features/cycles.md), D-232), 커맨드 팔레트·단축키 통합·실행 취소([command-palette.md](features/command-palette.md), D-233), 보드(칸반, [board.md](features/board.md), D-234), CI(`.github/workflows/ci.yml`).
+
 ### 검증 상태
 
-- **백엔드**: `FLOWBIT_BUILD_DIR=<다른 폴더> ./gradlew check` (ktlint + PostgreSQL 18 Testcontainers, Docker 필요). **전체를 돌려 통과를 적어 둔 마지막 기록은 282개 0 실패(2026-10-23, D-192)** 다. 그 뒤 변경 중 일부(D-197~D-206 의 `ShareIntegrationTest`·`RetentionIntegrationTest` 새 테스트 등)는 작업 기록에 "Docker 가 꺼져 있어 돌리지 못했다"고 적혀 있다. 다음 사람은 Docker 를 켜고 먼저 전체 `check` 를 돌려 본다.
-- **프런트엔드**: `npm run lint`, `npm run typecheck`, `npm test`(Vitest, 14개 파일), `npx next build`, `npm run test:e2e`(Playwright, `frontend/e2e/` 6개 파일. 돌리는 법은 [04-frontend-guide.md](04-frontend-guide.md) "테스트와 검사"). **낡아서 실패한다고 기록된 E2E 둘이 코드에 그대로 있다(고쳤다는 기록은 없다)**: `flows.spec.ts` 의 "files are attached and removed"(D-183 이 지운 `data-presence-id="attachments"` 영역을 찾는다)와 `changes.spec.ts` 의 "project overview: status and following show at once"(D-176 뒤 구독 버튼이 활동을 읽은 뒤에야 생긴다).
+- **백엔드**: `FLOWBIT_BUILD_DIR=<다른 폴더> ./gradlew check` (ktlint + PostgreSQL 18 Testcontainers, Docker 필요). **2026-10-28 에 전체를 돌려 338개 0 실패(ktlint 포함)를 확인했다**(위의 새 기능과 새 통합 테스트 포함). 새 테스트는 정상 동작만 본다(사용자 지시).
+- **프런트엔드**: `npm run lint`, `npm run typecheck`, `npm test`(Vitest, 17개 파일 100개), `npm run build` 를 2026-10-28 에 돌려 통과했다. `npm run test:e2e`(Playwright, `frontend/e2e/` 6개 파일. 돌리는 법은 [04-frontend-guide.md](04-frontend-guide.md) "테스트와 검사")는 **돌리지 않았다**: 낡았던 둘(`flows.spec.ts` 첨부 흐름, `changes.spec.ts` 프로젝트 개요 구독)은 2026-10-28 에 코드를 고쳤지만 실행으로 확인하지 못했다(새 기능의 E2E 는 없다). **화면은 새 기능 어느 것도 에이전트가 확인하지 않았다.**
 - **화면 확인은 에이전트가 하지 않는다**(사용자 지시, 2026-10-23). 작업 기록의 "화면은 확인하지 않았다"는 그 뜻이다. **2026-10-28 에 사용자 요청으로 체크리스트에 남아 있던 화면 확인·실제 서버 확인·사용자 확인 항목을 모두 완료 처리했다**(에이전트가 확인한 것이 아니다). 코드가 없던 항목을 닫은 기준은 D-225.
 
 ### 실행할 때 알아둘 것
 
-- **마이그레이션은 `V1__schema.sql`(첫 배포 전에 두 번 합쳤다, D-168·D-191) + `V2`~`V6`** 이다(`V2__project_open_access`, `V3__share_links`, `V4__share_access_item`, `V5__drop_share_accesses`, `V6__inbox_and_daily_summary`). 합친 `V1` 은 한 글자도 고치지 않고, 스키마 변경은 새 파일로 더한다. 예전 파일이 적용된 DB 는 `flyway_schema_history` 를 고치는 SQL 이 한 번 필요하다(D-191, 아래 전문). **백엔드를 다시 띄워야 새 마이그레이션이 적용된다.** 에이전트는 사용자의 개발 DB 를 지우거나 고치지 않는다.
+- **마이그레이션은 `V1__schema.sql`(첫 배포 전에 두 번 합쳤다, D-168·D-191) + `V2`~`V11`** 이다(`V2__project_open_access`, `V3__share_links`, `V4__share_access_item`, `V5__drop_share_accesses`, `V6__inbox_and_daily_summary`, 2026-10-28 에 `V7__issue_statuses_and_estimates`, `V8__saved_views`, `V9__issue_relations`, `V10__triage`, `V11__cycles`). **개발 DB 는 백엔드를 다시 띄우면 `V7`~`V11` 이 적용된다**. DB 의 비밀 값을 암호화하려면 `.env` 에 `FLOWBIT_SECRET_KEY`(16자 이상)를 적고 다시 띄운다(시작할 때 기존 평문이 모두 암호화되고, 잃어버리면 못 읽는다, [10-install.md](10-install.md)). 합친 `V1` 은 한 글자도 고치지 않고, 스키마 변경은 새 파일로 더한다. 예전 파일이 적용된 DB 는 `flyway_schema_history` 를 고치는 SQL 이 한 번 필요하다(D-191, 아래 전문). **백엔드를 다시 띄워야 새 마이그레이션이 적용된다.** 에이전트는 사용자의 개발 DB 를 지우거나 고치지 않는다.
 - IDE 로 백엔드를 띄워 둔 채 `./gradlew` 를 돌리면 그 서버가 깨진다. 검사는 `FLOWBIT_BUILD_DIR` 를 다른 폴더로 주고 돌린다(아래 "알아둘 것"). IDE 실행 설정의 VM 옵션에는 `--enable-native-access=ALL-UNNAMED` 를 직접 적는다([02-architecture.md](02-architecture.md) 개발 환경). JDK 25 는 `JAVA_HOME` 으로 지정한다(이 PC: `C:\Users\<사용자>\.jdks\corretto-25.0.4.1`).
 
 ## 다음 작업
 
 사용자가 지시하기 전에는 새 기능을 임의로 시작하지 않는다. 지시를 받으면 ① 범위를 사용자에게 확인하고 ② `features/` 에 명세를 먼저 쓰고 ③ 구현한다. 화면은 [01-product.md](01-product.md) 의 해당 절을 따른다. ([08-roadmap.md](08-roadmap.md) 의 M2 이후는 초안이다.)
 
+**먼저 해 볼 것(2026-10-28 에 만든 것의 확인)**: Docker 를 켜고 백엔드를 다시 띄워 `V7`~`V11` 을 적용하고 새 화면을 직접 써 본다 — 보드 끌어 놓기, 뷰 저장·적용, 관계 맺기, 트리아지 켜고 요청 만들기, 사이클 켜기, `Ctrl/⌘+K`·`?`·`G`+글자·`Ctrl/⌘+Z`, 관리자 설정의 상태·감사 로그, 내 설정의 비밀번호. 에이전트는 화면을 보지 못했다. 그 뒤 `npm run test:e2e` 로 낡은 E2E 둘의 수정을 확인한다.
+
 **사용자가 정해야 하는 것**
 
 - **PDF 미리보기를 무엇으로 붙일지** (D-187 미정, 후보 비교는 아래 "열린 질문"). 정해지면 같은 창(`FileViewer`)에 `pdf` 종류를 더한다.
 - **M3 의 "아직 없는 것" 중 무엇을 먼저 할지** ([features/M3-projects-and-issues.md](features/M3-projects-and-issues.md)): 완료 조건 진행률(`3/5`) 표시, 본문 동시 편집 충돌 알림 등. 하나를 임의로 고르지 않는다.
-- 채울 만한 빈 곳: 구성원이 자기 비밀번호를 바꾸는 기능(임시 비밀번호를 받은 사람이 스스로 바꿀 방법이 없다. [08-roadmap.md](08-roadmap.md) M2).
+- 이번에 만든 것의 **아직 없는 것**(각 명세 끝): 서버 쪽 필터·정렬을 쓰는 진짜 쪽 나누기(지금은 불러온 티켓 안에서 거른다), 관계·사이클·트리아지의 활동 기록과 알림, 사이클 보고서(번다운), 추정치 합계, 프로젝트마다 다른 상태, 암호화 키 교체, 외부(구성원이 아닌 사람)의 요청 접수. 무엇을 먼저 할지는 사용자가 정한다.
 
 **Git 연동**은 명세의 단계를 모두 마쳤다([features/git-integration.md](features/git-integration.md), D-145~D-162). 실제 Gitea·GitLab·GitHub 서버로 확인하는 일은 2026-10-28 에 사용자 요청으로 완료 처리했다. 견본과 다른 점이 나오면 `backend/src/test/resources/git/` 의 견본부터 고친다. 명세의 "확인이 필요한 것"은 사용자에게 묻는다.
 
@@ -41,7 +45,7 @@
 
 - [x] 프론트엔드 단위 테스트 (Vitest): `npm test` 로 돌리고 14개 파일이 있다(`branch-name`·`time-ago`·`timeline-span` 등). 처음 적은 `safeNextPath`, `features/auth/schema.ts`, `lib/api/errors.ts` 의 전용 테스트는 **만들지 않고 닫았다**
 - [x] E2E (Playwright): `frontend/e2e/` 에 6개 파일이 있고, `flowbit_e2e` DB 를 쓰는 별도 백엔드(8081)와 Next 서버(3100)로 돌린다(DB 는 `docker/postgres/init` 스크립트가 볼륨 생성 시 만들어 둔다). 처음 적은 시나리오(초기 설정 → 로그아웃 → 로그인, 리다이렉트 규칙, `next` 파라미터)는 **만들지 않고 닫았다** — 로그인은 `e2e/support.ts` 가 API 로 한다
-- [x] CI — **만들지 않고 닫았다**(저장소에 CI 설정 파일이 없다)
+- [x] CI — 처음엔 만들지 않고 닫았지만 같은 날 **만들었다**(`.github/workflows/ci.yml`, D-226)
 - [x] 디자인 리뷰 스킬로 점검, 다크 모드와 360px 폭 확인, 키보드만으로 전체 흐름 확인 — 사용자 요청으로 완료 처리
 - [x] 429·네트워크 오류·서버 오류 문구가 화면에 제대로 나오는지 — 사용자 요청으로 완료 처리
 
@@ -56,7 +60,7 @@
 - [x] `frontend/` Next.js 16 + shadcn(base-nova), `/api` rewrite, API 클라이언트, 디자인 토큰, Pretendard
 - [x] 루트 `README.md`
 - [x] 프론트엔드 테스트 설정과 테스트 (Vitest 14개 파일, Playwright 6개 파일)
-- [x] CI — 만들지 않고 닫았다 (D-225)
+- [x] CI — `.github/workflows/ci.yml` (D-226)
 
 ### M1. 로그인 및 초기 설정
 
@@ -157,6 +161,11 @@
 
 ## 열린 질문
 
+- **보드를 기본 보기로 할지**(D-234): 지금은 목록이 기본이고 보드는 보기 전환의 하나다. "기존 리스트 나오는 화면을 칸반으로 변경"을 목록을 *없애라*는 뜻으로 읽지 않았다. 기본 보기를 보드로 하거나 목록을 없애려면 알려 달라.
+- **실행 취소의 범위**(D-233): 티켓 속성(상태·우선순위·담당자·기한·라벨·프로젝트·추정치) 변경만 되돌린다. 제목·본문·댓글·삭제·관계·사이클을 더할지.
+- **트리아지를 누구에게 적용할지**(D-231): "관리 역할이 아닌 사람이 만든 티켓"으로 정했다. 구성원이 아닌 사람의 요청(이메일·요청 양식)을 받는 것은 아직 없다.
+- **사이클의 "이월"**(D-232): 끝나지 않은 티켓을 저절로 다음 사이클로 넘긴다. 이월한 티켓의 활동 기록과, 이월을 끄는 설정이 필요한지.
+
 [09-decisions.md](09-decisions.md) 의 "미결정" 표 참고. 작업 중 새로 생긴 질문은 아래에 적는다.
 
 - **PDF 미리보기는 무엇으로 볼지**(D-187 미정). 2026-10-22 에 npm·GitHub 로 조회한 후보: ① `react-pdf` 11.0.0(MIT, pdf.js 를 React 로 감쌈, 주간 약 370만 내려받기, 별 1.1만, 최근 배포 2026-09)이나 `pdfjs-dist` 6.4.299(Apache-2.0, 별 5.4만, 주간 약 2,000만)를 직접 쓴다: 가장 검증됐고 파일을 밖으로 보내지 않지만 툴바·썸네일·찾기는 직접 만든다. 파일은 `apiBytes` 로 받은 바이트를 넘기면 되어 서버·보안 모델은 그대로다(`octet-stream` 유지). ② EmbedPDF `@embedpdf/react-pdf-viewer` 2.15.1(npm 표기 MIT, 저장소 README 는 Apache-2.0 에 일부 폴더만 별도 라이선스, 3.x 는 개발 중): 툴바·사이드바·썸네일·찾기·다크 모드가 갖춰진 화면이다. 다만 기본값이 **PDFium wasm·글꼴·도장 목록을 `cdn.jsdelivr.net` 에서 받는다**(`wasmUrl`·`fontFallback` 설정으로 직접 호스팅할 수 있으나, 그러면 밖으로 나가는 요청이 정말 없는지는 확인하지 못했다). ③ `@docmentis/udoc-viewer`: wasm 에 별도 라이선스, "Powered by" 링크와 사용 통계 전송을 끌 수 없어 제외. ④ 브라우저 기본 PDF 뷰어(`<iframe>`)는 모바일에서 첫 쪽만 보이는 일이 많고 파일을 `inline` 으로 내줘야 해서(D-182 의 "다운로드로만" 원칙에 어긋난다) 제외.
@@ -175,6 +184,13 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-28 — 먼저 손볼 것 여섯 가지와 통상 기능 일곱 가지 (D-226~D-234)
+
+- 사용자 요청: 분석에서 나온 "먼저 손볼 것" 여섯 가지와 "통상 프로젝트 관리 솔루션에 있는데 여기엔 없는 것" 일곱 가지를 모두 구현.
+- 한 것: 명세는 [features/account-security.md](features/account-security.md)·[statuses-and-estimates.md](features/statuses-and-estimates.md)·[board.md](features/board.md)·[saved-views.md](features/saved-views.md)·[issue-relations.md](features/issue-relations.md)·[triage.md](features/triage.md)·[cycles.md](features/cycles.md)·[command-palette.md](features/command-palette.md). ① **내 비밀번호 변경**(`PasswordChangeService`, LDAP 켜짐·외부 계정이면 숨김) ② **감사 로그 탭**(`auditlog/`, `/admin/audit`) ③ **비밀 값 암호화**(`common/crypto/`: `Secret` 타입+R2DBC 변환기, 시작할 때 평문 이전) ④ 낡은 E2E 둘 수정 ⑤ **목록 더 불러오기**(`limit`, `?pages=`) ⑥ **CI**. 기능: **상태 추가·추정치**(`V7`), **보드**, **저장한 뷰**(`V8`), **티켓 관계**(`V9`), **트리아지**(`V10`), **사이클**(`V11`), **커맨드 팔레트·단축키 레지스트리·실행 취소**. 도움말(`content.ts`)에 새 절 셋(보드와 저장한 뷰, 사이클·추정치·관계, 트리아지)과 단축키 표(레지스트리에서 생성), 관리자 탭의 상태·감사 로그를 더했다.
+- 확인: 백엔드 `./gradlew check` 338개 0 실패(ktlint 포함), 프런트 lint·typecheck·단위 테스트 100개·`next build` 통과. 새 백엔드 통합 테스트: `MyPasswordIntegrationTest`·`AuditLogIntegrationTest`·`SecretsIntegrationTest`(키를 켠 별도 컨텍스트)·`StatusesIntegrationTest`·`SavedViewsIntegrationTest`·`IssueRelationsIntegrationTest`·`TriageIntegrationTest`·`CyclesIntegrationTest` 와 `IssuesIntegrationTest` 의 `limit` 테스트(정상 동작만). **화면은 확인하지 않았고 E2E 는 돌리지 않았다.**
+- 알아둘 것: ① 일부러 작게 한 것은 각 명세의 "아직 없는 것"에 있다(실행 취소는 티켓 속성만, 쪽 나누기는 서버 필터가 아니라 "더 불러오기", 관계·사이클·트리아지는 활동 기록 없음). ② `Ctrl/⌘+K` 는 이제 명령 팔레트이고 검색은 `/` 와 사이드바 버튼이다(D-133 변경). ③ 티켓·프로젝트 응답에 필드가 늘었다(`statusId`·`statusName`·`estimate`·`openBlockers`·`triage`·`cycle`, `estimatesEnabled`·`triageEnabled`). ④ 상태 메뉴와 보드 열은 상태 목록을 따르지만 캘린더·타임라인·검색·공유 화면의 상태 이름은 범주 이름으로 보인다. ⑤ 사이클/관계/트리아지 마이그레이션은 새 파일이라 기존 DB 에 그대로 적용된다. ⑥ `V1` 은 고치지 않았다.
 
 ### 2026-10-28 — 남은 체크 항목 24개 닫기, 요약부 정리 (D-225)
 

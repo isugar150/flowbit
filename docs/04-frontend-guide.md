@@ -133,7 +133,7 @@ frontend/
 
 ## 키보드
 
-- 전역·목록 단축키는 [01-product.md](01-product.md) 3장과 4장의 표를 따른다. 새 단축키를 만들면 그 표에 먼저 추가한다.
+- **단축키는 `src/lib/shortcuts.ts` 한 곳에 정의한다** (D-233). 새 단축키를 만들면 먼저 거기에 더한다: 도움말의 표, `?` 시트, 명령 팔레트, 버튼 옆의 키 모양(`ShortcutKeys`·`KeyCaps`)이 모두 그 목록을 읽으므로 키를 따로 적지 않는다(`<Kbd>C</Kbd>` 처럼 직접 쓰지 않는다). 키를 듣는 코드는 `features/command/components/command-center.tsx`(`Mod+K`·`?`·`G` 이동·`Mod+Z`)와 각 기능(`C`: 새 티켓 provider, `/`: 검색 provider)에 있고, 목록과 맞게 둔다.
 - 단축키는 입력란에 포커스가 있을 때 동작하지 않게 하고, 한글 입력 상태에서도 같은 키로 동작하게 `event.code` 로 판단한다.
 - 한글 조합 중의 `Enter` 는 무시한다(`event.nativeEvent.isComposing`).
 - 단축키가 있는 액션은 메뉴와 툴팁에 `Kbd` 컴포넌트로 키를 표시한다.

@@ -29,6 +29,7 @@ com.flowbit
 │   ├─ web/             RequestIdFilter, ClientInfo, HealthController, PublicUrl(접속 주소)
 │   ├─ ratelimit/       RateLimiter (메모리, IP 기준)
 │   ├─ audit/           AuditService (감사 로그)
+│   ├─ crypto/          SecretCipher(AES-256-GCM), Secret(DB 에 암호화되어 저장되는 값의 타입과 R2DBC 변환기), SecretMigration (D-226)
 │   └─ richtext/        RichText: 편집기 문서의 검증, 저장, 글자 추출
 ├─ instance/          인스턴스 설정, 초기 설정 완료 여부
 ├─ user/              사용자, 아이디·비밀번호 규칙, /me
@@ -42,6 +43,9 @@ com.flowbit
 ├─ issue/             티켓 (D-168: 한 클래스였던 IssueService 를 일에 따라 나눴다. `IssueService` 티켓 만들기·고치기·지우기·목록, `IssueLookup` 누가 볼 수 있고 고칠 수 있나와 조회의 출발점, `IssueTagging` @ 태그, `IssueCommentService` 활동·댓글·답글·이모지·파일, `IssueDocumentService` 문서, `IssueGitService` Git 서버가 하는 일. 조회용 IssueQueries, 요청·결과 모양은 IssueModels)
 ├─ content/           프로젝트·문서·티켓 본문의 블록 댓글, 활동, 일반 댓글, 문서 구독 (D-165~D-167). 파일마다 클래스 하나: Store(저장소)·Service(규칙)·Controller·Dtos
 ├─ notification/      알림 통로(메일, 웹 푸시, API 알림)와 그 설정. 계층을 나누지 않은 작은 모듈
+├─ auditlog/          관리자의 감사 로그 보기 (D-226)
+├─ savedview/         저장한 뷰 (D-229)
+├─ cycle/             프로젝트의 사이클과 그 자동 생성·이월 (D-232)
 ├─ setup/             초기 설정
 ├─ git/               Git 서버 연결, 들어오는 웹훅(제공자별 서명·파싱), 티켓 키 인식, 티켓에 브랜치·PR·커밋 연결 (D-141). 계층을 나누지 않은 작은 모듈
 └─ media/             이미지 변환(ImageProcessor), 파일 저장(FileStorage·ImageStorage → ObjectStore: 로컬 폴더 또는 S3, D-167), 파일 제공, 업로드 읽기
