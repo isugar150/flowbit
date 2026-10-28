@@ -299,7 +299,7 @@ export function ActivitySkeleton({ events = 3 }: { events?: number }) {
 /** The dialog of an issue: what it says on the left, its properties on the right (IssueDetail). */
 export function IssueDetailSkeleton() {
   return (
-    <div aria-hidden="true" className="flex flex-1 flex-col gap-8 p-4 pt-1 sm:p-5 sm:pt-1 @3xl:flex-row @3xl:items-start @3xl:gap-6">
+    <div aria-hidden="true" className="flex flex-1 flex-col gap-8 p-4 pt-1 sm:p-5 sm:pt-1 @min-[35rem]:flex-row @min-[35rem]:items-start @min-[35rem]:gap-6">
       <div className="flex w-full min-w-0 flex-1 flex-col gap-5 px-1">
         <TextLine lineHeight="h-9" bar="h-6" className="w-2/3" />
         <ParagraphsSkeleton paragraphs={2} />
@@ -309,7 +309,7 @@ export function IssueDetailSkeleton() {
         </div>
         <ActivitySkeleton />
       </div>
-      <div className="flex w-full shrink-0 flex-col gap-6 px-2 @3xl:w-64 @3xl:pt-2">
+      <div className="flex w-full shrink-0 flex-col gap-6 px-2 @min-[35rem]:w-64 @min-[35rem]:pt-2">
         <div className="flex flex-col gap-1">
           {Array.from({ length: 6 }, (_, index) => (
             <div key={index} className="grid min-h-8 grid-cols-[minmax(0,35fr)_minmax(0,65fr)] items-center gap-3">

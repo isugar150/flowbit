@@ -57,7 +57,7 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
       {/* Hung from the top rather than centred, so it does not jump as its content grows or shrinks. */}
       <DialogContent
         showCloseButton={false}
-        className="top-[6dvh] translate-y-0 gap-0 p-0 pb-3 sm:max-w-2xl lg:max-w-5xl xl:max-w-[min(84rem,calc(100vw-6rem))]"
+        className="top-[6dvh] w-[calc(100%-2rem)] translate-y-0 gap-0 p-0 pb-3 sm:max-w-5xl xl:max-w-[min(84rem,calc(100vw-6rem))]"
       >
         {/*
           A bar of its own above the scroll box: who else is on the issue, as on a project's
