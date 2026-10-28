@@ -73,6 +73,7 @@ export function RelationPicker({
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const listId = useId();
+  const hintId = useId();
   const debounced = useDebounced(query.trim(), DEBOUNCE_MS);
   const result = useQuery({
     queryKey: ["relation-candidates", debounced],
@@ -114,16 +115,16 @@ export function RelationPicker({
           triggerLabel ? (
             <Button type="button" variant="outline" size="sm" className="max-md:h-11" />
           ) : (
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={m.add} title={m.add} />
+            <Button type="button" variant="ghost" size="sm" aria-label={m.add} />
           )
         }
       >
-        {triggerLabel ?? <PlusIcon />}
+        {triggerLabel ?? <><PlusIcon aria-hidden="true" />{m.add}</>}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex flex-col gap-2 border-b p-3">
           {fixedKind ? null : (
-            <NativeSelect aria-label={m.kindLabel} value={chosen} onChange={(event) => setChosen(event.target.value as AddableKind)} className="w-full">
+            <NativeSelect aria-label={m.kindLabel} aria-describedby={hintId} value={chosen} onChange={(event) => setChosen(event.target.value as AddableKind)} className="w-full">
               {ADDABLE.map((value) => (
                 <NativeSelectOption key={value} value={value}>
                   {m.kindsToAdd[value]}
@@ -131,11 +132,13 @@ export function RelationPicker({
               ))}
             </NativeSelect>
           )}
+          <p id={hintId} className="text-xs leading-5 text-muted-foreground">{fixedKind === "DUPLICATE_OF" ? m.duplicateTriageHint : m.kindHints[kind]}</p>
           <div className="flex items-center gap-2 rounded-md border px-2">
             <SearchIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <input
               autoFocus
               aria-label={m.searchLabel}
+              aria-describedby={hintId}
               placeholder={m.searchPlaceholder}
               maxLength={SEARCH_MAX_LENGTH}
               autoComplete="off"
@@ -237,7 +240,7 @@ export function IssueRelations({ number, canEdit }: { number: number; canEdit: b
         if (ofKind.length === 0) return null;
         return (
           <div key={kind} className="flex flex-col">
-            <p className="pt-1 text-xs leading-4 font-medium text-muted-foreground">{m.kinds[kind]}</p>
+            <p className="pt-1 text-xs leading-4 font-medium text-muted-foreground" title={m.kindHints[kind]}>{m.kinds[kind]}</p>
             <ul>
               {ofKind.map((row) => (
                 <li key={row.id} className="flex h-9 items-center gap-2 text-[0.8125rem] leading-5">
