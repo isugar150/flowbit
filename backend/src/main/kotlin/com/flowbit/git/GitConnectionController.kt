@@ -5,7 +5,6 @@ import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ConflictException
 import com.flowbit.common.web.ClientInfo
 import com.flowbit.common.web.PublicUrl
-import com.flowbit.issue.domain.IssueStatus
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -28,8 +27,8 @@ data class GitConnectionRequest(
     val enabled: Boolean = true,
     val provider: GitProviderType? = null,
     val baseUrl: String = "",
-    /** Stage → status or null (D-158). Stages left out keep their defaults. */
-    val statusRules: Map<GitStage, IssueStatus?>? = null,
+    /** Stage → status, "NEXT" or null (D-158, D-241). Stages left out keep their defaults. */
+    val statusRules: Map<GitStage, GitMove?>? = null,
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
     val githubOrganization: String? = null,
     /** The two switches from before [statusRules], still taken when it is missing. */
@@ -85,7 +84,7 @@ data class GitConnectionResponse(
     val baseUrl: String,
     /** Every stage with the status it moves an issue to, null for none (D-158). */
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
-    val statusRules: Map<GitStage, IssueStatus?>,
+    val statusRules: Map<GitStage, GitMove?>,
     /** Always true: a connection is made with a secret. The secret itself is only in [secret]. */
     val secretSet: Boolean,
     /** What the Git server calls. A path alone when FLOWBIT_PUBLIC_URL is not set. */

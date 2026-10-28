@@ -26,7 +26,7 @@
 - GET·POST `/api/v1/projects/{id}/issue-fields`, PUT·DELETE `…/{fieldId}`. 관리자는 `/api/v1/admin/projects/{id}/issue-fields`에서도 설정한다. 읽기는 프로젝트 접근 권한, 쓰기는 관리 역할(관리자 경로는 관리자 역할).
 - PUT `/api/v1/custom-properties/issue/{issueId}/project-fields/{fieldId}`: `{value}`. 티켓 편집 권한 필요, 값 변경은 기존 사용자 속성 활동·알림 경로를 사용한다.
 - 기존 사용자 속성 조회 응답에 공통 속성도 포함한다. `projectFieldId`가 있는 행은 프로젝트 관리 항목이다.
-- 새 티켓 `projectFields: [{fieldId, value}]`로 값을 함께 저장한다. 보내지 않은 항목은 기본값을 사용한다.
+- 새 티켓 `projectFields: [{fieldId, value}]`로 값을 함께 저장한다. 일반 티켓에서 보내지 않은 항목은 기본값을 사용하고, 하위 티켓은 상위가 직접 지정한 값을 먼저 이어받는다.
 - V16: `project_issue_fields`(프로젝트·이름·형식·기본값), `issue_field_values`(티켓·속성·값). 정의를 조회 시 합성하므로 기존 티켓마다 빈 행을 만들지 않는다. 프로젝트·티켓 영구 삭제 시 관련 값도 함께 삭제한다.
 - V17: `project_issue_fields.multiple`(기본 true, D-238). 정의의 요청·응답에 `multiple`, 응답에 `people`(기본값이 가리키는 사람들; `person` 은 그 첫 사람)이 있다. 여러 명인 속성의 `defaultValue`·티켓 값은 id 목록, 한 명이면 id 하나. 티켓의 속성 응답(`/custom-properties/issue/{id}`)도 `multiple`·`people` 을 담는다.
 - 자동화 `audience=PROJECT_FIELD`, `fieldId`로 알림 대상을 지정한다. 설정 감사 종류 PROJECT_ISSUE_FIELDS_CHANGED.

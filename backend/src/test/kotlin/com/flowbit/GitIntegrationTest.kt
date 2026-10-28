@@ -67,7 +67,7 @@ class GitIntegrationTest : IntegrationTest() {
                 "PR_OPEN" to "IN_PROGRESS",
                 "PR_MERGED" to "DONE",
                 "PR_CLOSED" to null,
-                "CLOSING_COMMIT" to "DONE",
+                "CLOSING_COMMIT" to "NEXT",
             ),
             connection["statusRules"],
         )
@@ -453,16 +453,55 @@ class GitIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `기본 브랜치에 바로 올린 커밋이 닫는 말을 쓰면 완료가 된다`() {
+    fun `기본 브랜치에 바로 올린 커밋이 닫는 말을 쓰면 다음 상태가 된다`() {
         createIssues("IN_PROGRESS", "BACKLOG", "CANCELED")
         val connection = connect()
 
         val result = deliver(connection, "push", push("main", "Fixes FB-1 로그인 오류", "fix: FB-3 은 취소됨", "FB-2 언급만")).json()
-        // FB-2 is only named, which starts the work (D-209); FB-1 is finished by "Fixes" and FB-3 stays canceled.
+        // FB-2 is only named, which starts the work (D-209); FB-1 goes on to the review step after "Fixes" and FB-3 stays canceled.
         assertEquals(listOf("FB-1", "FB-2"), result["statusChanged"])
         // Not the default branch: "Fixes" waits for the merge.
         deliver(connection, "push", push("feature/x", "Fixes FB-2"))
-        assertEquals(listOf("DONE", "IN_PROGRESS", "CANCELED"), statuses(3))
+        assertEquals(listOf("IN_PROGRESS", "IN_PROGRESS", "CANCELED"), statuses(3))
+        assertEquals(listOf("리뷰 준비됨", "진행 중", "취소"), statusNames(3))
+    }
+
+    @Test
+    fun `닫는 말을 쓴 새 커밋마다 한 단계씩 넘어가고 같은 푸시가 다시 와도 넘어가지 않는다`() {
+        createIssues("IN_PROGRESS")
+        val connection = connect()
+
+        val first = push("main", "Fixes FB-1 로그인 오류")
+        deliver(connection, "push", first)
+        assertEquals(listOf("리뷰 준비됨"), statusNames(1))
+        // The same push delivered again is not another step.
+        deliver(connection, "push", first)
+        assertEquals(listOf("리뷰 준비됨"), statusNames(1))
+
+        deliver(connection, "push", push("main", "Fixes FB-1 리뷰 반영"))
+        assertEquals(listOf("리뷰 중"), statusNames(1))
+        // The last step is the finished one.
+        deliver(connection, "push", push("main", "Fixes FB-1 마무리"))
+        assertEquals(listOf("DONE"), statuses(1))
+        assertEquals(listOf("완료"), statusNames(1))
+        // Finished stays finished, whatever comes after.
+        deliver(connection, "push", push("main", "Fixes FB-1 또"))
+        assertEquals(listOf("완료"), statusNames(1))
+        assertEquals(3, activityTypes(1).count { it == "STATUS_CHANGED" })
+    }
+
+    @Test
+    fun `단계에 완료를 정한 연결은 닫는 말을 쓴 커밋으로 바로 완료가 된다`() {
+        createIssues("IN_PROGRESS")
+        val connection =
+            admin
+                .post(
+                    "/api/v1/admin/git/connections",
+                    """{"name":"Gitea","provider":"GITEA","baseUrl":"https://git.example.com","statusRules":{"CLOSING_COMMIT":"DONE"}}""",
+                ).json()
+
+        deliver(connection, "push", push("main", "Fixes FB-1 로그인 오류"))
+        assertEquals(listOf("DONE"), statuses(1))
     }
 
     @Test
@@ -888,6 +927,9 @@ class GitIntegrationTest : IntegrationTest() {
 
     /** The states of FB-1 to FB-[last]. */
     private fun statuses(last: Int): List<Any?> = (1..last).map { admin.get("/api/v1/issues/$it").json()["status"] }
+
+    /** The names of the statuses of FB-1 to FB-[last], which tell the review steps apart from "진행 중". */
+    private fun statusNames(last: Int): List<Any?> = (1..last).map { admin.get("/api/v1/issues/$it").json()["statusName"] }
 
     private fun adminId(): java.util.UUID = java.util.UUID.fromString(admin.me().json()["id"] as String)
 

@@ -236,3 +236,7 @@ frontend/
 ## 프로젝트 설정 목차
 
 ProjectSettingsSections의 구역 목록을 ProjectSettingsIndex가 표시한다. 이동은 현재 컴포넌트 ref 안에서만 찾고 IntersectionObserver로 현재 구역을 강조한다. project-fields는 설정·생성을 담당하고 상세는 기존 사용자 속성 UI에서 값을 편집한다.
+
+### 직접 연 티켓의 뒤로가기
+
+직접 열린 IssueDialog는 현재 티켓 주소에 같은 주소의 이력 항목을 추가하고 그 항목에서 돌아갈 때 전체 티켓 목록으로 교체한다. 목록에서 가로채 열린 티켓은 기존 Next 이력을 사용한다. 상세: [M3 명세](features/M3-projects-and-issues.md).

@@ -8,7 +8,6 @@ import com.flowbit.common.error.FieldError
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.web.ClientInfo
-import com.flowbit.issue.domain.IssueStatus
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
@@ -30,7 +29,7 @@ data class GitConnectionInput(
     /** Blank for GitHub means https://github.com. */
     val baseUrl: String,
     /** What each stage moves an issue to (D-158); stages left out keep their defaults. */
-    val statusRules: Map<GitStage, IssueStatus?>? = null,
+    val statusRules: Map<GitStage, GitMove?>? = null,
     /** POLL only for GitHub, when Flowbit cannot be reached from the internet (D-146). */
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
     /** The GitHub organization the app is made for and installed on; GitHub only. */
@@ -51,7 +50,7 @@ data class GitConnectionBackup(
     val baseUrl: String,
     val secret: String,
     /** Missing in backups made before D-158, which have the two switches below. */
-    val statusRules: Map<GitStage, IssueStatus?>? = null,
+    val statusRules: Map<GitStage, GitMove?>? = null,
     val autoInProgress: Boolean? = null,
     val autoDone: Boolean? = null,
     val receiveMode: GitReceiveMode = GitReceiveMode.WEBHOOK,
@@ -319,7 +318,7 @@ class GitConnectionService(
                 .values
                 .any { it != null && it !in GitStatusRules.TARGETS }
         ) {
-            errors += FieldError("statusRules", "INVALID", "Git 이 바꿀 수 있는 상태는 준비됨·진행 중·완료·취소입니다")
+            errors += FieldError("statusRules", "INVALID", "Git 이 바꿀 수 있는 상태는 준비됨·진행 중·완료·취소와 다음 상태입니다")
         }
         if (errors.isNotEmpty()) throw ValidationException(errors)
         return input.copy(

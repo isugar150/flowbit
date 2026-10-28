@@ -25,33 +25,57 @@ enum class GitStage {
 }
 
 /**
+ * Where a stage sends an issue (D-158, D-241): to one of the categories, or one step on from wherever it is.
+ * [BACKLOG] is a name so that a request naming it can be answered with a validation error, but it is
+ * not a [GitStatusRules.TARGETS]: the backlog is where issues start, not where Git sends them.
+ */
+enum class GitMove(
+    val category: IssueStatus?,
+) {
+    BACKLOG(IssueStatus.BACKLOG),
+    READY(IssueStatus.READY),
+    IN_PROGRESS(IssueStatus.IN_PROGRESS),
+    DONE(IssueStatus.DONE),
+    CANCELED(IssueStatus.CANCELED),
+
+    /**
+     * The status after the issue's own one, in the order of the status list: with the review steps
+     * between "진행 중" and "완료", a finished piece of work goes to "리뷰 준비됨", and the next one to "리뷰 중".
+     * It has no category: the category follows from the status it lands on.
+     */
+    NEXT(null),
+}
+
+/**
  * The status each stage moves an issue to, per connection (D-158); null leaves it alone. Moves
- * only go forward (backlog → ready → in progress → done or canceled), and a finished or canceled
- * issue is never moved, so an event that comes late or again cannot undo someone's work.
+ * only go forward (backlog → ready → in progress → done or canceled, and each step of the status
+ * list for [GitMove.NEXT]), and a finished or canceled issue is never moved, so an event that comes
+ * late or again cannot undo someone's work.
  */
 data class GitStatusRules(
-    val rules: Map<GitStage, IssueStatus?>,
+    val rules: Map<GitStage, GitMove?>,
 ) {
-    fun target(stage: GitStage): IssueStatus? = if (stage in rules) rules[stage] else DEFAULTS[stage]
+    fun target(stage: GitStage): GitMove? = if (stage in rules) rules[stage] else DEFAULTS[stage]
 
     /** Every stage, the defaults filled in, for the API and the database. */
-    fun all(): Map<GitStage, IssueStatus?> = GitStage.entries.associateWith(::target)
+    fun all(): Map<GitStage, GitMove?> = GitStage.entries.associateWith(::target)
 
     fun toJson(): String = MAPPER.writeValueAsString(all().mapKeys { it.key.name }.mapValues { it.value?.name })
 
     companion object {
-        val DEFAULTS: Map<GitStage, IssueStatus?> =
+        val DEFAULTS: Map<GitStage, GitMove?> =
             mapOf(
-                GitStage.BRANCH to IssueStatus.IN_PROGRESS,
-                GitStage.PR_DRAFT to IssueStatus.IN_PROGRESS,
-                GitStage.PR_OPEN to IssueStatus.IN_PROGRESS,
-                GitStage.PR_MERGED to IssueStatus.DONE,
+                GitStage.BRANCH to GitMove.IN_PROGRESS,
+                GitStage.PR_DRAFT to GitMove.IN_PROGRESS,
+                GitStage.PR_OPEN to GitMove.IN_PROGRESS,
+                GitStage.PR_MERGED to GitMove.DONE,
                 GitStage.PR_CLOSED to null,
-                GitStage.CLOSING_COMMIT to IssueStatus.DONE,
+                // "Fixes" pushed to the default branch hands the work on to the next step, which may be a review (D-241).
+                GitStage.CLOSING_COMMIT to GitMove.NEXT,
             )
 
         /** What a stage may move an issue to: the backlog is where issues start, not where Git sends them. */
-        val TARGETS = setOf(IssueStatus.READY, IssueStatus.IN_PROGRESS, IssueStatus.DONE, IssueStatus.CANCELED)
+        val TARGETS = setOf(GitMove.READY, GitMove.IN_PROGRESS, GitMove.DONE, GitMove.CANCELED, GitMove.NEXT)
 
         private val MAPPER = JsonMapper.builder().build()
 
@@ -60,11 +84,11 @@ data class GitStatusRules(
             autoInProgress: Boolean,
             autoDone: Boolean,
         ) = GitStatusRules(
-            DEFAULTS.mapValues { (stage, status) ->
+            DEFAULTS.mapValues { (stage, move) ->
                 when (stage) {
-                    GitStage.BRANCH, GitStage.PR_DRAFT, GitStage.PR_OPEN -> status.takeIf { autoInProgress }
-                    GitStage.PR_MERGED, GitStage.CLOSING_COMMIT -> status.takeIf { autoDone }
-                    GitStage.PR_CLOSED -> status
+                    GitStage.BRANCH, GitStage.PR_DRAFT, GitStage.PR_OPEN -> move.takeIf { autoInProgress }
+                    GitStage.PR_MERGED, GitStage.CLOSING_COMMIT -> move.takeIf { autoDone }
+                    GitStage.PR_CLOSED -> move
                 }
             },
         )
@@ -72,13 +96,13 @@ data class GitStatusRules(
         /** As stored; anything it does not name, or names wrongly, takes the default. */
         fun parse(json: String?): GitStatusRules {
             val node = json?.let { runCatching { MAPPER.readTree(it) }.getOrNull() } ?: return GitStatusRules(emptyMap())
-            val rules = mutableMapOf<GitStage, IssueStatus?>()
+            val rules = mutableMapOf<GitStage, GitMove?>()
             for (stage in GitStage.entries) {
                 val value = node.get(stage.name) ?: continue
                 if (value.isNull) {
                     rules[stage] = null
                 } else {
-                    IssueStatus.entries
+                    GitMove.entries
                         .find { it.name == value.asString() }
                         ?.takeIf { it in TARGETS }
                         ?.let { rules[stage] = it }

@@ -33,7 +33,7 @@ const EMPTY: GitConnectionInput = {
   provider: GIT_PROVIDERS[0],
   baseUrl: "",
   // The defaults the server has too (D-158).
-  statusRules: { BRANCH: "IN_PROGRESS", PR_DRAFT: "IN_PROGRESS", PR_OPEN: "IN_PROGRESS", PR_MERGED: "DONE", PR_CLOSED: null, CLOSING_COMMIT: "DONE" },
+  statusRules: { BRANCH: "IN_PROGRESS", PR_DRAFT: "IN_PROGRESS", PR_OPEN: "IN_PROGRESS", PR_MERGED: "DONE", PR_CLOSED: null, CLOSING_COMMIT: "NEXT" },
   receiveMode: "WEBHOOK",
   githubOrganization: "",
 };
@@ -350,7 +350,7 @@ function ConnectionForm({
             value={form.statusRules[stage] ?? NO_CHANGE}
             options={[
               { value: NO_CHANGE, label: m.stages.noChange },
-              ...GIT_STAGE_TARGETS.map((status) => ({ value: status, label: statusLabel(status) })),
+              ...GIT_STAGE_TARGETS.map((status) => ({ value: status, label: status === "NEXT" ? m.stages.next : statusLabel(status) })),
             ]}
             onChange={(value) =>
               set("statusRules", { ...form.statusRules, [stage]: value === NO_CHANGE ? null : (value as GitStageTarget) })

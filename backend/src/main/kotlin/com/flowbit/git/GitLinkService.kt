@@ -127,7 +127,10 @@ class GitLinkService(
                 run.pickRepository(issue, push.repository)
                 moveTo(run, issue, GitStage.BRANCH, actor)
             }
-            if (push.toDefaultBranch && commits.any { issue.number in keys.closingNumbers(it.message) }) moveTo(run, issue, GitStage.CLOSING_COMMIT, actor)
+            // "Fixes" hands the work on one step when the stage says NEXT (D-241). That must not happen again for a push that
+            // is delivered twice, so such a stage counts only the commits that are new to the issue; a finishing stage is the same either way.
+            val closing = if (run.rules.target(GitStage.CLOSING_COMMIT) == GitMove.NEXT) added else commits
+            if (push.toDefaultBranch && closing.any { issue.number in keys.closingNumbers(it.message) }) moveTo(run, issue, GitStage.CLOSING_COMMIT, actor)
             run.linked[issue.number] = issue
         }
     }
@@ -206,7 +209,7 @@ class GitLinkService(
 
     /**
      * Moves the issue to the status the connection gives [stage] (D-158), only forward: never
-     * back, and never an issue that is finished or canceled.
+     * back, and never an issue that is finished or canceled. "Next" is the status after the issue's own.
      */
     private suspend fun moveTo(
         run: Run,
@@ -214,8 +217,15 @@ class GitLinkService(
         stage: GitStage,
         actor: Actor,
     ) {
-        val status = run.rules.target(stage) ?: return
-        val change = issueGit.changeStatusFromGit(issue.id, status, GitStatusRules.movableFrom(status), actor) ?: return
+        val move = run.rules.target(stage) ?: return
+        val category = move.category
+        val change =
+            if (category == null) {
+                issueGit.advanceStatusFromGit(issue.id, actor)
+            } else {
+                issueGit.changeStatusFromGit(issue.id, category, GitStatusRules.movableFrom(category), actor)
+            }
+        if (change == null) return
         run.changes += actor to change
         run.statusChanged += issue.number
     }

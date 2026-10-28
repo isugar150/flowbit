@@ -1,12 +1,15 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { IssueDetailSkeleton } from "@/components/skeletons";
 import { PresenceAvatars } from "@/features/realtime/components/presence-avatars";
 import { messages } from "@/messages";
+
+const DIRECT_ISSUE_HISTORY = "__flowbitDirectIssue";
 
 /**
  * The frame of an issue: a dialog over a list, which stays where it was. The address is the
@@ -22,6 +25,23 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
   // Moving on from the issue by a link inside the dialog leaves this slot showing what it last
   // showed. The address says whether the dialog still belongs on screen.
   const pathname = usePathname();
+  const isDirectIssue = Boolean(closeTo && path && decodeURIComponent(pathname) === decodeURIComponent(path));
+
+  useEffect(() => {
+    if (!isDirectIssue || !path || !closeTo) return;
+    // A direct link has no in-app history entry for the dialog. Create one so Android Back can close it.
+    if (window.history.state?.[DIRECT_ISSUE_HISTORY] !== path) {
+      window.history.pushState({ [DIRECT_ISSUE_HISTORY]: path }, "", window.location.href);
+    }
+    const onBack = (event: PopStateEvent) => {
+      if (window.location.pathname === path && event.state?.[DIRECT_ISSUE_HISTORY] !== path) {
+        router.replace(closeTo);
+      }
+    };
+    window.addEventListener("popstate", onBack);
+    return () => window.removeEventListener("popstate", onBack);
+  }, [isDirectIssue, path, closeTo, router]);
+
   if (path ? decodeURIComponent(pathname) !== decodeURIComponent(path) : !pathname.startsWith("/issue/")) return null;
 
   return (
@@ -29,7 +49,8 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
       open
       onOpenChange={(open) => {
         if (open) return;
-        if (closeTo) router.push(closeTo);
+        if (closeTo && path && window.history.state?.[DIRECT_ISSUE_HISTORY] === path) router.back();
+        else if (closeTo) router.replace(closeTo);
         else router.back();
       }}
     >

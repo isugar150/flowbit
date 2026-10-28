@@ -44,12 +44,38 @@ class IssueGitService(
         status: IssueStatus,
         from: Set<IssueStatus>,
         actor: Actor,
+    ): IssueChange? = moveFromGit(issueId, actor) { issue -> statuses.defaultOf(status).takeIf { issue.status in from } }
+
+    /**
+     * Moves an issue one step on in the list of statuses (the order the board shows them, D-241), which may stay
+     * inside its category: from "진행 중" to "리뷰 준비됨", then "리뷰 중", then "완료". Null, like [changeStatusFromGit],
+     * when the issue is deleted, finished or canceled (nothing is moved back or out of the end), or has no status after its own.
+     */
+    @Transactional
+    suspend fun advanceStatusFromGit(
+        issueId: UUID,
+        actor: Actor,
+    ): IssueChange? =
+        moveFromGit(issueId, actor) { issue ->
+            if (issue.status == IssueStatus.DONE || issue.status == IssueStatus.CANCELED) return@moveFromGit null
+            val all = statuses.all()
+            // A status that was deleted under the issue counts as the first of its category.
+            val current = all.indexOfFirst { it.id == issue.statusId }.takeIf { it >= 0 } ?: all.indexOfFirst { it.category == issue.status }
+            all.getOrNull(current + 1)
+        }
+
+    /** Locks the issue, moves it to the status [choose] picks for it (nothing when it picks none), and tells whom it concerns. */
+    private suspend fun moveFromGit(
+        issueId: UUID,
+        actor: Actor,
+        choose: suspend (Issue) -> IssueStatusView?,
     ): IssueChange? {
         val issue = repository.lockById(issueId) ?: return null
-        if (issue.deletedAt != null || issue.status !in from) return null
+        if (issue.deletedAt != null) return null
+        val target = choose(issue) ?: return null
         val before = queries.find(issue.number) ?: return null
-        issue.status = status
-        issue.statusId = statuses.defaultOf(status).id
+        issue.status = target.category
+        issue.statusId = target.id
         issue.version += 1
         issue.updatedAt = clock.instant()
         repository.save(issue)

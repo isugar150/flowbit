@@ -12,10 +12,10 @@ export type GitStage = "BRANCH" | "PR_DRAFT" | "PR_OPEN" | "PR_MERGED" | "PR_CLO
 
 export const GIT_STAGES: GitStage[] = ["BRANCH", "PR_DRAFT", "PR_OPEN", "PR_MERGED", "PR_CLOSED", "CLOSING_COMMIT"];
 
-/** What Git may move an issue to; null leaves it alone. */
-export type GitStageTarget = "READY" | "IN_PROGRESS" | "DONE" | "CANCELED" | null;
+/** What Git may move an issue to; null leaves it alone. NEXT is the status after the issue's own, one step at a time (D-241). */
+export type GitStageTarget = "READY" | "IN_PROGRESS" | "DONE" | "CANCELED" | "NEXT" | null;
 
-export const GIT_STAGE_TARGETS: Exclude<GitStageTarget, null>[] = ["READY", "IN_PROGRESS", "DONE", "CANCELED"];
+export const GIT_STAGE_TARGETS: Exclude<GitStageTarget, null>[] = ["READY", "IN_PROGRESS", "DONE", "CANCELED", "NEXT"];
 
 /** WEBHOOK: the server calls Flowbit. POLL: Flowbit reads the GitHub API every few minutes (GitHub only). */
 export type GitReceiveMode = "WEBHOOK" | "POLL";
