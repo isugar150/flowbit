@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { CornerLeftUpIcon, SearchIcon, XIcon } from "lucide-react";
+import { CornerLeftUpIcon, PencilIcon, SearchIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
@@ -34,7 +34,7 @@ const DEBOUNCE_MS = 150;
  * above it from the top, so two issues with the same title are told apart by where they hang.
  * Picking one makes this issue its sub-issue (its project then follows the parent's, D-129);
  * "상위 티켓 해제" makes it a top-level issue again. The issue itself and the issues below it are
- * not offered: they would make a loop. Without the right to edit, the parent is only shown.
+ * not offered: they would make a loop. The parent is a link; the separate edit button opens the picker.
  */
 export function IssueParentField({ issue, canEdit }: { issue: Pick<Issue, "number" | "key" | "parent" | "ancestors">; canEdit: boolean }) {
   const [open, setOpen] = useState(false);
@@ -96,107 +96,111 @@ export function IssueParentField({ issue, canEdit }: { issue: Pick<Issue, "numbe
   }
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) {
-          setQuery("");
-          setActive(0);
-          mutation.reset();
-        }
-      }}
-    >
-      <PopoverTrigger
-        render={<button type="button" aria-label={m.pick} title={pathText || m.pick} className={cn(plainChipClass, "w-full min-w-0")} />}
+    <div className="flex min-w-0 items-center gap-1">
+      {parent ? (
+        <Link href={`/issue/${parent.key}`} aria-label={m.open(parent.key)} title={pathText} className={cn(plainChipClass, "min-w-0 flex-1")}><CornerLeftUpIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />{rowText}</Link>
+      ) : null}
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) {
+            setQuery("");
+            setActive(0);
+            mutation.reset();
+          }
+        }}
       >
-        <CornerLeftUpIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        {rowText}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-0">
-        <div className="flex items-center gap-2 border-b px-3">
-          <SearchIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <input
-            autoFocus
-            role="combobox"
-            aria-expanded={candidates.length > 0}
-            aria-controls={listId}
-            aria-activedescendant={current >= 0 ? `${listId}-${current}` : undefined}
-            aria-autocomplete="list"
-            aria-label={m.searchLabel}
-            placeholder={m.searchPlaceholder}
-            maxLength={SEARCH_MAX_LENGTH}
-            autoComplete="off"
-            spellCheck={false}
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setActive(0);
-            }}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing) return;
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                event.preventDefault();
-                if (candidates.length === 0) return;
-                const step = event.key === "ArrowDown" ? 1 : -1;
-                setActive((current < 0 ? 0 : current + step + candidates.length) % candidates.length);
-              } else if (event.key === "Enter") {
-                event.preventDefault();
-                if (current >= 0) pick(candidates[current].id);
-              }
-            }}
-            className="h-10 min-w-0 flex-1 bg-transparent text-[0.8125rem] leading-5 outline-none placeholder:text-muted-foreground max-md:h-12"
-          />
-          {result.isFetching ? <Spinner className="size-4 text-muted-foreground" aria-label={m.searching} /> : null}
-        </div>
-        <div id={listId} role="listbox" aria-label={m.resultsLabel} className="max-h-72 overflow-y-auto overscroll-contain p-1.5">
-          {!debounced ? (
-            <p className="px-2 py-4 text-center text-xs leading-4 text-muted-foreground">{m.emptyHint}</p>
-          ) : result.data && candidates.length === 0 ? (
-            <p className="px-2 py-4 text-center text-xs leading-4 text-muted-foreground">{m.noResults(debounced)}</p>
-          ) : (
-            candidates.map((hit, index) => (
-              <div
-                key={hit.id}
-                id={`${listId}-${index}`}
-                role="option"
-                aria-selected={index === current}
-                onMouseMove={() => setActive(index)}
-                onClick={() => pick(hit.id)}
-                className={cn(
-                  "flex cursor-pointer flex-col gap-0.5 rounded-md px-2 py-1.5 text-[0.8125rem] leading-5",
-                  index === current && "bg-accent text-accent-foreground",
-                )}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <StatusIcon status={hit.status} />
-                  <span className="sr-only">{statusLabel(hit.status)}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{hit.key}</span>
-                  <span className="min-w-0 truncate font-medium">
-                    <Highlight text={hit.title} words={words} />
-                  </span>
-                </span>
-                {/* From the top-level issue down, so where it hangs is plain before it is picked. */}
-                <IssuePath ancestors={hit.ancestors} className="pl-6" />
-              </div>
-            ))
-          )}
-        </div>
-        {mutation.isError ? (
-          <div className="border-t p-2">
-            <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert>
+        <PopoverTrigger
+          render={<button type="button" aria-label={parent ? m.change : m.pick} title={parent ? m.change : m.pick} className={cn(plainChipClass, parent ? "h-8 w-8 shrink-0 justify-center max-md:h-11 max-md:w-11" : "w-full min-w-0")} />}
+        >
+          {parent ? <PencilIcon className="size-4 text-muted-foreground" aria-hidden="true" /> : <><CornerLeftUpIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />{rowText}</>}
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-80 p-0">
+          <div className="flex items-center gap-2 border-b px-3">
+            <SearchIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <input
+              autoFocus
+              role="combobox"
+              aria-expanded={candidates.length > 0}
+              aria-controls={listId}
+              aria-activedescendant={current >= 0 ? `${listId}-${current}` : undefined}
+              aria-autocomplete="list"
+              aria-label={m.searchLabel}
+              placeholder={m.searchPlaceholder}
+              maxLength={SEARCH_MAX_LENGTH}
+              autoComplete="off"
+              spellCheck={false}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setActive(0);
+              }}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  if (candidates.length === 0) return;
+                  const step = event.key === "ArrowDown" ? 1 : -1;
+                  setActive((current < 0 ? 0 : current + step + candidates.length) % candidates.length);
+                } else if (event.key === "Enter") {
+                  event.preventDefault();
+                  if (current >= 0) pick(candidates[current].id);
+                }
+              }}
+              className="h-10 min-w-0 flex-1 bg-transparent text-[0.8125rem] leading-5 outline-none placeholder:text-muted-foreground max-md:h-12"
+            />
+            {result.isFetching ? <Spinner className="size-4 text-muted-foreground" aria-label={m.searching} /> : null}
           </div>
-        ) : null}
-        <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
-          <p className="min-w-0 text-xs leading-4 text-muted-foreground">{m.hint}</p>
-          {parent ? (
-            <Button type="button" variant="ghost" size="sm" className="shrink-0 max-md:h-10" disabled={mutation.isPending} onClick={() => pick(null)}>
-              <XIcon data-icon="inline-start" />
-              {m.remove}
-            </Button>
+          <div id={listId} role="listbox" aria-label={m.resultsLabel} className="max-h-72 overflow-y-auto overscroll-contain p-1.5">
+            {!debounced ? (
+              <p className="px-2 py-4 text-center text-xs leading-4 text-muted-foreground">{m.emptyHint}</p>
+            ) : result.data && candidates.length === 0 ? (
+              <p className="px-2 py-4 text-center text-xs leading-4 text-muted-foreground">{m.noResults(debounced)}</p>
+            ) : (
+              candidates.map((hit, index) => (
+                <div
+                  key={hit.id}
+                  id={`${listId}-${index}`}
+                  role="option"
+                  aria-selected={index === current}
+                  onMouseMove={() => setActive(index)}
+                  onClick={() => pick(hit.id)}
+                  className={cn(
+                    "flex cursor-pointer flex-col gap-0.5 rounded-md px-2 py-1.5 text-[0.8125rem] leading-5",
+                    index === current && "bg-accent text-accent-foreground",
+                  )}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <StatusIcon status={hit.status} />
+                    <span className="sr-only">{statusLabel(hit.status)}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{hit.key}</span>
+                    <span className="min-w-0 truncate font-medium">
+                      <Highlight text={hit.title} words={words} />
+                    </span>
+                  </span>
+                  {/* From the top-level issue down, so where it hangs is plain before it is picked. */}
+                  <IssuePath ancestors={hit.ancestors} className="pl-6" />
+                </div>
+              ))
+            )}
+          </div>
+          {mutation.isError ? (
+            <div className="border-t p-2">
+              <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert>
+            </div>
           ) : null}
-        </div>
-      </PopoverContent>
-    </Popover>
+          <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+            <p className="min-w-0 text-xs leading-4 text-muted-foreground">{m.hint}</p>
+            {parent ? (
+              <Button type="button" variant="ghost" size="sm" className="shrink-0 max-md:h-10" disabled={mutation.isPending} onClick={() => pick(null)}>
+                <XIcon data-icon="inline-start" />
+                {m.remove}
+              </Button>
+            ) : null}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }

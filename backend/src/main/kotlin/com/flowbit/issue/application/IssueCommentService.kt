@@ -54,7 +54,15 @@ class IssueCommentService(
                 }
             }
         val items = activities.list(issue.id).map { it.copy(reactions = entryReactions[it.id].orEmpty()) }
-        return IssueActivityFeed(items, shown, subscribers, subscribers.any { it.id == user.id })
+        val subscribed = subscribers.any { it.id == user.id }
+        return IssueActivityFeed(
+            items,
+            shown,
+            subscribers,
+            subscribed,
+            activities.includesDescendants(issue.id, user.id),
+            subscribed && !activities.directlySubscribed(issue.id, user.id),
+        )
     }
 
     /**
@@ -229,9 +237,10 @@ class IssueCommentService(
         user: AuthenticatedUser,
         number: Int,
         subscribed: Boolean,
+        includeDescendants: Boolean = false,
     ): IssueActivityFeed {
         val issue = lookup.access(user, number).issue
-        if (subscribed) activities.subscribe(issue.id, user.id) else activities.unsubscribe(issue.id, user.id)
+        if (subscribed) activities.subscribe(issue.id, user.id, includeDescendants) else activities.unsubscribe(issue.id, user.id)
         return activity(user, number)
     }
 

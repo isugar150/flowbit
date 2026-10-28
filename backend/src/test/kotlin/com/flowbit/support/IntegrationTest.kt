@@ -15,7 +15,7 @@ import org.springframework.r2dbc.core.DatabaseClient
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     // Uploads made by tests stay inside the build directory.
     properties = [
-        "flowbit.storage.path=build/test-uploads",
+        "flowbit.storage.path=\${FLOWBIT_BUILD_DIR:build}/test-uploads",
         "flowbit.retention.enabled=false",
         "flowbit.git.sync-enabled=false",
         "flowbit.daily-summary.enabled=false",
@@ -63,10 +63,13 @@ abstract class IntegrationTest {
             "update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null, workspace_key = 'FB', next_issue_number = 1",
         )
         execute(
-            "delete from issue_statuses where id not in ('00000000-0000-7000-8000-0000000000a1', '00000000-0000-7000-8000-0000000000a2', '00000000-0000-7000-8000-0000000000a3', '00000000-0000-7000-8000-0000000000a4', '00000000-0000-7000-8000-0000000000a5')",
+            "delete from issue_statuses where id not in ('00000000-0000-7000-8000-0000000000a1', '00000000-0000-7000-8000-0000000000a2', '00000000-0000-7000-8000-0000000000a3', '00000000-0000-7000-8000-0000000000a4', '00000000-0000-7000-8000-0000000000a5', '00000000-0000-7000-8000-0000000000a6', '00000000-0000-7000-8000-0000000000a7')",
         )
         execute(
-            "update issue_statuses set name = case id when '00000000-0000-7000-8000-0000000000a1' then '백로그' when '00000000-0000-7000-8000-0000000000a2' then '준비됨' when '00000000-0000-7000-8000-0000000000a3' then '진행 중' when '00000000-0000-7000-8000-0000000000a4' then '완료' else '취소' end, position = 10",
+            "update issue_statuses set name = case id when '00000000-0000-7000-8000-0000000000a1' then '백로그' when '00000000-0000-7000-8000-0000000000a2' then '준비됨' when '00000000-0000-7000-8000-0000000000a3' then '진행 중' when '00000000-0000-7000-8000-0000000000a4' then '완료' when '00000000-0000-7000-8000-0000000000a6' then '리뷰 준비됨' when '00000000-0000-7000-8000-0000000000a7' then '리뷰 중' else '취소' end, position = 10",
+        )
+        execute(
+            "insert into issue_statuses (id, category, name, position) values ('00000000-0000-7000-8000-0000000000a6','IN_PROGRESS','리뷰 준비됨',20), ('00000000-0000-7000-8000-0000000000a7','IN_PROGRESS','리뷰 중',30) on conflict (id) do update set name = excluded.name, category = excluded.category, position = excluded.position",
         )
         execute("delete from retention_policies")
         execute("delete from webhooks")

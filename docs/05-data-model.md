@@ -215,3 +215,11 @@
 접속 기록 표 `share_accesses`(`V3`, 열 때마다 한 줄)와 그 `item` 컬럼(`V4`)은 **`V5__drop_share_accesses.sql` 이 지웠다**(D-208: 저장 공간을 많이 쓰고 얻는 것이 적어 접속 기록 기능을 없앴다). 같은 마이그레이션이 `retention_policies` 에서 `SHARE_ACCESSES` 줄을 지우고 `item` 의 CHECK 를 `ISSUES`·`DOCUMENTS`·`COMMENTS` 로 되돌렸다. 이미 적용된 `V3`·`V4` 파일은 고치지 않는다(Flyway 체크섬).
 
 `V12__triage_rejected.sql`: `issues.triage_rejected`(boolean, NOT NULL DEFAULT false). 트리아지 거절 여부를 일반 취소·중복과 구분해 보관한다.
+
+## 티켓 구독 범위 (2026-10-28)
+
+[명세](features/issue-subscriptions.md): issue_subscriptions.include_descendants·excluded(V15). 활동 옆에서 해당 티켓만 / 하위 티켓 포함을 선택한다. 자동 구독은 해당 티켓만. 상위에서 구독함을 누르면 그 티켓만 제외하며 직접 구독으로 다시 켤 수 있다. 프로젝트 구독은 별도다.
+
+### 프로젝트 자동화 (V13·V14)
+
+V13: 리뷰 준비됨·리뷰 중을 IN_PROGRESS에 추가(기존 같은 이름은 ID 유지). V14: `project_automations(id, project_id, name, enabled, from_status_id NULL, to_status_id, actions JSONB, created_at, updated_at)`, `automation_runs(id, rule_id, project_id, issue_id, issue_version, rule_name, results JSONB, created_at)`. 규칙·티켓·버전은 유일하다. 프로젝트·티켓 영구 삭제 시 실행 기록은 함께 삭제된다. 규칙 삭제는 기록을 보존한다. 조건으로 사용한 상태 삭제 시 규칙을 함께 삭제한다.

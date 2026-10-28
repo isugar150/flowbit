@@ -1,11 +1,13 @@
 package com.flowbit.issue.application
 
 import com.flowbit.auth.application.AuthenticatedUser
+import com.flowbit.automation.AutomationEngine
 import com.flowbit.common.error.ValidationException
 import com.flowbit.issue.domain.Issue
 import com.flowbit.issue.domain.IssueRepository
 import com.flowbit.issue.domain.IssueStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.util.UUID
 
@@ -19,6 +21,7 @@ class IssueGitService(
     private val extras: IssueExtrasStore,
     private val statuses: IssueStatuses,
     private val clock: Clock,
+    private val automations: AutomationEngine,
 ) {
     // --- what a Git server does (docs/features/git-integration.md, D-141) --------------------
 
@@ -35,13 +38,14 @@ class IssueGitService(
      * issue is deleted or not in one of [from]. Recorded as [actor], with whom to tell, like a
      * change by hand.
      */
+    @Transactional
     suspend fun changeStatusFromGit(
         issueId: UUID,
         status: IssueStatus,
         from: Set<IssueStatus>,
         actor: Actor,
     ): IssueChange? {
-        val issue = repository.findById(issueId) ?: return null
+        val issue = repository.lockById(issueId) ?: return null
         if (issue.deletedAt != null || issue.status !in from) return null
         val before = queries.find(issue.number) ?: return null
         issue.status = status
@@ -49,10 +53,13 @@ class IssueGitService(
         issue.version += 1
         issue.updatedAt = clock.instant()
         repository.save(issue)
+        val transitioned = checkNotNull(lookup.detail(issue.number))
+        val automationNotices = automations.apply(before, transitioned)
         val after = checkNotNull(lookup.detail(issue.number))
+        after.assignees.filter { person -> before.assignees.none { it.id == person.id } }.forEach { activities.subscribe(issue.id, it.id) }
         val events = activities.diff(before, after).map(actor::mark)
         activities.record(issue.id, actor.userId, events, issue.updatedAt)
-        return IssueChange(after, events, activities.recipientIds(issue.id).filter { it != actor.userId })
+        return IssueChange(after, events, activities.recipientIds(issue.id).filter { it != actor.userId }, automationNotices = automationNotices)
     }
 
     /** The issue, once [user] may edit it: for making its branch on a Git server (D-159). */

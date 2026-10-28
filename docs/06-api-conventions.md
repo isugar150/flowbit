@@ -113,3 +113,11 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 - 엔드포인트가 늘어나는 M3 에서 OpenAPI 생성(springdoc 의 WebFlux 지원 버전)과 타입 생성을 도입한다 (D-023).
 
 트리아지: `GET /api/v1/triage?rejected=true`는 거절됨 목록, 생략 시 대기 중 목록이다. `PATCH /api/v1/issues/{번호}`의 `triageRejected: true`는 관리 역할이 대기 티켓을 `triage: false`, 취소 상태로 함께 바꾸는 경우에 사용한다.
+
+## 티켓 구독 범위 (2026-10-28)
+
+PUT /api/v1/issues/{number}/subscription: 선택 본문 {"includeDescendants":true|false}(기본 false). DELETE는 해당 티켓만 제외한다. 활동 응답의 subscribed는 유효 구독, includeDescendants는 직접 구독의 하위 포함 여부, inheritedSubscription은 상위에서 구독하는지를 나타낸다. [명세](features/issue-subscriptions.md).
+
+### 프로젝트 자동화
+
+`GET·POST /api/v1/projects/{id}/automations`, `PUT·DELETE …/{ruleId}`, `GET …/runs`(최근 50개). 같은 계약을 `/api/v1/admin/projects/{id}/automations`에서도 제공한다. 일반 경로는 프로젝트 관리 역할, 관리자 경로는 워크스페이스 관리자가 설정한다. 입력: `name`, `enabled`, `fromStatusId`(null=모든 상태), `toStatusId`, `actions`(id·type·audience·userIds·labelIds·message). 감사 종류 `PROJECT_AUTOMATIONS_CHANGED`, 알림 종류 `AUTOMATION_TRIGGERED`. [명세](features/project-automations.md).

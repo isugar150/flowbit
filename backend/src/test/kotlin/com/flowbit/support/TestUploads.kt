@@ -10,7 +10,7 @@ import java.nio.file.Path
  * tests ask this instead of listing an area's own folder.
  */
 object TestUploads {
-    private val root: Path = Path.of("build/test-uploads")
+    private val root: Path = Path.of(System.getenv("FLOWBIT_BUILD_DIR")?.takeIf { it.isNotBlank() } ?: "build").resolve("test-uploads")
 
     /** `files`, `images` or `originals`. */
     fun folder(area: String): Path = root.resolve(area)

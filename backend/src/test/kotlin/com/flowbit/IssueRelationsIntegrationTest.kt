@@ -34,7 +34,14 @@ class IssueRelationsIntegrationTest : IntegrationTest() {
         admin.post("/api/v1/issues/3/relations", """{"kind":"DUPLICATE_OF","targetNumber":1}""")
         admin.post("/api/v1/issues/1/relations", """{"kind":"RELATED","targetNumber":2}""")
 
-        assertEquals(listOf("DUPLICATED_BY", "RELATED"), admin.get("/api/v1/issues/1/relations").jsonList().map { it["kind"] })
+        assertEquals(
+            listOf("DUPLICATED_BY", "RELATED"),
+            admin
+                .get("/api/v1/issues/1/relations")
+                .jsonList()
+                .map { it["kind"] as String }
+                .sorted(),
+        )
         assertEquals(listOf("DUPLICATE_OF"), admin.get("/api/v1/issues/3/relations").jsonList().map { it["kind"] })
         assertEquals(listOf("RELATED"), admin.get("/api/v1/issues/2/relations").jsonList().map { it["kind"] })
     }
@@ -48,7 +55,14 @@ class IssueRelationsIntegrationTest : IntegrationTest() {
             )
 
         assertEquals(201, made.status)
-        assertEquals(listOf("BLOCKED_BY", "RELATED"), admin.get("/api/v1/issues/4/relations").jsonList().map { it["kind"] })
+        assertEquals(
+            listOf("BLOCKED_BY", "RELATED"),
+            admin
+                .get("/api/v1/issues/4/relations")
+                .jsonList()
+                .map { it["kind"] as String }
+                .sorted(),
+        )
         assertEquals(listOf("BLOCKS"), admin.get("/api/v1/issues/1/relations").jsonList().map { it["kind"] })
         assertEquals(listOf("RELATED"), admin.get("/api/v1/issues/2/relations").jsonList().map { it["kind"] })
     }

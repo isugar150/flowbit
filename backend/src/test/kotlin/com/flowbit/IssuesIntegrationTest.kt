@@ -38,6 +38,33 @@ class IssuesIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `상위 구독은 미래 자손에도 적용되고 한 티켓만 제외하거나 다시 구독할 수 있다`() {
+        val parent = editor.post("/api/v1/issues", """{"title":"상위"}""").json()
+        val child = editor.post("/api/v1/issues", """{"title":"하위","parentId":"PARENT_ID"}""".replace("PARENT_ID", parent["id"].toString())).json()
+        assertEquals(false, viewer.get("/api/v1/issues/2/activity").json()["subscribed"])
+        assertEquals(false, editor.get("/api/v1/issues/1/activity").json()["includeDescendants"])
+        viewer.put("/api/v1/issues/1/subscription", """{"includeDescendants":true}""")
+        val inherited = viewer.get("/api/v1/issues/2/activity").json()
+        assertEquals(true, inherited["subscribed"])
+        assertEquals(true, inherited["inheritedSubscription"])
+        assertEquals(201, editor.post("/api/v1/issues", """{"title":"손주","parentId":"CHILD_ID"}""".replace("CHILD_ID", child["id"].toString())).status)
+        assertEquals(true, viewer.get("/api/v1/issues/3/activity").json()["inheritedSubscription"])
+        assertEquals(false, viewer.delete("/api/v1/issues/2/subscription").json()["subscribed"])
+        assertEquals(true, viewer.get("/api/v1/issues/3/activity").json()["subscribed"])
+        assertEquals(true, viewer.get("/api/v1/issues/1/activity").json()["includeDescendants"])
+        val direct = viewer.put("/api/v1/issues/2/subscription", "{}").json()
+        assertEquals(true, direct["subscribed"])
+        assertEquals(false, direct["inheritedSubscription"])
+        assertEquals(false, direct["includeDescendants"])
+        viewer.put("/api/v1/issues/1/subscription", """{"includeDescendants":false}""")
+        assertEquals(false, viewer.get("/api/v1/issues/3/activity").json()["subscribed"])
+        assertEquals(true, viewer.get("/api/v1/issues/2/activity").json()["subscribed"])
+        editor.put("/api/v1/issues/1/subscription", """{"includeDescendants":true}""")
+        editor.post("/api/v1/issues/1/comments", """{"content":COMMENT}""".replace("COMMENT", commentDocument("범위 보존")))
+        assertEquals(true, editor.get("/api/v1/issues/1/activity").json()["includeDescendants"])
+    }
+
+    @Test
     fun `제목만으로 티켓을 만들 수 있고 번호가 차례로 붙는다`() {
         val first = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"  결제 버튼이 두 번 눌린다 "}""")
         val second = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"영수증 메일"}""")

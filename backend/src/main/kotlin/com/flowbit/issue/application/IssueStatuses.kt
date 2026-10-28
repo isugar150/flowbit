@@ -25,7 +25,7 @@ data class IssueStatusView(
 )
 
 /**
- * The statuses (docs/features/statuses-and-estimates.md): the five every installation starts with, which can be renamed, and
+ * The statuses (docs/features/statuses-and-estimates.md): the seven every installation starts with, which can be renamed, and
  * the ones an administrator adds inside a category ("리뷰 중" under "진행 중"). A category always keeps at least one.
  */
 @Service

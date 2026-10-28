@@ -11,11 +11,13 @@ export type IssueStatusItem = {
   position: number;
 };
 
-/** The five every installation starts with (the ids are fixed by the migration): for example data and for before the list has come. */
+/** The seven every installation starts with (the ids are fixed by the migration): for example data and for before the list has come. */
 export const BUILT_IN_STATUSES: IssueStatusItem[] = [
   { id: "00000000-0000-7000-8000-0000000000a1", category: "BACKLOG", name: "백로그", position: 10 },
   { id: "00000000-0000-7000-8000-0000000000a2", category: "READY", name: "준비됨", position: 10 },
   { id: "00000000-0000-7000-8000-0000000000a3", category: "IN_PROGRESS", name: "진행 중", position: 10 },
+  { id: "00000000-0000-7000-8000-0000000000a6", category: "IN_PROGRESS", name: "리뷰 준비됨", position: 20 },
+  { id: "00000000-0000-7000-8000-0000000000a7", category: "IN_PROGRESS", name: "리뷰 중", position: 30 },
   { id: "00000000-0000-7000-8000-0000000000a4", category: "DONE", name: "완료", position: 10 },
   { id: "00000000-0000-7000-8000-0000000000a5", category: "CANCELED", name: "취소", position: 10 },
 ];

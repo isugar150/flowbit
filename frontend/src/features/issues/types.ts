@@ -282,4 +282,6 @@ export type IssueActivityFeed = {
   subscribers: IssuePerson[];
   /** Whether the signed-in person follows the issue. */
   subscribed: boolean;
+  includeDescendants?: boolean;
+  inheritedSubscription?: boolean;
 };

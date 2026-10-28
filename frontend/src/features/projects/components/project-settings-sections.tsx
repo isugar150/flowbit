@@ -1,3 +1,4 @@
+import { ProjectAutomations } from "@/features/automations/project-automations";
 import { SettingsSection } from "@/components/settings-section";
 import { CycleSettingsField } from "@/features/cycles/components/cycle-settings-field";
 import { ProjectGitRepositories } from "@/features/git/components/project-git-repositories";
@@ -56,6 +57,9 @@ export function ProjectSettingsSections({
       </SettingsSection>
       <SettingsSection title={m.triageTitle} description={m.triageDescription}>
         <ProjectTriageField projectId={project.id} enabled={project.triageEnabled} />
+      </SettingsSection>
+      <SettingsSection title={messages.automations.title} description={messages.automations.description}>
+        <ProjectAutomations projectId={project.id} members={members} />
       </SettingsSection>
       <SettingsSection title={m.estimatesTitle} description={m.estimatesDescription}>
         <ProjectEstimatesField projectId={project.id} enabled={project.estimatesEnabled} />

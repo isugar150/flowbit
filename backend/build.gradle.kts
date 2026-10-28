@@ -80,6 +80,9 @@ kotlin {
 val nativeAccess = "--enable-native-access=ALL-UNNAMED"
 
 tasks.withType<Test> {
+    // Keep lazily loaded coroutine classes available while another build recompiles main.
+    dependsOn(tasks.named("jar"))
+    classpath = files(sourceSets["test"].output, tasks.named<Jar>("jar").flatMap { it.archiveFile }, configurations["testRuntimeClasspath"])
     useJUnitPlatform()
     jvmArgs(nativeAccess)
 }

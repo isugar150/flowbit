@@ -45,11 +45,13 @@ export function IssueActivity({
   readOnly?: boolean;
 }) {
   const mutation = useOptimisticMutation(
-    feed.subscribed,
-    (_, next: { number: number; subscribed: boolean }) => next.subscribed,
+    { subscribed: feed.subscribed, includeDescendants: feed.includeDescendants ?? false, inherited: feed.inheritedSubscription ?? false },
+    (_, next: { number: number; subscribed: boolean; includeDescendants?: boolean }) => ({
+      subscribed: next.subscribed, includeDescendants: next.includeDescendants ?? false, inherited: false,
+    }),
     setIssueSubscribed,
   );
-  const subscribed = mutation.value;
+  const { subscribed, includeDescendants, inherited } = mutation.value;
   const api = useMemo(() => issueCommentApi(number), [number]);
   // The comments on the blocks of the body stand among the rest, where their first comment was written.
   const target = useMemo(() => ({ type: "issue" as const, id: issueId }), [issueId]);
@@ -63,15 +65,27 @@ export function IssueActivity({
           {m.heading}
         </h3>
         {feed.subscribers.length > 0 ? <SubscriberAvatars people={feed.subscribers} /> : null}
+        {!inherited ? <select
+          aria-label={m.subscriptionScope}
+          value={includeDescendants ? "descendants" : "self"}
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+          onChange={(event) => {
+            const next = event.target.value === "descendants";
+            mutation.mutate({ number, subscribed: true, includeDescendants: next });
+          }}
+        >
+          <option value="self">{m.subscribeSelf}</option>
+          <option value="descendants">{m.subscribeDescendants}</option>
+        </select> : null}
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="text-muted-foreground max-md:h-11"
-          onClick={() => mutation.mutate({ number, subscribed: !subscribed })}
+          onClick={() => mutation.mutate({ number, subscribed: !subscribed, includeDescendants })}
         >
           {subscribed ? <BellOffIcon data-icon="inline-start" /> : <BellIcon data-icon="inline-start" />}
-          {subscribed ? m.unsubscribe : m.subscribe}
+          {subscribed ? (inherited ? m.inheritedSubscription : m.unsubscribe) : m.subscribe}
         </Button>
       </div>
       {mutation.isError ? (

@@ -251,3 +251,5 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 - 개발 PC 가 ARM(Apple Silicon)이어도 `push.sh` 가 `--platform linux/amd64` 로 만든다(D-168. 예전에는 이 옵션이 없었다).
 - **nginx 를 앞에 둘 때** (`script/nginx/flowbit.conf`): 그 서버가 여러 도메인을 받거나 80 포트를 이미 nginx 가 쓰는 경우에만 필요하다. 80 포트(HTTP)만 듣고 `server_name` 의 도메인으로 온 요청을 `127.0.0.1:3000` 으로 넘긴다. `Host` 를 그대로 넘기고(실시간 연결의 Origin 확인에 필요), WebSocket 업그레이드 헤더, 본문 20MB 제한, 읽기 제한 120초를 둔다. **HTTPS 가 없으므로 웹 푸시와 앱으로 설치(PWA, D-110)는 동작하지 않는다**(브라우저가 HTTPS 나 localhost 에서만 허용한다). 세션 쿠키도 `Secure` 없이 나간다.
 - 없는 것: HTTPS, DB 백업, CI 에서 이미지 빌드. D-105 의 "서버에서 git pull 받아 프로세스로 띄우는 스크립트"는 D-106 으로 없앴다.
+
+프로젝트 자동화(`automation`): 상태 ID 전환과 같은 R2DBC 트랜잭션에서 담당자·라벨 및 실행 기록을 저장한다. 티켓 행 잠금으로 전환을 직렬화하며 규칙·티켓·버전 조합을 한 번 실행한다. 발송할 알림 대상은 실행 위치에서 확정하고 기존 IssueAnnouncer → NotificationDispatcher를 통해 커밋 뒤 보낸다. 신규 환경 변수·외부 의존성은 없다.

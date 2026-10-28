@@ -1,5 +1,6 @@
 package com.flowbit.issue.application
 
+import com.flowbit.automation.AutomationNotice
 import com.flowbit.project.application.ProjectAccessSql
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -104,6 +105,7 @@ data class IssueChange(
     val taggedIds: List<UUID> = emptyList(),
     /** Managers to ask to classify a newly queued issue, independently of subscriptions. */
     val triageRecipientIds: List<UUID> = emptyList(),
+    val automationNotices: List<AutomationNotice> = emptyList(),
 ) {
     companion object {
         /** What is said on an issue rather than done to it: told to the people tagged, not to the subscribers. */
@@ -291,9 +293,18 @@ class IssueActivityStore(
     suspend fun subscribe(
         issueId: UUID,
         userId: UUID,
+        includeDescendants: Boolean? = null,
     ) {
+        val conflict =
+            if (includeDescendants == null) {
+                "do nothing"
+            } else {
+                "do update set include_descendants = excluded.include_descendants, excluded = false"
+            }
         databaseClient
-            .sql("insert into issue_subscriptions (issue_id, user_id) values (:issueId, :userId) on conflict do nothing")
+            .sql(
+                "insert into issue_subscriptions (issue_id, user_id, include_descendants) values (:issueId, :userId, :descendants) on conflict (issue_id, user_id) $conflict",
+            ).bind("descendants", includeDescendants ?: false)
             .bind("issueId", issueId)
             .bind("userId", userId)
             .fetch()
@@ -306,49 +317,84 @@ class IssueActivityStore(
         userId: UUID,
     ) {
         databaseClient
-            .sql("delete from issue_subscriptions where issue_id = :issueId and user_id = :userId")
-            .bind("issueId", issueId)
+            .sql(
+                """
+                insert into issue_subscriptions (issue_id, user_id, excluded) values (:issueId, :userId, true)
+                on conflict (issue_id, user_id) do update set excluded = true, include_descendants = false
+                """.trimIndent(),
+            ).bind("issueId", issueId)
             .bind("userId", userId)
             .fetch()
             .rowsUpdated()
             .awaitSingle()
     }
 
-    /** Active users subscribed to the issue, in the order they subscribed. */
+    private val ancestrySql =
+        """
+        with recursive ancestors as (
+            select id, parent_id from issues where id = :issueId
+            union all
+            select i.id, i.parent_id from issues i join ancestors a on i.id = a.parent_id
+        ), followers as (
+            select distinct s.user_id from ancestors a join issue_subscriptions s on s.issue_id = a.id
+            where not s.excluded and (a.id = :issueId or s.include_descendants)
+              and not exists (select 1 from issue_subscriptions x where x.issue_id = :issueId and x.user_id = s.user_id and x.excluded)
+        )
+        """.trimIndent()
+
+    suspend fun includesDescendants(
+        issueId: UUID,
+        userId: UUID,
+    ): Boolean =
+        databaseClient
+            .sql("select include_descendants from issue_subscriptions where issue_id = :issueId and user_id = :userId and not excluded")
+            .bind("issueId", issueId)
+            .bind("userId", userId)
+            .map { row -> checkNotNull(row.get("include_descendants", Boolean::class.javaObjectType)) }
+            .one()
+            .awaitSingleOrNull() ?: false
+
+    suspend fun directlySubscribed(
+        issueId: UUID,
+        userId: UUID,
+    ): Boolean =
+        databaseClient
+            .sql("select exists(select 1 from issue_subscriptions where issue_id = :issueId and user_id = :userId and not excluded) as subscribed")
+            .bind("issueId", issueId)
+            .bind("userId", userId)
+            .map { row -> checkNotNull(row.get("subscribed", Boolean::class.javaObjectType)) }
+            .one()
+            .awaitSingle()
+
     suspend fun subscribers(issueId: UUID): List<IssuePerson> =
         databaseClient
             .sql(
-                """
-                select u.id as actor_id, u.login_id, u.display_name, u.avatar_key
-                from issue_subscriptions s join users u on u.id = s.user_id
-                where s.issue_id = :issueId and u.status = 'ACTIVE'
-                order by s.created_at, u.login_id
-                """.trimIndent(),
+                ancestrySql + " " +
+                    """
+                    select u.id as actor_id, u.login_id, u.display_name, u.avatar_key
+                    from users u join followers f on f.user_id = u.id
+                    join issues target on target.id = :issueId
+                    where u.status = 'ACTIVE' and (target.project_id is null or ${ProjectAccessSql.mayEnter("target.project_id", "u.id")})
+                    order by u.login_id
+                    """.trimIndent(),
             ).bind("issueId", issueId)
             .map { row -> person(row) }
             .all()
             .collectList()
             .awaitSingle()
 
-    /**
-     * Whom a change to the issue is told to: its subscribers, and whoever follows the project it is
-     * linked to and may still enter that project. Active users only.
-     */
     suspend fun recipientIds(issueId: UUID): List<UUID> =
         databaseClient
             .sql(
-                """
-                select u.id
-                from users u
-                where u.status = 'ACTIVE'
-                  and (exists (select 1 from issue_subscriptions s where s.issue_id = :issueId and s.user_id = u.id)
-                       or exists (
-                           select 1 from issues i join project_subscriptions ps on ps.project_id = i.project_id
-                           where i.id = :issueId and ps.user_id = u.id
-                             and ${ProjectAccessSql.mayEnter("i.project_id", "u.id")}
-                       ))
-                order by u.login_id
-                """.trimIndent(),
+                ancestrySql + " " +
+                    """
+                    select u.id from users u join issues target on target.id = :issueId
+                    where u.status = 'ACTIVE'
+                      and (target.project_id is null or ${ProjectAccessSql.mayEnter("target.project_id", "u.id")})
+                      and (exists (select 1 from followers f where f.user_id = u.id)
+                           or exists (select 1 from project_subscriptions ps where ps.project_id = target.project_id and ps.user_id = u.id))
+                    order by u.login_id
+                    """.trimIndent(),
             ).bind("issueId", issueId)
             .map { row -> checkNotNull(row.get("id", UUID::class.java)) }
             .all()

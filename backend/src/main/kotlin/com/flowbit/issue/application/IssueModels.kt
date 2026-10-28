@@ -94,6 +94,8 @@ data class IssueActivityFeed(
     val subscribers: List<IssuePerson>,
     /** Whether the caller is one of the subscribers. */
     val subscribed: Boolean,
+    val includeDescendants: Boolean = false,
+    val inheritedSubscription: Boolean = false,
 )
 
 /** One issue with everything its page shows. */

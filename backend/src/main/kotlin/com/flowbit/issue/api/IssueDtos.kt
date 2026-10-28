@@ -277,6 +277,8 @@ data class IssueActivityResponse(
     val comments: List<CommentResponse>,
     val subscribers: List<IssuePersonResponse>,
     val subscribed: Boolean,
+    val includeDescendants: Boolean,
+    val inheritedSubscription: Boolean,
 ) {
     companion object {
         fun from(feed: IssueActivityFeed) =
@@ -288,6 +290,8 @@ data class IssueActivityResponse(
                 comments = feed.comments.map(CommentResponse::from),
                 subscribers = feed.subscribers.map(IssuePersonResponse::from),
                 subscribed = feed.subscribed,
+                includeDescendants = feed.includeDescendants,
+                inheritedSubscription = feed.inheritedSubscription,
             )
     }
 }
@@ -405,4 +409,8 @@ data class ReactionRequest(
 
 data class CreateDocumentRequest(
     val title: String? = null,
+)
+
+data class IssueSubscriptionRequest(
+    val includeDescendants: Boolean = false,
 )

@@ -1,6 +1,7 @@
 package com.flowbit.issue.application
 
 import com.flowbit.auth.application.AuthenticatedUser
+import com.flowbit.automation.AutomationEngine
 import com.flowbit.common.UuidV7
 import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.FieldError
@@ -47,6 +48,7 @@ class IssueService(
     private val cycles: CycleService,
     private val relations: IssueRelations,
     private val clock: Clock,
+    private val automations: AutomationEngine,
 ) {
     /**
      * Issues the caller may see; of one project when `projectId` is given. `deleted` asks for the
@@ -247,7 +249,10 @@ class IssueService(
         number: Int,
         patch: IssuePatch,
     ): IssueChange {
-        val issue = lookup.editable(lookup.access(user, number)).issue
+        val access = lookup.editable(lookup.access(user, number))
+        val issue = repository.lockById(access.issue.id) ?: throw lookup.notFound()
+        // Access may have changed while waiting for the row lock.
+        lookup.editable(lookup.access(user, number))
         val before = queries.find(number) ?: throw lookup.notFound()
         val oldProjectId = issue.projectId
 
@@ -333,6 +338,8 @@ class IssueService(
         val newMentions =
             document?.mentions?.takeIf { it.isNotEmpty() }?.let { it - richText.mentionsIn(richText.load(RichText.ContentTable.ISSUES, issue.id)) }
         if (patch.has("content")) richText.store(RichText.ContentTable.ISSUES, issue.id, document)
+        val transitioned = checkNotNull(lookup.detail(number))
+        val automationNotices = automations.apply(before, transitioned)
         val after = checkNotNull(lookup.detail(number))
         val recorded = activities.diff(before, after)
         activities.record(issue.id, user.id, recorded, issue.updatedAt)
@@ -348,6 +355,7 @@ class IssueService(
             listOfNotNull(before.project?.id, after.project?.id).distinct(),
             tagged.map { it.first },
             triageRecipientIds = if (!before.triage && issue.triage) triageRecipients(issue, user) else emptyList(),
+            automationNotices = automationNotices,
         )
     }
 

@@ -301,6 +301,7 @@ class NotificationSettingsService(
             listOf(
                 "CREATED",
                 "TRIAGE_REQUESTED",
+                "AUTOMATION_TRIGGERED",
                 "TITLE_CHANGED",
                 "DESCRIPTION_CHANGED",
                 "STATUS_CHANGED",

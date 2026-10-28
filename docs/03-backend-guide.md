@@ -133,3 +133,13 @@ com.flowbit
 
 - SLF4J 를 쓴다.
 - 요청마다 요청 ID 를 만들어 응답 헤더 `X-Request-Id` 와 오류 응답의 `traceId` 로 내려준다. 오류 로그에도 같은 값을 남긴다.
+
+`automation/`: AutomationController(일반·관리자 프로젝트 경로), AutomationService(관리 권한·검증·감사), AutomationStore(R2DBC 규칙·실행 기록), AutomationEngine(상태 변경 트랜잭션 안에서 실행). IssueService.update와 IssueGitService.changeStatusFromGit이 호출한다. 상세 계약은 [features/project-automations.md](features/project-automations.md).
+
+검사 간 파일 간섭을 피하려고 테스트 업로드도 `${FLOWBIT_BUILD_DIR:build}/test-uploads`를 쓴다. `TestUploads`가 같은 경로를 따른다. 서로 다른 빌드 폴더를 쓰는 검사끼리는 업로드 폴더도 분리된다.
+
+테스트의 애플리케이션 클래스·리소스는 plain JAR에서 읽는다. IDE/다른 빌드가 main 클래스 폴더를 다시 만들더라도 실행 중인 테스트의 코루틴 클래스가 사라지지 않게 하기 위한 설정이다. 테스트 클래스는 해당 빌드 폴더를 사용한다.
+
+서로 다른 빌드 폴더에서 검사를 동시에 실행할 때는 Gradle 프로젝트 캐시도 분리한다. 예: `FLOWBIT_BUILD_DIR=build-check ./gradlew --project-cache-dir build-check/.gradle check`(backend 폴더). 출력 폴더만 바꾸고 프로젝트 캐시를 공유하면 Gradle이 이전 실행의 출력 클래스를 정리할 수 있다.
+
+관계처럼 표시 순서를 명세하지 않은 목록의 통합 테스트는 결과를 정렬해서 비교한다. 고정 시계에서 만든 UUID v7의 무작위 부분 순서를 생성 순서로 가정하지 않는다.

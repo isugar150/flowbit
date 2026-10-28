@@ -183,7 +183,8 @@ class IssueController(
     suspend fun subscribe(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable number: Int,
-    ): IssueActivityResponse = subscription(user, number, true)
+        @RequestBody(required = false) request: IssueSubscriptionRequest?,
+    ): IssueActivityResponse = subscription(user, number, true, request?.includeDescendants ?: false)
 
     @DeleteMapping("/{number}/subscription")
     suspend fun unsubscribe(
@@ -263,8 +264,9 @@ class IssueController(
         user: AuthenticatedUser,
         number: Int,
         subscribed: Boolean,
+        includeDescendants: Boolean = false,
     ): IssueActivityResponse {
-        val feed = commentService.setSubscribed(user, number, subscribed)
+        val feed = commentService.setSubscribed(user, number, subscribed, includeDescendants)
         announcer.touched(user, number)
         return IssueActivityResponse.from(feed)
     }

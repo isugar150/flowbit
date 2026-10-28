@@ -50,3 +50,5 @@ DB 에 평문으로 있던 비밀 값을 **AES-256-GCM** 으로 암호화한다.
 - **범위 밖**: 공유 링크 토큰(`share_links.token`), 푸시 토큰, 세션 토큰 해시는 이번 암호화 대상이 아니다. 새 비밀 열을 만들면 엔티티를 `Secret` 으로 매핑하고 `SecretMigration.COLUMNS` 에 더한다.
 
 테스트: `SecretsIntegrationTest`(키를 켠 별도 컨텍스트: 저장된 값이 `enc:v1:`, API 에서는 그대로 쓰임, 평문→암호화 이전과 반복 안전). 일반 통합 테스트는 키를 비워 평문 그대로 돈다(`IntegrationTest` 의 `flowbit.secrets.key=`).
+
+감사 로그 `PROJECT_AUTOMATIONS_CHANGED`: 프로젝트 자동화 저장·삭제(`projectId`, `ruleId`, `change`).

@@ -26,6 +26,7 @@
 | (마일스톤 밖) | 계정과 운영 보안: 내 비밀번호 변경, 관리자 감사 로그 탭, DB 비밀 값 암호화와 기존 데이터 이전 (사용자 지시, D-226) | 구현됨 | [features/account-security.md](features/account-security.md) |
 | (마일스톤 밖) | 상태 추가(범주 안, 관리자 설정 > 상태)와 추정치(프로젝트가 켬, 기본 꺼짐) (사용자 지시, D-228) | 구현됨 | [features/statuses-and-estimates.md](features/statuses-and-estimates.md) |
 | (마일스톤 밖) | 티켓 관계: 막고 있음·막혀 있음·중복·관련 (사용자 지시, D-230) | 구현됨 | [features/issue-relations.md](features/issue-relations.md) |
+| (마일스톤 밖) | 리뷰 준비됨·리뷰 중, 프로젝트별 상태 변경 자동화(알림·담당자·라벨, 끌어 놓는 파이프라인·실행 기록) | 구현됨 | [project-automations.md](features/project-automations.md) |
 | M8 | 프로젝트 | 초안 | 미작성 |
 | M9 | 검색과 저장한 뷰 | 검색(D-133)과 저장한 뷰(D-229) 구현됨 | [features/saved-views.md](features/saved-views.md) |
 | M10 | 모바일 경험 다듬기 | 초안 | 미작성 |
@@ -61,3 +62,5 @@
 - **M9 검색과 저장한 뷰**: 한글 검색(초성, 조사), 필터, 뷰 저장과 공유 (4.8).
 - **M10 모바일 경험 다듬기**: 하단 탭, 밀어서 처리, 시트 (3장 "모바일"). 각 마일스톤에서 반응형은 기본으로 지키고, 여기서는 모바일 전용 상호작용을 더한다.
 - **M11 외부 연동**: 카카오·네이버 로그인, 이메일 알림, 카카오톡 알림 (7장). 외부 서비스의 제약을 먼저 조사한다 (D-022).
+
+티켓 구독 범위: [해당 티켓만·하위 티켓 포함과 개별 제외](features/issue-subscriptions.md) (2026-10-28 사용자 요청).

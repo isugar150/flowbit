@@ -35,6 +35,7 @@ class IssueAnnouncer(
         for (group in changes.groupBy { it.second.issue.number }.values) {
             val (actor, change) = group.last()
             val actorId = actor.userId ?: RealtimeHub.NOBODY
+            group.forEach { (by, changed) -> announceAutomations(by.userId, changed, by.name) }
             realtime.publish(RealtimeHub.ISSUES, actorId)
             group.flatMap { it.second.projectIds }.distinct().forEach { realtime.publish("project:$it", actorId) }
             touched(actorId, change.issue.number)
@@ -77,7 +78,22 @@ class IssueAnnouncer(
                     .copy(events = listOf(IssueNotification.Event("TRIAGE_REQUESTED", emptyMap())))
             notifications.dispatchImmediate(notification)
         }
+        if (change.automationNotices.isNotEmpty()) announceAutomations(actorId, change, actorName())
         commented(actorId, change, actorName)
+    }
+
+    private fun announceAutomations(
+        actorId: UUID?,
+        change: IssueChange,
+        actorName: String,
+    ) {
+        for (notice in change.automationNotices) {
+            notifications.dispatchImmediate(
+                notificationOf(actorId, change, actorName, recipientIds = notice.recipientIds).copy(
+                    events = listOf(IssueNotification.Event("AUTOMATION_TRIGGERED", mapOf("ruleName" to notice.ruleName, "message" to notice.message))),
+                ),
+            )
+        }
     }
 
     /** A comment was written or changed: the issue's page reads again, and whoever `change` names is told. */

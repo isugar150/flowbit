@@ -54,6 +54,9 @@ class Issue(
 }
 
 interface IssueRepository : CoroutineCrudRepository<Issue, UUID> {
+    @org.springframework.data.r2dbc.repository.Query("select * from issues where id = :id for update")
+    suspend fun lockById(id: UUID): Issue?
+
     suspend fun findByNumber(number: Int): Issue?
 
     suspend fun findByParentId(parentId: UUID): List<Issue>

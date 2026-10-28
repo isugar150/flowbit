@@ -62,9 +62,10 @@ export function createLabel(name: string): Promise<Label> {
 }
 
 /** Follow an issue (to be told about its changes) or stop following it. */
-export function setIssueSubscribed(input: { number: number; subscribed: boolean }): Promise<IssueActivityFeed> {
+export function setIssueSubscribed(input: { number: number; subscribed: boolean; includeDescendants?: boolean }): Promise<IssueActivityFeed> {
   return apiFetch<IssueActivityFeed>(`/api/v1/issues/${input.number}/subscription`, {
     method: input.subscribed ? "PUT" : "DELETE",
+    body: input.subscribed ? { includeDescendants: input.includeDescendants ?? false } : undefined,
   });
 }
 
