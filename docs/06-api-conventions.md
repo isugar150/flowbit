@@ -125,3 +125,7 @@ PUT /api/v1/issues/{number}/subscription: 선택 본문 {"includeDescendants":tr
 ## 프로젝트 공통 티켓 속성 API
 
 GET·POST /api/v1/projects/{id}/issue-fields, PUT·DELETE …/{fieldId}. 관리자 경로는 /api/v1/admin/projects/{id}/issue-fields. PUT /api/v1/custom-properties/issue/{issueId}/project-fields/{fieldId}로 값을 변경한다. 생성은 projectFields 배열, 조회는 projectFieldId로 공통 항목을 구분한다. [명세](features/project-issue-fields.md) 참고.
+
+### 자동화 메시지 변수
+
+자동화 actions의 message는 변수 템플릿 원문으로 저장·조회하며 실행 시 실제 값으로 치환한다. 지원 변수와 단일 치환 정책은 [자동화 명세](features/project-automations.md). 스키마·요청 필드는 추가하지 않는다.

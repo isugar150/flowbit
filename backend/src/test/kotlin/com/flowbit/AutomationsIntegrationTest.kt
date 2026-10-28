@@ -69,7 +69,7 @@ class AutomationsIntegrationTest : IntegrationTest() {
         val actions =
             listOf(
                 action("ASSIGN", ""","userIds":["$reviewerId"]"""),
-                action("NOTIFY", ""","audience":"ASSIGNEES","message":"리뷰해 주세요""""),
+                action("NOTIFY", ""","audience":"ASSIGNEES","message":"리뷰해 주세요 {티켓번호} {티켓제목} {이전상태} → {현재상태} {변경자} {프로젝트명}""""),
                 action("ADD_LABELS", ""","labelIds":["$newLabel"]"""),
                 action("REMOVE_LABELS", ""","labelIds":["$oldLabel"]"""),
             ).joinToString(",")
@@ -81,7 +81,14 @@ class AutomationsIntegrationTest : IntegrationTest() {
         assertEquals(listOf(newLabel), (changed.json()["labels"] as List<Map<String, Any?>>).map { it["id"] })
         await().atMost(Duration.ofSeconds(5)).untilAsserted {
             val inbox = reviewer.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
-            assertTrue(inbox.any { (it["lines"] as List<String>).any { line -> line.contains("리뷰 요청") && line.contains("리뷰해 주세요") } })
+            assertTrue(
+                inbox.any {
+                    (it["lines"] as List<String>).any { line ->
+                        line.contains("리뷰 요청") &&
+                            line.contains("리뷰해 주세요 FB-1 결제 기능 진행 중 → 리뷰 준비됨 admin 결제")
+                    }
+                },
+            )
         }
         val runs = admin.get("$path/runs").jsonList()
         assertEquals(1, runs.size)

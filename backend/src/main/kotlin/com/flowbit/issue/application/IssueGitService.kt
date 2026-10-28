@@ -54,7 +54,7 @@ class IssueGitService(
         issue.updatedAt = clock.instant()
         repository.save(issue)
         val transitioned = checkNotNull(lookup.detail(issue.number))
-        val automationNotices = automations.apply(before, transitioned)
+        val automationNotices = automations.apply(before, transitioned, actor.name)
         val after = checkNotNull(lookup.detail(issue.number))
         after.assignees.filter { person -> before.assignees.none { it.id == person.id } }.forEach { activities.subscribe(issue.id, it.id) }
         val events = activities.diff(before, after).map(actor::mark)

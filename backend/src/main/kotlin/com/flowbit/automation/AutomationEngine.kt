@@ -18,6 +18,7 @@ class AutomationEngine(
     suspend fun apply(
         before: IssueView,
         after: IssueView,
+        actorName: String,
     ): List<AutomationNotice> {
         if (before.statusId == after.statusId || after.deletedAt != null) return emptyList()
         val projectId = after.project?.id ?: return emptyList()
@@ -47,7 +48,10 @@ class AutomationEngine(
                                     AutomationAudience.MANAGERS -> eligible.filter { it.role.canManage }.map { it.userId }
                                 }.distinct()
                             val allowed = ids.filter { id -> eligible.any { it.userId == id } }
-                            if (allowed.isNotEmpty()) notices += AutomationNotice(rule.name, allowed, action.message.trim())
+                            if (allowed.isNotEmpty()) {
+                                notices +=
+                                    AutomationNotice(rule.name, allowed, renderAutomationMessage(action.message, before, current, actorName))
+                            }
                             "알림 발송 요청 ${allowed.size}명" + if (allowed.size < ids.size) " (접근할 수 없는 구성원 제외)" else ""
                         }
                         AutomationActionType.ASSIGN -> {

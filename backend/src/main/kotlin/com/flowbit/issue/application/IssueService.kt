@@ -342,7 +342,7 @@ class IssueService(
             document?.mentions?.takeIf { it.isNotEmpty() }?.let { it - richText.mentionsIn(richText.load(RichText.ContentTable.ISSUES, issue.id)) }
         if (patch.has("content")) richText.store(RichText.ContentTable.ISSUES, issue.id, document)
         val transitioned = checkNotNull(lookup.detail(number))
-        val automationNotices = automations.apply(before, transitioned)
+        val automationNotices = automations.apply(before, transitioned, lookup.actorName(user))
         val after = checkNotNull(lookup.detail(number))
         val recorded = activities.diff(before, after)
         activities.record(issue.id, user.id, recorded, issue.updatedAt)

@@ -2,7 +2,8 @@
 
 import { useId, useState } from "react";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, closestCenter, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { ArrowDownIcon, ArrowUpIcon, BellIcon, GripVerticalIcon, PlusIcon, TagIcon, TrashIcon, UserRoundIcon, WorkflowIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, BellIcon, CircleHelpIcon, GripVerticalIcon, PlusIcon, TagIcon, TrashIcon, UserRoundIcon, WorkflowIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { randomId } from "@/lib/random-id";
 import { messages } from "@/messages";
 import { moveBlock } from "./pipeline";
+import { MESSAGE_VARIABLES, previewMessage, suggestedMessage } from "./message-template";
 import type { ActionType, Audience, AutomationAction, AutomationInput } from "./types";
 
 const m = messages.automations;
@@ -60,7 +62,8 @@ function Gap({ index, empty }: { index: number; empty: boolean }) {
   return <div ref={setNodeRef} aria-label={m.drop} className={cn("flex items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground", empty ? "min-h-20 p-4" : "h-7 border-transparent", isOver && "border-primary bg-accent")}>{empty || isOver ? m.drop : <ArrowDownIcon className="size-3" aria-hidden="true" />}</div>;
 }
 
-function ActionBlock({ action, index, last, onChange, onRemove, onMove, members, labels, fields }: {
+function ActionBlock({ action, index, last, onChange, onRemove, onMove, members, labels, fields, template, preview }: {
+  template: string; preview: string;
   action: AutomationAction; index: number; last: boolean; onChange: (action: AutomationAction) => void;
   onRemove: () => void; onMove: (direction: number) => void; members: ProjectMember[]; labels: Label[]; fields: ProjectIssueField[];
 }) {
@@ -98,19 +101,28 @@ function ActionBlock({ action, index, last, onChange, onRemove, onMove, members,
       {action.type === "ADD_LABELS" || action.type === "REMOVE_LABELS" ? <MultiPick label={m.labels} options={labels.map((label) => ({ id: label.id, label: label.name }))} value={action.labelIds} onChange={(labelIds) => onChange({ ...action, labelIds })} /> : null}
       {action.type === "NOTIFY" ? <>
         <Field>
-          <FieldLabel htmlFor={`${id}-example`}>{m.messageExample}</FieldLabel>
-          <NativeSelect id={`${id}-example`} value="" onChange={(event) => {
-            const example = m.messageExamples.find((item) => item.label === event.target.value);
-            if (example) onChange({ ...action, message: example.text });
-          }}>
-            <NativeSelectOption value="">{m.messageExampleChoose}</NativeSelectOption>
-            {m.messageExamples.map((example) => <NativeSelectOption key={example.label} value={example.label}>{example.label}</NativeSelectOption>)}
-          </NativeSelect>
-          <FieldDescription>{m.messageExampleHint}</FieldDescription>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`${id}-message`}>{m.message}</FieldLabel>
+          <div className="flex items-center gap-1">
+            <FieldLabel htmlFor={`${id}-message`}>{m.message}</FieldLabel>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-xs" aria-label={m.variableHelpTitle} />}>
+                <CircleHelpIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              </TooltipTrigger>
+              <TooltipContent side="top" align="start" className="max-w-80 space-y-2 p-3 text-left leading-5">
+                <p className="font-semibold">{m.variableHelpTitle}</p>
+                <p>{m.variableHelpUsage}</p>
+                <ul className="space-y-1">{m.variableHelpItems.map((item) => <li key={item.variable}><code>{`{${item.variable}}`}</code> — {item.description}</li>)}</ul>
+                <p>{m.variableHelpTiming}</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <Textarea id={`${id}-message`} value={action.message} placeholder={m.messagePlaceholder} maxLength={1000} rows={3} onChange={(event) => onChange({ ...action, message: event.target.value })} />
+          <FieldDescription>{m.messageHint}</FieldDescription>
+          <div className="flex flex-wrap gap-1">
+            {MESSAGE_VARIABLES.map((variable) => <Button key={variable} type="button" size="xs" variant="outline" onClick={() => onChange({ ...action, message: action.message + `{${variable}}` })}>{`{${variable}}`}</Button>)}
+          </div>
+          <div><Button type="button" size="sm" variant="ghost" onClick={() => onChange({ ...action, message: template })}>{m.resetMessage}</Button></div>
+          <p className="text-xs font-medium text-muted-foreground">{m.messagePreview}</p>
+          <p className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-sm">{preview || m.emptyMessagePreview}</p>
         </Field>
       </> : null}
     </div>
@@ -123,12 +135,19 @@ export function AutomationEditor({ initial, members, labels, fields, onSave, onC
   const statuses = useIssueStatuses();
   const id = useId();
   const [input, setInput] = useState<AutomationInput>(() => initial ?? { name: "", enabled: true, fromStatusId: null, toStatusId: statuses.find((status) => status.id === "00000000-0000-7000-8000-0000000000a6")?.id ?? statuses[0].id, actions: [] });
+  const messageFor = (value: AutomationInput) => suggestedMessage(statuses.find((status) => status.id === value.toStatusId), statuses.find((status) => status.id === value.fromStatusId));
+  const changeTrigger = (changes: Partial<Pick<AutomationInput, "fromStatusId" | "toStatusId">>) => setInput((current) => {
+    const next = { ...current, ...changes };
+    const oldTemplate = messageFor(current);
+    const template = messageFor(next);
+    return { ...next, actions: current.actions.map((action) => action.type === "NOTIFY" && (!action.message.trim() || action.message === oldTemplate) ? { ...action, message: template } : action) };
+  });
   const [dragged, setDragged] = useState<ActionType | null>(null);
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }));
   const setActions = (actions: AutomationAction[]) => setInput((current) => ({ ...current, actions }));
   const add = (type: ActionType, index = input.actions.length) => {
     if (input.actions.length >= 10) return;
-    const actions = [...input.actions]; actions.splice(index, 0, newAction(type)); setActions(actions);
+    const actions = [...input.actions]; actions.splice(index, 0, { ...newAction(type), message: type === "NOTIFY" ? messageFor(input) : "" }); setActions(actions);
   };
   const end = ({ active, over }: DragEndEvent) => {
     setDragged(null);
@@ -144,14 +163,14 @@ export function AutomationEditor({ initial, members, labels, fields, onSave, onC
       <div className="flex flex-col gap-3 rounded-xl border bg-background p-4">
         <h4 className="flex items-center gap-2 text-sm font-medium"><WorkflowIcon className="size-4" />{m.trigger}</h4>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field><FieldLabel htmlFor={`${id}-from`}>{m.from}</FieldLabel><NativeSelect id={`${id}-from`} value={input.fromStatusId ?? ""} onChange={(event) => setInput({ ...input, fromStatusId: event.target.value || null })}><NativeSelectOption value="">{m.any}</NativeSelectOption>{statuses.map((status) => <NativeSelectOption key={status.id} value={status.id}>{status.name}</NativeSelectOption>)}</NativeSelect></Field>
-          <Field><FieldLabel htmlFor={`${id}-to`}>{m.to}</FieldLabel><NativeSelect id={`${id}-to`} required value={input.toStatusId} onChange={(event) => setInput({ ...input, toStatusId: event.target.value })}>{statuses.map((status) => <NativeSelectOption key={status.id} value={status.id}>{status.name}</NativeSelectOption>)}</NativeSelect></Field>
+          <Field><FieldLabel htmlFor={`${id}-from`}>{m.from}</FieldLabel><NativeSelect id={`${id}-from`} value={input.fromStatusId ?? ""} onChange={(event) => changeTrigger({ fromStatusId: event.target.value || null })}><NativeSelectOption value="">{m.any}</NativeSelectOption>{statuses.map((status) => <NativeSelectOption key={status.id} value={status.id}>{status.name}</NativeSelectOption>)}</NativeSelect></Field>
+          <Field><FieldLabel htmlFor={`${id}-to`}>{m.to}</FieldLabel><NativeSelect id={`${id}-to`} required value={input.toStatusId} onChange={(event) => changeTrigger({ toStatusId: event.target.value })}>{statuses.map((status) => <NativeSelectOption key={status.id} value={status.id}>{status.name}</NativeSelectOption>)}</NativeSelect></Field>
         </div>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setDragged((active.data.current?.type ?? input.actions.find((action) => action.id === active.id)?.type) as ActionType)} onDragEnd={end} onDragCancel={() => setDragged(null)}>
         <div className="flex flex-col gap-2"><h4 className="text-sm font-medium">{m.palette}</h4><p className="text-xs text-muted-foreground">{m.paletteHint}</p><div className="flex flex-wrap gap-2">{actionTypes.map((type) => <PaletteBlock key={type} type={type} onAdd={() => add(type)} disabled={input.actions.length >= 10} />)}</div>{input.actions.length >= 10 ? <p className="text-xs text-muted-foreground">{m.actionLimit}</p> : null}</div>
         <div aria-label={m.pipeline} className="flex flex-col">
-          {input.actions.map((action, index) => <div key={action.id}><Gap index={index} empty={false} /><ActionBlock action={action} index={index} last={index === input.actions.length - 1} fields={fields} members={members} labels={labels} onChange={(next) => setActions(input.actions.map((current) => current.id === action.id ? next : current))} onRemove={() => setActions(input.actions.filter((current) => current.id !== action.id))} onMove={(direction) => setActions(moveBlock(input.actions, action.id, direction < 0 ? index - 1 : index + 2))} /></div>)}
+          {input.actions.map((action, index) => <div key={action.id}><Gap index={index} empty={false} /><ActionBlock template={messageFor(input)} preview={previewMessage(action.message, statuses.find((status) => status.id === input.toStatusId), statuses.find((status) => status.id === input.fromStatusId))} action={action} index={index} last={index === input.actions.length - 1} fields={fields} members={members} labels={labels} onChange={(next) => setActions(input.actions.map((current) => current.id === action.id ? next : current))} onRemove={() => setActions(input.actions.filter((current) => current.id !== action.id))} onMove={(direction) => setActions(moveBlock(input.actions, action.id, direction < 0 ? index - 1 : index + 2))} /></div>)}
           <Gap index={input.actions.length} empty={input.actions.length === 0} />
         </div>
         <DragOverlay>{dragged ? <div className="rounded-lg border bg-background p-3 text-sm shadow-lg">{m.actions[dragged]}</div> : null}</DragOverlay>
