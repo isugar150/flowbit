@@ -611,6 +611,36 @@ class GitIntegrationTest : IntegrationTest() {
         )
     }
 
+    @Test
+    fun `같은 범주 안의 다음 상태로 넘어간 알림은 상태 이름과 그 커밋의 해시와 메시지를 말한다`() {
+        // What an earlier test's API calls left behind is not this test's.
+        received.clear()
+        admin.post(
+            "/api/v1/admin/notifications/webhooks",
+            """{"name":"받기","url":"$outside/notify","method":"POST","contentType":"application/json","headers":{},"bodyTemplate":"","eventTypes":[]}""",
+        )
+        val kim = admin.post("/api/v1/admin/members", """{"loginId":"jimin","password":"$PASSWORD","displayName":"김지민"}""").json()["id"]
+        admin.post("/api/v1/issues", """{"title":"로그인 오류","status":"IN_PROGRESS","assigneeIds":["$kim"]}""")
+        val connection = connect()
+        dispatcher.flush(1, adminId())
+        awaitTrue { received.size == 1 }
+        received.clear()
+
+        val message = "Fixes FB-1 로그인 오류"
+        val hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(message.toByteArray())).take(10)
+        deliver(connection, "push", push("main", message, pusher = Triple("parkhs", "parkhs@example.com", "박현수")))
+        dispatcher.flush(1, null)
+        awaitTrue { received.size == 2 }
+
+        val payload = mapper.readTree(received.first { it.first == "/notify" }.second)
+        // The status is told by its name; both ends are in progress, so the category could not say it.
+        assertEquals(listOf("STATUS_CHANGED"), changeTypes(received.first().second))
+        val shown = payload.get("lines")
+        val lines = (0 until shown.size()).map { shown.get(it).asString() }
+        assertEquals(listOf("상태: 진행 중 → 리뷰 준비됨", "커밋 1개: main", "$hash $message"), lines)
+        assertTrue(payload.get("text").asString().contains("$hash $message"))
+    }
+
     private fun changeTypes(body: String): List<String> {
         val changes = mapper.readTree(body).get("changes")
         return (0 until changes.size()).map { changes.get(it).get("type").asString() }

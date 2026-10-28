@@ -64,7 +64,7 @@ function ShareLinkRow({ link, onDeleted }: { link: ShareSummary; onDeleted: () =
           value={url}
           aria-label={m.mine.linkOf(title)}
           onFocus={(event) => event.currentTarget.select()}
-          className="h-8 min-w-48 flex-1 text-[0.8125rem] max-md:h-11"
+          className="h-8 min-w-[min(12rem,100%)] flex-1 text-[0.8125rem] max-md:h-11"
         />
         <Button
           type="button"

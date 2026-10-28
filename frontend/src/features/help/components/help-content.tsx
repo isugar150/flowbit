@@ -32,7 +32,7 @@ export function HelpContent({ isAdmin }: { isAdmin: boolean }) {
           </div>
           <nav aria-label={m.startHere} className="flex flex-col gap-2">
             <p className="text-xs font-medium text-muted-foreground">{m.startHere}</p>
-            <ul className="grid grid-cols-2 gap-2">
+            <ul className="grid grid-cols-2 gap-2 max-narrow:grid-cols-1">
               {startHere.map((section) => (
                 <li key={section.id}>
                   <StartCard section={section} />

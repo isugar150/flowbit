@@ -81,7 +81,7 @@ class NotificationText(
         val path = "/issue/${notification.issueKey}"
         return NotificationMessage(
             title = "[${notification.issueKey}] ${notification.issueTitle}",
-            lines = notification.events.mapNotNull(::line),
+            lines = notification.events.flatMap(::lines) + notification.commits.flatMap(::commitLines),
             headline =
                 if (fromGit && notification.actorId == null && gitNamesNobody(notification)) {
                     "${notification.actorName}에서 티켓을 수정했습니다"
@@ -172,16 +172,35 @@ class NotificationText(
         )
     }
 
+    /** The lines of a change: one, none when the headline says it, or several for the commits of a push. */
+    private fun lines(event: IssueNotification.Event): List<String> = if (event.type == "GIT_COMMITS_PUSHED") commitLines(event) else listOfNotNull(line(event))
+
+    /**
+     * `커밋 2개: main`, then each commit shown as its hash and the first line of its message (D-242), and how many more
+     * there were. The detail is what the issue's history keeps, which shows the last few commits of the push.
+     */
+    private fun commitLines(event: IssueNotification.Event): List<String> {
+        val detail = event.detail
+        val shown = (detail["commits"] as? List<*>).orEmpty().mapNotNull { it as? Map<*, *> }
+        val more = ((detail["count"] as? Number)?.toInt() ?: shown.size) - shown.size
+        return listOf("커밋 ${detail["count"]}개: ${detail["branch"]}") +
+            shown.map { commit -> listOfNotNull(commit["sha"]?.toString(), commit["message"]?.toString()?.let(::clipped)).joinToString(" ") } +
+            listOfNotNull(if (more > 0) "외 ${more}개" else null)
+    }
+
+    /** A commit's first line as one line of a notification: a very long one is cut. */
+    private fun clipped(message: String): String = if (message.length > MAX_COMMIT_MESSAGE) message.take(MAX_COMMIT_MESSAGE - 1) + "…" else message
+
     /** Null for the changes the headline already says. */
     private fun line(event: IssueNotification.Event): String? {
         val detail = event.detail
         return when (event.type) {
             "AUTOMATION_TRIGGERED" -> detail["message"]?.toString()?.takeIf(String::isNotBlank)
-            "TRIAGE_REQUESTED" -> "새로운 티켓이 트리아지에 도착했습니다. 요청을 확인하고 분류해 주세요."
+            "TRIAGE_REQUESTED" -> "새로운 티켓이 요청함에 도착했습니다. 요청을 확인하고 분류해 주세요."
             "CREATED", "DELETED", "RESTORED" -> null
             "TITLE_CHANGED" -> change("제목", detail)
             "DESCRIPTION_CHANGED" -> "본문을 수정했습니다"
-            "STATUS_CHANGED" -> change("상태", detail, STATUSES)
+            "STATUS_CHANGED" -> change("상태", statusNames(detail), STATUSES)
             "PRIORITY_CHANGED" -> change("우선순위", detail, PRIORITIES)
             // Several people since D-125: who was added and who was taken off. Older entries hold from/to.
             "ASSIGNEE_CHANGED" -> if ("from" in detail || "to" in detail) change("담당자", detail) else addedRemoved("담당자", detail)
@@ -212,6 +231,13 @@ class NotificationText(
             else -> event.type
         }
     }
+
+    /**
+     * A status change says the names of the statuses as the people saw them (D-228): the category alone cannot tell
+     * "진행 중 → 리뷰 준비됨" from nothing, as both are in progress. Entries from before the names hold the category.
+     */
+    private fun statusNames(detail: Map<String, Any?>): Map<String, Any?> =
+        if (detail["fromName"] != null && detail["toName"] != null) detail + mapOf("from" to detail["fromName"], "to" to detail["toName"]) else detail
 
     private fun change(
         label: String,
@@ -244,6 +270,7 @@ class NotificationText(
     private fun pullRequest(detail: Map<String, Any?>): String = "${detail["repository"].toString().substringAfterLast('/')}#${detail["number"]}"
 
     private companion object {
+        const val MAX_COMMIT_MESSAGE = 120
         val STATUSES = mapOf("BACKLOG" to "백로그", "READY" to "준비됨", "IN_PROGRESS" to "진행 중", "DONE" to "완료", "CANCELED" to "취소")
         val PRIORITIES = mapOf("NONE" to "우선순위 없음", "URGENT" to "긴급", "HIGH" to "높음", "MEDIUM" to "보통", "LOW" to "낮음")
 

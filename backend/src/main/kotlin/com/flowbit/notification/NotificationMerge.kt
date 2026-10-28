@@ -78,8 +78,10 @@ object NotificationMerge {
                 replace(events, index, event.copy(detail = mapOf("added" to added.distinct(), "removed" to removed.distinct())))
             }
             type in FROM_TO && "to" in event.detail && "from" in held.detail -> {
-                // The newer change's other details (who did it through Git, say) stay.
-                replace(events, index, event.copy(detail = event.detail + ("from" to held.detail["from"])))
+                // The newer change's other details (who did it through Git, say) stay. A status also says the names it
+                // went from and to, as it can move inside a category.
+                val from = listOf("from", "fromName").filter { it in held.detail }.associateWith { held.detail[it] }
+                replace(events, index, event.copy(detail = event.detail + from))
             }
             type == "MENTIONED" -> {
                 val mentions = (names(held.detail["mentions"]) + names(event.detail["mentions"])).distinct()
@@ -101,6 +103,9 @@ object NotificationMerge {
         val empty =
             if ("added" in detail) {
                 names(detail["added"]).isEmpty() && names(detail["removed"]).isEmpty()
+            } else if ("fromName" in detail && "toName" in detail) {
+                // A status that ends where it began: in progress and back, not "in progress" to the review that is also in progress.
+                detail["fromName"] == detail["toName"]
             } else {
                 "from" in detail && detail["from"] == detail["to"]
             }

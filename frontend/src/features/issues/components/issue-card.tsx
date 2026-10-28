@@ -72,7 +72,7 @@ export function IssueCard({ card, activity, loading }: { card: IssueCardData; ac
         </p>
         <h3 className="line-clamp-3 text-sm leading-5 font-medium break-words">{card.title}</h3>
       </div>
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 max-narrow:grid-cols-1">
         <Property label={m.status}>{card.statusName ?? statusLabel(card.status)}</Property>
         {card.priority ? (
           <Property label={m.priority}>
@@ -89,7 +89,7 @@ export function IssueCard({ card, activity, loading }: { card: IssueCardData; ac
         {card.project ? <Property label={m.project}>{card.project}</Property> : null}
         {card.requester ? <Property label={m.requester}>{card.requester}</Property> : null}
         {card.labels && card.labels.length > 0 ? (
-          <div className="col-span-2">
+          <div className="col-span-full">
             <Property label={m.labels}>
               {card.labels.map((label) => (
                 <span key={label.name} className="flex h-5 max-w-36 items-center gap-1.5 rounded-full border px-1.5 text-xs leading-4">

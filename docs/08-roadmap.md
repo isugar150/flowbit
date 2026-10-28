@@ -13,7 +13,7 @@
 | M4 | 커맨드 팔레트와 단축키, 실행 취소 | 구현됨 (첫 판: 실행 취소는 티켓 속성 변경만, D-233) | [features/command-palette.md](features/command-palette.md) |
 | M5 | 보드 | 구현됨 (목록 화면의 보기 방식, D-234) | [features/board.md](features/board.md) |
 | M6 | 사이클 | 구현됨 (프로젝트별 자동 반복, D-232) | [features/cycles.md](features/cycles.md) |
-| M7 | 수신함과 트리아지 | 알림 수신함은 D-216 으로, 트리아지는 구현됨 (D-231) | [features/triage.md](features/triage.md) |
+| M7 | 수신함과 요청함 | 알림 수신함은 D-216 으로, 요청함은 구현됨 (D-231) | [features/triage.md](features/triage.md) |
 | M7a | 알림 통로: 메일(SMTP), 웹 푸시(Firebase), API 알림 (M7 의 일부를 먼저) | 구현됨 | [features/M7a-notification-channels.md](features/M7a-notification-channels.md) |
 | (마일스톤 밖) | 관리자 설정의 백업 및 복원: 워크스페이스·로그인 연동·알림 설정과 구성원을 파일로 (사용자 지정, D-112) | 구현됨 | [features/admin-backup.md](features/admin-backup.md) |
 | (마일스톤 밖) | 티켓·문서 검색: `Ctrl/⌘+K` 검색 창과 `/search` 결과 페이지 (사용자 지정, D-133) | 구현됨 | [features/search.md](features/search.md) |
@@ -57,7 +57,7 @@
 - **M4 커맨드 팔레트와 단축키, 실행 취소**: `Ctrl/⌘+K`, 전역·목록 단축키, 단축키 도움말, `Ctrl/⌘+Z` (4.6, 3장).
 - **M5 보드**: 상태 열, 끌어서 이동, 키보드로 이동 (4.3).
 - **M6 사이클**: 팀별 자동 반복 사이클, 요약 띠, 번다운, 자동 넘김 (4.5).
-- **M7 수신함과 트리아지**: 알림 생성 규칙, 수신함, 미루기, 트리아지 대기열 (4.1).
+- **M7 수신함과 요청함**: 알림 생성 규칙, 수신함, 미루기, 요청함 대기열 (4.1).
 - **M8 프로젝트**: 프로젝트, 진행률, 업데이트 (4.7). 프로젝트 속성(상태·우선순위·리드·기간·라벨)과 마일스톤(단계별 진행률)은 M3 에서 먼저 만들었다 (D-042, D-045).
 - **M9 검색과 저장한 뷰**: 한글 검색(초성, 조사), 필터, 뷰 저장과 공유 (4.8).
 - **M10 모바일 경험 다듬기**: 하단 탭, 밀어서 처리, 시트 (3장 "모바일"). 각 마일스톤에서 반응형은 기본으로 지키고, 여기서는 모바일 전용 상호작용을 더한다.

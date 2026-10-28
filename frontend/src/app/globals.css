@@ -6,6 +6,15 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * Extra layout step for windows under 360 CSS pixels, including narrow split-screen windows.
+ * Fold8 and Fold8 Ultra use the same responsive layout; physical display pixels are not CSS pixels.
+ * See docs/04-frontend-guide.md for the viewport verification matrix.
+ */
+@theme {
+  --breakpoint-narrow: 22.5rem;
+}
+
+/*
  * Design tokens. The reference for every value here is docs/01-product.md, section 5.
  * Change the two together.
  */

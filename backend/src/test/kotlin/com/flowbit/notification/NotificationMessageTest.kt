@@ -26,6 +26,56 @@ class NotificationMessageTest {
         assertEquals("김지민 님이 댓글에 답글을 남겼습니다", text.of(comment(mapOf("text" to "확인했습니다", "reply" to true))).headline)
     }
 
+    private fun change(
+        vararg events: IssueNotification.Event,
+        commits: List<IssueNotification.Event> = emptyList(),
+    ) = IssueNotification(
+        issueKey = "FB-12",
+        issueNumber = 12,
+        issueTitle = "로그인 화면 깨짐",
+        projectId = null,
+        actorId = null,
+        actorName = "김지민",
+        events = events.toList(),
+        recipientIds = emptyList(),
+        commits = commits,
+    )
+
+    @Test
+    fun `상태는 범주가 아니라 이름으로 말해서 같은 범주 안의 이동도 보인다`() {
+        val status =
+            IssueNotification.Event(
+                "STATUS_CHANGED",
+                mapOf("from" to "IN_PROGRESS", "to" to "IN_PROGRESS", "fromName" to "진행 중", "toName" to "리뷰 준비됨"),
+            )
+        assertEquals(listOf("상태: 진행 중 → 리뷰 준비됨"), text.of(change(status)).lines)
+        // An entry from before the names are kept says the category.
+        val old = IssueNotification.Event("STATUS_CHANGED", mapOf("from" to "BACKLOG", "to" to "IN_PROGRESS"))
+        assertEquals(listOf("상태: 백로그 → 진행 중"), text.of(change(old)).lines)
+    }
+
+    @Test
+    fun `상태를 옮긴 커밋은 해시와 첫 줄과 남은 개수를 말한다`() {
+        val status =
+            IssueNotification.Event(
+                "STATUS_CHANGED",
+                mapOf("from" to "IN_PROGRESS", "to" to "IN_PROGRESS", "fromName" to "진행 중", "toName" to "리뷰 준비됨"),
+            )
+        val pushed =
+            IssueNotification.Event(
+                "GIT_COMMITS_PUSHED",
+                mapOf(
+                    "branch" to "main",
+                    "count" to 3,
+                    "commits" to listOf(mapOf("sha" to "a1b2c3d4e5", "message" to "Fixes FB-12 로그인 오류"), mapOf("sha" to "f6e5d4c3b2", "message" to "리뷰 반영")),
+                ),
+            )
+        assertEquals(
+            listOf("상태: 진행 중 → 리뷰 준비됨", "커밋 3개: main", "a1b2c3d4e5 Fixes FB-12 로그인 오류", "f6e5d4c3b2 리뷰 반영", "외 1개"),
+            text.of(change(status, commits = listOf(pushed))).lines,
+        )
+    }
+
     private fun message(url: String) =
         NotificationMessage(
             title = "[FB-12] 로그인 화면 깨짐",

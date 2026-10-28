@@ -285,7 +285,7 @@ class IssueService(
         if (patch.has("estimate")) issue.estimate = estimateOf(patch.int("estimate"))
         if (patch.has("triageRejected")) {
             if (issue.projectId?.let { projectService.accessById(user, it)?.role?.canManage } != true) {
-                throw ForbiddenException("트리아지는 프로젝트 관리 역할만 정할 수 있습니다")
+                throw ForbiddenException("요청함은 프로젝트 관리 역할만 정할 수 있습니다")
             }
             if (!patch.bool("triageRejected") || !issue.triage || !patch.has("triage") || patch.bool("triage") || issue.status != IssueStatus.CANCELED) {
                 throw ValidationException("triageRejected", "INVALID", "대기 중인 티켓을 거절하고 취소할 때만 지정할 수 있습니다")
@@ -296,7 +296,7 @@ class IssueService(
             val next = patch.bool("triage")
             // Sorting the queue is for the people who manage the project, not for the one who asked (D-231).
             if (next != issue.triage && issue.projectId?.let { projectService.accessById(user, it)?.role?.canManage } != true) {
-                throw ForbiddenException("트리아지는 프로젝트 관리 역할만 정할 수 있습니다")
+                throw ForbiddenException("요청함은 프로젝트 관리 역할만 정할 수 있습니다")
             }
             issue.triage = next
             if (next) issue.triageRejected = false

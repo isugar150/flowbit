@@ -62,7 +62,7 @@ function Overview({ data, onCleaned }: { data: StorageInspection; onCleaned: () 
       </Block>
 
       <Block title={m.usage.title}>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 max-narrow:grid-cols-1 lg:grid-cols-4">
           <Stat label={m.usage.total} {...figure(data.total)} />
           <Stat label={m.usage.files} hint={m.usage.filesHint} {...figure(areas.files)} />
           <Stat label={m.usage.images} hint={m.usage.imagesHint} {...figure(areas.images)} />
@@ -172,7 +172,7 @@ export function FilesOverview() {
     return (
       <div className="flex flex-col gap-4" role="status">
         <p className="text-[0.8125rem] leading-5 text-muted-foreground">{m.loading}</p>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-hidden="true">
+        <div className="grid grid-cols-2 gap-3 max-narrow:grid-cols-1 lg:grid-cols-4" aria-hidden="true">
           {[0, 1, 2, 3].map((index) => (
             <Skeleton key={index} className="h-24 rounded-xl" />
           ))}

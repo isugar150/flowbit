@@ -22,7 +22,7 @@ export default function HelpLoading() {
             </div>
             <div className="flex flex-col gap-2">
               <TextLine bar="h-3" className="w-20" />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 max-narrow:grid-cols-1">
                 {Array.from({ length: 4 }, (_, index) => (
                   <Skeleton key={index} className="h-20 rounded-xl max-sm:h-14" />
                 ))}

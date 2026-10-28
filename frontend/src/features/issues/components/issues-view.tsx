@@ -450,7 +450,7 @@ export function IssuesView({
           </Empty>
         </div>
       ) : (
-        <div className="flex flex-col">
+        <div className="flex min-w-0 flex-col">
           {/*
             Nothing scrolls sideways (D-224). The first line has two groups that move as wholes when they do not fit side by side:
             search and the "필터" menu on the left; the display options and the view switch on the right (and, when even those do not

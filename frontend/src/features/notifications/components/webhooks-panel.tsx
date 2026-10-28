@@ -332,7 +332,7 @@ function WebhookForm({
         </FieldDescription>
         <fieldset className="flex flex-col gap-2 sm:col-span-2">
           <legend className="mb-1.5 text-sm font-medium">{w.eventTypes}</legend>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 max-narrow:grid-cols-1 sm:grid-cols-3">
             {WEBHOOK_EVENT_TYPES.filter(
               // Git kinds only while Git is in use, or when this webhook already has one.
               (type) => gitEnabled || !GIT_EVENT_TYPES.includes(type) || form.eventTypes.includes(type),

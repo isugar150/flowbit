@@ -35,7 +35,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "go-my", keys: ["G M"], group: "go", label: "내 티켓" },
   { id: "go-created", keys: ["G R"], group: "go", label: "요청한 티켓" },
   { id: "go-all", keys: ["G I"], group: "go", label: "전체 티켓" },
-  { id: "go-triage", keys: ["G T"], group: "go", label: "트리아지" },
+  { id: "go-triage", keys: ["G T"], group: "go", label: "요청함" },
   { id: "go-projects", keys: ["G P"], group: "go", label: "전체 프로젝트" },
   { id: "go-settings", keys: ["G S"], group: "go", label: "내 설정" },
   { id: "go-help", keys: ["G H"], group: "go", label: "도움말" },

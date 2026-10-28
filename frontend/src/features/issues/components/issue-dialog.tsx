@@ -73,7 +73,7 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
           </DialogClose>
         </div>
         {/* The scroll box is inside, not the dialog itself, so the editor's menus are not clipped. */}
-        <div className="max-h-[calc(88dvh-3.5rem)] min-h-64 overflow-y-auto overscroll-contain">
+        <div className="max-h-[calc(88dvh-3.5rem)] min-h-[min(16rem,calc(88dvh-3.5rem))] overflow-y-auto overscroll-contain">
           {/* The ticket lays itself out by its own width, which the wide panel makes narrow. */}
           <div className="@container">
             {children}

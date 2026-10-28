@@ -71,11 +71,11 @@ export function AppShell({
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:border">
               <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-2 md:hidden">
                 {/* The sidebar is hidden at this width; the menu holds the same places. */}
-                <div className="flex min-w-0 items-center">
+                <div className="flex min-w-0 flex-1 items-center">
                   <MobileNav projects={projects} />
                   <WorkspaceLink workspace={workspace} />
                 </div>
-                <div className="flex items-center">
+                <div className="flex shrink-0 items-center">
                   <SearchButton variant="icon" />
                   <NewIssueButton variant="icon" />
                   <InboxBell unread={unreadNotifications} placement="header" />
@@ -114,7 +114,8 @@ function WorkspaceLink({ workspace }: { workspace: Workspace }) {
           {mark(workspace.name, 1)}
         </AvatarFallback>
       </Avatar>
-      <span className="truncate">{workspace.name}</span>
+      {/* Keep the accessible name when only the workspace mark fits. */}
+      <span className="truncate max-narrow:sr-only">{workspace.name}</span>
     </Link>
   );
 }

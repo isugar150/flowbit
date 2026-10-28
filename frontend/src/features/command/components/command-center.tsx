@@ -319,7 +319,7 @@ export function CommandCenter({ projects, isAdmin }: { projects: ProjectSummary[
       go("go-my", messages.myIssues.title, "/my-issues", "내 티켓 assigned"),
       go("go-created", messages.myIssues.created, "/my-issues/created", "요청한 티켓 created"),
       go("go-all", messages.issues.all, "/issues", "전체 티켓 all issues"),
-      go("go-triage", messages.triage.title, "/triage", "트리아지 분류 triage"),
+      go("go-triage", messages.triage.title, "/triage", "요청함 분류 트리아지 triage"),
       go("go-projects", messages.projects.all, "/", "프로젝트 projects"),
       go("go-settings", messages.settings.title, "/settings", "설정 비밀번호 알림 settings"),
       go("go-help", messages.userMenu.help, "/help", "도움말 사용법 help"),

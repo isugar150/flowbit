@@ -100,7 +100,7 @@ export function ProjectGitRepositories({ projectId, settings }: { projectId: str
           </NativeSelect>
         </label>
         {choices.length > 0 ? (
-          <label className="flex min-w-56 flex-1 flex-col gap-1 text-sm font-medium">
+          <label className="flex min-w-[min(14rem,100%)] flex-1 flex-col gap-1 text-sm font-medium">
             {m.repository}
             <NativeSelect
               className="h-9 w-full font-mono max-md:h-11"
@@ -121,7 +121,7 @@ export function ProjectGitRepositories({ projectId, settings }: { projectId: str
           </label>
         ) : null}
         {typing ? (
-          <label className="flex min-w-56 flex-1 flex-col gap-1 text-sm font-medium">
+          <label className="flex min-w-[min(14rem,100%)] flex-1 flex-col gap-1 text-sm font-medium">
             {choices.length > 0 ? m.typedName : m.repository}
             <Input
               value={typed}

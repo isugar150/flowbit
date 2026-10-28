@@ -300,7 +300,7 @@ class ProjectService(
         val access = access(user, projectId, administrator)
         val project = access.project
         if (administrator && !ADMINISTRATOR_FIELDS.containsAll(changes.keys)) {
-            throw ForbiddenException("관리자 화면에서는 프로젝트의 이름, 공개 범위, 추정치, 트리아지만 바꿀 수 있습니다")
+            throw ForbiddenException("관리자 화면에서는 프로젝트의 이름, 공개 범위, 추정치, 요청함만 바꿀 수 있습니다")
         }
         if (!access.role.canEdit ||
             (("name" in changes || "openToAll" in changes || "estimatesEnabled" in changes || "triageEnabled" in changes) && !access.role.canManage)

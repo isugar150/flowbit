@@ -263,7 +263,7 @@ export function NewIssueDialog({
   return (
     <Dialog open={open} onOpenChange={requestOpenChange}>
       {/* The dialog exists to type a title: put the cursor there as it opens. */}
-      <DialogContent className="gap-0 p-0 sm:max-w-2xl md:max-w-4xl" initialFocus={titleRef}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto overscroll-contain p-0 sm:max-w-2xl md:max-w-4xl" initialFocus={titleRef}>
         <DialogTitle className="sr-only">{m.newTitle}</DialogTitle>
         <DialogDescription className="sr-only">{m.emptyDescription}</DialogDescription>
         <form

@@ -269,10 +269,10 @@ export function IssueBoard({
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <DragEndedContext value={dragEnded}>
         <DndContext sensors={sensors} collisionDetection={inColumn} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActive(null)}>
-          <div className="flex snap-x gap-3 overflow-x-auto px-4 pb-4" role="list" aria-label={m.label}>
+          <div className="flex w-full min-w-0 snap-x gap-3 overflow-x-auto px-4 pb-4" role="list" aria-label={m.label}>
             {statuses.map((status) => {
               const cards = issues.filter((issue) => issue.statusId === status.id);
               return (

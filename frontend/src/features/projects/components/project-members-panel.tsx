@@ -125,7 +125,7 @@ export function ProjectMembersPanel({
             if (newUserId) run(() => put.mutate({ id: projectId, userId: newUserId, role: newRole }));
           }}
         >
-          <Field className="min-w-48 flex-1 sm:max-w-72">
+          <Field className="min-w-[min(12rem,100%)] flex-1 sm:max-w-72">
             <FieldLabel htmlFor="add-member-user">{m.addMemberLabel}</FieldLabel>
             <NativeSelect
               id="add-member-user"

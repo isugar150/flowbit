@@ -98,7 +98,7 @@ export function SharedIssuePage({ token, issue }: { token: string; issue: Shared
         </p>
         <h1 className="text-[1.375rem] leading-[1.875rem] font-semibold">{issue.title}</h1>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border px-3 py-3 sm:grid-cols-3">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border px-3 py-3 max-narrow:grid-cols-1 sm:grid-cols-3">
         <Property label={m.status}>
           <StatusIcon status={issue.status} />
           {statusLabel(issue.status)}

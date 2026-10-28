@@ -69,7 +69,7 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
               className={
                 inSidebar
                   ? "h-8 w-full justify-start px-2 text-[0.8125rem] hover:bg-sidebar-accent aria-expanded:bg-sidebar-accent"
-                  : "h-9 max-w-48 px-2 text-[0.8125rem]"
+                  : "size-11 justify-center px-0 text-[0.8125rem]"
               }
             />
           }
@@ -78,8 +78,8 @@ export function UserMenu({ user, placement }: { user: Me; placement: "sidebar" |
             {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
             <AvatarFallback>{initial(name)}</AvatarFallback>
           </Avatar>
-          <span className="truncate">{name}</span>
-          <ChevronsUpDownIcon data-icon="inline-end" className="ml-auto text-muted-foreground" />
+          {inSidebar ? <span className="truncate">{name}</span> : null}
+          {inSidebar ? <ChevronsUpDownIcon data-icon="inline-end" className="ml-auto text-muted-foreground" /> : null}
         </DropdownMenuTrigger>
         <DropdownMenuContent
           side={inSidebar ? "top" : "bottom"}

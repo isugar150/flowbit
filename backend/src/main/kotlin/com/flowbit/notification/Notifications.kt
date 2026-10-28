@@ -17,6 +17,11 @@ data class IssueNotification(
     val events: List<Event>,
     /** Subscribers of the issue and of its project, without the person who made the change. May be empty. */
     val recipientIds: List<UUID>,
+    /**
+     * The commits a Git server pushed that moved the issue (D-242): told in the words of the notification, as the hash
+     * and first line of each, but not among its [events], so that the changes it carries stay what they were.
+     */
+    val commits: List<Event> = emptyList(),
 ) {
     data class Event(
         val type: String,
@@ -25,9 +30,15 @@ data class IssueNotification(
 
     /**
      * Without the changes only an API notification that names them gets: a Git server's links
-     * and commits (D-141). Null when nothing else is left to tell.
+     * and commits (D-141). Null when nothing else is left to tell. When the issue's status moved, the commits that
+     * moved it are still named in the words (D-242), since "진행 중 → 리뷰 준비됨" alone does not say why.
      */
-    fun forEveryChannel(): IssueNotification? = events.filterNot { it.type in OPT_IN_TYPES }.takeIf { it.isNotEmpty() }?.let { copy(events = it) }
+    fun forEveryChannel(): IssueNotification? {
+        val rest = events.filterNot { it.type in OPT_IN_TYPES }
+        if (rest.isEmpty()) return null
+        val pushed = if (rest.any { it.type == "STATUS_CHANGED" }) events.filter { it.type == "GIT_COMMITS_PUSHED" } else emptyList()
+        return copy(events = rest, commits = pushed)
+    }
 
     companion object {
         /** Sent only to API notifications that list them in their "보낼 변경"; never by mail or push. */
