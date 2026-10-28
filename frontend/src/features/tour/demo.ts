@@ -1,3 +1,4 @@
+import { BUILT_IN_STATUSES, defaultStatusOf } from "@/features/issues/status-defaults";
 import type { Issue, IssueChanges, Label, NewIssueInput } from "@/features/issues/types";
 import type { Project, ProjectMember, ProjectSummary, ProjectUpdate } from "@/features/projects/types";
 import { messages } from "@/messages";
@@ -70,9 +71,13 @@ export function createDemo(): Demo {
     member: true,
     archivedAt: null,
     openToAll: false,
+    estimatesEnabled: false,
+    triageEnabled: false,
     content: null,
   };
-  const issue = (number: number, fields: Partial<Issue>): Issue => ({
+  const issue = (number: number, fields: Partial<Issue>): Issue => {
+    const inStatus = defaultStatusOf(BUILT_IN_STATUSES, fields.status ?? "BACKLOG");
+    return {
     id: `example-issue-${number}`,
     key: `${DEMO_KEY}-${number}`,
     number,
@@ -80,6 +85,12 @@ export function createDemo(): Demo {
     description: "",
     content: null,
     status: "BACKLOG",
+    statusId: inStatus.id,
+    statusName: inStatus.name,
+    estimate: null,
+    openBlockers: 0,
+    triage: false,
+    cycle: null,
     priority: "NONE",
     assignees: [],
     startDate: null,
@@ -99,7 +110,8 @@ export function createDemo(): Demo {
     updatedAt: at,
     deletedAt: null,
     ...fields,
-  });
+    };
+  };
   return {
     project,
     members,

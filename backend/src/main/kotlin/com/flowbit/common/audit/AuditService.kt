@@ -22,6 +22,7 @@ enum class AuditEventType {
     MEMBER_DISABLED,
     MEMBER_ENABLED,
     MEMBER_PASSWORD_RESET,
+    MEMBER_PASSWORD_CHANGED,
     MEMBER_PROVISIONED,
     MEMBER_CONVERTED,
     AUTH_SETTINGS_CHANGED,
@@ -41,6 +42,7 @@ enum class AuditEventType {
     SHARE_LINK_CREATED,
     SHARE_LINK_REVOKED,
     MEMBER_DAILY_SUMMARY_CHANGED,
+    ISSUE_STATUSES_CHANGED,
 }
 
 /** Append-only record of security-relevant events. Never pass passwords or other secrets in `detail`. */

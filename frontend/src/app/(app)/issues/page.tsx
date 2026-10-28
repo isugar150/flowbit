@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AllIssues } from "@/features/issues/components/all-issues";
+import { parsePages } from "@/features/issues/paging";
 import { messages } from "@/messages";
 
 export const metadata: Metadata = { title: messages.issues.all };
@@ -9,6 +10,6 @@ export const metadata: Metadata = { title: messages.issues.all };
  * overview, D-135) is the list's own project filter, read in the browser.
  */
 export default async function AllIssuesPage({ searchParams }: PageProps<"/issues">) {
-  const { deleted } = await searchParams;
-  return <AllIssues deleted={Boolean(deleted)} />;
+  const { deleted, pages } = await searchParams;
+  return <AllIssues deleted={Boolean(deleted)} pages={parsePages(pages)} />;
 }

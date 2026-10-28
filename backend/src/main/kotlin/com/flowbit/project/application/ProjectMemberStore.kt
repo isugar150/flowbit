@@ -43,6 +43,8 @@ data class ProjectSummaryRow(
     val archivedAt: Instant? = null,
     /** Whether every member of the workspace enters the project as an editor (D-192). */
     val openToAll: Boolean = false,
+    val estimatesEnabled: Boolean = false,
+    val triageEnabled: Boolean = false,
 )
 
 data class ProjectPerson(
@@ -368,7 +370,7 @@ class ProjectMemberStore(
             databaseClient
                 .sql(
                     """
-                    select p.id, p.name, p.description, p.icon_key, p.created_at, p.archived_at, p.open_to_all, pm.role as member_role,
+                    select p.id, p.name, p.description, p.icon_key, p.created_at, p.archived_at, p.open_to_all, p.estimates_enabled, p.triage_enabled, pm.role as member_role,
                            case when p.open_to_all then (select count(*) from users au where au.status = 'ACTIVE')
                                 else (select count(*) from project_members m join users mu on mu.id = m.user_id where m.project_id = p.id and mu.status = 'ACTIVE')
                            end as member_count,
@@ -425,6 +427,8 @@ class ProjectMemberStore(
                     subscribed = checkNotNull(row.get("subscribed", Boolean::class.javaObjectType)),
                     archivedAt = row.get("archived_at", OffsetDateTime::class.java)?.toInstant(),
                     openToAll = checkNotNull(row.get("open_to_all", Boolean::class.javaObjectType)),
+                    estimatesEnabled = checkNotNull(row.get("estimates_enabled", Boolean::class.javaObjectType)),
+                    triageEnabled = checkNotNull(row.get("triage_enabled", Boolean::class.javaObjectType)),
                 )
             }.all()
             .collectList()

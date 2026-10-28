@@ -2,6 +2,7 @@ package com.flowbit.issue.api
 
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ValidationException
+import com.flowbit.issue.application.ISSUE_LIST_LIMIT
 import com.flowbit.issue.application.IssueCommentService
 import com.flowbit.issue.application.IssueDocumentService
 import com.flowbit.issue.application.IssueDuplicationService
@@ -44,13 +45,18 @@ class IssueController(
     private val announcer: IssueAnnouncer,
     private val uploadReader: UploadReader,
 ) {
-    /** Issues the caller may see; `project` narrows the list to the ones linked to that project. */
+    /**
+     * Issues the caller may see, newest first; `project` narrows the list to the ones linked to that project. `limit` is how
+     * many of them to send (1000 unless asked; at most 10000): the list screens ask for one more than they show to know whether
+     * there are more, and for a thousand more each time they are asked to load more (D-227).
+     */
     @GetMapping
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestParam(required = false) project: String?,
         @RequestParam(defaultValue = "false") deleted: Boolean,
-    ): List<IssueResponse> = issueService.list(user, project, deleted).map(IssueResponse::from)
+        @RequestParam(defaultValue = "$ISSUE_LIST_LIMIT") limit: Int,
+    ): List<IssueResponse> = issueService.list(user, project, deleted, limit).map(IssueResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -280,7 +286,8 @@ class ProjectIssueController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @PathVariable projectId: String,
         @RequestParam(defaultValue = "false") deleted: Boolean,
-    ): List<IssueResponse> = issueService.list(user, projectId, deleted).map(IssueResponse::from)
+        @RequestParam(defaultValue = "$ISSUE_LIST_LIMIT") limit: Int,
+    ): List<IssueResponse> = issueService.list(user, projectId, deleted, limit).map(IssueResponse::from)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -296,6 +303,18 @@ class ProjectIssueController(
     }
 }
 
+/** The triage queue: the issues of the projects the caller may edit that wait to be sorted (D-231). */
+@RestController
+@RequestMapping("/api/v1/triage")
+class TriageController(
+    private val issueService: IssueService,
+) {
+    @GetMapping
+    suspend fun queue(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+    ): List<IssueResponse> = issueService.triageQueue(user).map(IssueResponse::from)
+}
+
 /** "내 티켓": the caller's issues across projects. `scope` is `assigned` (default) or `created`. */
 @RestController
 @RequestMapping("/api/v1/me/issues")
@@ -307,10 +326,11 @@ class MyIssuesController(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestParam(defaultValue = "assigned") scope: String,
         @RequestParam(defaultValue = "false") deleted: Boolean,
+        @RequestParam(defaultValue = "$ISSUE_LIST_LIMIT") limit: Int,
     ): List<IssueResponse> {
         val parsed =
             MyIssueScope.entries.firstOrNull { it.name.equals(scope, ignoreCase = true) }
                 ?: throw ValidationException("scope", "INVALID", "값이 올바르지 않습니다")
-        return issueService.mine(user, parsed, deleted).map(IssueResponse::from)
+        return issueService.mine(user, parsed, deleted, limit).map(IssueResponse::from)
     }
 }

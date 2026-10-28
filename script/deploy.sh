@@ -36,6 +36,25 @@ env_value() {
   echo "${line:-$default}"
 }
 
+random_key() {
+  if command -v openssl >/dev/null; then
+    openssl rand -base64 32
+  else
+    head -c 32 /dev/urandom | base64
+  fi
+}
+
+# An .env made before secrets were encrypted has no key: nothing is lost, the secrets just stay plain text.
+warn_secret_key() {
+  if [[ -z "$(env_value FLOWBIT_SECRET_KEY "")" ]]; then
+    echo "NOTE: FLOWBIT_SECRET_KEY is not set in $ENV_FILE, so the secrets kept in the database (LDAP, SSO, mail, Firebase,"
+    echo "webhook and Git secrets) are stored as plain text. To encrypt them, add a line like"
+    echo "  FLOWBIT_SECRET_KEY=$(random_key)"
+    echo "and run this script again: the secrets already stored are encrypted when the server starts. Keep that key safe;"
+    echo "without it the encrypted secrets cannot be read."
+  fi
+}
+
 create_env_file() {
   echo "=== Create .env ==="
 
@@ -81,6 +100,12 @@ FLOWBIT_STORAGE_TYPE=local
 # MinIO 같은 S3 호환 저장소를 쓸 때만 그 주소를 적는다(AWS 는 적지 않는다).
 # FLOWBIT_S3_ENDPOINT=
 EOF
+  {
+    echo
+    echo "# DB 에 저장되는 비밀 값(LDAP·SSO·메일·Firebase·웹훅·Git 의 비밀번호와 키)을 암호화하는 암호(16자 이상). 처음 만들 때 정해진다."
+    echo "# 잃어버리거나 바꾸면 이미 암호화된 비밀 값을 읽을 수 없다. 이 파일과 함께 안전한 곳에 보관한다."
+    echo "FLOWBIT_SECRET_KEY=$(random_key)"
+  } >> "$ENV_FILE"
   chmod 600 "$ENV_FILE" 2>/dev/null || true
 
   echo "Created $ENV_FILE"
@@ -142,6 +167,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 check_database_settings
+warn_secret_key
 
 # Wins over a FLOWBIT_VERSION line in .env, so the next plain ./deploy.sh is the newest again.
 if [[ -n "${1:-}" ]]; then

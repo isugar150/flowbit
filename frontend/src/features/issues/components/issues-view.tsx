@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { FileTextIcon, PlusIcon, SearchIcon, Trash2Icon, XIcon, ArrowUpDownIcon, CircleCheckIcon, LayersIcon } from "lucide-react";
+import { FileTextIcon, PlusIcon, RepeatIcon, SearchIcon, Trash2Icon, XIcon, ArrowUpDownIcon, CircleCheckIcon, LayersIcon } from "lucide-react";
 
 import { useShownAt, useToday } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Kbd } from "@/components/ui/kbd";
+import { ShortcutKeys } from "@/components/shortcut-keys";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
@@ -16,23 +16,27 @@ import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { isTyping } from "@/lib/is-typing";
 import { messages } from "@/messages";
-import { updateIssue } from "../api";
+import { updateIssueUndoable, type UndoableChange } from "../undoable";
 import { DUE_FILTERS, NO_DUE, matchesDue } from "../due-filter";
 import { STATUS_ORDER } from "../meta";
+import { defaultStatusOf, inStatus } from "../status-defaults";
+import { statusChoices, useIssueStatuses } from "../statuses";
 import { NONE, priorityOptions } from "../options";
 import { DEFAULT_ISSUE_GROUPING, ISSUE_GROUPS, groupIssues, type IssueGrouping } from "../grouping";
 import { useRememberedListQuery } from "../list-memory";
+import { ISSUE_MAX_PAGES, ISSUE_PAGE_SIZE, PAGES_KEY } from "../paging";
 import { useProgressiveCount, withinBudget } from "../progressive";
 import { useStableList } from "../stable";
 import { arrangeBySubIssues } from "../sub-issue-tree";
-import type { Issue, IssueChanges, IssueStatus, Label } from "../types";
+import type { Issue, IssueChanges, Label } from "../types";
 import { NEW_ISSUE_EVENT } from "./new-issue-launcher";
 import { DEFAULT_ISSUE_SORT, ISSUE_SORTS, sortIssues, type IssueSort } from "../sort";
-import { ChipSelect, type ChipOption } from "./chip-select";
+import { ChipSelect, chipClass, type ChipOption } from "./chip-select";
 import type { IssueDates } from "./issue-calendar";
 import { IssueListHeader, IssueListRow } from "./issue-list-row";
 import { ActiveFilterChips, CHIP_KEYS, FILTER_ALL, FILTER_KEYS, IssueFilterMenu, type ChipKey } from "./issue-filter-menu";
 import { IssueViewSwitch, useIssueView, useListAddress, useReplaceListQuery } from "./issue-views";
+import { SavedViewsMenu, VIEW_PATHS } from "./saved-views-menu";
 import { SubIssueContextRow } from "./sub-issue-rows";
 
 const m = messages.issues;
@@ -40,6 +44,7 @@ const m = messages.issues;
 // The list is what nearly everyone comes for, so only the list is in the page's own script. The
 // other two views arrive when they are chosen, and the new-issue dialog (which carries the whole
 // document editor) when it is first opened, or a moment earlier when its button is pointed at.
+const IssueBoard = dynamic(() => import("./issue-board").then((module) => module.IssueBoard));
 const IssueTimeline = dynamic(() => import("./issue-timeline").then((module) => module.IssuesTimelineView));
 const IssueCalendarView = dynamic(() => import("./issue-calendar").then((module) => module.IssuesCalendarView));
 const loadNewIssueDialog = () => import("./new-issue-dialog");
@@ -81,6 +86,8 @@ const GROUP_KEY = "group";
 const GROUP_ICON = <LayersIcon className="size-4 text-muted-foreground" aria-hidden />;
 /** The title search in the address: `?q=`. */
 const SEARCH_KEY = "q";
+/** `?cycle=current`: only what is planned in the running cycle (D-232). */
+const CYCLE_KEY = "cycle";
 /** `?assignee=none` in the address stands for NONE. */
 const NONE_PARAM = "none";
 
@@ -105,7 +112,13 @@ export function IssuesView({
   assigneeFilter = true,
   openCreated = true,
   shareScope,
+  hasMore = false,
+  pages = 1,
 }: {
+  /** True when the server has issues beyond the ones in `issues`: the list is loaded a thousand at a time (D-227). */
+  hasMore?: boolean;
+  /** How many thousands of issues `issues` was asked to hold (`?pages=`). */
+  pages?: number;
   /** Which of a person's issues these are ("내 티켓": the ones assigned to them or the ones they made): puts a "공유하기" button on the calendar (its month) and on the timeline (the months picked) (D-197, D-199). Left out where they are not shared. */
   shareScope?: "assigned" | "created";
   /** False for example data (the tour's) whose tickets have no page of their own: a ticket made in the dialog is then not opened. */
@@ -141,12 +154,20 @@ export function IssuesView({
   // moves to its new group before the save has come back.
   // The page is read again after a save and when someone else changes something, and the server sends every issue as a new
   // object: the ones that did not change stay the objects they were, so only the lines that changed are drawn again (D-206).
+  const statuses = useIssueStatuses();
   const stableIssues = useStableList(savedIssues, (issue) => issue.id);
   const mutation = useOptimisticMutation(
     stableIssues,
-    (current, { number, changes }: { number: number; changes: Pick<IssueChanges, "status" | "startDate" | "dueDate"> }) =>
-      current.map((issue) => (issue.number === number ? { ...issue, ...changes } : issue)),
-    updateIssue,
+    (current, { number, changes }: UndoableChange & { changes: Pick<IssueChanges, "status" | "statusId" | "startDate" | "dueDate"> }) =>
+      current.map((issue) => {
+        if (issue.number !== number) return issue;
+        // A status picked by id brings its category and name along, so the line is in its new group at once.
+        const picked = changes.statusId ? statuses.find((status) => status.id === changes.statusId) : undefined;
+        const category = picked?.category ?? changes.status;
+        const target = picked ?? (category && category !== issue.status ? defaultStatusOf(statuses, category) : undefined);
+        return { ...issue, ...changes, ...(target ? { status: target.category, statusId: target.id, statusName: target.name } : {}) };
+      }),
+    updateIssueUndoable,
   );
   const allIssues = mutation.value;
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -175,7 +196,7 @@ export function IssuesView({
   // Each filter is a value of its own (not a field of one object made on every render), so that the list below can
   // name exactly what it depends on.
   const project = readFilter("project", (value) => projects.some((option) => option.id === value));
-  const status = readFilter("status", (value) => STATUS_ORDER.some((known) => known === value));
+  const status = readFilter("status", (value) => statuses.some((known) => known.id === value) || STATUS_ORDER.some((known) => known === value));
   const priority = readFilter("priority", (value) => priorityOptions.some((option) => option.value === value));
   const assignee = assigneeFilter ? readFilter("assignee", (value) => members.some((member) => member.userId === value)) : ALL;
   const due = readFilter("due", (value) => DUE_FILTERS.some((known) => known === value));
@@ -202,20 +223,23 @@ export function IssuesView({
   const [search, setSearch] = useState(() => searchParams.get(SEARCH_KEY) ?? "");
   // The box shows each letter at once; a long list catches up with the typing a moment later.
   const needle = useDeferredValue(search).trim().toLowerCase();
-  const filtered = needle !== "" || labelFilter.length > 0 || CHIP_KEYS.some((key) => filters[key] !== ALL);
+  // Only the issues planned in the cycle that is running in their project (D-232): `?cycle=current`.
+  const onlyCurrentCycle = searchParams.get(CYCLE_KEY) === "current";
+  const filtered = needle !== "" || labelFilter.length > 0 || onlyCurrentCycle || CHIP_KEYS.some((key) => filters[key] !== ALL);
   // The list of issues (at most a thousand) narrowed by the filters. It is worked out on each render rather than
   // memoized by hand: that is under a millisecond, and the hand-written dependency list could not be kept by the
   // React Compiler lint (it reads `searchParams`, which it cannot prove is not changed later).
   const matches = (filter: string, value: string | null | undefined) => filter === ALL || (value ?? NONE) === filter;
   const passesFilters = (issue: Issue) =>
       matches(project, issue.project?.id) &&
-      matches(status, issue.status) &&
+      (status === ALL || inStatus(issue, status)) &&
       // "No priority" is a priority of its own (NONE), not a missing value.
       (priority === ALL || issue.priority === priority) &&
       // One person is picked: the issue passes when they are one of its assignees.
       (assignee === ALL ||
         (assignee === NONE ? issue.assignees.length === 0 : issue.assignees.some((person) => person.id === assignee))) &&
       (due === ALL || matchesDue(issue, due === NONE ? NO_DUE : due, today)) &&
+      (!onlyCurrentCycle || (issue.cycle !== null && today !== null && issue.cycle.startsOn <= today && today <= issue.cycle.endsOn)) &&
       (labelFilter.length === 0 ||
         (issue.labels.length === 0 ? labelFilter.includes(NONE) : issue.labels.some((label) => labelFilter.includes(label.id)))) &&
       (needle === "" || issue.title.toLowerCase().includes(needle) || issue.key.toLowerCase().includes(needle));
@@ -223,7 +247,7 @@ export function IssuesView({
   const clearFilters = () => {
     setSearch("");
     replaceQuery((params) => {
-      for (const key of [...FILTER_KEYS, SEARCH_KEY]) params.delete(key);
+      for (const key of [...FILTER_KEYS, SEARCH_KEY, CYCLE_KEY]) params.delete(key);
     });
   };
   // A ticket just made must show up. The filters are remembered across visits and across the three lists, so one left over
@@ -241,6 +265,7 @@ export function IssuesView({
     members,
     labels,
     assigneeFilter,
+    statusOptions: statusChoices(statuses),
     values: filters,
     labelValue: labelFilter,
     onChange: setFilter,
@@ -248,8 +273,16 @@ export function IssuesView({
   };
   const [view, setView] = useIssueView();
   const { mutate } = mutation;
+  // What the list showed a moment ago, for putting a change back (Ctrl/⌘+Z): read when a change is made, not when it is drawn.
+  const shown = useRef(allIssues);
+  useEffect(() => {
+    shown.current = allIssues;
+  }, [allIssues]);
   const changeStatus = useCallback(
-    (number: number, next: IssueStatus) => mutate({ number, changes: { status: next } }),
+    (number: number, statusId: string) => {
+      const before = shown.current.find((issue) => issue.number === number);
+      mutate({ number, changes: { statusId }, key: before?.key, undoWith: before ? { statusId: before.statusId } : undefined });
+    },
     [mutate],
   );
   // Deleted issues are only looked at: nothing is made or changed among them.
@@ -317,7 +350,7 @@ export function IssuesView({
     >
       <PlusIcon data-icon="inline-start" />
       {m.new}
-      <Kbd className="max-md:hidden">C</Kbd>
+      <ShortcutKeys id="new-issue" />
     </Button>
   ) : null;
 
@@ -341,6 +374,9 @@ export function IssuesView({
     });
   const groupOptions: ChipOption<IssueGrouping>[] = groupChoices.map((value) => ({ value, label: m.groupings[value], icon: GROUP_ICON }));
 
+  // Asks the server for a thousand more: the page is read again with one more page in the address.
+  const loadMore = () => replaceQuery((params) => params.set(PAGES_KEY, String(pages + 1)));
+
   const completedParam = searchParams.get(COMPLETED_KEY);
   const completed = COMPLETED_WINDOWS.find((value) => value === completedParam) ?? DEFAULT_COMPLETED;
   const setCompleted = (value: CompletedWindow) =>
@@ -358,7 +394,7 @@ export function IssuesView({
   // The server may not read the clock: until the browser takes over, nothing counts as long ago.
   const now = useShownAt();
   const groups = useMemo(() => {
-    return groupIssues(issues, grouping, projects).map((group) => {
+    return groupIssues(issues, grouping, projects, statuses).map((group) => {
       // Issues finished long ago leave the lines but are still counted, so the group can offer them.
       const shown = group.issues.filter((issue) => (now === null || !finishedLongAgo(issue, completed, now)));
       const items = sortIssues(shown, sort);
@@ -371,7 +407,11 @@ export function IssuesView({
         rows: arrangeBySubIssues(items),
       };
     });
-  }, [issues, grouping, projects, sort, completed, now]);
+  }, [issues, grouping, projects, statuses, sort, completed, now]);
+
+  // The board: every issue the list would show (the same "completed" window), in a column for its status.
+  const boardIssues = issues.filter((issue) => now === null || !finishedLongAgo(issue, completed, now));
+  const hiddenFinished = issues.length - boardIssues.length;
 
   // The last filters, order and grouping are shared by the three lists and kept across visits.
   // A long list is drawn in steps: the first lines at once and the rest while the page can already be used (D-206).
@@ -437,6 +477,25 @@ export function IssuesView({
                   />
                 </div>
                 <IssueFilterMenu {...filterProps} />
+                {allIssues.some((issue) => issue.cycle !== null) || onlyCurrentCycle ? (
+                  <button
+                    type="button"
+                    aria-pressed={onlyCurrentCycle}
+                    onClick={() =>
+                      replaceQuery((params) => {
+                        if (onlyCurrentCycle) params.delete(CYCLE_KEY);
+                        else params.set(CYCLE_KEY, "current");
+                      })
+                    }
+                    className={cn(chipClass, onlyCurrentCycle ? "bg-secondary text-foreground" : "border-dashed text-muted-foreground hover:text-foreground")}
+                  >
+                    <RepeatIcon className="size-3.5" aria-hidden="true" />
+                    <span>{messages.cycles.filter}</span>
+                  </button>
+                ) : null}
+                {VIEW_PATHS.includes(pathname) ? (
+                  <SavedViewsMenu path={pathname} searchParams={searchParams} onApplied={(params) => setSearch(params.get(SEARCH_KEY) ?? "")} />
+                ) : null}
                 {filtered ? (
                   <Button variant="ghost" size="sm" className="text-muted-foreground max-md:h-11" onClick={clearFilters}>
                     <XIcon data-icon="inline-start" />
@@ -447,6 +506,7 @@ export function IssuesView({
               <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                 {deletedToggle}
                 {/* The timeline and the calendar have an order of their own (by project, by day). */}
+                {view === "board" ? <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} /> : null}
                 {view === "list" ? (
                   <>
                     <ChipSelect label={m.completedFilter} value={completed} options={completedOptions} onChange={setCompleted} />
@@ -467,6 +527,21 @@ export function IssuesView({
               {m.filtersClearedForCreated}
             </p>
           ) : null}
+          {hasMore ? (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t bg-muted/50 px-5 py-2 text-[0.8125rem] leading-5 text-muted-foreground"
+            >
+              <span>{m.more.notice(savedIssues.length)}</span>
+              {pages < ISSUE_MAX_PAGES ? (
+                <Button variant="outline" size="sm" className="max-md:h-11" onClick={loadMore}>
+                  {m.more.load(ISSUE_PAGE_SIZE)}
+                </Button>
+              ) : (
+                <span>{m.more.limit(ISSUE_MAX_PAGES * ISSUE_PAGE_SIZE)}</span>
+              )}
+            </div>
+          ) : null}
           {issues.length === 0 ? (
             <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">
               {allIssues.length === 0 ? m.noDeletedIssues : m.noIssuesInFilter}
@@ -477,7 +552,16 @@ export function IssuesView({
               <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert>
             </div>
           ) : null}
-          {view === "timeline" ? (
+          {view === "board" ? (
+            <IssueBoard
+              issues={boardIssues}
+              statuses={statuses}
+              projects={projects}
+              canMove={mayEdit}
+              onMove={changeStatus}
+              hiddenFinished={hiddenFinished}
+            />
+          ) : view === "timeline" ? (
             <IssueTimeline
               issues={issues}
               share={shareScope ? (range) => ({ kind: "MY_ISSUES_TIMELINE", params: { ...range, scope: shareScope } }) : undefined}
@@ -486,7 +570,17 @@ export function IssuesView({
             <IssueCalendarView
               issues={issues}
               canMove={mayEdit}
-              onMove={writable ? (issue, dates) => mutation.mutate({ number: issue.number, changes: dates }) : undefined}
+              onMove={
+                writable
+                  ? (issue, dates) =>
+                      mutation.mutate({
+                        number: issue.number,
+                        changes: dates,
+                        key: issue.key,
+                        undoWith: { startDate: issue.startDate, dueDate: issue.dueDate },
+                      })
+                  : undefined
+              }
               onCreate={writable ? openDialog : undefined}
               share={shareScope ? (month) => ({ kind: "MY_ISSUES_CALENDAR", params: { month, scope: shareScope } }) : undefined}
             />

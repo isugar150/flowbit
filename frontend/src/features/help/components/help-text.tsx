@@ -1,18 +1,11 @@
-import { ModKey } from "@/components/mod-key";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { KeyCaps } from "@/components/shortcut-keys";
 
 /** The inline marks of the help content (features/help/content.ts): `code`, **bold**, [[Mod+K]]. */
 const MARKS = /(`[^`]+`|\*\*[^*]+\*\*|\[\[[^\]]+\]\])/;
 
 /** A key combination such as `Mod+Enter`, as key caps. `Mod` is Ctrl, or ⌘ on a Mac. */
 export function KeyCombo({ combo }: { combo: string }) {
-  return (
-    <KbdGroup>
-      {combo.split("+").map((key, index) => (
-        <Kbd key={index}>{key === "Mod" ? <ModKey /> : key}</Kbd>
-      ))}
-    </KbdGroup>
-  );
+  return <KeyCaps combo={combo} />;
 }
 
 export function HelpText({ text }: { text: string }) {

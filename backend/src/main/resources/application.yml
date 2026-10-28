@@ -35,6 +35,11 @@ flowbit:
   # of mails and API notifications. Empty: single sign-on works it out from the request, and
   # notifications carry a path (/issue/FB-12) instead of a full address.
   public-url: ${FLOWBIT_PUBLIC_URL:}
+  secrets:
+    # The passphrase (16+ characters) the secrets kept in the database are encrypted with: LDAP/SSO secrets, the mail
+    # password, the Firebase key, webhook and Git secrets (D-226). Empty: they are stored as they are. Once set, do not lose
+    # or change it: what was encrypted with it cannot be read without it. Plain-text secrets are encrypted at the next start.
+    key: ${FLOWBIT_SECRET_KEY:}
   notifications:
     # Where web push messages are sent. Only tests point this elsewhere.
     fcm-url: https://fcm.googleapis.com

@@ -52,6 +52,8 @@ class IssueDuplicationService(
                 title = original.title.take(Issue.TITLE_MAX_LENGTH - SUFFIX.length) + SUFFIX,
                 description = original.description,
                 status = original.status,
+                statusId = original.statusId,
+                estimate = original.estimate,
                 priority = original.priority,
                 startDate = original.startDate,
                 dueDate = original.dueDate,

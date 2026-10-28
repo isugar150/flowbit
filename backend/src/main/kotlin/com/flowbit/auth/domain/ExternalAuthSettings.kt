@@ -1,6 +1,9 @@
 package com.flowbit.auth.domain
 
+import com.flowbit.common.crypto.Secret
 import org.springframework.data.annotation.Id
+import org.springframework.data.annotation.Transient
+import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
 import org.springframework.data.repository.kotlin.CoroutineCrudRepository
 import java.time.Instant
@@ -16,7 +19,9 @@ class LdapSettings(
     var startTls: Boolean,
     /** The account used to look people up; empty for an anonymous search. */
     var bindDn: String,
-    var bindPassword: String,
+    /** Encrypted in the database; use [bindPassword] for the plain text (D-226). */
+    @Column("bind_password")
+    var bindPasswordStored: Secret,
     var baseDn: String,
     /** `{0}` is replaced by what the person typed as their id. */
     var userFilter: String,
@@ -26,7 +31,14 @@ class LdapSettings(
     /** Create the account at the first successful sign-in. */
     var autoProvision: Boolean,
     var updatedAt: Instant,
-)
+) {
+    @get:Transient
+    var bindPassword: String
+        get() = bindPasswordStored.value
+        set(value) {
+            bindPasswordStored = Secret(value)
+        }
+}
 
 /** OIDC reads everything from the issuer; OAUTH2 has its addresses and exchange spelled out in the settings. */
 enum class SsoProtocol { OIDC, OAUTH2 }
@@ -48,7 +60,9 @@ class SsoSettings(
     var displayName: String,
     var issuer: String,
     var clientId: String,
-    var clientSecret: String,
+    /** Encrypted in the database; use [clientSecret] for the plain text (D-226). */
+    @Column("client_secret")
+    var clientSecretStored: Secret,
     var scopes: String,
     /** The claim that becomes the login id; `email` is used when it is missing. */
     var loginIdClaim: String,
@@ -68,7 +82,14 @@ class SsoSettings(
     var nameField: String,
     var buttonStyle: SsoButtonStyle,
     var updatedAt: Instant,
-)
+) {
+    @get:Transient
+    var clientSecret: String
+        get() = clientSecretStored.value
+        set(value) {
+            clientSecretStored = Secret(value)
+        }
+}
 
 const val EXTERNAL_AUTH_SETTINGS_ID: Short = 1
 

@@ -34,6 +34,8 @@ export default async function AdminLayout({
           { href: "/admin/retention", label: m.retentionTab },
           { href: "/admin/files", label: m.filesTab },
           { href: "/admin/git", label: m.gitTab },
+          { href: "/admin/statuses", label: m.statusesTab },
+          { href: "/admin/audit", label: m.auditTab },
         ]}
       />
       {/* A page that lays two panes side by side (the members) marks itself with data-wide. */}

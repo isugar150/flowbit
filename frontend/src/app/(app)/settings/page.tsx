@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SettingsSection } from "@/components/settings-section";
 import { Separator } from "@/components/ui/separator";
+import { PasswordSettings } from "@/features/settings/components/password-settings";
 import { ProfileSettings } from "@/features/settings/components/profile-settings";
 import { ThemeSetting } from "@/features/settings/components/theme-setting";
 import { ReplayTourButton } from "@/features/tour/components/replay-tour-button";
@@ -17,10 +18,11 @@ const n = messages.notifications.mine;
 export const metadata: Metadata = { title: m.title };
 
 export default async function PersonalSettingsPage() {
-  const [user, notifications, github] = await Promise.all([
+  const [user, notifications, github, password] = await Promise.all([
     requireUser(),
     serverGet<MyNotifications>("/api/v1/me/notifications"),
     serverGet<MyGitHubAccount>("/api/v1/me/git/github"),
+    serverGet<{ available: boolean }>("/api/v1/me/password"),
   ]);
 
   return (
@@ -32,6 +34,15 @@ export default async function PersonalSettingsPage() {
         <ProfileSettings user={user} />
       </SettingsSection>
       <Separator />
+      {/* Only while the administrator has not turned LDAP on, and for accounts whose password is kept here (D-226). */}
+      {password?.available ? (
+        <>
+          <SettingsSection title={m.password.title} description={m.password.description}>
+            <PasswordSettings />
+          </SettingsSection>
+          <Separator />
+        </>
+      ) : null}
       {notifications ? (
         <>
           <SettingsSection title={n.title} description={n.description}>

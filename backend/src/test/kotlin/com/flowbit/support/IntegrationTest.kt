@@ -19,6 +19,8 @@ import org.springframework.r2dbc.core.DatabaseClient
         "flowbit.retention.enabled=false",
         "flowbit.git.sync-enabled=false",
         "flowbit.daily-summary.enabled=false",
+        // Secrets stay plain text unless a test turns encryption on, whatever the developer's .env says.
+        "flowbit.secrets.key=",
     ],
 )
 @Import(TestcontainersConfiguration::class, TestClockConfiguration::class)
@@ -59,6 +61,12 @@ abstract class IntegrationTest {
         execute("delete from labels where name not in ('버그', '기능', '중요')")
         execute(
             "update instance_settings set setup_completed_at = null, organization_name = 'Flowbit', logo_key = null, workspace_key = 'FB', next_issue_number = 1",
+        )
+        execute(
+            "delete from issue_statuses where id not in ('00000000-0000-7000-8000-0000000000a1', '00000000-0000-7000-8000-0000000000a2', '00000000-0000-7000-8000-0000000000a3', '00000000-0000-7000-8000-0000000000a4', '00000000-0000-7000-8000-0000000000a5')",
+        )
+        execute(
+            "update issue_statuses set name = case id when '00000000-0000-7000-8000-0000000000a1' then '백로그' when '00000000-0000-7000-8000-0000000000a2' then '준비됨' when '00000000-0000-7000-8000-0000000000a3' then '진행 중' when '00000000-0000-7000-8000-0000000000a4' then '완료' else '취소' end, position = 10",
         )
         execute("delete from retention_policies")
         execute("delete from webhooks")

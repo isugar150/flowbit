@@ -134,23 +134,25 @@ test("a comment is written, changed and deleted", async () => {
   await page.close();
 });
 
-test("files are attached and removed", async () => {
+// The separate attachments area is gone (D-183): files are file blocks in the body, put in through the editor's
+// own file input (the one without an "accept" list takes any file).
+test("files are put in the body as file blocks and are still there after a reload", async () => {
   const issue = await newIssue("첨부 흐름");
   const page = await newPage();
   await openIssue(page, issue);
-  const section = page.locator('[data-presence-id="attachments"]');
+  const body = page.getByRole("dialog").locator('[data-presence-id="body"]');
 
-  await section.locator("input[type=file]").setInputFiles([
+  await body.locator("input[type=file]:not([accept])").setInputFiles([
     { name: "하나.txt", mimeType: "text/plain", buffer: Buffer.from("one") },
     { name: "둘.txt", mimeType: "text/plain", buffer: Buffer.from("two") },
   ]);
-  await expect(section.getByText("하나.txt")).toBeVisible();
-  await expect(section.getByText("둘.txt")).toBeVisible();
-  await expect(section.getByRole("button", { name: "파일 첨부" })).toBeEnabled();
+  await expect(body.locator("[data-file-block]")).toHaveCount(2);
+  await expect(body.getByText("하나.txt")).toBeVisible();
+  await expect(body.getByText("둘.txt")).toBeVisible();
+  await settled(page);
 
-  await section.getByRole("button", { name: "하나.txt 삭제" }).click();
-  await expect(section.getByText("하나.txt")).toHaveCount(0);
-  await expect(section.getByText("둘.txt")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("dialog").locator('[data-presence-id="body"] [data-file-block]')).toHaveCount(2);
   await page.close();
 });
 

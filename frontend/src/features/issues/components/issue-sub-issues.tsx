@@ -137,7 +137,7 @@ export function IssueSubIssues({
                 showProject={false}
                 editable={canEdit && sameProject(child)}
                 editing={editing}
-                onStatusChange={(number, status) => changes.mutate({ number, changes: { status } })}
+                onStatusChange={(number, statusId) => changes.mutate({ number, changes: { statusId } })}
                 className="px-1"
                 presence="sub-issue"
               />

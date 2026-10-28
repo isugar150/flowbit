@@ -77,6 +77,13 @@ data class DocumentSummaryResponse(
  * An issue. The last fields (from `canEdit`) are present only when one issue is requested (GET /issues/{number});
  * lists leave them out.
  */
+data class IssueCycleResponse(
+    val id: UUID,
+    val number: Int,
+    val startsOn: LocalDate,
+    val endsOn: LocalDate,
+)
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class IssueResponse(
     val id: UUID,
@@ -88,8 +95,22 @@ data class IssueResponse(
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val content: String?,
+    /** The category of the issue's status: open or finished. */
     val status: IssueStatus,
+    /** The status the issue is in, and its name. */
+    val statusId: UUID,
+    val statusName: String,
     val priority: IssuePriority,
+    /** Story points, or null. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val estimate: Int?,
+    /** How many issues that block it are still open (D-230). */
+    val openBlockers: Int,
+    /** Waiting in the triage queue of its project (D-231). */
+    val triage: Boolean,
+    /** The cycle of its project it is planned in (D-232), or null. */
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val cycle: IssueCycleResponse?,
     /** In the order they were given the issue; empty when no one has it. */
     val assignees: List<IssuePersonResponse>,
     /** The first day when the issue covers a span of days that ends on `dueDate`; null for a single date. */
@@ -148,7 +169,13 @@ data class IssueResponse(
                 description = issue.description,
                 content = issue.content,
                 status = issue.status,
+                statusId = issue.statusId,
+                statusName = issue.statusName,
                 priority = issue.priority,
+                estimate = issue.estimate,
+                openBlockers = issue.openBlockers,
+                triage = issue.triage,
+                cycle = issue.cycle?.let { IssueCycleResponse(it.id, it.number, it.startsOn, it.endsOn) },
                 assignees = issue.assignees.map(IssuePersonResponse::from),
                 startDate = issue.startDate,
                 dueDate = issue.dueDate,
@@ -324,6 +351,9 @@ data class CreateIssueRequest(
     val startDate: LocalDate? = null,
     /** Properties to give the issue as it is made, in order (D-193); the same as adding each one afterwards. */
     val customProperties: List<NewCustomPropertyRequest>? = null,
+    /** Starts the issue in this status (otherwise in the first one of `status`'s category). */
+    val statusId: UUID? = null,
+    val estimate: Int? = null,
 ) {
     fun toNewIssue(projectId: String? = this.projectId) =
         NewIssue(
@@ -339,6 +369,8 @@ data class CreateIssueRequest(
             parentId,
             startDate,
             customProperties.orEmpty().map { NewCustomProperty(it.label, it.type, it.value) },
+            statusId,
+            estimate,
         )
 }
 

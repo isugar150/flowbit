@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
+import { ShortcutKeys } from "@/components/shortcut-keys";
 import type { UserSummary } from "@/features/members/types";
 import { usersAsMembers, type ProjectSummary } from "@/features/projects/types";
 import { apiFetch } from "@/lib/api/client";
@@ -100,6 +100,11 @@ export function NewIssueProvider({ projects, children }: { projects: ProjectSumm
   );
 }
 
+/** Opens the new ticket dialog from code (the command palette); null outside the app. */
+export function useNewIssue(): (() => void) | null {
+  return useContext(NewIssueContext);
+}
+
 /** Opens the new ticket dialog. `sidebar` is the wide button in the sidebar; `icon` fits a top bar. */
 export function NewIssueButton({ variant }: { variant: "sidebar" | "icon" }) {
   const show = useContext(NewIssueContext);
@@ -115,7 +120,7 @@ export function NewIssueButton({ variant }: { variant: "sidebar" | "icon" }) {
     <Button variant="outline" className="w-full justify-start" onClick={show} onPointerEnter={preloadDialog} onFocus={preloadDialog}>
       <PlusIcon data-icon="inline-start" />
       {m.new}
-      <Kbd className="ml-auto">C</Kbd>
+      <ShortcutKeys id="new-issue" className="ml-auto" />
     </Button>
   );
 }

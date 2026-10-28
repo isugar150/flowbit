@@ -1,5 +1,6 @@
 import type { RichDoc } from "@/components/editor/rich-text-editor";
 import { apiFetch, fileForm } from "@/lib/api/client";
+import type { IssueStatusItem } from "./status-defaults";
 import type {
   Attachment,
   Issue,
@@ -13,6 +14,25 @@ import type {
   NewSubIssueInput,
   Reaction,
 } from "./types";
+
+/** The statuses an administrator manages (docs/features/statuses-and-estimates.md). */
+export function createStatus(input: { category: IssueStatusItem["category"]; name: string }): Promise<IssueStatusItem> {
+  return apiFetch<IssueStatusItem>("/api/v1/admin/issue-statuses", { method: "POST", body: input });
+}
+
+export function renameStatus(input: { id: string; name: string }): Promise<IssueStatusItem> {
+  return apiFetch<IssueStatusItem>(`/api/v1/admin/issue-statuses/${input.id}`, { method: "PATCH", body: { name: input.name } });
+}
+
+/** One place up or down inside its category. */
+export function moveStatus(input: { id: string; direction: "UP" | "DOWN" }): Promise<IssueStatusItem> {
+  return apiFetch<IssueStatusItem>(`/api/v1/admin/issue-statuses/${input.id}`, { method: "PATCH", body: { direction: input.direction } });
+}
+
+/** The issues in it move to the first status left in its category. */
+export function deleteStatus(id: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/admin/issue-statuses/${id}`, { method: "DELETE" });
+}
 
 export function createIssue(issue: NewIssueInput | NewSubIssueInput): Promise<Issue> {
   return apiFetch<Issue>("/api/v1/issues", { method: "POST", body: issue });

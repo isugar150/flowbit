@@ -69,6 +69,10 @@ class Project(
     var updatedAt: Instant,
     /** Every member of the workspace enters the project as an editor, with no row in `project_members` (D-192). */
     var openToAll: Boolean = false,
+    /** Whether the project's issues carry an estimate (story points); off unless a manager turns it on (D-228). */
+    var estimatesEnabled: Boolean = false,
+    /** Whether an issue made by someone who does not manage the project waits in the triage queue first (D-231). */
+    var triageEnabled: Boolean = false,
 ) {
     /** What the person may do here, given the role they were added with (null: not added). */
     fun roleOf(memberRole: ProjectRole?): ProjectRole? = effectiveProjectRole(memberRole, openToAll)
@@ -96,6 +100,22 @@ interface ProjectRepository : CoroutineCrudRepository<Project, UUID> {
     suspend fun updateArchivedAt(
         id: UUID,
         archivedAt: Instant?,
+        now: Instant,
+    ): Int
+
+    @Modifying
+    @Query("update projects set triage_enabled = :enabled, updated_at = :now where id = :id")
+    suspend fun updateTriageEnabled(
+        id: UUID,
+        enabled: Boolean,
+        now: Instant,
+    ): Int
+
+    @Modifying
+    @Query("update projects set estimates_enabled = :enabled, updated_at = :now where id = :id")
+    suspend fun updateEstimatesEnabled(
+        id: UUID,
+        enabled: Boolean,
         now: Instant,
     ): Int
 

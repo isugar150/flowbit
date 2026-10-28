@@ -336,7 +336,7 @@ class IssuesIntegrationTest : IntegrationTest() {
             listOf("CREATED", "STATUS_CHANGED", "ASSIGNEE_CHANGED", "DUE_DATE_CHANGED", "LABELS_CHANGED"),
             items.map { it["type"] },
         )
-        assertEquals(mapOf("from" to "BACKLOG", "to" to "IN_PROGRESS"), items[1]["detail"])
+        assertEquals(mapOf("from" to "BACKLOG", "to" to "IN_PROGRESS", "fromName" to "백로그", "toName" to "진행 중"), items[1]["detail"])
         assertEquals(mapOf("added" to listOf("editor"), "removed" to emptyList<String>()), items[2]["detail"])
         assertEquals(mapOf("added" to listOf("버그"), "removed" to emptyList<String>()), items[4]["detail"])
         assertEquals("admin", (items[4]["actor"] as Map<*, *>)["loginId"])
@@ -1036,6 +1036,21 @@ class IssuesIntegrationTest : IntegrationTest() {
     ) = """{"content":${commentDocument(text)},"attachmentIds":[${fileIds.joinToString(",") { "\"$it\"" }}]}"""
 
     private fun commentDocument(text: String) = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"$text"}]}]}"""
+
+    @Test
+    fun `목록은 limit 만큼만 최근 것부터 보내고 limit 가 없으면 전부 보낸다`() {
+        repeat(3) { editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"티켓 ${it + 1}"}""") }
+
+        val two = editor.get("/api/v1/issues?limit=2").jsonList()
+        val all = editor.get("/api/v1/issues").jsonList()
+        val mine = editor.get("/api/v1/me/issues?scope=created&limit=1").jsonList()
+        val project = editor.get("/api/v1/projects/${p("PAY")}/issues?limit=2").jsonList()
+
+        assertEquals(listOf("FB-3", "FB-2"), two.map { it["key"] })
+        assertEquals(listOf("FB-3", "FB-2", "FB-1"), all.map { it["key"] })
+        assertEquals(1, mine.size)
+        assertEquals(listOf("FB-3", "FB-2"), project.map { it["key"] })
+    }
 
     private fun commentJson(text: String) = """{"content":${commentDocument(text)}}"""
 

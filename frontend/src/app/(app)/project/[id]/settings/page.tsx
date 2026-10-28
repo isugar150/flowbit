@@ -4,7 +4,10 @@ import { ProjectGitRepositories } from "@/features/git/components/project-git-re
 import type { ProjectGitSettings } from "@/features/git/types";
 import type { UserSummary } from "@/features/members/types";
 import { ArchiveProjectSection } from "@/features/projects/components/archive-project-section";
+import { CycleSettingsField } from "@/features/cycles/components/cycle-settings-field";
 import { ProjectAccessField } from "@/features/projects/components/project-access-field";
+import { ProjectEstimatesField } from "@/features/projects/components/project-estimates-field";
+import { ProjectTriageField } from "@/features/projects/components/project-triage-field";
 import { ProjectAccessRequests } from "@/features/projects/components/project-access-requests";
 import { ProjectDetailsForm } from "@/features/projects/components/project-details-form";
 import { ProjectIconField } from "@/features/projects/components/project-icon-field";
@@ -45,6 +48,21 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
       {canManage ? (
         <SettingsSection title={m.accessTitle} description={m.accessDescription}>
           <ProjectAccessField projectId={project.id} openToAll={project.openToAll} />
+        </SettingsSection>
+      ) : null}
+      {canManage ? (
+        <SettingsSection title={messages.cycles.settingsTitle} description={messages.cycles.settingsDescription}>
+          <CycleSettingsField projectId={project.id} />
+        </SettingsSection>
+      ) : null}
+      {canManage ? (
+        <SettingsSection title={m.triageTitle} description={m.triageDescription}>
+          <ProjectTriageField projectId={project.id} enabled={project.triageEnabled} />
+        </SettingsSection>
+      ) : null}
+      {canManage ? (
+        <SettingsSection title={m.estimatesTitle} description={m.estimatesDescription}>
+          <ProjectEstimatesField projectId={project.id} enabled={project.estimatesEnabled} />
         </SettingsSection>
       ) : null}
       <SettingsSection title={m.membersTitle} description={m.membersDescription}>

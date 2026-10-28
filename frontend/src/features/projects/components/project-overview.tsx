@@ -3,6 +3,7 @@ import { GlobeIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { PropertyCard, PropertyRow } from "@/components/property-card";
 import { ContentActivity } from "@/features/content/components/content-activity";
+import { ProjectCycleCard } from "@/features/cycles/components/project-cycle-card";
 import { ProjectIssueSummary } from "@/features/issues/components/project-issue-summary";
 import type { Issue, IssueDocumentSummary } from "@/features/issues/types";
 import { ProjectMemberList } from "@/features/projects/components/project-member-list";
@@ -55,6 +56,7 @@ export async function ProjectOverview({ id }: { id: string }) {
           canEdit={project.myRole !== "VIEWER"}
           mentionables={mentionablesOf(members)}
         />
+        <ProjectCycleCard projectId={project.id} />
         <ProjectIssueSummary projectId={project.id} issues={issues ?? []} canEdit={project.myRole !== "VIEWER"} />
         <ProjectUpdates
           projectId={project.id}

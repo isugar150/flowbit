@@ -126,8 +126,13 @@ class IssueActivityStore(
             events += IssueEvent(IssueActivityType.TITLE_CHANGED, mapOf("from" to before.title, "to" to after.title))
         }
         if (before.description != after.description) events += IssueEvent(IssueActivityType.DESCRIPTION_CHANGED)
-        if (before.status != after.status) {
-            events += IssueEvent(IssueActivityType.STATUS_CHANGED, mapOf("from" to before.status.name, "to" to after.status.name))
+        if (before.statusId != after.statusId) {
+            // The category as before; the names are what the person saw (a status can be renamed or deleted later).
+            events +=
+                IssueEvent(
+                    IssueActivityType.STATUS_CHANGED,
+                    mapOf("from" to before.status.name, "to" to after.status.name, "fromName" to before.statusName, "toName" to after.statusName),
+                )
         }
         if (before.priority != after.priority) {
             events += IssueEvent(IssueActivityType.PRIORITY_CHANGED, mapOf("from" to before.priority.name, "to" to after.priority.name))

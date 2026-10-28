@@ -62,7 +62,11 @@ export function describe(item: IssueActivityItem): Described {
     case "STATUS_CHANGED":
       return {
         action: m.status,
-        change: arrow(statusLabel(from as IssueStatus), statusLabel(to as IssueStatus)),
+        // A status can have been renamed or deleted since: the history keeps the names the people saw (entries from before them hold the category).
+        change: arrow(
+          typeof item.detail.fromName === "string" ? item.detail.fromName : statusLabel(from as IssueStatus),
+          typeof item.detail.toName === "string" ? item.detail.toName : statusLabel(to as IssueStatus),
+        ),
       };
     case "PRIORITY_CHANGED":
       return { action: m.priority, change: arrow(priorityLabel(from as IssuePriority), priorityLabel(to as IssuePriority)) };

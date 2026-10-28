@@ -120,6 +120,7 @@ docker run -d --name flowbit --restart unless-stopped \
 | `FLOWBIT_WEB_PORT` | `3000` | 서버가 여는 포트. `80` 으로 바꾸면 `http://서버주소` 로 바로 열린다 |
 | `FLOWBIT_WEB_BIND` | `0.0.0.0` | 그 포트를 여는 주소. 앞에 nginx 를 두고 이 서버 안에서만 열려면 `127.0.0.1` |
 | `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 파일 하나의 최대 크기(백엔드가 한 파트를 20MB 에서 끊으므로 그 이상으로는 올릴 수 없다). 프록시를 두면 그 쪽 본문 제한(`client_max_body_size`)도 맞춘다. 화면에 보이는 "N MB까지"와 올리기 전의 크기 검사도 이 값을 따르고, 관리자 설정 > 파일 관리에서 현재 값을 볼 수 있다 |
+| `FLOWBIT_SECRET_KEY` | (없음) | **DB 에 저장되는 비밀 값을 암호화하는 암호(16자 이상)**: LDAP 검색 계정·SSO 시크릿·메일 비밀번호·Firebase 키·API 알림과 Git 의 비밀 값. 처음 만들어지는 `.env` 에는 `deploy.sh` 가 정해 둔다. 비어 있으면 평문으로 저장되고, **값을 적고 서버를 다시 띄우면 이미 저장된 평문도 시작할 때 모두 암호화된다**(반복해도 안전). **잃어버리거나 바꾸면 암호화된 값을 읽을 수 없으니** `.env` 와 함께 보관한다. 암호화된 DB 에 키 없이 띄우면 로그에 오류가 남는다 |
 | `FLOWBIT_VERSION`, `FLOWBIT_IMAGE` | `latest`, `isugar150/flowbit` | 받을 이미지의 버전과 저장소 |
 | `FLOWBIT_STORAGE_TYPE` | `local` | **올린 파일을 어디에 둘지: `local` 또는 `amazon-s3`**([5](#5-파일-저장소-로컬-또는-s3)). 처음 만들어지는 `.env` 에 `local` 로 적혀 있다 |
 | `FLOWBIT_S3_*` | (없음) | `amazon-s3` 일 때 버킷·리전·키 |

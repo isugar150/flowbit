@@ -17,6 +17,7 @@ class IssueGitService(
     private val queries: IssueQueries,
     private val activities: IssueActivityStore,
     private val extras: IssueExtrasStore,
+    private val statuses: IssueStatuses,
     private val clock: Clock,
 ) {
     // --- what a Git server does (docs/features/git-integration.md, D-141) --------------------
@@ -44,6 +45,7 @@ class IssueGitService(
         if (issue.deletedAt != null || issue.status !in from) return null
         val before = queries.find(issue.number) ?: return null
         issue.status = status
+        issue.statusId = statuses.defaultOf(status).id
         issue.version += 1
         issue.updatedAt = clock.instant()
         repository.save(issue)

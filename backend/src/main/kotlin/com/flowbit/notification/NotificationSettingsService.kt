@@ -1,6 +1,7 @@
 package com.flowbit.notification
 
 import com.flowbit.common.UuidV7
+import com.flowbit.common.crypto.Secret
 import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.FieldError
 import com.flowbit.common.error.NotFoundException
@@ -280,9 +281,9 @@ class NotificationSettingsService(
             url = url,
             method = method,
             contentType = contentType,
-            headers = jsonMapper.writeValueAsString(headers),
+            headersStored = Secret(jsonMapper.writeValueAsString(headers)),
             bodyTemplate = input.bodyTemplate,
-            signingSecret = input.signingSecret ?: stored?.signingSecret.orEmpty(),
+            signingSecretStored = Secret(input.signingSecret ?: stored?.signingSecret.orEmpty()),
             eventTypes = input.eventTypes.distinct().joinToString(","),
             lastStatus = stored?.lastStatus,
             lastError = stored?.lastError,

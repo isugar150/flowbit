@@ -33,6 +33,9 @@ data class NewIssue(
     val startDate: LocalDate? = null,
     /** The properties the people adding it want it to have from the start (D-186, D-193), in order. */
     val customProperties: List<NewCustomProperty> = emptyList(),
+    /** Which status to start in; without it, the first one of [status]'s category (backlog unless said). */
+    val statusId: UUID? = null,
+    val estimate: Int? = null,
 )
 
 /**
@@ -52,6 +55,17 @@ class IssuePatch(
         name: String,
         parse: (String) -> T,
     ): T? = string(name)?.let { value -> runCatching { parse(value) }.getOrElse { throw invalid(name) } }
+
+    /** A whole number, or null when the field is null. */
+    fun int(name: String): Int? =
+        when (val value = fields[name]) {
+            null -> null
+            is Int -> value
+            is Number -> if (value.toDouble() % 1.0 == 0.0) value.toInt() else throw invalid(name)
+            else -> throw invalid(name)
+        }
+
+    fun bool(name: String): Boolean = fields[name] as? Boolean ?: throw invalid(name)
 
     fun uuid(name: String): UUID? = string(name)?.let { value -> runCatching { UUID.fromString(value) }.getOrElse { throw invalid(name) } }
 

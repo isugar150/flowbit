@@ -3,6 +3,7 @@ package com.flowbit.git
 import com.flowbit.common.UuidV7
 import com.flowbit.common.audit.AuditEventType
 import com.flowbit.common.audit.AuditService
+import com.flowbit.common.crypto.Secret
 import com.flowbit.common.error.FieldError
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
@@ -105,7 +106,7 @@ class GitConnectionService(
                 name = checked.name,
                 provider = checkNotNull(checked.provider),
                 baseUrl = checked.baseUrl,
-                secret = newSecret(),
+                secretStored = Secret(newSecret()),
                 enabled = checked.enabled,
                 statusRules = checked.rules().toJson(),
                 createdAt = now,
@@ -250,7 +251,7 @@ class GitConnectionService(
                     name = checked.name,
                     provider = checkNotNull(checked.provider),
                     baseUrl = checked.baseUrl,
-                    secret = backup.secret,
+                    secretStored = Secret(backup.secret),
                     enabled = checked.enabled,
                     statusRules = checked.rules().toJson(),
                     lastReceivedAt = stored?.lastReceivedAt,
@@ -264,8 +265,8 @@ class GitConnectionService(
                     githubAppId = backup.githubAppId,
                     githubAppSlug = backup.githubAppSlug,
                     githubClientId = backup.githubClientId,
-                    githubClientSecret = backup.githubClientSecret,
-                    githubPrivateKey = backup.githubPrivateKey,
+                    githubClientSecretStored = backup.githubClientSecret?.let(::Secret),
+                    githubPrivateKeyStored = backup.githubPrivateKey?.let(::Secret),
                     githubInstallationId = backup.githubInstallationId,
                     githubRepositorySelection = backup.githubRepositorySelection,
                     lastSyncedAt = stored?.lastSyncedAt,

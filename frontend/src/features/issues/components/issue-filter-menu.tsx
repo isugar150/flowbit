@@ -27,7 +27,7 @@ import {
 import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { NONE, assigneeOptions, priorityOptions, statusOptions } from "../options";
+import { NONE, assigneeOptions, priorityOptions } from "../options";
 import type { Label } from "../types";
 import { ChipSelect, chipClass, type ChipOption } from "./chip-select";
 import { LabelFilterChip, labelFilterOptions } from "./label-chip";
@@ -53,6 +53,8 @@ export type IssueFilterProps = {
   labels: Label[];
   /** False where every issue is already the person's own ("내 티켓"): there is no assignee to pick. */
   assigneeFilter: boolean;
+  /** The statuses to pick from: by id, in the order of the board. */
+  statusOptions: ChipOption<string>[];
   /** The value of each filter with one value; `FILTER_ALL` when it is off. */
   values: Record<ChipKey, string>;
   /** The ticked labels (`NONE` stands for "no label"); none when the filter is off. */
@@ -64,7 +66,7 @@ export type IssueFilterProps = {
 type FilterKind = { key: ChipKey; label: string; name: string; icon: React.ReactNode; options: ChipOption<string>[] };
 
 /** The filters with one value, in the order of the menu and of the chips. */
-function filterKindsOf({ projectId, projects, members, assigneeFilter }: IssueFilterProps): FilterKind[] {
+function filterKindsOf({ projectId, projects, members, assigneeFilter, statusOptions }: IssueFilterProps): FilterKind[] {
   return [
     // Inside a project every issue has that project, so the filter is only on lists of many projects.
     ...(projectId === null

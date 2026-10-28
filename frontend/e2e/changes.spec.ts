@@ -309,6 +309,9 @@ test("project overview: status and following show at once", async () => {
   await page.goto(`/project/${project.id}`);
   const status = page.getByRole("button", { name: /^상태:/ });
   await expect(status).toBeVisible();
+  // The follow button sits in the activity header (D-176) and appears once the feed has been read: wait for it,
+  // so the frames below start with both on screen.
+  await expect(page.getByRole("button", { name: "구독", exact: true })).toBeVisible();
   const noReloads = watchForReloads(page);
   await slowDown(page);
   await recordFrames(

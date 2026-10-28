@@ -1,4 +1,4 @@
-import { CircleDotIcon, CircleUserRoundIcon, LayoutGridIcon, type LucideIcon } from "lucide-react";
+import { CircleDotIcon, CircleUserRoundIcon, InboxIcon, LayoutGridIcon, type LucideIcon } from "lucide-react";
 import type { ProjectSummary } from "@/features/projects/types";
 import { messages } from "@/messages";
 
@@ -6,6 +6,7 @@ import { messages } from "@/messages";
 export const NAV_DESTINATIONS: { href: string; label: string; icon: LucideIcon; exact: boolean }[] = [
   { href: "/my-issues", label: messages.myIssues.title, icon: CircleUserRoundIcon, exact: false },
   { href: "/issues", label: messages.issues.all, icon: CircleDotIcon, exact: true },
+  { href: "/triage", label: messages.triage.title, icon: InboxIcon, exact: true },
   { href: "/", label: messages.projects.all, icon: LayoutGridIcon, exact: true },
 ];
 

@@ -9,8 +9,7 @@ import { ConfirmDiscardDialog } from "@/components/confirm-discard-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { ModKey } from "@/components/mod-key";
-import { Kbd } from "@/components/ui/kbd";
+import { ShortcutKeys } from "@/components/shortcut-keys";
 import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { DraftProperties } from "@/features/custom-properties/components/draft-properties";
@@ -365,9 +364,7 @@ export function NewIssueDialog({
               {mutation.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}
               {mutation.isPending ? m.creating : m.create}
               {mutation.isPending ? null : (
-                <Kbd className="max-md:hidden">
-                  <ModKey /> ↵
-                </Kbd>
+                <ShortcutKeys id="submit" />
               )}
             </Button>
           </div>

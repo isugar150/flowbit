@@ -14,6 +14,11 @@ export function removeAvatar(): Promise<Me> {
   return apiFetch<Me>("/api/v1/me/avatar", { method: "DELETE" });
 }
 
+/** Changes the signed-in person's own password; other browsers are signed out. */
+export function changePassword(input: { currentPassword: string; newPassword: string }): Promise<void> {
+  return apiFetch<void>("/api/v1/me/password", { method: "PUT", body: input });
+}
+
 export function renameWorkspace(name: string): Promise<Workspace> {
   return apiFetch<Workspace>("/api/v1/admin/workspace", { method: "PATCH", body: { name } });
 }

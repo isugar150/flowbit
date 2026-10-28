@@ -21,6 +21,8 @@ export type IssueCardData = {
   key: string;
   title: string;
   status: IssueStatus;
+  /** What the status is called, when it is not the name of its category. */
+  statusName?: string;
   priority?: IssuePriority;
   startDate: string | null;
   dueDate: string | null;
@@ -38,6 +40,7 @@ export function cardOfIssue(issue: Issue): IssueCardData {
     key: issue.key,
     title: issue.title,
     status: issue.status,
+    statusName: issue.statusName,
     priority: issue.priority,
     startDate: issue.startDate,
     dueDate: issue.dueDate,
@@ -70,7 +73,7 @@ export function IssueCard({ card, activity, loading }: { card: IssueCardData; ac
         <h3 className="line-clamp-3 text-sm leading-5 font-medium break-words">{card.title}</h3>
       </div>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
-        <Property label={m.status}>{statusLabel(card.status)}</Property>
+        <Property label={m.status}>{card.statusName ?? statusLabel(card.status)}</Property>
         {card.priority ? (
           <Property label={m.priority}>
             <PriorityIcon priority={card.priority} className="size-3.5" />

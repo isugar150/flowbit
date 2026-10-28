@@ -46,6 +46,13 @@ interface UserSessionRepository : CoroutineCrudRepository<UserSession, UUID> {
     suspend fun deleteByUserId(userId: UUID): Int
 
     @Modifying
+    @Query("delete from user_sessions where user_id = :userId and id <> :keepId")
+    suspend fun deleteByUserIdExcept(
+        userId: UUID,
+        keepId: UUID,
+    ): Int
+
+    @Modifying
     @Query("delete from user_sessions where last_seen_at < :idleBefore or created_at < :createdBefore")
     suspend fun deleteExpired(
         idleBefore: Instant,

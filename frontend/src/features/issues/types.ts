@@ -76,8 +76,20 @@ export type Issue = {
   description: string;
   /** The body as an editor document. Only sent when a single issue is requested; null in lists. */
   content: RichDoc | null;
+  /** The category of the issue's status: open or finished. */
   status: IssueStatus;
+  /** The status the issue is in, and its name (docs/features/statuses-and-estimates.md). */
+  statusId: string;
+  statusName: string;
   priority: IssuePriority;
+  /** Story points; null when none was given. Shown only where the project turned estimates on. */
+  estimate: number | null;
+  /** How many issues that block it are still open (D-230). */
+  openBlockers: number;
+  /** Waiting in the triage queue of its project (D-231). */
+  triage: boolean;
+  /** The cycle of its project it is planned in (D-232); null when none. */
+  cycle: { id: string; number: number; startsOn: string; endsOn: string } | null;
   /** In the order they were given the issue; empty when no one has it (D-125). */
   assignees: IssuePerson[];
   /** YYYY-MM-DD. The first day when the issue covers a span that ends on `dueDate`; null for a single date. */
@@ -131,7 +143,11 @@ export type NewIssueInput = {
   title: string;
   content: RichDoc | null;
   status: IssueStatus;
+  /** Starts the issue in this status instead of the first one of `status`'s category. */
+  statusId?: string;
   priority: IssuePriority;
+  /** Story points. */
+  estimate?: number | null;
   /** Up to ten people, in order. */
   assigneeIds: string[];
   /** Only together with `dueDate`, and never after it. */
@@ -160,7 +176,14 @@ export type IssueChanges = Partial<{
   title: string;
   content: RichDoc | null;
   status: IssueStatus;
+  /** Moves the issue to this status (its category follows). */
+  statusId: string;
+  /** False takes it out of the triage queue; managers only (D-231). */
+  triage: boolean;
+  /** Plans the issue in a cycle of its project, or in none with null (D-232). */
+  cycleId: string | null;
   priority: IssuePriority;
+  estimate: number | null;
   assigneeIds: string[];
   /** Only together with `dueDate`, and never after it. */
   startDate: string | null;

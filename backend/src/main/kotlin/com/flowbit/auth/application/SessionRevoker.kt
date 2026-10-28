@@ -15,4 +15,12 @@ class SessionRevoker(
     suspend fun revokeAll(userId: UUID) {
         repository.deleteByUserId(userId)
     }
+
+    /** Signs the user out everywhere except the browser that is changing their password. */
+    suspend fun revokeOthers(
+        userId: UUID,
+        keepSessionId: UUID,
+    ) {
+        repository.deleteByUserIdExcept(userId, keepSessionId)
+    }
 }

@@ -4,9 +4,11 @@ import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.UuidV7
 import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.FieldError
+import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.common.richtext.RichText
 import com.flowbit.customproperty.application.CustomPropertyService
+import com.flowbit.cycle.CycleService
 import com.flowbit.issue.domain.Issue
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueRepository
@@ -41,6 +43,8 @@ class IssueService(
     private val activities: IssueActivityStore,
     private val extras: IssueExtrasStore,
     private val customProperties: CustomPropertyService,
+    private val statuses: IssueStatuses,
+    private val cycles: CycleService,
     private val clock: Clock,
 ) {
     /**
@@ -51,14 +55,22 @@ class IssueService(
         user: AuthenticatedUser,
         projectId: String?,
         deleted: Boolean = false,
-    ): List<IssueView> = queries.list(lookup.viewer(user), projectId?.let { projectService.access(user, it).project.id }, deleted)
+        limit: Int = ISSUE_LIST_LIMIT,
+    ): List<IssueView> = queries.list(lookup.viewer(user), projectId?.let { projectService.access(user, it).project.id }, deleted, limit)
+
+    /** The issues waiting in the triage queue of the projects the caller manages, the oldest first (D-231). */
+    suspend fun triageQueue(user: AuthenticatedUser): List<IssueView> =
+        queries.triageQueue(lookup.viewer(user)).filter { view ->
+            view.project?.let { projectService.accessById(user, it.id)?.role?.canManage } == true
+        }
 
     /** The caller's own issues ("내 티켓"). */
     suspend fun mine(
         user: AuthenticatedUser,
         scope: MyIssueScope,
         deleted: Boolean = false,
-    ): List<IssueView> = queries.listForUser(lookup.viewer(user), scope, deleted)
+        limit: Int = ISSUE_LIST_LIMIT,
+    ): List<IssueView> = queries.listForUser(lookup.viewer(user), scope, deleted, limit)
 
     /**
      * Deletes an issue: it leaves the lists but can still be opened, read-only, with its history,
@@ -172,6 +184,7 @@ class IssueService(
         val properties = customProperties.checkAll(input.customProperties, project?.id)
 
         val now = clock.instant()
+        val startStatus = input.statusId?.let { statuses.require(it) } ?: statuses.defaultOf(input.status ?: IssueStatus.BACKLOG)
         val issue =
             Issue(
                 id = UuidV7.generate(now),
@@ -180,7 +193,11 @@ class IssueService(
                 number = queries.nextNumber(),
                 title = title,
                 description = description,
-                status = input.status ?: IssueStatus.BACKLOG,
+                status = startStatus.category,
+                statusId = startStatus.id,
+                estimate = estimateOf(input.estimate),
+                // In a project that uses triage, what a person who does not manage it makes waits to be sorted (D-231).
+                triage = project != null && project.triageEnabled && projectService.accessById(user, project.id)?.role?.canManage != true,
                 priority = input.priority ?: IssuePriority.NONE,
                 startDate = spanStart(input.startDate, input.dueDate),
                 dueDate = input.dueDate,
@@ -230,7 +247,29 @@ class IssueService(
         val errors = textErrors(issue.title, issue.description)
         if (errors.isNotEmpty()) throw ValidationException(errors)
 
-        patch.enum("status", IssueStatus::valueOf)?.let { issue.status = it }
+        if (patch.has("statusId")) {
+            val target = statuses.require(patch.uuid("statusId") ?: throw ValidationException("statusId", "INVALID", "값이 올바르지 않습니다"))
+            issue.statusId = target.id
+            issue.status = target.category
+        } else {
+            patch.enum("status", IssueStatus::valueOf)?.let { category ->
+                // Only a category is said: stay where the issue is when it is already in it, otherwise go to the category's first status.
+                if (category != issue.status) {
+                    val target = statuses.defaultOf(category)
+                    issue.statusId = target.id
+                    issue.status = target.category
+                }
+            }
+        }
+        if (patch.has("estimate")) issue.estimate = estimateOf(patch.int("estimate"))
+        if (patch.has("triage")) {
+            val next = patch.bool("triage")
+            // Sorting the queue is for the people who manage the project, not for the one who asked (D-231).
+            if (next != issue.triage && issue.projectId?.let { projectService.accessById(user, it)?.role?.canManage } != true) {
+                throw ForbiddenException("트리아지는 프로젝트 관리 역할만 정할 수 있습니다")
+            }
+            issue.triage = next
+        }
         patch.enum("priority", IssuePriority::valueOf)?.let { issue.priority = it }
         if (patch.has("dueDate")) issue.dueDate = patch.date("dueDate")
         if (patch.has("startDate")) issue.startDate = patch.date("startDate")
@@ -252,6 +291,14 @@ class IssueService(
             issue.projectId = parent.projectId
         } else if (patch.has("projectId")) {
             issue.projectId = patch.string("projectId")?.let { lookup.editableProject(user, it).id }
+        }
+        // A cycle is the project's own: an issue moved to another project leaves it, and one put in a cycle must be in its project's.
+        if (patch.has("cycleId")) {
+            val cycleId = patch.uuid("cycleId")
+            if (cycleId != null && !cycles.belongsTo(issue.projectId, cycleId)) throw ValidationException("cycleId", "INVALID", "이 프로젝트의 사이클이 아닙니다")
+            issue.cycleId = cycleId
+        } else if (issue.projectId != oldProjectId) {
+            issue.cycleId = null
         }
         val assigneeIds =
             if (patch.has("assigneeIds")) requireAssignees(issue.projectId, patch.uuids("assigneeIds"), before.assignees.map { it.id }) else null
@@ -280,6 +327,12 @@ class IssueService(
             listOfNotNull(before.project?.id, after.project?.id).distinct(),
             tagged.map { it.first },
         )
+    }
+
+    /** Story points: a whole number from 0 to 1000, or none. */
+    private fun estimateOf(value: Int?): Int? {
+        if (value != null && value !in 0..ESTIMATE_MAX) throw ValidationException("estimate", "INVALID", "추정치는 0에서 ${ESTIMATE_MAX} 사이여야 합니다")
+        return value
     }
 
     /**
@@ -426,5 +479,6 @@ class IssueService(
 
         /** How many levels of sub-issues a top-level issue can have under it (D-118, 5 since D-190). */
         const val MAX_SUB_ISSUE_DEPTH = 5
+        const val ESTIMATE_MAX = 1000
     }
 }

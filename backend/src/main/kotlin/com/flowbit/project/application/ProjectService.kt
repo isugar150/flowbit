@@ -76,6 +76,10 @@ data class ProjectView(
     val archivedAt: Instant? = null,
     /** Whether every member of the workspace enters the project as an editor (D-192). */
     val openToAll: Boolean = false,
+    /** Whether the project's issues carry an estimate (D-228). */
+    val estimatesEnabled: Boolean = false,
+    /** Whether an issue made by someone who does not manage the project waits in the triage queue (D-231). */
+    val triageEnabled: Boolean = false,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
     val content: String? = null,
 )
@@ -285,7 +289,9 @@ class ProjectService(
     ): ProjectView {
         val access = access(user, projectId)
         val project = access.project
-        if (!access.role.canEdit || (("name" in changes || "openToAll" in changes) && !access.role.canManage)) {
+        if (!access.role.canEdit ||
+            (("name" in changes || "openToAll" in changes || "estimatesEnabled" in changes || "triageEnabled" in changes) && !access.role.canManage)
+        ) {
             throw ForbiddenException("프로젝트를 수정할 권한이 없습니다")
         }
         val openToAll =
@@ -293,6 +299,18 @@ class ProjectService(
                 changes["openToAll"] as? Boolean ?: throw ValidationException("openToAll", "INVALID", "값이 올바르지 않습니다")
             } else {
                 project.openToAll
+            }
+        val estimatesEnabled =
+            if ("estimatesEnabled" in changes) {
+                changes["estimatesEnabled"] as? Boolean ?: throw ValidationException("estimatesEnabled", "INVALID", "값이 올바르지 않습니다")
+            } else {
+                project.estimatesEnabled
+            }
+        val triageEnabled =
+            if ("triageEnabled" in changes) {
+                changes["triageEnabled"] as? Boolean ?: throw ValidationException("triageEnabled", "INVALID", "값이 올바르지 않습니다")
+            } else {
+                project.triageEnabled
             }
         val name = if ("name" in changes) (changes["name"] as? String)?.trim().orEmpty() else project.name
         val description =
@@ -310,6 +328,8 @@ class ProjectService(
         if (PROPERTY_FIELDS.any { it in changes }) memberStore.updateProperties(project.id, properties, now)
         if ("content" in changes) richText.store(RichText.ContentTable.PROJECTS, project.id, document)
         val accessEvents = changeAccess(project, openToAll, user, client, now)
+        if (estimatesEnabled != project.estimatesEnabled) repository.updateEstimatesEnabled(project.id, estimatesEnabled, now)
+        if (triageEnabled != project.triageEnabled) repository.updateTriageEnabled(project.id, triageEnabled, now)
         contentLog.record(
             projectTarget(project.id),
             user.id,
@@ -662,6 +682,8 @@ class ProjectService(
             member = row.memberRole != null,
             archivedAt = row.archivedAt,
             openToAll = row.openToAll,
+            estimatesEnabled = row.estimatesEnabled,
+            triageEnabled = row.triageEnabled,
         )
 
     private fun detailErrors(

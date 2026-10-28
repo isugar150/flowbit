@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { Trash2Icon } from "lucide-react";
-import { ModKey } from "@/components/mod-key";
+import { ShortcutKeys } from "@/components/shortcut-keys";
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { FormAlert } from "@/features/auth/components/form-alert";
@@ -84,9 +83,7 @@ export function ProjectUpdates({
               {mutation.isPending ? <Spinner data-icon="inline-start" /> : null}
               {mutation.isPending ? m.posting : m.postUpdate}
               {mutation.isPending ? null : (
-                <Kbd className="max-md:hidden">
-                  <ModKey /> ↵
-                </Kbd>
+                <ShortcutKeys id="submit" />
               )}
             </Button>
           </div>

@@ -23,6 +23,8 @@ services:
       FLOWBIT_DB_PASSWORD: ${FLOWBIT_DB_PASSWORD:?Set FLOWBIT_DB_PASSWORD in .env}
       FLOWBIT_MAX_UPLOAD_SIZE: ${FLOWBIT_MAX_UPLOAD_SIZE:-5MB}
       FLOWBIT_PUBLIC_URL: ${FLOWBIT_PUBLIC_URL:-}
+      # Encrypts the secrets kept in the database (LDAP, SSO, mail, Firebase, webhook and Git secrets, D-226).
+      FLOWBIT_SECRET_KEY: ${FLOWBIT_SECRET_KEY:-}
       # Uploaded files: FLOWBIT_STORAGE_TYPE in .env says where, local (the volume below) or amazon-s3 (the bucket) (D-167, D-181).
       FLOWBIT_STORAGE_TYPE: ${FLOWBIT_STORAGE_TYPE:-}
       FLOWBIT_S3_BUCKET: ${FLOWBIT_S3_BUCKET:-}

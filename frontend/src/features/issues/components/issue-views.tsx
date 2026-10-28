@@ -2,13 +2,13 @@
 
 import { useCallback, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarIcon, ChartGanttIcon, ListIcon } from "lucide-react";
+import { CalendarIcon, ChartGanttIcon, Columns3Icon, ListIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 
 const m = messages.issues.views;
 
-export const ISSUE_VIEWS = ["list", "timeline", "calendar"] as const;
+export const ISSUE_VIEWS = ["list", "board", "timeline", "calendar"] as const;
 export type IssueViewMode = (typeof ISSUE_VIEWS)[number];
 
 /**
@@ -72,7 +72,7 @@ export function useIssueView(): [IssueViewMode, (view: IssueViewMode) => void] {
   return [view, setView];
 }
 
-const VIEW_ICONS = { list: ListIcon, timeline: ChartGanttIcon, calendar: CalendarIcon };
+const VIEW_ICONS = { list: ListIcon, board: Columns3Icon, timeline: ChartGanttIcon, calendar: CalendarIcon };
 
 /** The three buttons that switch between the views. */
 export function IssueViewSwitch({ view, onChange }: { view: IssueViewMode; onChange: (view: IssueViewMode) => void }) {

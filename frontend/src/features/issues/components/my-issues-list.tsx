@@ -2,6 +2,7 @@ import type { UserSummary } from "@/features/members/types";
 import { usersAsMembers } from "@/features/projects/types";
 import { getProjects, requireUser, serverGet } from "@/lib/current-user";
 import { messages } from "@/messages";
+import { pageLimit, splitPage } from "../paging";
 import type { Issue, Label } from "../types";
 import { IssuesView } from "./issues-view";
 
@@ -13,19 +14,22 @@ const m = messages.myIssues;
  * the ones assigned to them. A new issue made here starts assigned to the person on either tab (D-195); `deleted` shows the
  * deleted ones instead.
  */
-export async function MyIssuesList({ scope, deleted = false }: { scope: "assigned" | "created"; deleted?: boolean }) {
-  const [me, issues, users, labels, projects] = await Promise.all([
+export async function MyIssuesList({ scope, deleted = false, pages = 1 }: { scope: "assigned" | "created"; deleted?: boolean; pages?: number }) {
+  const [me, list, users, labels, projects] = await Promise.all([
     requireUser(),
-    serverGet<Issue[]>(`/api/v1/me/issues?scope=${scope}${deleted ? "&deleted=true" : ""}`),
+    serverGet<Issue[]>(`/api/v1/me/issues?scope=${scope}&limit=${pageLimit(pages)}${deleted ? "&deleted=true" : ""}`),
     serverGet<UserSummary[]>("/api/v1/users"),
     serverGet<Label[]>("/api/v1/labels"),
     getProjects(),
   ]);
+  const { items: issues, hasMore } = splitPage(list, pages);
   return (
     <IssuesView
       projectId={null}
       underTabs
-      issues={issues ?? []}
+      issues={issues}
+      hasMore={hasMore}
+      pages={pages}
       members={usersAsMembers(users)}
       labels={labels ?? []}
       projects={projects}

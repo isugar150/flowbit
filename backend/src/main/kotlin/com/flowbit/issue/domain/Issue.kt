@@ -24,7 +24,10 @@ class Issue(
     val number: Int,
     var title: String,
     var description: String,
+    /** The category the issue's status belongs to: what decides open or finished. */
     var status: IssueStatus,
+    /** Which of the statuses of that category the issue is in (docs/features/statuses-and-estimates.md). */
+    var statusId: UUID,
     var priority: IssuePriority,
     /** The first day of the span the issue covers; only together with [dueDate], and never after it. */
     var startDate: LocalDate?,
@@ -36,6 +39,12 @@ class Issue(
     /** Set while the issue is deleted: out of the lists, still readable with its history, restorable. */
     var deletedAt: Instant? = null,
     var deletedBy: UUID? = null,
+    /** Story points; only shown where the project turned estimates on. */
+    var estimate: Int? = null,
+    /** Waiting in the triage queue of its project until a manager accepts, declines or marks it a duplicate (D-231). */
+    var triage: Boolean = false,
+    /** The cycle of its project the issue is planned in (D-232). */
+    var cycleId: UUID? = null,
 ) {
     companion object {
         const val TITLE_MAX_LENGTH = 200

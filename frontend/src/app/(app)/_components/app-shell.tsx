@@ -8,6 +8,9 @@ import { InboxBell } from "@/features/notifications/components/inbox-bell";
 import { InboxSeen } from "@/features/notifications/components/inbox-seen";
 import { RealtimeProvider } from "@/features/realtime/realtime-provider";
 import type { Workspace } from "@/features/settings/types";
+import type { IssueStatusItem } from "@/features/issues/status-defaults";
+import { CommandCenter } from "@/features/command/components/command-center";
+import { IssueStatusProvider } from "@/features/issues/statuses";
 import { UploadLimitProvider } from "@/features/settings/upload-limit-provider";
 import { TourProvider } from "@/features/tour/components/onboarding-tour";
 import { mark } from "@/lib/initials";
@@ -28,6 +31,7 @@ export function AppShell({
   projects,
   uploadLimit,
   unreadNotifications,
+  statuses,
   children,
 }: {
   user: Me;
@@ -35,6 +39,8 @@ export function AppShell({
   projects: ProjectSummary[];
   /** The largest file the server takes, in bytes (FLOWBIT_MAX_UPLOAD_SIZE). */
   uploadLimit: number;
+  /** Every status an issue can be in (docs/features/statuses-and-estimates.md); null when the list could not be read. */
+  statuses: IssueStatusItem[] | null;
   /** How many notifications the signed-in person has not read, for the bell (D-216). */
   unreadNotifications: number;
   children: React.ReactNode;
@@ -42,9 +48,11 @@ export function AppShell({
   return (
     <RealtimeProvider userId={user.id}>
       <UploadLimitProvider bytes={uploadLimit}>
+        <IssueStatusProvider statuses={statuses}>
       <TooltipProvider>
         <NewIssueProvider projects={projects}>
         <SearchProvider>
+        <CommandCenter projects={projects} isAdmin={user.role === "ADMIN"} />
         <div className="flex h-dvh bg-sidebar text-foreground">
           <InboxSeen unread={unreadNotifications} />
           <aside className="hidden w-60 shrink-0 flex-col md:flex">
@@ -86,6 +94,7 @@ export function AppShell({
         </SearchProvider>
         </NewIssueProvider>
       </TooltipProvider>
+        </IssueStatusProvider>
       </UploadLimitProvider>
     </RealtimeProvider>
   );

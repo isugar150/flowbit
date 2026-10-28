@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleSlashIcon } from "lucide-react";
+import { CircleSlashIcon, RepeatIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/project-icon";
 import { CustomProperties } from "@/features/custom-properties/components/custom-properties";
 import { FormAlert } from "@/features/auth/components/form-alert";
@@ -8,9 +8,16 @@ import type { ProjectMember, ProjectSummary } from "@/features/projects/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
+import { useQuery } from "@tanstack/react-query";
+import { cycleSpan, getCycles } from "@/features/cycles/api";
 import { updateIssue } from "../api";
-import { NONE, priorityOptions, statusOptions } from "../options";
-import type { Issue, IssueChanges, IssuePerson, IssuePriority, IssueStatus, Label } from "../types";
+import { previousOf } from "../undo";
+import { updateIssueUndoable, type UndoableChange } from "../undoable";
+import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { NONE, estimateOptions, priorityOptions } from "../options";
+import { defaultStatusOf } from "../status-defaults";
+import { statusChoices, useIssueStatuses } from "../statuses";
+import type { Issue, IssuePerson, IssuePriority, IssueStatus, Label } from "../types";
 import { AssigneeChip } from "./assignee-chip";
 import { ChipSelect, type ChipOption } from "./chip-select";
 import { DateRangeChip } from "./date-chips";
@@ -51,13 +58,58 @@ function Row({ id, children }: { id: string; children: React.ReactNode }) {
 /** The properties an issue is made or changed with, as the panel shows them. */
 export type IssuePropertyValues = {
   status: IssueStatus;
+  /** The status picked; left out, the first one of `status`'s category. */
+  statusId?: string;
   priority: IssuePriority;
+  /** Story points, for a project that turned estimates on. */
+  estimate?: number | null;
   assigneeIds: string[];
   startDate: string | null;
   dueDate: string | null;
   labelIds: string[];
   projectId: string | null;
 };
+
+/** The cycle an existing issue is planned in, for a project that runs in cycles (D-232): this one, the next, or an earlier one. */
+function CycleSection({ issue, canEdit }: { issue: Issue; canEdit: boolean }) {
+  const projectId = issue.project?.id;
+  const cycles = useQuery({
+    queryKey: ["cycles", projectId],
+    queryFn: () => getCycles(projectId as string),
+    enabled: Boolean(projectId),
+    staleTime: 30_000,
+  });
+  const mutation = useRefreshingMutation(updateIssue);
+  const data = cycles.data;
+  if (!data?.settings.enabled) return null;
+  const choices = [
+    ...(data.current ? [{ cycle: data.current, label: messages.cycles.current }] : []),
+    ...(data.upcoming ? [{ cycle: data.upcoming, label: messages.cycles.upcoming }] : []),
+    ...data.past.map((cycle) => ({ cycle, label: "" })),
+  ];
+  // An issue can sit in a cycle older than the ones listed: it stays choosable while it is the value.
+  if (issue.cycle && !choices.some((choice) => choice.cycle.id === issue.cycle?.id)) {
+    choices.push({ cycle: { ...issue.cycle, total: 0, done: 0 }, label: "" });
+  }
+  const options: ChipOption<string>[] = [
+    { value: NONE, label: messages.cycles.none, icon: <CircleSlashIcon className="size-4 text-muted-foreground" aria-hidden /> },
+    ...choices.map(({ cycle, label }) => ({ value: cycle.id, label: messages.cycles.option(label, cycle.number, cycleSpan(cycle)), icon: <RepeatIcon className="size-4 text-muted-foreground" aria-hidden /> })),
+  ];
+  return (
+    <Section title={messages.cycles.property}>
+      <Row id={messages.cycles.property}>
+        <ChipSelect
+          plain
+          label={messages.cycles.property}
+          value={issue.cycle?.id ?? NONE}
+          options={options}
+          disabled={!canEdit || mutation.isPending}
+          onChange={(id) => mutation.mutate({ number: issue.number, changes: { cycleId: id === NONE ? null : id } })}
+        />
+      </Row>
+    </Section>
+  );
+}
 
 /**
  * The properties of an issue in three groups: its properties (status, priority, assignees, dates,
@@ -94,6 +146,8 @@ export function IssuePropertyFields({
   after?: React.ReactNode;
   disabled?: boolean;
 }) {
+  const statuses = useIssueStatuses();
+  const estimatesOn = projects.find((project) => project.id === values.projectId)?.estimatesEnabled === true;
   return (
     <div className="flex flex-col gap-6">
       <Section title={messages.projects.properties}>
@@ -101,10 +155,10 @@ export function IssuePropertyFields({
           <ChipSelect
             plain
             label={m.status}
-            value={values.status}
-            options={statusOptions}
+            value={values.statusId ?? defaultStatusOf(statuses, values.status).id}
+            options={statusChoices(statuses)}
             disabled={disabled}
-            onChange={(status) => onChange({ status })}
+            onChange={(statusId) => onChange({ statusId, status: statuses.find((status) => status.id === statusId)?.category ?? values.status })}
           />
         </Row>
         <Row id={m.priority}>
@@ -117,6 +171,18 @@ export function IssuePropertyFields({
             onChange={(priority) => onChange({ priority })}
           />
         </Row>
+        {estimatesOn ? (
+          <Row id={m.estimate}>
+            <ChipSelect
+              plain
+              label={m.estimate}
+              value={values.estimate == null ? NONE : String(values.estimate)}
+              options={estimateOptions(values.estimate ?? null)}
+              disabled={disabled}
+              onChange={(points) => onChange({ estimate: points === NONE ? null : Number(points) })}
+            />
+          </Row>
+        ) : null}
         <Row id={m.assignee}>
           <AssigneeChip
             members={members}
@@ -192,7 +258,9 @@ export function IssueProperties({
 }) {
   const saved: IssuePropertyValues = {
     status: issue.status,
+    statusId: issue.statusId,
     priority: issue.priority,
+    estimate: issue.estimate,
     assigneeIds: issue.assignees.map((person) => person.id),
     startDate: issue.startDate,
     dueDate: issue.dueDate,
@@ -201,8 +269,8 @@ export function IssueProperties({
   };
   const mutation = useOptimisticMutation(
     saved,
-    (values, { changes }: { number: number; changes: IssueChanges }) => ({ ...values, ...changes }),
-    updateIssue,
+    (values, { changes }: UndoableChange) => ({ ...values, ...changes }),
+    updateIssueUndoable,
   );
 
   return (
@@ -210,7 +278,7 @@ export function IssueProperties({
       {mutation.isError ? <FormAlert>{apiErrorMessage(mutation.error)}</FormAlert> : null}
       <IssuePropertyFields
         values={mutation.value}
-        onChange={(changes) => mutation.mutate({ number: issue.number, changes })}
+        onChange={(changes) => mutation.mutate({ number: issue.number, changes, key: issue.key, undoWith: previousOf(mutation.value, changes) })}
         members={members}
         labels={labels}
         projects={projects}
@@ -219,9 +287,12 @@ export function IssueProperties({
         disabled={!canEdit}
         afterDueDate={<CustomProperties owner={{ type: "issue", id: issue.id }} members={members} watch={issue} layout="panel" />}
         after={
-          <Section title={m.parentField.title}>
-            <IssueParentField issue={issue} canEdit={canEdit} />
-          </Section>
+          <>
+            <CycleSection issue={issue} canEdit={canEdit} />
+            <Section title={m.parentField.title}>
+              <IssueParentField issue={issue} canEdit={canEdit} />
+            </Section>
+          </>
         }
       />
     </div>

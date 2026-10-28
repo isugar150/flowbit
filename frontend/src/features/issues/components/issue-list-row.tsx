@@ -7,7 +7,8 @@ import type { ProjectMember } from "@/features/projects/types";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import { StatusIcon } from "../meta";
-import { priorityOptions, statusOptions } from "../options";
+import { priorityOptions } from "../options";
+import { useStatusOptions } from "../statuses";
 import type { Issue, IssueChanges } from "../types";
 import { AssigneeChip } from "./assignee-chip";
 import { ChipSelect } from "./chip-select";
@@ -151,13 +152,15 @@ export const IssueListRow = memo(function IssueListRow({
   /** On lists that span projects, each line says which project it is in. */
   showProject: boolean;
   layout?: IssueListLayout;
-  onStatusChange: (number: number, status: Issue["status"]) => void;
+  /** Moves the issue to the status picked (its id). */
+  onStatusChange: (number: number, statusId: string) => void;
   /** The padding at both ends. */
   className?: string;
   /** What others see this line as when it is pointed at; lines of another list over this one need their own. */
   presence?: string;
 }) {
   const columns = LAYOUTS[layout];
+  const statusOptions = useStatusOptions();
   const edit = editable ? editing : undefined;
   const members = edit?.members(issue) ?? null;
   const router = useRouter();
@@ -184,9 +187,9 @@ export const IssueListRow = memo(function IssueListRow({
         <ChipSelect
           iconOnly
           label={m.statusOf(issue.key)}
-          value={issue.status}
+          value={issue.statusId}
           options={statusOptions}
-          onChange={(status) => onStatusChange(issue.number, status)}
+          onChange={(statusId) => onStatusChange(issue.number, statusId)}
         />
       ) : (
         <span className="flex size-7 items-center justify-center">

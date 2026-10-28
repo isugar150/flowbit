@@ -3,7 +3,8 @@ import { PersonAvatar, personName } from "@/components/person";
 import { ProjectIcon } from "@/components/project-icon";
 import type { ProjectSummary } from "@/features/projects/types";
 import { messages } from "@/messages";
-import { PriorityIcon, STATUS_ORDER, StatusIcon, priorityLabel, statusLabel } from "./meta";
+import { PriorityIcon, StatusIcon, priorityLabel } from "./meta";
+import { listOrder, type IssueStatusItem } from "./status-defaults";
 import type { Issue, IssuePerson, IssuePriority } from "./types";
 
 const m = messages.issues;
@@ -34,13 +35,14 @@ export function groupIssues(
   issues: Issue[],
   grouping: IssueGrouping,
   projects: ProjectSummary[],
+  statuses: IssueStatusItem[],
 ): IssueGroup[] {
   switch (grouping) {
     case "status":
       return fixed(
-        STATUS_ORDER.map((status) => ({ key: status, label: statusLabel(status), icon: <StatusIcon status={status} /> })),
+        listOrder(statuses).map((status) => ({ key: status.id, label: status.name, icon: <StatusIcon status={status.category} /> })),
         issues,
-        (issue) => [issue.status],
+        (issue) => [issue.statusId],
       );
     case "priority":
       return fixed(

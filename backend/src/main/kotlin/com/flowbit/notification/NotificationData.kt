@@ -1,9 +1,12 @@
 package com.flowbit.notification
 
+import com.flowbit.common.crypto.Secret
 import kotlinx.coroutines.flow.Flow
 import org.springframework.data.annotation.Id
+import org.springframework.data.annotation.Transient
 import org.springframework.data.r2dbc.repository.Modifying
 import org.springframework.data.r2dbc.repository.Query
+import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
 import org.springframework.data.repository.kotlin.CoroutineCrudRepository
 import java.time.Instant
@@ -21,18 +24,35 @@ class NotificationSettings(
     var smtpPort: Int,
     var smtpSecurity: SmtpSecurity,
     var smtpUsername: String,
-    var smtpPassword: String,
+    /** Encrypted in the database; use [smtpPassword] for the plain text (D-226). */
+    @Column("smtp_password")
+    var smtpPasswordStored: Secret,
     var smtpFromAddress: String,
     var smtpFromName: String,
     var pushEnabled: Boolean,
-    /** The service account key file (JSON) the server signs its FCM requests with. */
-    var fcmServiceAccount: String,
+    /** The service account key file (JSON) the server signs its FCM requests with; encrypted in the database (D-226). */
+    @Column("fcm_service_account")
+    var fcmServiceAccountStored: Secret,
     var fcmApiKey: String,
     var fcmMessagingSenderId: String,
     var fcmAppId: String,
     var fcmVapidKey: String,
     var updatedAt: Instant,
 ) {
+    @get:Transient
+    var smtpPassword: String
+        get() = smtpPasswordStored.value
+        set(value) {
+            smtpPasswordStored = Secret(value)
+        }
+
+    @get:Transient
+    var fcmServiceAccount: String
+        get() = fcmServiceAccountStored.value
+        set(value) {
+            fcmServiceAccountStored = Secret(value)
+        }
+
     companion object {
         const val SINGLETON_ID: Short = 1
     }
@@ -93,11 +113,13 @@ class Webhook(
     var url: String,
     var method: String,
     var contentType: String,
-    /** A JSON object of header name to value. */
-    var headers: String,
+    /** A JSON object of header name to value; encrypted in the database, for it can carry a token (D-226). */
+    @Column("headers")
+    var headersStored: Secret,
     /** Empty means the standard JSON payload. */
     var bodyTemplate: String,
-    var signingSecret: String,
+    @Column("signing_secret")
+    var signingSecretStored: Secret,
     /** Comma-separated IssueActivityType names; empty means every kind of change. */
     var eventTypes: String,
     var lastStatus: Int?,
@@ -108,6 +130,20 @@ class Webhook(
 ) {
     val eventTypeSet: Set<String>
         get() = eventTypes.split(',').filter { it.isNotEmpty() }.toSet()
+
+    @get:Transient
+    var headers: String
+        get() = headersStored.value
+        set(value) {
+            headersStored = Secret(value)
+        }
+
+    @get:Transient
+    var signingSecret: String
+        get() = signingSecretStored.value
+        set(value) {
+            signingSecretStored = Secret(value)
+        }
 }
 
 interface WebhookRepository : CoroutineCrudRepository<Webhook, UUID> {

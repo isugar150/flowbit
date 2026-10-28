@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { CornerDownLeftIcon, SearchIcon } from "lucide-react";
-import { ModKey } from "@/components/mod-key";
+import { ShortcutKeys } from "@/components/shortcut-keys";
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
@@ -57,14 +57,8 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing) return;
-      // `code`: the physical key, so it works while a Korean input method is on.
-      const palette = event.code === "KeyK" && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+      // `Ctrl/⌘+K` is the command palette's now (features/command); the search keeps `/` and the sidebar button.
       const slash = event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey;
-      if (palette) {
-        event.preventDefault();
-        setOpen((current) => !current);
-        return;
-      }
       if (slash && !isTyping(event.target) && !document.querySelector("[role=dialog]")) {
         event.preventDefault();
         setOpen(true);
@@ -258,6 +252,11 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Opens the search dialog from code (the command palette); null outside the app. */
+export function useOpenSearch(): (() => void) | null {
+  return useContext(SearchContext);
+}
+
 /** Opens the search dialog. `sidebar` is the row in the sidebar; `icon` fits the narrow top bar. */
 export function SearchButton({ variant }: { variant: "sidebar" | "icon" }) {
   const show = useContext(SearchContext);
@@ -277,12 +276,7 @@ export function SearchButton({ variant }: { variant: "sidebar" | "icon" }) {
     >
       <SearchIcon className="size-4" aria-hidden="true" />
       {m.title}
-      <KbdGroup className="ml-auto">
-        <Kbd>
-          <ModKey />
-        </Kbd>
-        <Kbd>K</Kbd>
-      </KbdGroup>
+      <ShortcutKeys id="search" className="ml-auto" />
     </button>
   );
 }

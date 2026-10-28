@@ -1,8 +1,11 @@
 package com.flowbit.git
 
+import com.flowbit.common.crypto.Secret
 import kotlinx.coroutines.flow.Flow
 import org.springframework.data.annotation.Id
+import org.springframework.data.annotation.Transient
 import org.springframework.data.r2dbc.repository.Query
+import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
 import org.springframework.data.repository.kotlin.CoroutineCrudRepository
 import java.time.Instant
@@ -32,8 +35,9 @@ class GitConnection(
     var provider: GitProviderType,
     /** Where the Git server is, for the screen and the setup guide. */
     var baseUrl: String,
-    /** Signs every call from the Git server. Shown only when it is made. */
-    var secret: String,
+    /** Signs every call from the Git server. Shown only when it is made; encrypted in the database (D-226). */
+    @Column("secret")
+    var secretStored: Secret,
     var enabled: Boolean,
     /** Raw JSON: the status each stage moves an issue to (GitStatusRules, D-158). */
     var statusRules: String,
@@ -50,9 +54,11 @@ class GitConnection(
     var githubAppId: Long? = null,
     var githubAppSlug: String? = null,
     var githubClientId: String? = null,
-    var githubClientSecret: String? = null,
-    /** The app's private key (PEM) that signs its JWTs. */
-    var githubPrivateKey: String? = null,
+    @Column("github_client_secret")
+    var githubClientSecretStored: Secret? = null,
+    /** The app's private key (PEM) that signs its JWTs; encrypted in the database (D-226). */
+    @Column("github_private_key")
+    var githubPrivateKeyStored: Secret? = null,
     var githubInstallationId: Long? = null,
     /** `all` or `selected`. */
     var githubRepositorySelection: String? = null,
@@ -63,6 +69,27 @@ class GitConnection(
     var syncError: String? = null,
     var rateLimitRemaining: Int? = null,
 ) {
+    @get:Transient
+    var secret: String
+        get() = secretStored.value
+        set(value) {
+            secretStored = Secret(value)
+        }
+
+    @get:Transient
+    var githubClientSecret: String?
+        get() = githubClientSecretStored?.value
+        set(value) {
+            githubClientSecretStored = value?.let(::Secret)
+        }
+
+    @get:Transient
+    var githubPrivateKey: String?
+        get() = githubPrivateKeyStored?.value
+        set(value) {
+            githubPrivateKeyStored = value?.let(::Secret)
+        }
+
     /** A GitHub connection whose app exists and is installed: one Flowbit can call the API for. */
     fun rules(): GitStatusRules = GitStatusRules.parse(statusRules)
 

@@ -1,4 +1,4 @@
-import { UserIcon } from "lucide-react";
+import { GaugeIcon, MinusIcon, UserIcon } from "lucide-react";
 import { PersonAvatar, personName, type PersonLike } from "@/components/person";
 import type { ProjectMember } from "@/features/projects/types";
 import { messages } from "@/messages";
@@ -29,6 +29,17 @@ export const priorityOptions: ChipOption<IssuePriority>[] = PRIORITIES.map((prio
   label: priorityLabel(priority),
   icon: <PriorityIcon priority={priority} />,
 }));
+
+/** The estimates the menu offers (story points); an estimate set otherwise (through the API) is offered too while it is the value. */
+export const ESTIMATE_STEPS = [0, 1, 2, 3, 5, 8, 13, 21];
+
+export function estimateOptions(current: number | null): ChipOption<string>[] {
+  const steps = current !== null && !ESTIMATE_STEPS.includes(current) ? [...ESTIMATE_STEPS, current].sort((a, b) => a - b) : ESTIMATE_STEPS;
+  return [
+    { value: NONE, label: m.noEstimate, icon: <MinusIcon className="size-4 text-muted-foreground" aria-hidden /> },
+    ...steps.map((points) => ({ value: String(points), label: m.estimatePoints(points), icon: <GaugeIcon className="size-4 text-muted-foreground" aria-hidden /> })),
+  ];
+}
 
 /** As many assignees as the server takes (IssueService.MAX_ASSIGNEES). */
 export const MAX_ASSIGNEES = 10;

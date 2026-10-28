@@ -21,6 +21,7 @@ import { DeleteIssueButton, DeletedIssueBanner } from "./issue-deletion";
 import { DuplicateIssueButton } from "./issue-duplicate";
 import { IssueProperties } from "./issue-properties";
 import { IssueReactions } from "./issue-reactions";
+import { IssueRelations } from "./issue-relations";
 import { IssueSubIssues } from "./issue-sub-issues";
 
 const m = messages.issues;
@@ -81,6 +82,7 @@ export async function IssueDetail({ issueKey }: { issueKey: string }) {
         />
         <IssueReactions number={issue.number} reactions={issue.reactions} readOnly={Boolean(issue.deletedAt)} />
         <IssueSubIssues issue={issue} canEdit={canEdit} members={members ?? []} />
+        <IssueRelations number={issue.number} canEdit={canEdit} />
         {activity ? (
           <IssueActivity
             number={issue.number}

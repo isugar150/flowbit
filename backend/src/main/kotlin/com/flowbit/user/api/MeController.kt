@@ -1,10 +1,13 @@
 package com.flowbit.user.api
 
 import com.flowbit.auth.application.AuthenticatedUser
+import com.flowbit.common.web.ClientInfo
 import com.flowbit.media.api.UploadReader
 import com.flowbit.media.application.ImageStorage
+import com.flowbit.user.application.PasswordChangeService
 import com.flowbit.user.application.UserProfile
 import com.flowbit.user.application.UserService
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -16,7 +19,9 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestPart
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 import java.util.UUID
 
@@ -50,10 +55,21 @@ data class UpdateMeRequest(
     val displayName: String?,
 )
 
+/** Whether the settings page shows the form for changing one's own password. */
+data class PasswordChangeStatus(
+    val available: Boolean,
+)
+
+data class ChangePasswordRequest(
+    val currentPassword: String,
+    val newPassword: String,
+)
+
 @RestController
 @RequestMapping("/api/v1/me")
 class MeController(
     private val userService: UserService,
+    private val passwordChange: PasswordChangeService,
     private val uploadReader: UploadReader,
 ) {
     @GetMapping
@@ -77,6 +93,21 @@ class MeController(
     suspend fun removeAvatar(
         @AuthenticationPrincipal principal: AuthenticatedUser,
     ): MeResponse = MeResponse.from(userService.removeAvatar(principal.id))
+
+    @GetMapping("/password")
+    suspend fun passwordStatus(
+        @AuthenticationPrincipal principal: AuthenticatedUser,
+    ): PasswordChangeStatus = PasswordChangeStatus(passwordChange.isAvailable(principal.id))
+
+    @PutMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun changePassword(
+        @AuthenticationPrincipal principal: AuthenticatedUser,
+        @RequestBody body: ChangePasswordRequest,
+        exchange: ServerWebExchange,
+    ) {
+        passwordChange.change(principal, body.currentPassword, body.newPassword, ClientInfo.from(exchange))
+    }
 
     @PostMapping("/tour/complete")
     suspend fun completeTour(

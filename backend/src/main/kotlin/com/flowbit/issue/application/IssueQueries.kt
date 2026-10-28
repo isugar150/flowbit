@@ -52,6 +52,9 @@ data class IssueView(
     val title: String,
     val description: String,
     val status: IssueStatus,
+    /** The status the issue is in and its name; [status] is the category it belongs to. */
+    val statusId: UUID,
+    val statusName: String,
     val priority: IssuePriority,
     /** In the order they were given the issue; empty when no one has it. */
     val assignees: List<IssuePerson>,
@@ -79,6 +82,22 @@ data class IssueView(
     val commentCount: Int = 0,
     /** Entries of its history besides "created" (D-219). */
     val activityCount: Int = 0,
+    /** Story points, or null. */
+    val estimate: Int? = null,
+    /** How many issues that block it are still open (D-230); above zero, the issue is waiting on something. */
+    val openBlockers: Int = 0,
+    /** Waiting in the triage queue (D-231). */
+    val triage: Boolean = false,
+    /** The cycle it is planned in, or null. */
+    val cycle: IssueCycle? = null,
+)
+
+/** The cycle an issue is planned in (D-232). */
+data class IssueCycle(
+    val id: UUID,
+    val number: Int,
+    val startsOn: LocalDate,
+    val endsOn: LocalDate,
 )
 
 /** An issue above another, as the query reads it; the key is added from the workspace's issue key. */
@@ -101,8 +120,13 @@ data class Viewer(
     val seesAllProjects: Boolean,
 )
 
-/** More than anyone reads in one list; keeps a page fast in a workspace with years of issues. */
-private const val LIST_LIMIT = 1000
+/** How many issues a list holds unless it asks for more; keeps a page fast in a workspace with years of issues. */
+const val ISSUE_LIST_LIMIT = 1000
+
+/** The most a list can ask for: the screens load a thousand more at a time (D-227). */
+const val ISSUE_LIST_MAX = 10_000
+
+private const val LIST_LIMIT = ISSUE_LIST_LIMIT
 
 /**
  * An issue linked to no project is open to everyone; a linked one follows its project, which must
@@ -122,13 +146,20 @@ class IssueQueries(
         viewer: Viewer,
         projectId: UUID?,
         deleted: Boolean,
+        limit: Int = LIST_LIMIT,
     ): List<IssueView> =
         select(
             "where $VISIBLE and ${deletedIs(deleted)} ${if (projectId != null) "and i.project_id = :projectId" else ""} " +
-                "order by i.number desc limit $LIST_LIMIT",
+                "order by i.number desc limit ${limit.coerceIn(1, ISSUE_LIST_MAX)}",
         ) {
             val spec = it.visibleTo(viewer)
             if (projectId != null) spec.bind("projectId", projectId) else spec
+        }
+
+    /** The issues waiting in the triage queue that the viewer may see, the oldest first (D-231). */
+    suspend fun triageQueue(viewer: Viewer): List<IssueView> =
+        select("where $VISIBLE and i.deleted_at is null and i.triage and i.project_id is not null order by i.created_at limit $LIST_LIMIT") {
+            it.visibleTo(viewer)
         }
 
     /** The viewer's own issues ("내 티켓"), most recently changed first. */
@@ -136,8 +167,9 @@ class IssueQueries(
         viewer: Viewer,
         scope: MyIssueScope,
         deleted: Boolean,
+        limit: Int = LIST_LIMIT,
     ): List<IssueView> =
-        select("where $VISIBLE and ${deletedIs(deleted)} and ${scope.condition} order by i.updated_at desc limit $LIST_LIMIT") {
+        select("where $VISIBLE and ${deletedIs(deleted)} and ${scope.condition} order by i.updated_at desc limit ${limit.coerceIn(1, ISSUE_LIST_MAX)}") {
             it.visibleTo(viewer)
         }
 
@@ -302,7 +334,7 @@ class IssueQueries(
         bind(
             databaseClient.sql(
                 """
-                select i.id, i.number, i.title, ${if (withDescription) "i.description" else "'' as description"}, i.status, i.priority, i.start_date, i.due_date,
+                select i.id, i.number, i.title, ${if (withDescription) "i.description" else "'' as description"}, i.status, st.id as status_id, st.name as status_name, i.estimate, i.triage, cy.id as cycle_id, cy.number as cycle_number, cy.starts_on as cycle_starts_on, cy.ends_on as cycle_ends_on, i.priority, i.start_date, i.due_date,
                        i.version, i.created_at, i.updated_at, i.deleted_at,
                        case when i.status in ('DONE', 'CANCELED') then coalesce(
                            (select max(sa.created_at) from issue_activities sa where sa.issue_id = i.id and sa.type = 'STATUS_CHANGED'),
@@ -324,6 +356,9 @@ class IssueQueries(
                        (select count(*) from issue_activities ac where ac.issue_id = i.id and ac.type <> 'CREATED') as activity_count,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null) as sub_total,
                        (select count(*) from issues s where s.parent_id = i.id and s.deleted_at is null and s.status = 'DONE') as sub_done,
+                       (select count(*) from issue_relations br join issues bi on bi.id = br.issue_id
+                        where br.related_id = i.id and br.type = 'BLOCKS' and bi.deleted_at is null
+                          and bi.status not in ('DONE', 'CANCELED')) as open_blockers,
                        (select coalesce(json_agg(json_build_object('id', a.id, 'loginId', a.login_id,
                                                                    'displayName', a.display_name, 'avatarKey', a.avatar_key)
                                                  order by ia.created_at, a.login_id), '[]')::text
@@ -338,6 +373,8 @@ class IssueQueries(
                 from issues i
                 left join projects p on p.id = i.project_id
                 left join issues parent on parent.id = i.parent_id
+                join issue_statuses st on st.id = i.status_id
+                left join cycles cy on cy.id = i.cycle_id
                 join users c on c.id = i.created_by
                 $tail
                 """.trimIndent(),
@@ -373,6 +410,20 @@ class IssueQueries(
                 title = checkNotNull(row.get("title", String::class.java)),
                 description = checkNotNull(row.get("description", String::class.java)),
                 status = IssueStatus.valueOf(checkNotNull(row.get("status", String::class.java))),
+                statusId = checkNotNull(row.get("status_id", UUID::class.java)),
+                statusName = checkNotNull(row.get("status_name", String::class.java)),
+                estimate = row.get("estimate", Int::class.javaObjectType),
+                triage = checkNotNull(row.get("triage", Boolean::class.javaObjectType)),
+                cycle =
+                    row.get("cycle_id", UUID::class.java)?.let { cycleId ->
+                        IssueCycle(
+                            cycleId,
+                            checkNotNull(row.get("cycle_number", Int::class.javaObjectType)),
+                            checkNotNull(row.get("cycle_starts_on", LocalDate::class.java)),
+                            checkNotNull(row.get("cycle_ends_on", LocalDate::class.java)),
+                        )
+                    },
+                openBlockers = checkNotNull(row.get("open_blockers", Long::class.javaObjectType)).toInt(),
                 priority = IssuePriority.valueOf(checkNotNull(row.get("priority", String::class.java))),
                 assignees = jsonMapper.readValue(checkNotNull(row.get("assignees", String::class.java)), Array<IssuePerson>::class.java).toList(),
                 startDate = row.get("start_date", LocalDate::class.java),

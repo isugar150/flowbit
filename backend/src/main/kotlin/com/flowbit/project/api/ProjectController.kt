@@ -67,6 +67,10 @@ data class ProjectResponse(
     val archivedAt: Instant?,
     /** Whether every member of the workspace enters the project as an editor (D-192). */
     val openToAll: Boolean,
+    /** Whether the project's issues carry an estimate (D-228). */
+    val estimatesEnabled: Boolean,
+    /** Whether an issue made by someone who does not manage the project waits in the triage queue (D-231). */
+    val triageEnabled: Boolean,
     /** The overview document as editor JSON; present only when one project is requested. */
     @get:JsonRawValue
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
@@ -96,6 +100,8 @@ data class ProjectResponse(
                 member = view.member,
                 archivedAt = view.archivedAt,
                 openToAll = view.openToAll,
+                estimatesEnabled = view.estimatesEnabled,
+                triageEnabled = view.triageEnabled,
                 content = view.content,
             )
     }
