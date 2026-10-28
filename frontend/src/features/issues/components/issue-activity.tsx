@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { BellIcon, BellOffIcon } from "lucide-react";
 import type { MentionPerson } from "@/components/editor/mention";
-import { Button } from "@/components/ui/button";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
@@ -16,6 +14,7 @@ import type { IssueActivityFeed } from "../types";
 import { ActivityEvent, describe } from "./activity-event";
 import { ShowOlderButton, timelineOf, useCollapsedEntries } from "./activity-timeline";
 import { CommentComposer, CommentItem } from "./issue-comments";
+import { IssueSubscriptionButton } from "./issue-subscription-button";
 import { SubscriberAvatars } from "./subscriber-avatars";
 
 const m = messages.issues.activity;
@@ -65,28 +64,12 @@ export function IssueActivity({
           {m.heading}
         </h3>
         {feed.subscribers.length > 0 ? <SubscriberAvatars people={feed.subscribers} /> : null}
-        {!inherited ? <select
-          aria-label={m.subscriptionScope}
-          value={includeDescendants ? "descendants" : "self"}
-          className="h-9 rounded-md border bg-background px-2 text-sm"
-          onChange={(event) => {
-            const next = event.target.value === "descendants";
-            mutation.mutate({ number, subscribed: true, includeDescendants: next });
-          }}
-        >
-          <option value="self">{m.subscribeSelf}</option>
-          <option value="descendants">{m.subscribeDescendants}</option>
-        </select> : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground max-md:h-11"
-          onClick={() => mutation.mutate({ number, subscribed: !subscribed, includeDescendants })}
-        >
-          {subscribed ? <BellOffIcon data-icon="inline-start" /> : <BellIcon data-icon="inline-start" />}
-          {subscribed ? (inherited ? m.inheritedSubscription : m.unsubscribe) : m.subscribe}
-        </Button>
+        <IssueSubscriptionButton
+          subscribed={subscribed}
+          includeDescendants={includeDescendants}
+          inherited={inherited}
+          onChange={(subscribed, includeDescendants = false) => mutation.mutate({ number, subscribed, includeDescendants })}
+        />
       </div>
       {mutation.isError ? (
         <p role="alert" className="text-[0.8125rem] leading-5 text-destructive">

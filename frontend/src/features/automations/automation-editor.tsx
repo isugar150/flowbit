@@ -96,7 +96,23 @@ function ActionBlock({ action, index, last, onChange, onRemove, onMove, members,
         {action.type === "ASSIGN" ? <p className="text-xs text-muted-foreground">{m.clearAssignees}</p> : null}
       </> : null}
       {action.type === "ADD_LABELS" || action.type === "REMOVE_LABELS" ? <MultiPick label={m.labels} options={labels.map((label) => ({ id: label.id, label: label.name }))} value={action.labelIds} onChange={(labelIds) => onChange({ ...action, labelIds })} /> : null}
-      {action.type === "NOTIFY" ? <Field><FieldLabel htmlFor={`${id}-message`}>{m.message}</FieldLabel><Textarea id={`${id}-message`} value={action.message} maxLength={1000} rows={2} onChange={(event) => onChange({ ...action, message: event.target.value })} /></Field> : null}
+      {action.type === "NOTIFY" ? <>
+        <Field>
+          <FieldLabel htmlFor={`${id}-example`}>{m.messageExample}</FieldLabel>
+          <NativeSelect id={`${id}-example`} value="" onChange={(event) => {
+            const example = m.messageExamples.find((item) => item.label === event.target.value);
+            if (example) onChange({ ...action, message: example.text });
+          }}>
+            <NativeSelectOption value="">{m.messageExampleChoose}</NativeSelectOption>
+            {m.messageExamples.map((example) => <NativeSelectOption key={example.label} value={example.label}>{example.label}</NativeSelectOption>)}
+          </NativeSelect>
+          <FieldDescription>{m.messageExampleHint}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-message`}>{m.message}</FieldLabel>
+          <Textarea id={`${id}-message`} value={action.message} placeholder={m.messagePlaceholder} maxLength={1000} rows={3} onChange={(event) => onChange({ ...action, message: event.target.value })} />
+        </Field>
+      </> : null}
     </div>
   );
 }
