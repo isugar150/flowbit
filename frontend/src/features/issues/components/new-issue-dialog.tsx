@@ -263,7 +263,7 @@ export function NewIssueDialog({
   return (
     <Dialog open={open} onOpenChange={requestOpenChange}>
       {/* The dialog exists to type a title: put the cursor there as it opens. */}
-      <DialogContent className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto overscroll-contain p-0 sm:max-w-2xl md:max-w-4xl" initialFocus={titleRef}>
+      <DialogContent className="@container max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] gap-0 overflow-y-auto overscroll-contain p-0 sm:max-w-5xl xl:max-w-[min(84rem,calc(100vw-6rem))]" initialFocus={titleRef}>
         <DialogTitle className="sr-only">{m.newTitle}</DialogTitle>
         <DialogDescription className="sr-only">{m.emptyDescription}</DialogDescription>
         <form
@@ -292,8 +292,8 @@ export function NewIssueDialog({
             ) : null}
             <span className="font-medium">{m.new}</span>
           </div>
-          <div className="flex flex-col md:flex-row">
-          <div className="flex min-w-0 flex-1 flex-col gap-2 px-4 pt-3 pb-3">
+          <div className="flex flex-col @min-[35rem]:flex-row">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 px-5 pt-4 pb-5">
             <textarea
               ref={titleRef}
               rows={1}
@@ -313,7 +313,7 @@ export function NewIssueDialog({
                 // Plain Enter must not create a half-written issue.
                 if (event.key === "Enter" && !event.ctrlKey && !event.metaKey) event.preventDefault();
               }}
-              className="max-h-40 w-full resize-none bg-transparent text-lg leading-7 font-semibold outline-none placeholder:font-medium placeholder:text-muted-foreground"
+              className="max-h-40 w-full resize-none bg-transparent text-2xl leading-8 font-semibold outline-none placeholder:font-medium placeholder:text-muted-foreground"
             />
             {titleError ? (
               <p id="new-issue-title-error" role="alert" className="text-[0.8125rem] leading-5 text-destructive">
@@ -327,7 +327,7 @@ export function NewIssueDialog({
               ariaLabel={m.descriptionLabel}
               mentionables={mentionablesOf(members)}
               // -ml/pl: the scroll box reaches into the left padding so the block grip is not clipped.
-              className="-ml-4 max-h-[45dvh] min-h-28 overflow-y-auto overscroll-contain pl-4 md:max-h-[55dvh] md:min-h-64"
+              className="-ml-4 max-h-[55dvh] min-h-[min(20rem,45dvh)] overflow-y-auto overscroll-contain pl-4 @min-[35rem]:min-h-[min(28rem,55dvh)]"
               onChange={(doc) => {
                 content.current = doc;
                 setHasBody(doc !== null);
@@ -335,7 +335,7 @@ export function NewIssueDialog({
             />
           </div>
           {/* The same panel as on an existing issue, so making and changing look alike. */}
-          <aside className="shrink-0 border-t px-5 py-4 md:w-64 md:border-t-0 md:border-l">
+          <aside className="min-w-0 shrink-0 border-t px-5 py-4 @min-[35rem]:w-64 @min-[35rem]:border-t-0 @min-[35rem]:border-l">
             <IssuePropertyFields
               values={properties}
               onChange={(changes) => {
