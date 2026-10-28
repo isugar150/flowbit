@@ -5,6 +5,7 @@ import { FolderGit2Icon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { useProjectApiScope } from "@/features/projects/project-api-scope";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
@@ -24,14 +25,18 @@ const TYPE_IN = "\u0000type-in";
  * change is saved at once.
  */
 export function ProjectGitRepositories({ projectId, settings }: { projectId: string; settings: ProjectGitSettings }) {
+  const scope = useProjectApiScope();
   const [connectionId, setConnectionId] = useState(settings.connections[0]?.id ?? "");
   const [picked, setPicked] = useState("");
   const [typed, setTyped] = useState("");
-  const save = useRefreshingMutation(saveProjectGitRepositories, () => {
-    setPicked("");
-    setTyped("");
-  });
-  const reload = useRefreshingMutation(refreshProjectGitRepositories);
+  const save = useRefreshingMutation(
+    (input: { projectId: string; repositories: GitRepositoryRef[] }) => saveProjectGitRepositories({ ...input, scope }),
+    () => {
+      setPicked("");
+      setTyped("");
+    },
+  );
+  const reload = useRefreshingMutation((id: string) => refreshProjectGitRepositories(id, scope));
   const connection = settings.connections.find((it) => it.id === connectionId);
   const choices = settings.available.filter((it) => it.connectionId === connectionId);
   // Nothing to pick from yet (a Gitea or GitLab connection that has not heard from a repository): type it.

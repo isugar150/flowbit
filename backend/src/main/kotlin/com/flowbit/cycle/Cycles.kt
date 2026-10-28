@@ -5,6 +5,7 @@ import com.flowbit.common.UuidV7
 import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.ValidationException
 import com.flowbit.instance.application.InstanceService
+import com.flowbit.project.application.AdminProjectAudit
 import com.flowbit.project.application.ProjectService
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.CancellationException
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ServerWebExchange
 import java.time.Clock
 import java.time.DateTimeException
 import java.time.DayOfWeek
@@ -86,18 +88,21 @@ class CycleService(
     suspend fun overview(
         user: AuthenticatedUser,
         projectId: String,
+        administrator: Boolean = false,
     ): ProjectCycles {
-        val access = projectService.access(user, projectId)
+        val access = projectService.access(user, projectId, administrator)
         ensure(access.project.id)
         return read(access.project.id)
     }
 
+    /** [administrator]: from the administrator screen, for any project in use (D-236). */
     suspend fun updateSettings(
         user: AuthenticatedUser,
         projectId: String,
         settings: CycleSettings,
+        administrator: Boolean = false,
     ): ProjectCycles {
-        val access = projectService.access(user, projectId)
+        val access = projectService.access(user, projectId, administrator)
         if (!access.role.canManage) throw ForbiddenException("사이클 설정은 프로젝트 관리 역할만 바꿀 수 있습니다")
         if (settings.weeks !in 1..4) throw ValidationException("weeks", "INVALID", "사이클은 1~4주여야 합니다")
         if (settings.startDay !in 1..7) throw ValidationException("startDay", "INVALID", "시작 요일이 올바르지 않습니다")
@@ -309,4 +314,33 @@ class CycleController(
         @PathVariable projectId: String,
         @RequestBody body: CycleSettings,
     ): ProjectCycles = service.updateSettings(user, projectId, body)
+}
+
+/**
+ * The cycle settings of any project in use, for the administrator screen (D-236); the same answers as [CycleController].
+ * `/api/v1/admin` requires the ADMIN role (SecurityConfig).
+ */
+@RestController
+@RequestMapping("/api/v1/admin/projects/{projectId}/cycles")
+class AdminCycleController(
+    private val service: CycleService,
+    private val audit: AdminProjectAudit,
+) {
+    @GetMapping
+    suspend fun overview(
+        @AuthenticationPrincipal admin: AuthenticatedUser,
+        @PathVariable projectId: String,
+    ): ProjectCycles = service.overview(admin, projectId, administrator = true)
+
+    @PutMapping("/settings")
+    suspend fun settings(
+        @AuthenticationPrincipal admin: AuthenticatedUser,
+        @PathVariable projectId: String,
+        @RequestBody body: CycleSettings,
+        exchange: ServerWebExchange,
+    ): ProjectCycles {
+        val cycles = service.updateSettings(admin, projectId, body, administrator = true)
+        audit.record(admin, exchange, projectId, "cycles", mapOf("enabled" to body.enabled.toString()))
+        return cycles
+    }
 }

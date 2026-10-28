@@ -411,6 +411,9 @@ export const ko = {
     create: "티켓 만들기",
     creating: "만드는 중",
     createMore: "계속 만들기",
+    // Shown to managers of a project that uses triage (D-236): the ticket goes to the queue instead of straight onto the list.
+    sendToTriage: "트리아지로 보내기",
+    sendToTriageHint: "켜면 이 티켓이 바로 올라가지 않고 트리아지에서 수락·거절·중복 처리를 받습니다. 끄면 바로 목록에 올라갑니다.",
     created: (key: string) => `${key} 티켓을 만들었습니다.`,
     filtersClearedForCreated: "방금 만든 티켓이 보이도록 필터를 풀었습니다.",
     titleRequired: "티켓 제목을 입력하세요.",
@@ -684,6 +687,11 @@ export const ko = {
     relations: {
       heading: "관계",
       none: "맺은 관계가 없습니다.",
+      // In the new ticket dialog (D-237): the relations are kept until the ticket is made.
+      newNone: "티켓을 만들 때 함께 맺습니다.",
+      alreadyChosen: "이미 고른 관계입니다.",
+      conflictChosen: "같은 티켓을 막으면서 동시에 막힐 수는 없습니다.",
+      tooManyChosen: (count: number) => `관계는 한 번에 ${count}개까지 맺을 수 있습니다.`,
       add: "관계 추가",
       kindLabel: "맺을 관계",
       kinds: {
@@ -868,7 +876,7 @@ export const ko = {
     triageOff: "사용 안 함",
     triageOffHint: "누가 만든 티켓이든 바로 목록에 올라갑니다.",
     triageOn: "사용",
-    triageOnHint: "관리 역할이 아닌 사람이 만든 티켓은 트리아지(왼쪽 사이드바)에서 수락·거절·중복 처리를 받은 뒤 처리합니다. 티켓은 그동안에도 목록에 보입니다.",
+    triageOnHint: "관리 역할이 아닌 사람이 만든 티켓은 트리아지(왼쪽 사이드바)에서 수락·거절·중복 처리를 받은 뒤 처리합니다. 관리 역할은 새 티켓 창의 ‘트리아지로 보내기’를 켜서 자기 티켓도 거치게 할 수 있습니다. 켜기 전에 있던 티켓은 들어가지 않고, 티켓은 그동안에도 목록에 보입니다.",
     estimatesTitle: "추정치",
     estimatesDescription: "티켓에 작업량(점수)을 적는 기능입니다. 관리 역할만 바꿀 수 있습니다.",
     estimatesLabel: "추정치 사용",
@@ -1021,6 +1029,7 @@ export const ko = {
     navLabel: "관리자 설정 메뉴",
     workspaceTab: "워크스페이스",
     membersTab: "구성원",
+    projectsTab: "프로젝트",
     authTab: "로그인 연동",
     notificationsTab: "알림",
     backupTab: "백업 및 복원",
@@ -1029,6 +1038,22 @@ export const ko = {
     gitTab: "Git 연동",
     statusesTab: "상태",
     auditTab: "감사 로그",
+  },
+  // 관리자 설정 > 프로젝트 (D-236). The settings themselves are the project's own (`projects`, `cycles`, `git`).
+  adminProjects: {
+    title: "프로젝트",
+    description: "모든 프로젝트의 설정을 이 프로젝트의 구성원이 아니어도 여기서 바꿀 수 있습니다. 프로젝트의 티켓과 문서는 보이지 않습니다. 바꾼 내용은 감사 로그에 남습니다.",
+    search: "프로젝트 찾기",
+    listLabel: "프로젝트 목록",
+    count: (count: number) => `프로젝트 ${count}개`,
+    countOf: (shown: number, total: number) => `프로젝트 ${total}개 중 ${shown}개`,
+    empty: "아직 프로젝트가 없습니다.",
+    noMatch: "맞는 프로젝트가 없습니다.",
+    noSelection: "설정을 바꿀 프로젝트가 없습니다. 프로젝트가 만들어지면 여기에 나옵니다.",
+    archivedTitle: "아카이브된 프로젝트",
+    archivedNote: "설정은 바꿀 수 없고, 복원하면 목록으로 돌아옵니다.",
+    youAreMember: "이 프로젝트의 구성원입니다",
+    youAreNotMember: "이 프로젝트의 구성원이 아닙니다. 관리자 권한으로 바꿉니다",
   },
   command: {
     title: "명령 팔레트",
@@ -1138,6 +1163,8 @@ export const ko = {
       files: "파일",
       id: "번호",
       githubApp: "GitHub 앱",
+      change: "바꾼 것",
+      fields: "바뀐 항목",
     } as Record<string, string>,
     types: {
       SETUP_COMPLETED: "초기 설정 완료",
@@ -1158,6 +1185,7 @@ export const ko = {
       PROJECT_ARCHIVED: "프로젝트 아카이브",
       PROJECT_RESTORED: "프로젝트 복원",
       PROJECT_ACCESS_CHANGED: "프로젝트 공개 범위 변경",
+      PROJECT_ADMIN_CHANGED: "프로젝트 설정 변경(관리자 설정)",
       BACKUP_EXPORTED: "백업 내려받기",
       BACKUP_RESTORED: "백업 복원",
       RETENTION_SETTINGS_CHANGED: "데이터 보관 설정 변경",

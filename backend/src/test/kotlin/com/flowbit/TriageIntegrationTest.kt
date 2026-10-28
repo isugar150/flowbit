@@ -36,6 +36,18 @@ class TriageIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `관리 역할인 사람은 티켓을 만들 때 트리아지로 보낼지 고른다`() {
+        admin.patch("/api/v1/projects/${p("PAY")}", """{"triageEnabled":true}""")
+
+        val straight = admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"바로 올릴 티켓","triage":false}""")
+        val sent = admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"트리아지로 보낼 티켓","triage":true}""")
+
+        assertEquals(false, straight.json()["triage"])
+        assertEquals(true, sent.json()["triage"])
+        assertEquals(listOf("FB-2"), admin.get("/api/v1/triage").jsonList().map { it["key"] })
+    }
+
+    @Test
     fun `관리 역할이 수락하면 대기열에서 빠지고 거절하면 취소된다`() {
         admin.patch("/api/v1/projects/${p("PAY")}", """{"triageEnabled":true}""")
         requester.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"수락할 티켓"}""")

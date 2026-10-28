@@ -5,6 +5,7 @@ import com.flowbit.common.UuidV7
 import com.flowbit.common.error.ConflictException
 import com.flowbit.common.error.NotFoundException
 import com.flowbit.common.error.ValidationException
+import com.flowbit.issue.domain.Issue
 import com.flowbit.issue.domain.IssueRepository
 import com.flowbit.issue.domain.IssueStatus
 import kotlinx.coroutines.reactor.awaitSingle
@@ -45,6 +46,15 @@ data class IssueRelationView(
     val kind: RelationKind,
     val issue: RelatedIssue,
 )
+
+/** A relation asked for as an issue is made: how the new issue stands to the issue [targetNumber] (D-237). */
+data class NewRelation(
+    val kind: RelationKind,
+    val targetNumber: Int,
+)
+
+/** How many relations an issue can be made with. */
+private const val MAX_ON_CREATE = 20
 
 /**
  * Relations between issues (docs/features/issue-relations.md). Seen by anyone who can see both issues, made and removed by
@@ -113,9 +123,51 @@ class IssueRelations(
         targetNumber: Int,
     ): List<IssueRelationView> {
         val from = lookup.editable(lookup.access(user, number)).issue
-        val target =
-            repository.findByNumber(targetNumber)?.takeIf { it.deletedAt == null && lookup.accessOf(user, it) != null }
-                ?: throw ValidationException("targetNumber", "INVALID", "관계를 맺을 수 없는 티켓입니다")
+        link(user, from, kind, target(user, targetNumber))
+        return list(user, number)
+    }
+
+    /**
+     * Checks the relations an issue is to be made with, before anything is stored (a bad one must not use up an issue number): the
+     * other ends must be issues in use that the caller can see. Asking for the same one twice counts once.
+     */
+    suspend fun check(
+        user: AuthenticatedUser,
+        items: List<NewRelation>,
+    ): List<Pair<RelationKind, Issue>> {
+        if (items.size > MAX_ON_CREATE) throw ValidationException("relations", "TOO_MANY", "관계는 한 번에 ${MAX_ON_CREATE}개까지 맺을 수 있습니다")
+        val checked = items.distinct().map { it.kind to target(user, it.targetNumber) }
+        // The new issue blocking and being blocked by the same one could never be started.
+        val blocking = checked.filter { (kind, _) -> kind == RelationKind.BLOCKS || kind == RelationKind.BLOCKED_BY }
+        if (blocking.groupBy({ it.second.id }, { it.first }).any { (_, kinds) -> kinds.size > 1 }) {
+            throw ConflictException("RELATION_CONFLICT", "서로를 막는 관계는 만들 수 없습니다")
+        }
+        return checked
+    }
+
+    /** Makes the relations [check] passed, from an issue just made by the caller. */
+    suspend fun attach(
+        user: AuthenticatedUser,
+        from: Issue,
+        checked: List<Pair<RelationKind, Issue>>,
+    ) {
+        checked.forEach { (kind, target) -> link(user, from, kind, target) }
+    }
+
+    /** The issue on the other end: one in use that the caller can see. */
+    private suspend fun target(
+        user: AuthenticatedUser,
+        targetNumber: Int,
+    ): Issue =
+        repository.findByNumber(targetNumber)?.takeIf { it.deletedAt == null && lookup.accessOf(user, it) != null }
+            ?: throw ValidationException("targetNumber", "INVALID", "관계를 맺을 수 없는 티켓입니다")
+
+    private suspend fun link(
+        user: AuthenticatedUser,
+        from: Issue,
+        kind: RelationKind,
+        target: Issue,
+    ) {
         if (target.id == from.id) throw ValidationException("targetNumber", "SELF", "자기 자신과는 관계를 맺을 수 없습니다")
 
         // The row as the table keeps it: "first <type> second".
@@ -153,7 +205,6 @@ class IssueRelations(
         } catch (_: DuplicateKeyException) {
             throw ConflictException("RELATION_EXISTS", "이미 맺은 관계입니다")
         }
-        return list(user, number)
     }
 
     suspend fun remove(

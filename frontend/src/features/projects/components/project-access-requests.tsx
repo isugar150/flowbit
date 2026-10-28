@@ -9,7 +9,7 @@ import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
-import { approveProjectAccess, rejectProjectAccess } from "../api";
+import { useProjectApi } from "../project-api-scope";
 import type { ProjectAccessRequest, ProjectRole } from "../types";
 
 const m = messages.projects;
@@ -21,6 +21,7 @@ const ROLES: ProjectRole[] = ["MANAGER", "EDITOR", "VIEWER"];
  * request link here (`#access-requests`). Shows nothing when nobody is waiting.
  */
 export function ProjectAccessRequests({ projectId, requests }: { projectId: string; requests: ProjectAccessRequest[] }) {
+  const { approveProjectAccess, rejectProjectAccess } = useProjectApi();
   // The role picked for each person before approving; "편집" until something else is picked.
   const [roles, setRoles] = useState<Record<string, ProjectRole>>({});
   const approve = useRefreshingMutation(approveProjectAccess);

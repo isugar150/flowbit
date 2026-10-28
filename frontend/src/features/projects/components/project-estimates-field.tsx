@@ -6,7 +6,7 @@ import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
-import { updateProject } from "../api";
+import { useProjectApi } from "../project-api-scope";
 
 const m = messages.projects;
 
@@ -15,6 +15,7 @@ const m = messages.projects;
  * The pick is saved at once, and a pick the server refuses goes back by itself.
  */
 export function ProjectEstimatesField({ projectId, enabled }: { projectId: string; enabled: boolean }) {
+  const { updateProject } = useProjectApi();
   const change = useOptimisticMutation(
     enabled,
     (_current, next: { id: string; enabled: boolean }) => next.enabled,

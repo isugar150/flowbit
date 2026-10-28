@@ -40,6 +40,20 @@ class IssueRelationsIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `티켓을 만들면서 관계를 함께 맺으면 새 티켓과 상대 티켓 양쪽에 보인다`() {
+        val made =
+            admin.post(
+                "/api/v1/projects/${p("PAY")}/issues",
+                """{"title":"새 티켓","relations":[{"kind":"BLOCKED_BY","targetNumber":1},{"kind":"RELATED","targetNumber":2}]}""",
+            )
+
+        assertEquals(201, made.status)
+        assertEquals(listOf("BLOCKED_BY", "RELATED"), admin.get("/api/v1/issues/4/relations").jsonList().map { it["kind"] })
+        assertEquals(listOf("BLOCKS"), admin.get("/api/v1/issues/1/relations").jsonList().map { it["kind"] })
+        assertEquals(listOf("RELATED"), admin.get("/api/v1/issues/2/relations").jsonList().map { it["kind"] })
+    }
+
+    @Test
     fun `관계는 어느 쪽에서든 지울 수 있다`() {
         val id = admin.post("/api/v1/issues/1/relations", """{"kind":"BLOCKED_BY","targetNumber":2}""").jsonList().single()["id"]
 

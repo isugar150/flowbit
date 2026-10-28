@@ -9,19 +9,21 @@ import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
-import { archiveProject } from "../api";
+import { useProjectApi } from "../project-api-scope";
 
 const m = messages.projects;
 
 /**
  * "아카이브" at the bottom of a project's settings, for those who manage it. Asks once more in
  * place; then the project is put away and the person lands on the list of archived projects,
- * where it can be restored.
+ * where it can be restored. From 관리자 설정 > 프로젝트 the administrator stays there: the project moves to that
+ * screen's own list of archived ones (D-236).
  */
 export function ArchiveProjectSection({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const { archiveProject, scope } = useProjectApi();
   const [confirming, setConfirming] = useState(false);
-  const mutation = useRefreshingMutation(archiveProject, () => router.replace("/archived"));
+  const mutation = useRefreshingMutation(archiveProject, () => router.replace(scope === "admin" ? "/admin/projects" : "/archived"));
 
   return (
     <div className="flex flex-col gap-3">

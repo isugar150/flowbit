@@ -104,7 +104,9 @@ data class AccessRequestResult(
 /**
  * Projects and who may enter them. Every method takes the acting user and decides access itself.
  * Everyone sees every project in the list (D-047), but only members may enter one, unless the
- * project is open to everyone (D-192); to anyone else its data answers "not found".
+ * project is open to everyone (D-192); to anyone else its data answers "not found". The workspace
+ * administrator is no exception (D-131), except for the settings screen under `/api/v1/admin/projects`
+ * (D-236): its calls pass `administrator`, which makes the caller a manager of any project in use.
  */
 @Service
 class ProjectService(
@@ -137,8 +139,9 @@ class ProjectService(
         user: AuthenticatedUser,
         projectId: String,
         client: ClientInfo,
+        administrator: Boolean = false,
     ): UUID {
-        val project = manage(user, projectId)
+        val project = manage(user, projectId, administrator)
         val now = clock.instant()
         repository.updateArchivedAt(project.id, now, now)
         auditService.record(AuditEventType.PROJECT_ARCHIVED, user.id, client, mapOf("projectId" to project.id.toString()))
@@ -146,12 +149,13 @@ class ProjectService(
         return project.id
     }
 
-    /** Brings an archived project back as it was. Its managers only (and workspace administrators). */
+    /** Brings an archived project back as it was. Its managers only; any project from the administrator screen. */
     @Transactional
     suspend fun restore(
         user: AuthenticatedUser,
         projectId: String,
         client: ClientInfo,
+        administrator: Boolean = false,
     ): ProjectView {
         val project =
             runCatching { UUID.fromString(projectId) }
@@ -159,7 +163,7 @@ class ProjectService(
                 ?.let { repository.findById(it) }
                 ?.takeIf { it.archivedAt != null }
                 ?: throw notFound()
-        val role = project.roleOf(memberStore.roleOf(project.id, user.id))
+        val role = if (administrator) administratorRole(user) else project.roleOf(memberStore.roleOf(project.id, user.id))
         if (role?.canManage != true) throw ForbiddenException("프로젝트를 관리할 권한이 없습니다")
         val now = clock.instant()
         repository.updateArchivedAt(project.id, null, now)
@@ -219,7 +223,8 @@ class ProjectService(
     suspend fun accessRequests(
         user: AuthenticatedUser,
         projectId: String,
-    ): List<ProjectAccessRequestRow> = memberStore.accessRequests(manage(user, projectId).id)
+        administrator: Boolean = false,
+    ): List<ProjectAccessRequestRow> = memberStore.accessRequests(manage(user, projectId, administrator).id)
 
     /** Lets a waiting person in with the role the manager picked. Managers only. */
     @Transactional
@@ -228,8 +233,9 @@ class ProjectService(
         projectId: String,
         requesterId: UUID,
         role: ProjectRole,
+        administrator: Boolean = false,
     ): List<ProjectMemberRow> {
-        val project = manage(user, projectId)
+        val project = manage(user, projectId, administrator)
         if (!memberStore.removeAccessRequest(project.id, requesterId)) throw accessRequestNotFound()
         userService.findActive(requesterId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
         memberStore.put(project.id, requesterId, role, clock.instant())
@@ -242,8 +248,9 @@ class ProjectService(
         user: AuthenticatedUser,
         projectId: String,
         requesterId: UUID,
+        administrator: Boolean = false,
     ) {
-        val project = manage(user, projectId)
+        val project = manage(user, projectId, administrator)
         if (!memberStore.removeAccessRequest(project.id, requesterId)) throw accessRequestNotFound()
     }
 
@@ -278,7 +285,9 @@ class ProjectService(
      * Changes the fields present in `changes`. Renaming needs the manager role; the summary
      * (`description`), the overview document (`content`) and the properties (`status`, `priority`,
      * `leadId`, `startDate`, `targetDate`, `labels`) can be written by anyone who may edit. Who may
-     * enter the project (`openToAll`, D-192) is the manager's to decide, like the name.
+     * enter the project (`openToAll`, D-192) is the manager's to decide, like the name. From the administrator
+     * screen only the fields of the settings page are taken (D-236): the overview and the properties are the
+     * project's own data, which an administrator who was not added to it does not get to write.
      */
     @Transactional
     suspend fun update(
@@ -286,9 +295,13 @@ class ProjectService(
         projectId: String,
         changes: Map<String, Any?>,
         client: ClientInfo,
+        administrator: Boolean = false,
     ): ProjectView {
-        val access = access(user, projectId)
+        val access = access(user, projectId, administrator)
         val project = access.project
+        if (administrator && !ADMINISTRATOR_FIELDS.containsAll(changes.keys)) {
+            throw ForbiddenException("관리자 화면에서는 프로젝트의 이름, 공개 범위, 추정치, 트리아지만 바꿀 수 있습니다")
+        }
         if (!access.role.canEdit ||
             (("name" in changes || "openToAll" in changes || "estimatesEnabled" in changes || "triageEnabled" in changes) && !access.role.canManage)
         ) {
@@ -488,8 +501,9 @@ class ProjectService(
         user: AuthenticatedUser,
         projectId: String,
         upload: ByteArray,
+        administrator: Boolean = false,
     ): ProjectView {
-        val project = manage(user, projectId)
+        val project = manage(user, projectId, administrator)
         val previous = repository.findIconKey(project.id)
         val iconKey = imageStorage.store(webp = imageProcessor.toWebp(upload, ImageSpec.PROJECT_ICON), original = upload)
         repository.updateIconKey(project.id, iconKey, clock.instant())
@@ -502,8 +516,9 @@ class ProjectService(
     suspend fun removeIcon(
         user: AuthenticatedUser,
         projectId: String,
+        administrator: Boolean = false,
     ): ProjectView {
-        val project = manage(user, projectId)
+        val project = manage(user, projectId, administrator)
         val previous = repository.findIconKey(project.id)
         repository.updateIconKey(project.id, null, clock.instant())
         imageStorage.delete(previous)
@@ -514,7 +529,8 @@ class ProjectService(
     suspend fun members(
         user: AuthenticatedUser,
         projectId: String,
-    ): List<ProjectMemberRow> = memberStore.members(access(user, projectId).project.id)
+        administrator: Boolean = false,
+    ): List<ProjectMemberRow> = memberStore.members(access(user, projectId, administrator).project.id)
 
     /**
      * Every project with the role [memberId] has in it (null: not a member), for the administrator
@@ -572,8 +588,9 @@ class ProjectService(
         projectId: String,
         memberId: UUID,
         role: ProjectRole,
+        administrator: Boolean = false,
     ): List<ProjectMemberRow> {
-        val project = manage(user, projectId)
+        val project = manage(user, projectId, administrator)
         userService.findActive(memberId) ?: throw NotFoundException("MEMBER_NOT_FOUND", "구성원을 찾을 수 없습니다")
         if (role != ProjectRole.MANAGER) requireAnotherManager(project.id, memberId)
         val before = memberStore.roleOf(project.id, memberId)
@@ -589,8 +606,9 @@ class ProjectService(
         user: AuthenticatedUser,
         projectId: String,
         memberId: UUID,
+        administrator: Boolean = false,
     ) {
-        val project = manage(user, projectId)
+        val project = manage(user, projectId, administrator)
         requireAnotherManager(project.id, memberId)
         val before = memberStore.roleOf(project.id, memberId)
         memberStore.remove(project.id, memberId)
@@ -612,14 +630,26 @@ class ProjectService(
         return detail(project.id, user)
     }
 
-    /** The project and the caller's role in it, or "not found" when they may not enter. */
+    /**
+     * The project and the caller's role in it, or "not found" when they may not enter. With [administrator]
+     * (only what is reached through `/api/v1/admin/projects`, D-236) the caller is a workspace administrator
+     * acting on any project in use, and has the manager role in it whether or not they were added.
+     */
     suspend fun access(
         user: AuthenticatedUser,
         projectId: String,
+        administrator: Boolean = false,
     ): ProjectAccess {
         val project = findActive(projectId) ?: throw notFound()
+        if (administrator) return ProjectAccess(project, administratorRole(user))
         val role = project.roleOf(memberStore.roleOf(project.id, user.id)) ?: throw notFound()
         return ProjectAccess(project, role)
+    }
+
+    /** SecurityConfig keeps everyone else out of `/api/v1/admin`; this makes sure a call that gets here by mistake cannot use it. */
+    private fun administratorRole(user: AuthenticatedUser): ProjectRole {
+        if (user.role != UserRole.ADMIN) throw ForbiddenException("관리자만 할 수 있습니다")
+        return ProjectRole.MANAGER
     }
 
     /** `projectId` comes from an address, so it may be anything; what is not an id finds nothing. */
@@ -642,8 +672,9 @@ class ProjectService(
     private suspend fun manage(
         user: AuthenticatedUser,
         projectId: String,
+        administrator: Boolean = false,
     ): Project {
-        val access = access(user, projectId)
+        val access = access(user, projectId, administrator)
         if (!access.role.canManage) throw ForbiddenException("프로젝트를 관리할 권한이 없습니다")
         return access.project
     }
@@ -709,6 +740,9 @@ class ProjectService(
 }
 
 private val PROPERTY_FIELDS = listOf("status", "priority", "leadId", "startDate", "targetDate", "labels")
+
+/** What the administrator screen may change in a project: the fields of its settings page (D-236). */
+private val ADMINISTRATOR_FIELDS = setOf("name", "openToAll", "estimatesEnabled", "triageEnabled")
 
 data class ProjectAccess(
     val project: Project,

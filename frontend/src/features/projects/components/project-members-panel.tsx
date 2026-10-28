@@ -11,7 +11,7 @@ import type { UserSummary } from "@/features/members/types";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
-import { putProjectMember, removeProjectMember } from "../api";
+import { useProjectApi } from "../project-api-scope";
 import type { ProjectMember, ProjectRole } from "../types";
 
 const m = messages.projects;
@@ -44,6 +44,7 @@ export function ProjectMembersPanel({
   canManage: boolean;
   currentUserId: string;
 }) {
+  const { putProjectMember, removeProjectMember } = useProjectApi();
   const [newUserId, setNewUserId] = useState("");
   const [newRole, setNewRole] = useState<ProjectRole>("EDITOR");
   const put = useRefreshingMutation(putProjectMember, () => setNewUserId(""));

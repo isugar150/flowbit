@@ -11,11 +11,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import { SEARCH_MAX_LENGTH, search } from "@/features/search/api";
 import { useDebounced } from "@/features/search/components/search-dialog";
+import type { IssueHit } from "@/features/search/types";
 import { apiFetch } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { StatusIcon, issueNumberOf } from "../meta";
+import { StatusIcon } from "../meta";
 import type { IssueStatus } from "../types";
 
 const m = messages.issues.relations;
@@ -33,27 +35,43 @@ const KIND_ORDER: RelationKind[] = ["BLOCKED_BY", "BLOCKS", "DUPLICATE_OF", "DUP
 /** What a person can say about a new relation, from this issue's point of view. */
 const ADDABLE: Exclude<RelationKind, "DUPLICATED_BY">[] = ["BLOCKED_BY", "BLOCKS", "DUPLICATE_OF", "RELATED"];
 
+/** The kinds a relation can be asked for with. */
+export type AddableKind = (typeof ADDABLE)[number];
+/** The issue on the other end of a relation, as the search finds it. */
+export type RelationTarget = Pick<IssueHit, "number" | "key" | "title" | "status">;
+
 const CANDIDATES = 8;
 const DEBOUNCE_MS = 150;
 
-/** The popover that finds the other issue and says how it relates (docs/features/issue-relations.md). */
-export function AddRelation({
-  number,
-  onAdded,
+/** Why a pick failed: the server's sentence, or the one the caller refused it with. */
+function problemOf(error: unknown): string {
+  return error instanceof Error && !(error instanceof ApiError) ? error.message : apiErrorMessage(error);
+}
+
+/**
+ * The popover that finds the other issue and says how it relates (docs/features/issue-relations.md). It only picks: what is done with
+ * the pick is `onPick`'s. The popover closes once that resolves; if it rejects, the reason is shown and the popover stays.
+ */
+export function RelationPicker({
+  onPick,
+  exclude,
   fixedKind,
   triggerLabel,
 }: {
-  number: number;
-  onAdded: (relations: Relation[]) => void;
+  onPick: (kind: AddableKind, target: RelationTarget) => Promise<unknown> | void;
+  /** An issue that is not offered: the one the relation starts from. */
+  exclude?: number;
   /** Only this kind is offered (the triage queue's "duplicate"). */
-  fixedKind?: RelationKind;
+  fixedKind?: AddableKind;
   /** A button with these words instead of the "+" icon. */
   triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [chosen, setChosen] = useState<RelationKind>("BLOCKED_BY");
+  const [chosen, setChosen] = useState<AddableKind>("BLOCKED_BY");
   const kind = fixedKind ?? chosen;
   const [query, setQuery] = useState("");
+  const [pending, setPending] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const listId = useId();
   const debounced = useDebounced(query.trim(), DEBOUNCE_MS);
   const result = useQuery({
@@ -63,15 +81,22 @@ export function AddRelation({
     placeholderData: keepPreviousData,
     staleTime: 10_000,
   });
-  const add = useMutation({
-    mutationFn: (targetNumber: number) => apiFetch<Relation[]>(`/api/v1/issues/${number}/relations`, { method: "POST", body: { kind, targetNumber } }),
-    onSuccess: (relations) => {
-      onAdded(relations);
+  // The tour's example screens answer a search with nothing at all, so the list may be missing.
+  const candidates = (debounced ? (result.data?.issues ?? []) : []).filter((hit) => hit.number !== exclude).slice(0, CANDIDATES);
+
+  const pick = async (hit: RelationTarget) => {
+    setPending(true);
+    setProblem(null);
+    try {
+      await onPick(kind, hit);
       setOpen(false);
       setQuery("");
-    },
-  });
-  const candidates = (debounced && result.data ? result.data.issues : []).filter((hit) => issueNumberOf(hit.key) !== number).slice(0, CANDIDATES);
+    } catch (error) {
+      setProblem(problemOf(error));
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
     <Popover
@@ -80,7 +105,7 @@ export function AddRelation({
         setOpen(next);
         if (!next) {
           setQuery("");
-          add.reset();
+          setProblem(null);
         }
       }}
     >
@@ -98,7 +123,7 @@ export function AddRelation({
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex flex-col gap-2 border-b p-3">
           {fixedKind ? null : (
-            <NativeSelect aria-label={m.kindLabel} value={chosen} onChange={(event) => setChosen(event.target.value as RelationKind)} className="w-full">
+            <NativeSelect aria-label={m.kindLabel} value={chosen} onChange={(event) => setChosen(event.target.value as AddableKind)} className="w-full">
               {ADDABLE.map((value) => (
                 <NativeSelectOption key={value} value={value}>
                   {m.kindsToAdd[value]}
@@ -133,11 +158,8 @@ export function AddRelation({
                 type="button"
                 role="option"
                 aria-selected={false}
-                disabled={add.isPending}
-                onClick={() => {
-                  const target = issueNumberOf(hit.key);
-                  if (target !== null) add.mutate(target);
-                }}
+                disabled={pending}
+                onClick={() => void pick(hit)}
                 className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[0.8125rem] leading-5 outline-none hover:bg-accent focus-visible:bg-accent"
               >
                 <StatusIcon status={hit.status} />
@@ -147,13 +169,37 @@ export function AddRelation({
             ))
           )}
         </div>
-        {add.isError ? (
+        {problem ? (
           <div className="border-t p-2">
-            <FormAlert>{apiErrorMessage(add.error)}</FormAlert>
+            <FormAlert>{problem}</FormAlert>
           </div>
         ) : null}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** The picker of an issue that exists: the pick is saved as a relation of that issue at once. */
+export function AddRelation({
+  number,
+  onAdded,
+  fixedKind,
+  triggerLabel,
+}: {
+  number: number;
+  onAdded: (relations: Relation[]) => void;
+  fixedKind?: AddableKind;
+  triggerLabel?: string;
+}) {
+  return (
+    <RelationPicker
+      exclude={number}
+      fixedKind={fixedKind}
+      triggerLabel={triggerLabel}
+      onPick={async (kind, target) => {
+        onAdded(await apiFetch<Relation[]>(`/api/v1/issues/${number}/relations`, { method: "POST", body: { kind, targetNumber: target.number } }));
+      }}
+    />
   );
 }
 

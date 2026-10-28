@@ -1,22 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import { SettingsSection } from "@/components/settings-section";
-import { ProjectGitRepositories } from "@/features/git/components/project-git-repositories";
 import type { ProjectGitSettings } from "@/features/git/types";
 import type { UserSummary } from "@/features/members/types";
-import { ArchiveProjectSection } from "@/features/projects/components/archive-project-section";
-import { CycleSettingsField } from "@/features/cycles/components/cycle-settings-field";
-import { ProjectAccessField } from "@/features/projects/components/project-access-field";
-import { ProjectEstimatesField } from "@/features/projects/components/project-estimates-field";
-import { ProjectTriageField } from "@/features/projects/components/project-triage-field";
-import { ProjectAccessRequests } from "@/features/projects/components/project-access-requests";
-import { ProjectDetailsForm } from "@/features/projects/components/project-details-form";
-import { ProjectIconField } from "@/features/projects/components/project-icon-field";
-import { ProjectMembersPanel } from "@/features/projects/components/project-members-panel";
+import { ProjectSettingsSections } from "@/features/projects/components/project-settings-sections";
 import type { ProjectAccessRequest, ProjectMember } from "@/features/projects/types";
 import { loadProject, requireUser, serverGet } from "@/lib/current-user";
-import { messages } from "@/messages";
-
-const m = messages.projects;
 
 export default async function ProjectSettingsPage({ params }: PageProps<"/project/[id]/settings">) {
   const { id } = await params;
@@ -29,66 +16,23 @@ export default async function ProjectSettingsPage({ params }: PageProps<"/projec
   if (!members) notFound();
   // Only the project's managers have settings to look at (D-131); others go to the overview.
   if (project.myRole !== "MANAGER") redirect(`/project/${project.id}`);
-  const canManage = true;
   // The list of people to add, and who is waiting to be let in, are only for those who can add.
-  const [users, requests, git] = canManage
-    ? await Promise.all([
-        serverGet<UserSummary[]>("/api/v1/users").then((list) => list ?? []),
-        serverGet<ProjectAccessRequest[]>(`${path}/access-requests`).then((list) => list ?? []),
-        serverGet<ProjectGitSettings>(`${path}/git`),
-      ])
-    : [[], [], null];
+  const [users, requests, git] = await Promise.all([
+    serverGet<UserSummary[]>("/api/v1/users").then((list) => list ?? []),
+    serverGet<ProjectAccessRequest[]>(`${path}/access-requests`).then((list) => list ?? []),
+    serverGet<ProjectGitSettings>(`${path}/git`),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10">
-      <SettingsSection title={m.settingsTitle} description={m.settingsDescription}>
-        {canManage ? <ProjectIconField projectId={project.id} iconUrl={project.iconUrl} /> : null}
-        <ProjectDetailsForm project={project} canManage={canManage} />
-      </SettingsSection>
-      {canManage ? (
-        <SettingsSection title={m.accessTitle} description={m.accessDescription}>
-          <ProjectAccessField projectId={project.id} openToAll={project.openToAll} />
-        </SettingsSection>
-      ) : null}
-      {canManage ? (
-        <SettingsSection title={messages.cycles.settingsTitle} description={messages.cycles.settingsDescription}>
-          <CycleSettingsField projectId={project.id} />
-        </SettingsSection>
-      ) : null}
-      {canManage ? (
-        <SettingsSection title={m.triageTitle} description={m.triageDescription}>
-          <ProjectTriageField projectId={project.id} enabled={project.triageEnabled} />
-        </SettingsSection>
-      ) : null}
-      {canManage ? (
-        <SettingsSection title={m.estimatesTitle} description={m.estimatesDescription}>
-          <ProjectEstimatesField projectId={project.id} enabled={project.estimatesEnabled} />
-        </SettingsSection>
-      ) : null}
-      <SettingsSection title={m.membersTitle} description={m.membersDescription}>
-        <ProjectMembersPanel
-          projectId={project.id}
-          // Only the people who were added: a project open to everyone lists every member of the workspace (D-192).
-          members={members.filter((member) => member.direct)}
-          openToAll={project.openToAll}
-          users={users}
-          canManage={canManage}
-          currentUserId={user.id}
-        />
-        {/* Below the members: people waiting to be let in (D-128). Notifications about a request open this. */}
-        {canManage ? <ProjectAccessRequests projectId={project.id} requests={requests} /> : null}
-      </SettingsSection>
-      {/* Only while Git is in use (D-145); a project that already chose repositories keeps seeing them. */}
-      {canManage && git && (git.enabled || git.repositories.length > 0) ? (
-        <SettingsSection title={messages.git.repositories.title} description={messages.git.repositories.description}>
-          <ProjectGitRepositories projectId={project.id} settings={git} />
-        </SettingsSection>
-      ) : null}
-      {canManage ? (
-        <SettingsSection title={m.archiveTitle} description={m.archiveDescription}>
-          <ArchiveProjectSection projectId={project.id} />
-        </SettingsSection>
-      ) : null}
+      <ProjectSettingsSections
+        project={project}
+        members={members}
+        users={users}
+        requests={requests}
+        git={git}
+        currentUserId={user.id}
+      />
     </div>
   );
 }

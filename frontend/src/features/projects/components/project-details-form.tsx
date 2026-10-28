@@ -11,7 +11,7 @@ import { FormAlert } from "@/features/auth/components/form-alert";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { messages } from "@/messages";
-import { updateProject } from "../api";
+import { useProjectApi } from "../project-api-scope";
 import { projectNameSchema } from "../schema";
 import type { Project } from "../types";
 
@@ -22,7 +22,8 @@ type Values = z.infer<typeof projectNameSchema>;
  * The name of a project. The summary and the
  * description are not here: they are written directly on the project's overview.
  */
-export function ProjectDetailsForm({ project, canManage }: { project: Project; canManage: boolean }) {
+export function ProjectDetailsForm({ project, canManage }: { project: Pick<Project, "id" | "name">; canManage: boolean }) {
+  const { updateProject } = useProjectApi();
   const form = useForm<Values>({ resolver: zodResolver(projectNameSchema), defaultValues: { name: project.name } });
   const mutation = useRefreshingMutation(updateProject, (saved) => form.reset({ name: saved.name }));
   const { errors, isDirty } = form.formState;

@@ -19,7 +19,9 @@ import com.flowbit.issue.application.IssuePerson
 import com.flowbit.issue.application.IssueProject
 import com.flowbit.issue.application.IssueView
 import com.flowbit.issue.application.NewIssue
+import com.flowbit.issue.application.NewRelation
 import com.flowbit.issue.application.ReactionSummary
+import com.flowbit.issue.application.RelationKind
 import com.flowbit.issue.domain.IssuePriority
 import com.flowbit.issue.domain.IssueStatus
 import com.flowbit.media.application.ImageStorage
@@ -354,6 +356,10 @@ data class CreateIssueRequest(
     /** Starts the issue in this status (otherwise in the first one of `status`'s category). */
     val statusId: UUID? = null,
     val estimate: Int? = null,
+    /** True sends the issue to the project's triage queue even when a manager makes it (D-236); ignored where triage is off. */
+    val triage: Boolean? = null,
+    /** Relations to give the issue as it is made (D-237), from its point of view like `POST …/relations`. */
+    val relations: List<NewRelationRequest>? = null,
 ) {
     fun toNewIssue(projectId: String? = this.projectId) =
         NewIssue(
@@ -371,8 +377,15 @@ data class CreateIssueRequest(
             customProperties.orEmpty().map { NewCustomProperty(it.label, it.type, it.value) },
             statusId,
             estimate,
+            triage,
+            relations.orEmpty().map { NewRelation(it.kind, it.targetNumber) },
         )
 }
+
+data class NewRelationRequest(
+    val kind: RelationKind,
+    val targetNumber: Int,
+)
 
 data class NewCustomPropertyRequest(
     val label: String,

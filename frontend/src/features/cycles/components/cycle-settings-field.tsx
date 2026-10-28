@@ -6,6 +6,7 @@ import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSe
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FormAlert } from "@/features/auth/components/form-alert";
+import { useProjectApiScope } from "@/features/projects/project-api-scope";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { messages } from "@/messages";
 import { getCycles, saveCycleSettings } from "../api";
@@ -16,10 +17,11 @@ const m = messages.cycles;
 /** Whether the project runs in cycles, how long one lasts and on which weekday it starts (managers only). Saved at once. */
 export function CycleSettingsField({ projectId }: { projectId: string }) {
   const client = useQueryClient();
+  const scope = useProjectApiScope();
   const key = ["cycles", projectId];
-  const cycles = useQuery({ queryKey: key, queryFn: () => getCycles(projectId) });
+  const cycles = useQuery({ queryKey: key, queryFn: () => getCycles(projectId, scope) });
   const save = useMutation({
-    mutationFn: (settings: CycleSettings) => saveCycleSettings({ projectId, settings }),
+    mutationFn: (settings: CycleSettings) => saveCycleSettings({ projectId, settings, scope }),
     onSuccess: (next) => client.setQueryData(key, next),
   });
   const settings = save.isPending && save.variables ? save.variables : cycles.data?.settings;

@@ -45,6 +45,7 @@ class IssueService(
     private val customProperties: CustomPropertyService,
     private val statuses: IssueStatuses,
     private val cycles: CycleService,
+    private val relations: IssueRelations,
     private val clock: Clock,
 ) {
     /**
@@ -182,6 +183,7 @@ class IssueService(
         val labelIds = requireLabels(input.labelIds)
         // Checked before anything is stored, so that a bad property does not use up an issue number.
         val properties = customProperties.checkAll(input.customProperties, project?.id)
+        val newRelations = relations.check(user, input.relations)
 
         val now = clock.instant()
         val startStatus = input.statusId?.let { statuses.require(it) } ?: statuses.defaultOf(input.status ?: IssueStatus.BACKLOG)
@@ -197,7 +199,11 @@ class IssueService(
                 statusId = startStatus.id,
                 estimate = estimateOf(input.estimate),
                 // In a project that uses triage, what a person who does not manage it makes waits to be sorted (D-231).
-                triage = project != null && project.triageEnabled && projectService.accessById(user, project.id)?.role?.canManage != true,
+                // A manager's issue goes straight in unless they send it to the queue themselves (D-236).
+                triage =
+                    project != null &&
+                        project.triageEnabled &&
+                        (input.triage == true || projectService.accessById(user, project.id)?.role?.canManage != true),
                 priority = input.priority ?: IssuePriority.NONE,
                 startDate = spanStart(input.startDate, input.dueDate),
                 dueDate = input.dueDate,
@@ -211,6 +217,7 @@ class IssueService(
         if (labelIds.isNotEmpty()) queries.replaceLabels(issue.id, labelIds)
         if (assigneeIds.isNotEmpty()) queries.replaceAssignees(issue.id, assigneeIds, now)
         if (properties.isNotEmpty()) customProperties.addChecked(issue.id, properties, now)
+        relations.attach(user, issue, newRelations)
         val events = listOf(IssueEvent(IssueActivityType.CREATED))
         activities.record(issue.id, user.id, events, now)
         // The author and the assignees follow the issue from the start.

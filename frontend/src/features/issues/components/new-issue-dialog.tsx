@@ -23,6 +23,7 @@ import { messages } from "@/messages";
 import { createIssue } from "../api";
 import type { Issue, Label, NewIssueInput } from "../types";
 import { IssuePropertyFields } from "./issue-properties";
+import { NewIssueRelations, type DraftRelation } from "./new-issue-relations";
 
 const m = messages.issues;
 
@@ -85,6 +86,8 @@ export function NewIssueDialog({
   // What people add to the ticket on their own (D-193): kept here and sent with the ticket, since it has no id to save them under yet.
   const [drafts, setDrafts] = useState<DraftProperty[]>([]);
   const [draftProblem, setDraftProblem] = useState<string | null>(null);
+  // The relations to other tickets, kept here and made together with the ticket (D-237).
+  const [relations, setRelations] = useState<DraftRelation[]>([]);
   const changeDrafts = (next: DraftProperty[]) => {
     setDrafts(next);
     setDraftProblem(null);
@@ -93,6 +96,8 @@ export function NewIssueDialog({
   const [revision, setRevision] = useState(0);
   const content = useRef<RichDoc | null>(null);
   const [createMore, setCreateMore] = useState(false);
+  // A manager of a project that uses triage picks whether the ticket goes through the queue (D-236); off, it goes straight onto the list.
+  const [sendToTriage, setSendToTriage] = useState(false);
   const [titleError, setTitleError] = useState(false);
   const [lastCreated, setLastCreated] = useState<string | null>(null);
   // Closing with a title or a body that was not made into a ticket asks first (D-182).
@@ -133,15 +138,20 @@ export function NewIssueDialog({
       }));
       // A person property names a member of the project, and the project starts over, so the properties do too.
       changeDrafts([]);
+      setRelations([]);
       setTouched(false);
       setTitleError(false);
       setLastCreated(null);
+      // Each time the dialog opens the ticket starts as one that goes straight in; "계속 만들기" keeps the pick between tickets.
+      setSendToTriage(false);
     }
   }
 
   const mutation = useRefreshingMutation(createIssue, (issue) => {
     onCreated?.(issue);
     setTitle("");
+    // Relations belong to the one ticket they were made with: the next one starts without.
+    setRelations([]);
     // What was kept for the next ticket ("계속 만들기") was made; closing now loses nothing.
     setTouched(false);
     if (createMore) {
@@ -176,6 +186,9 @@ export function NewIssueDialog({
     },
   });
   const members = other ? (fetched.data ?? []) : defaultMembers;
+  // Only a manager has the choice: what anyone else makes in a project that uses triage always goes through the queue.
+  const chosenProject = projects.find((project) => project.id === projectId);
+  const canChooseTriage = chosenProject?.triageEnabled === true && chosenProject.myRole === "MANAGER";
   // Assignees belong to a project; changing the project starts those over.
   const setProject = (key: string | null) => {
     // The person the list is for (D-195) stays while they are still picked: they may make a ticket in this project, so they can be given it.
@@ -206,6 +219,8 @@ export function NewIssueDialog({
       content: content.current,
       ...properties,
       ...(drafts.length > 0 ? { customProperties: draftsToInput(drafts) } : null),
+      ...(relations.length > 0 ? { relations: relations.map((relation) => ({ kind: relation.kind, targetNumber: relation.target.number })) } : null),
+      ...(canChooseTriage && sendToTriage ? { triage: true } : null),
     });
   };
 
@@ -213,6 +228,7 @@ export function NewIssueDialog({
     setTitle("");
     setTouched(false);
     changeDrafts([]);
+    setRelations([]);
     resetBody();
     setProperties({
       ...DEFAULT_PROPERTIES,
@@ -334,6 +350,13 @@ export function NewIssueDialog({
                 />
               }
             />
+            <NewIssueRelations
+              relations={relations}
+              onChange={(next) => {
+                setRelations(next);
+                setTouched(true);
+              }}
+            />
           </aside>
           </div>
           {draftProblem ? (
@@ -350,6 +373,17 @@ export function NewIssueDialog({
               <p role="status" className="mr-auto text-[0.8125rem] leading-5 text-muted-foreground">
                 {m.created(lastCreated)}
               </p>
+            ) : null}
+            {canChooseTriage ? (
+              <label title={m.sendToTriageHint} className="flex items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  checked={sendToTriage}
+                  onChange={(event) => setSendToTriage(event.target.checked)}
+                />
+                {m.sendToTriage}
+              </label>
             ) : null}
             <label className="flex items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
               <input

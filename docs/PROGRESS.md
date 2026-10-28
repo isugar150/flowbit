@@ -25,6 +25,14 @@
 - **마이그레이션은 `V1__schema.sql`(첫 배포 전에 두 번 합쳤다, D-168·D-191) + `V2`~`V11`** 이다(`V2__project_open_access`, `V3__share_links`, `V4__share_access_item`, `V5__drop_share_accesses`, `V6__inbox_and_daily_summary`, 2026-10-28 에 `V7__issue_statuses_and_estimates`, `V8__saved_views`, `V9__issue_relations`, `V10__triage`, `V11__cycles`). **개발 DB 는 백엔드를 다시 띄우면 `V7`~`V11` 이 적용된다**. DB 의 비밀 값을 암호화하려면 `.env` 에 `FLOWBIT_SECRET_KEY`(16자 이상)를 적고 다시 띄운다(시작할 때 기존 평문이 모두 암호화되고, 잃어버리면 못 읽는다, [10-install.md](10-install.md)). 합친 `V1` 은 한 글자도 고치지 않고, 스키마 변경은 새 파일로 더한다. 예전 파일이 적용된 DB 는 `flyway_schema_history` 를 고치는 SQL 이 한 번 필요하다(D-191, 아래 전문). **백엔드를 다시 띄워야 새 마이그레이션이 적용된다.** 에이전트는 사용자의 개발 DB 를 지우거나 고치지 않는다.
 - IDE 로 백엔드를 띄워 둔 채 `./gradlew` 를 돌리면 그 서버가 깨진다. 검사는 `FLOWBIT_BUILD_DIR` 를 다른 폴더로 주고 돌린다(아래 "알아둘 것"). IDE 실행 설정의 VM 옵션에는 `--enable-native-access=ALL-UNNAMED` 를 직접 적는다([02-architecture.md](02-architecture.md) 개발 환경). JDK 25 는 `JAVA_HOME` 으로 지정한다(이 PC: `C:\Users\<사용자>\.jdks\corretto-25.0.4.1`).
 
+## 미완료: 관리자 설정 > 프로젝트 (D-236, 2026-10-28, 사용 한도로 중단)
+
+코드는 끝났고 문서·검증이 덜 끝났다. **같은 작업을 이어서 마친다.**
+
+- **한 것**: 백엔드 `/api/v1/admin/projects/{id}/**`(`AdminProjectController`, `AdminCycleController`, `AdminProjectGitController`, `AdminProjectAudit`, 감사 종류 `PROJECT_ADMIN_CHANGED`, 서비스의 `administrator` 인자). 통합 테스트 `AdminProjectSettingsIntegrationTest` 4개(정상 동작만). `ktlintCheck` 와 `ProjectsIntegrationTest`·`AuditLogIntegrationTest`·`CyclesIntegrationTest` 와 새 테스트 통과(`./gradlew check` 전체는 아직). 프런트: `/admin/projects`(목록 + 선택한 프로젝트의 설정, `AdminProjectList`, `ProjectSettingsSections` 로 `/project/[id]/settings` 와 섹션 공유), 탭 "프로젝트"("구성원" 오른쪽), `ko.ts`(`admin.projectsTab`, `adminProjects`, 감사 종류·`change`·`fields` 문구), `features/projects/scope.ts`(+테스트). `npm run typecheck`·`lint`·`test`(18개 파일 102개) 통과. 결정은 [09-decisions.md](09-decisions.md) D-236.
+- **남은 것**: ① `npm run build` 와 백엔드 `./gradlew check` 전체 ② 명세 `docs/features/admin-projects.md` 새로 쓰기(관리자 API 표, 인수 기준), `docs/06-api-conventions.md` 의 API 목록과 `docs/features/account-security.md` 의 감사 종류 표에 `PROJECT_ADMIN_CHANGED` 더하기 ③ 도움말 `frontend/src/features/help/content.ts`, [features/help.md](features/help.md) 에 관리자 설정의 "프로젝트" 탭 설명 더하기(화면 이름은 `ko.ts` 와 같게) ④ 이 절을 지우고 위 "구현된 것"에 한 줄 더하기. 화면은 확인하지 않았다(사용자 지시).
+- 일반 구성원은 `admin/layout.tsx` 가 `/` 로 돌려보내고 백엔드는 `/api/v1/admin/**` 를 403 으로 막는다(기존 규칙, 새 테스트는 거부 경로를 보지 않는다).
+
 ## 다음 작업
 
 사용자가 지시하기 전에는 새 기능을 임의로 시작하지 않는다. 지시를 받으면 ① 범위를 사용자에게 확인하고 ② `features/` 에 명세를 먼저 쓰고 ③ 구현한다. 화면은 [01-product.md](01-product.md) 의 해당 절을 따른다. ([08-roadmap.md](08-roadmap.md) 의 M2 이후는 초안이다.)
@@ -164,7 +172,7 @@
 - **목록 보기를 없앨지**(D-234, D-235): 기본 보기는 사용자 지시로 보드가 됐다(D-235). 목록은 보기 전환의 하나로 남아 있다(묶음·하위 티켓 들여쓰기·일괄 줄 편집이 목록에만 있다). 목록을 없애려면 알려 달라.
 - **dnd-kit 으로 하지 않은 끌어 놓기**(D-235): 글 안에서 글자·노드를 끄는 ProseMirror 자체의 끌어 놓기와, 운영체제에서 파일을 끌어 오는 일(편집기·댓글)은 브라우저 기능이라 그대로다. 파일·페이지 링크·임베드 블록에 `draggable: true` 가 남아 있어 손잡이 말고도 블록 자체를 끌어 옮길 수 있다 — 한 가지 방식으로 맞추려면 그 설정을 끄면 된다.
 - **실행 취소의 범위**(D-233): 티켓 속성(상태·우선순위·담당자·기한·라벨·프로젝트·추정치) 변경만 되돌린다. 제목·본문·댓글·삭제·관계·사이클을 더할지.
-- **트리아지를 누구에게 적용할지**(D-231): "관리 역할이 아닌 사람이 만든 티켓"으로 정했다. 구성원이 아닌 사람의 요청(이메일·요청 양식)을 받는 것은 아직 없다.
+- **트리아지를 누구에게 적용할지**(D-231, D-236): 관리 역할이 아닌 사람이 만든 티켓은 대기열로 가고, 관리 역할은 새 티켓 창의 "트리아지로 보내기"로 고른다(기본은 바로 올리기). 관리 역할이 대기열을 기본으로 하고 싶다면(체크를 기억하기 등) 알려 달라. 구성원이 아닌 사람의 요청(이메일·요청 양식)을 받는 것은 아직 없다.
 - **사이클의 "이월"**(D-232): 끝나지 않은 티켓을 저절로 다음 사이클로 넘긴다. 이월한 티켓의 활동 기록과, 이월을 끄는 설정이 필요한지.
 
 [09-decisions.md](09-decisions.md) 의 "미결정" 표 참고. 작업 중 새로 생긴 질문은 아래에 적는다.
@@ -185,6 +193,19 @@
 - 앱으로 설치(PWA, D-110): 설치한 앱의 이름·아이콘을 워크스페이스 이름·로고로 할지(지금은 고정값 "Flowbit"), 앱 안에 "설치" 버튼이나 안내를 둘지, 오프라인에서도 열리게 할지(로컬 저장과 동기화가 필요한 큰 작업이다).
 
 ## 작업 기록
+
+### 2026-10-28 — 새 티켓 창에서 관계 맺기 (D-237)
+
+- 사용자 질문: 왜 새 티켓을 만들 때 관계 설정을 못 하는가. 원인: D-230 에서 관계를 이미 있는 티켓의 페이지에서만 맺게 만들었다(만들기 전에는 티켓 번호가 없다).
+- 한 것: 백엔드 — `CreateIssueRequest`/`NewIssue` 에 `relations`, `IssueRelations` 에 `check`(저장 전 확인)·`attach`(같은 트랜잭션에서 맺기)를 더하고 `add` 는 `target`·`link` 를 같이 쓰게 정리, `IssueService.create` 가 부른다. 프런트 — `issue-relations.tsx` 에서 선택기를 `RelationPicker` 로 꺼내(`AddRelation` 은 그 위에서 바로 저장), 새 `new-issue-relations.tsx` 가 새 티켓 창의 속성 아래에 "관계" 구역을 그린다. 문구 `ko.ts` 의 `relations.newNone` 등, 도움말 "사이클, 추정치, 관계". `IssueRelationsIntegrationTest` 에 만들면서 맺는 테스트 하나(정상 동작만).
+- 확인: `IssueRelationsIntegrationTest` 4개·`TriageIntegrationTest` 4개·`IssuesIntegrationTest` 46개 통과, main 소스 ktlint 통과, 프런트 `tsc --noEmit`·lint 통과. **화면은 확인하지 않았다.** 전체 `check` 의 테스트 소스 ktlint 는 다른 세션이 만들고 있는 `AdminProjectSettingsIntegrationTest.kt` 의 줄 길이(63행)로 실패했다 — 이번 변경과 무관하다. 다른 세션이 같은 `build-check` 폴더를 써서 부딪혀, 이번 검사는 `FLOWBIT_BUILD_DIR=build-check-rel` 로 따로 돌렸다.
+
+### 2026-10-28 — 트리아지: 관리 역할이 새 티켓마다 트리아지로 보낼지 고른다 (D-236)
+
+- 사용자 지적: 내가 관리하는 프로젝트에서 내가 만든 티켓이 트리아지에 안 생긴다. 이어서 지시: 모두 대기열로 하지 말고, 관리 역할이 티켓을 만들 때 "계속 만들기" 옆 버튼으로 바로 올릴지 트리아지를 거칠지 고르게.
+- 원인: 오류가 아니라 D-231 의 규칙이었다. `IssueService.create` 가 트리아지를 켠 프로젝트에서도 관리 역할이 만든 티켓은 `triage = false` 로 만들었고, 화면에서는 이를 알 수 없었다. 프로젝트 설정에서 트리아지를 켜지 않았거나 켜기 전에 만든 티켓이어도 안 생기는데, 이 경우는 설계대로다.
+- 한 것: 백엔드 — 만들기 요청(`CreateIssueRequest`/`NewIssue`)에 `triage: Boolean?`, `IssueService.create` 는 `프로젝트가 트리아지를 켬 && (triage == true || 관리 역할이 아님)`. 프런트 — `new-issue-dialog.tsx` 의 "계속 만들기" 옆에 체크 "트리아지로 보내기"(트리아지를 켠 프로젝트의 `MANAGER` 에게만, 열 때마다 꺼짐), `NewIssueInput.triage`, `ko.ts` 의 `sendToTriage`·`sendToTriageHint`·`triageOnHint`, 도움말 "새 티켓"·"트리아지". `TriageIntegrationTest` 에 관리 역할의 선택 테스트를 더했다. 명세 `features/triage.md`, D-231/D-236.
+- 확인: `TriageIntegrationTest` 4개와 ktlint 통과, 프런트 `tsc --noEmit`·lint·단위 테스트 100개 통과(백엔드 전체 `check` 와 `next build` 는 이번에 다시 돌리지 않았다). **화면은 확인하지 않았다.** 이미 만든 티켓은 대기열로 옮겨지지 않는다. 트리아지가 켜져 있는지는 프로젝트 설정 > 트리아지에서 확인한다.
 
 ### 2026-10-28 — 보드를 기본 보기로, 끌어 놓는 모든 곳을 dnd-kit 으로 (D-235)
 

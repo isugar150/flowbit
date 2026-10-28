@@ -3,6 +3,7 @@ package com.flowbit.git
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.ValidationException
+import com.flowbit.project.application.AdminProjectAudit
 import com.flowbit.project.application.ProjectService
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingle
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ServerWebExchange
 import java.time.Clock
 import java.util.UUID
 
@@ -67,13 +69,14 @@ class GitProjectRepositoryService(
     private val transactionalOperator: TransactionalOperator,
     private val clock: Clock,
 ) {
-    /** For anyone who may enter the project. */
+    /** For anyone who may enter the project; [administrator]: from the administrator screen, for any project in use (D-236). */
     suspend fun settings(
         user: AuthenticatedUser,
         projectId: String,
         refresh: Boolean = false,
+        administrator: Boolean = false,
     ): ProjectGitSettings {
-        val project = projectService.access(user, projectId).project
+        val project = projectService.access(user, projectId, administrator).project
         val enabled = connections.findAllOrdered().toList().filter { it.enabled }
         // GitHub can be asked for its list; asked again at most once a minute unless [refresh].
         enabled.filter { it.provider == GitProviderType.GITHUB }.forEach { catalog.refreshGitHub(it, force = refresh) }
@@ -102,13 +105,14 @@ class GitProjectRepositoryService(
         return ProjectGitSettings(connectionService.inUse(), options, repositories, available)
     }
 
-    /** Replaces the project's repositories. Its managers only. */
+    /** Replaces the project's repositories. Its managers only; any project in use from the administrator screen. */
     suspend fun replace(
         user: AuthenticatedUser,
         projectId: String,
         input: List<GitRepositoryRef>,
+        administrator: Boolean = false,
     ): ProjectGitSettings {
-        val access = projectService.access(user, projectId)
+        val access = projectService.access(user, projectId, administrator)
         if (!access.role.canManage) throw ForbiddenException("프로젝트를 관리할 권한이 없습니다")
         val known =
             connections
@@ -158,7 +162,7 @@ class GitProjectRepositoryService(
                     .awaitSingle()
             }
         }
-        return settings(user, projectId)
+        return settings(user, projectId, administrator = administrator)
     }
 
     /** Every project that set repositories, with them; for deciding which issues an event may touch. */
@@ -247,4 +251,34 @@ class ProjectGitController(
         @PathVariable projectId: String,
         @RequestBody body: ProjectGitRepositoriesRequest,
     ): ProjectGitSettings = service.replace(user, projectId, body.repositories)
+}
+
+/**
+ * A project's Git settings for the administrator screen (D-236): the same answers as [ProjectGitController], for any project in
+ * use. `/api/v1/admin` requires the ADMIN role (SecurityConfig).
+ */
+@RestController
+@RequestMapping("/api/v1/admin/projects/{projectId}/git")
+class AdminProjectGitController(
+    private val service: GitProjectRepositoryService,
+    private val audit: AdminProjectAudit,
+) {
+    @GetMapping
+    suspend fun settings(
+        @AuthenticationPrincipal admin: AuthenticatedUser,
+        @PathVariable projectId: String,
+        @RequestParam(defaultValue = "false") refresh: Boolean,
+    ): ProjectGitSettings = service.settings(admin, projectId, refresh, administrator = true)
+
+    @PutMapping("/repositories")
+    suspend fun replace(
+        @AuthenticationPrincipal admin: AuthenticatedUser,
+        @PathVariable projectId: String,
+        @RequestBody body: ProjectGitRepositoriesRequest,
+        exchange: ServerWebExchange,
+    ): ProjectGitSettings {
+        val settings = service.replace(admin, projectId, body.repositories, administrator = true)
+        audit.record(admin, exchange, projectId, "git")
+        return settings
+    }
 }

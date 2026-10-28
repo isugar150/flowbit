@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
+import { projectPath, type ProjectApiScope } from "@/features/projects/scope";
 import type {
   GitBranchCreated,
   GitBranchTarget,
@@ -56,9 +57,17 @@ export function syncGitConnection(id: string): Promise<GitReceiptResult> {
 }
 
 
-/** Replaces the repositories a project's work happens in (D-148). Its managers only. */
-export function saveProjectGitRepositories({ projectId, repositories }: { projectId: string; repositories: GitRepositoryRef[] }): Promise<ProjectGitSettings> {
-  return apiFetch<ProjectGitSettings>(`/api/v1/projects/${encodeURIComponent(projectId)}/git/repositories`, {
+/** Replaces the repositories a project's work happens in (D-148). Its managers only; `scope` "admin": from the administrator screen (D-236). */
+export function saveProjectGitRepositories({
+  projectId,
+  repositories,
+  scope,
+}: {
+  projectId: string;
+  repositories: GitRepositoryRef[];
+  scope?: ProjectApiScope;
+}): Promise<ProjectGitSettings> {
+  return apiFetch<ProjectGitSettings>(`${projectPath(projectId, scope)}/git/repositories`, {
     method: "PUT",
     body: { repositories },
   });
@@ -109,6 +118,6 @@ export function createGitBranch({
 }
 
 /** Reads the GitHub Apps' repository lists from GitHub again (D-151). */
-export function refreshProjectGitRepositories(projectId: string): Promise<ProjectGitSettings> {
-  return apiFetch<ProjectGitSettings>(`/api/v1/projects/${encodeURIComponent(projectId)}/git?refresh=true`);
+export function refreshProjectGitRepositories(projectId: string, scope?: ProjectApiScope): Promise<ProjectGitSettings> {
+  return apiFetch<ProjectGitSettings>(`${projectPath(projectId, scope)}/git?refresh=true`);
 }

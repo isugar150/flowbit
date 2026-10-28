@@ -36,6 +36,13 @@ data class NewIssue(
     /** Which status to start in; without it, the first one of [status]'s category (backlog unless said). */
     val statusId: UUID? = null,
     val estimate: Int? = null,
+    /**
+     * True sends the issue to the triage queue of a project that uses one, also when a manager makes it (D-236). Left out or false,
+     * a manager's issue goes straight in; what anyone else makes waits in the queue either way.
+     */
+    val triage: Boolean? = null,
+    /** Relations to give the issue as it is made (D-237): how it stands to each other issue. The same as adding each one afterwards. */
+    val relations: List<NewRelation> = emptyList(),
 )
 
 /**

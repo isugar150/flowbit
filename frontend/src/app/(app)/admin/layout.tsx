@@ -8,7 +8,7 @@ import { messages } from "@/messages";
 const m = messages.admin;
 
 /**
- * Administrator settings: the workspace and its members. Separate from personal settings
+ * Administrator settings: the workspace, its members and projects. Separate from personal settings
  * (/settings). Turning non-administrators away here is a convenience; the backend refuses
  * every `/api/v1/admin` call from them on its own.
  */
@@ -28,6 +28,7 @@ export default async function AdminLayout({
         tabs={[
           { href: "/admin/workspace", label: m.workspaceTab },
           { href: "/admin/members", label: m.membersTab },
+          { href: "/admin/projects", label: m.projectsTab },
           { href: "/admin/auth", label: m.authTab },
           { href: "/admin/notifications", label: m.notificationsTab },
           { href: "/admin/backup", label: m.backupTab },
