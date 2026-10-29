@@ -21,17 +21,20 @@ type Scope = {
   /** The page this part stands for, for presence. The scope with the highest priority wins. */
   presence?: string;
   priority: number;
+  watchIssues?: number[];
 };
 
 type ServerMessage =
   | { type: "changed"; topic: string; actorId: string }
   | { type: "presence"; key: string; viewers: Viewer[] }
+  | { type: "issue-presence-snapshot"; viewers: Record<string, Viewer[]> }
   | { type: "ping" };
 
 type RealtimeContextValue = {
   register: (scope: Scope) => () => void;
   /** Others on the current page; the signed-in user is left out. */
   viewers: Viewer[];
+  issueViewers: Record<string, Viewer[]>;
   /** The page this tab stands on for presence (`project:<id>`, `issue:<number>`); null on a page that has none. */
   pageKey: string | null;
   /** The signed-in user. */
@@ -62,9 +65,11 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
   const nextScopeId = useRef(0);
   const socket = useRef<WebSocket | null>(null);
   const presenceKey = useRef<string | null>(null);
+  const watchedIssues = useRef(new Set<number>());
   const focusTarget = useRef<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewers, setViewers] = useState<Viewer[]>([]);
+  const [issueViewers, setIssueViewers] = useState<Record<string, Viewer[]>>({});
   const [pageKey, setPageKey] = useState<string | null>(null);
 
   const scheduleRefresh = useCallback(() => {
@@ -78,6 +83,9 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
   const sendSubscription = useCallback(() => {
     const all = [...scopes.current.values()];
     const topics = [...new Set(all.flatMap((scope) => scope.topics))];
+    const watchIssues = [...new Set(all.flatMap((scope) => scope.watchIssues ?? []))].slice(0, 10_000);
+    watchedIssues.current = new Set(watchIssues);
+    setIssueViewers((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => watchedIssues.current.has(Number(key.slice(6))))));
     const presence =
       all.filter((scope) => scope.presence).sort((a, b) => b.priority - a.priority)[0]?.presence ?? null;
     if (presence !== presenceKey.current) {
@@ -87,7 +95,11 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
     }
     const ws = socket.current;
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "subscribe", topics, presence }));
+      ws.send(JSON.stringify({ type: "subscribe", topics, presence, watchIssues: watchIssues.slice(0, 1000) }));
+      // Keep frames small even when all ten pages of the list are loaded.
+      for (let start = 1000; start < watchIssues.length; start += 1000) {
+        ws.send(JSON.stringify({ type: "watch-issues", watchIssues: watchIssues.slice(start, start + 1000) }));
+      }
       // A subscription starts with no focus on the server; say again where this person is.
       if (focusTarget.current) ws.send(JSON.stringify({ type: "focus", target: focusTarget.current }));
     }
@@ -126,13 +138,19 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
         if (message.type === "changed") {
           const ownEcho = message.actorId === userId && Date.now() - lastLocalWriteAt() < OWN_WRITE_WINDOW_MS;
           if (!ownEcho) scheduleRefresh();
-        } else if (message.type === "presence" && message.key === presenceKey.current) {
-          setViewers(message.viewers);
+        } else if (message.type === "presence") {
+          if (message.key === presenceKey.current) setViewers(message.viewers);
+          if (message.key.startsWith("issue:") && watchedIssues.current.has(Number(message.key.slice(6)))) {
+            setIssueViewers((previous) => ({ ...previous, [message.key]: message.viewers }));
+          }
+        } else if (message.type === "issue-presence-snapshot") {
+          setIssueViewers(Object.fromEntries(Object.entries(message.viewers).filter(([key]) => watchedIssues.current.has(Number(key.slice(6))))));
         }
       };
       ws.onclose = (event) => {
         if (socket.current === ws) socket.current = null;
         setViewers([]);
+        setIssueViewers({});
         if (stopped || event.code === SESSION_ENDED) return;
         // 1s, 2s, 4s … up to 30s, spread out so tabs do not all come back at once.
         const delay = Math.min(30_000, 1000 * 2 ** attempt) * (0.75 + Math.random() / 2);
@@ -165,8 +183,8 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
   );
 
   const value = useMemo(
-    () => ({ register, sendFocus, viewers: viewers.filter((viewer) => viewer.id !== userId), pageKey, userId }),
-    [register, sendFocus, viewers, pageKey, userId],
+    () => ({ register, sendFocus, viewers: viewers.filter((viewer) => viewer.id !== userId), issueViewers, pageKey, userId }),
+    [register, sendFocus, viewers, issueViewers, pageKey, userId],
   );
   return (
     <RealtimeContext.Provider value={value}>
@@ -184,24 +202,33 @@ export function RealtimeScope({
   topics,
   presence,
   priority = 0,
+  watchIssues,
 }: {
   topics: string[];
   presence?: string;
   /** A more specific page (an issue inside a project) has a higher priority for presence. */
   priority?: number;
+  watchIssues?: number[];
 }) {
   const context = useContext(RealtimeContext);
   const register = context?.register;
   const topicList = topics.join(" ");
+  const watchedList = watchIssues?.join(" ") ?? "";
   useEffect(() => {
     if (!register) return;
-    return register({ topics: topicList.split(" ").filter(Boolean), presence, priority });
-  }, [register, topicList, presence, priority]);
+    return register({ topics: topicList.split(" ").filter(Boolean), presence, priority, watchIssues: watchedList.split(" ").filter(Boolean).map(Number) });
+  }, [register, topicList, presence, priority, watchedList]);
   return null;
 }
 
 export function useViewers(): Viewer[] {
   return useContext(RealtimeContext)?.viewers ?? [];
+}
+
+/** Active viewers of a listed ticket, excluding the caller even when they have several tabs. */
+export function useIssueViewers(number: number): Viewer[] {
+  const context = useContext(RealtimeContext);
+  return (context?.issueViewers[`issue:${number}`] ?? []).filter((viewer) => viewer.id !== context?.userId);
 }
 
 /** The page the avatars speak for, and who is asking; see PresenceAvatars. */

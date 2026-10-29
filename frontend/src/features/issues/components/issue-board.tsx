@@ -3,6 +3,7 @@
 import { createContext, useContext, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { IssueViewing } from "@/features/realtime/components/issue-viewing";
 import {
   DndContext,
   DragOverlay,
@@ -186,15 +187,15 @@ function BoardCard({
   };
 
   return (
-    <li
+    <IssueViewing number={issue.number}><li
       ref={setNodeRef}
       {...listeners}
       data-presence-id={`issue-card:${issue.number}`}
       onClick={open}
-      className={cn(cardClass, "cursor-pointer", movable && "active:cursor-grabbing", isDragging && "opacity-40")}
+      className={cn(cardClass, "relative cursor-pointer", movable && "active:cursor-grabbing", isDragging && "opacity-40")}
     >
       <CardBody issue={issue} options={options} movable={movable} showEstimate={showEstimate} showProject={showProject} onMove={onMove} />
-    </li>
+    </li></IssueViewing>
   );
 }
 

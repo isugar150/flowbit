@@ -89,6 +89,14 @@ class RealtimeHub {
             .distinctBy { it.id }
             .sortedBy { (it.displayName ?: it.loginId).lowercase() }
 
+    /** Active issue pages among the list's requested tickets; watching does not put the caller on them. */
+    fun issueViewers(numbers: Set<Int>): Map<String, List<Viewer>> =
+        presence.values
+            .map { it.first }
+            .distinct()
+            .filter { it.startsWith("issue:") && it.removePrefix("issue:").toIntOrNull() in numbers }
+            .associateWith(::viewers)
+
     private fun presenceChanged(key: String) = emit { presenceChanges.tryEmitNext(key) }
 
     /**

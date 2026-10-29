@@ -63,6 +63,61 @@ test.afterAll(async () => {
   await context.close();
 });
 
+test("티켓 연결 해제는 응답 전에 사라지고 다시 조회해도 돌아오지 않는다", async () => {
+  const issue = await newIssue("연결 해제 즉시 반영");
+  const target = await newIssue("먼저 처리할 티켓");
+  await api(context, "POST", `/api/v1/issues/${issue.number}/relations`, { kind: "BLOCKED_BY", targetNumber: target.number });
+  const page = await newPage();
+  await openIssue(page, issue);
+  const remove = page.getByRole("button", { name: `${target.key} 연결 해제`, exact: true });
+  await expect(remove).toBeVisible();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(`**/api/v1/issues/${issue.number}/relations/*`, async (route) => {
+    if (route.request().method() === "DELETE") await gate;
+    await route.fallback();
+  });
+  try {
+    await remove.click();
+    await expect(remove).toHaveCount(0);
+    const stillStored = await api<unknown[]>(context, "GET", `/api/v1/issues/${issue.number}/relations`);
+    expect(stillStored).toHaveLength(1);
+  } finally {
+    release();
+  }
+  await settled(page);
+  await expect(remove).toHaveCount(0);
+  expect(await api(context, "GET", `/api/v1/issues/${issue.number}/relations`)).toEqual([]);
+  await page.close();
+});
+
+test("티켓 연결 해제 실패는 항목을 복원하고 오류를 표시한다", async () => {
+  const issue = await newIssue("연결 해제 실패 복원");
+  const target = await newIssue("해제 실패 대상");
+  await api(context, "POST", `/api/v1/issues/${issue.number}/relations`, { kind: "RELATED", targetNumber: target.number });
+  const page = await newPage();
+  await openIssue(page, issue);
+  const remove = page.getByRole("button", { name: `${target.key} 연결 해제`, exact: true });
+  await expect(remove).toBeVisible();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(`**/api/v1/issues/${issue.number}/relations/*`, async (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    await gate;
+    await route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ code: "UNAVAILABLE", title: "연결 해제 실패" }) });
+  });
+  try {
+    await remove.click();
+    await expect(remove).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(remove).toBeVisible();
+  await expect(page.locator('[data-presence-id="relations"]').getByRole("alert")).toBeVisible();
+  expect(await api<unknown[]>(context, "GET", `/api/v1/issues/${issue.number}/relations`)).toHaveLength(1);
+  await page.close();
+});
+
 test("issue dialog: a picked status shows at once and stays", async () => {
   const issue = await newIssue("대화상자에서 상태 바꾸기");
   const page = await newPage();

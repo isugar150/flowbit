@@ -18,6 +18,7 @@ import org.springframework.web.reactive.socket.WebSocketHandler
 import org.springframework.web.reactive.socket.WebSocketSession
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import reactor.core.publisher.Sinks
 import tools.jackson.databind.json.JsonMapper
 import java.net.URI
 import java.time.Duration
@@ -73,6 +74,14 @@ class RealtimeWebSocketHandler(
     ): Mono<Void> {
         val topics = AtomicReference<Set<String>>(emptySet())
         val presenceKey = AtomicReference<String?>(null)
+        val watchedIssues = AtomicReference<Set<Int>>(emptySet())
+        val snapshots = Sinks.many().unicast().onBackpressureBuffer<Map<String, Any?>>()
+
+        suspend fun watch(numbers: Set<Int>) {
+            watchedIssues.set(numbers)
+            val issueViewers = hub.issueViewers(numbers).filter { (issueKey, _) -> pages.canRead(user, issueKey) }
+            snapshots.tryEmitNext(mapOf("type" to "issue-presence-snapshot", "viewers" to issueViewers))
+        }
 
         val input =
             session
@@ -90,11 +99,25 @@ class RealtimeWebSocketHandler(
                                     .toSet()
                             val key = request.presence?.takeIf { pages.canRead(user, it) }
                             topics.set(readable)
+                            val watching =
+                                request.watchIssues
+                                    .orEmpty()
+                                    .filter { it > 0 }
+                                    .distinct()
+                                    .take(MAX_WATCHED_ISSUES)
+                                    .toSet()
+                            watch(watching)
                             val previous = presenceKey.getAndSet(key)
                             // Written before the others are told, so that whoever reads the
                             // page's people on hearing of the change finds the new times.
                             if (previous != key) listOfNotNull(previous, key).forEach { noteSeen(viewer, it) }
                             hub.setPresence(session.id, key, viewer)
+                        } else if (request?.type == "watch-issues") {
+                            val watching =
+                                (watchedIssues.get() + request.watchIssues.orEmpty().filter { it > 0 })
+                                    .take(MAX_WATCHED_ISSUES)
+                                    .toSet()
+                            watch(watching)
                         } else if (request?.type == "focus") {
                             hub.setFocus(session.id, request.target?.takeIf { it.length <= MAX_TARGET_LENGTH })
                         }
@@ -109,13 +132,18 @@ class RealtimeWebSocketHandler(
         val presence =
             hub
                 .presenceChanges()
-                .filter { it == presenceKey.get() }
-                .map { key -> mapOf("type" to "presence", "key" to key, "viewers" to hub.viewers(key)) }
+                .filter { it == presenceKey.get() || (it.startsWith("issue:") && it.removePrefix("issue:").toIntOrNull() in watchedIssues.get()) }
+                .concatMap { key ->
+                    mono {
+                        val viewers = if (pages.canRead(user, key)) hub.viewers(key) else emptyList()
+                        mapOf("type" to "presence", "key" to key, "viewers" to viewers)
+                    }
+                }
         val pings = Flux.interval(PING_INTERVAL).map { mapOf("type" to "ping") }
         val output =
             session.send(
                 Flux
-                    .merge(changed, presence, pings)
+                    .merge(changed, presence, pings, snapshots.asFlux())
                     .map { session.textMessage(jsonMapper.writeValueAsString(it)) },
             )
 
@@ -131,6 +159,7 @@ class RealtimeWebSocketHandler(
         return Mono
             .firstWithSignal(input, output, sessionEnded)
             .doFinally {
+                snapshots.tryEmitComplete()
                 // The moment they left is when they last saw the page.
                 mono { presenceKey.get()?.let { noteSeen(viewer, it) } }
                     .doFinally { hub.leave(session.id) }
@@ -169,10 +198,12 @@ class RealtimeWebSocketHandler(
         val topics: List<String>? = null,
         val presence: String? = null,
         val target: String? = null,
+        val watchIssues: List<Int>? = null,
     )
 
     private companion object {
         const val MAX_TOPICS = 20
+        const val MAX_WATCHED_ISSUES = 10_000
         const val MAX_TARGET_LENGTH = 100
         val PING_INTERVAL: Duration = Duration.ofSeconds(20)
         val SESSION_CHECK_INTERVAL: Duration = Duration.ofSeconds(60)

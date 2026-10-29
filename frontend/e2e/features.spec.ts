@@ -42,6 +42,40 @@ test.afterAll(async () => {
   await context.close();
 });
 
+test("다른 사람이 연 티켓은 네 보기에서 강조되고 본인의 다른 탭은 제외한다", async ({ browser, baseURL }) => {
+  const dueDate = new Date().toISOString().slice(0, 10);
+  const issue = await newIssue("열람 중 강조 확인", { dueDate });
+  const watching = await newPage();
+  const ownTab = await newPage();
+  const peer = await browser.newContext({ baseURL, locale: "ko-KR" });
+  await logIn(peer, EDITOR);
+  const acting = await newPage(peer);
+  const otherTab = await newPage(peer);
+  try {
+    await ownTab.goto(`/issue/${issue.key}`);
+    await watching.goto(`/project/${project.id}/issues?view=list`);
+    await settled(watching);
+    await expect(watching.locator("[data-issue-viewers]")).toHaveCount(0);
+    await acting.goto(`/issue/${issue.key}`);
+    await otherTab.goto(`/issue/${issue.key}`);
+    for (const view of ["list", "board", "timeline", "calendar"]) {
+      await watching.goto(`/project/${project.id}/issues?view=${view}`);
+      const highlighted = watching.locator("[data-issue-viewers]").filter({ hasText: issue.title });
+      await expect(highlighted.first()).toBeVisible();
+      await expect(highlighted.first()).toHaveAttribute("data-issue-viewers", `지금 보고 있는 사람: 편집 ${run}`);
+      await expect(watching.locator(".issue-viewing-label").first()).toHaveText(`편집 ${run} 보는 중`);
+    }
+    await acting.goto("/help");
+    await expect(watching.locator("[data-issue-viewers]").first()).toBeVisible();
+    await otherTab.goto("/help");
+    await expect(watching.locator("[data-issue-viewers]")).toHaveCount(0);
+  } finally {
+    await peer.close();
+    await ownTab.close();
+    await watching.close();
+  }
+});
+
 test("a property added to a project by name and kind is filled in place, and read by the one who only reads (D-186)", async ({ browser, baseURL }) => {
   const own = await api<{ id: string }>(context, "POST", "/api/v1/projects", { name: `속성 ${run}`, description: "" });
   await api(context, "PUT", `/api/v1/projects/${own.id}/members/${editorId}`, { role: "VIEWER" });

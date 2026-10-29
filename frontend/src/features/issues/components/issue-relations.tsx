@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon, SearchIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -211,12 +212,33 @@ export function AddRelation({
  * the related ones. Anyone who can edit the issue adds and removes them.
  */
 export function IssueRelations({ number, canEdit }: { number: number; canEdit: boolean }) {
+  const router = useRouter();
   const client = useQueryClient();
   const key = ["issue-relations", number];
   const relations = useQuery({ queryKey: key, queryFn: () => apiFetch<Relation[]>(`/api/v1/issues/${number}/relations`), staleTime: 15_000 });
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/v1/issues/${number}/relations/${id}`, { method: "DELETE" }),
-    onSuccess: () => client.invalidateQueries({ queryKey: key }),
+    onMutate: async (id: string) => {
+      await client.cancelQueries({ queryKey: key });
+      const previous = client.getQueryData<Relation[]>(key) ?? [];
+      const index = previous.findIndex((row) => row.id === id);
+      client.setQueryData<Relation[]>(key, previous.filter((row) => row.id !== id));
+      return { row: previous[index], index };
+    },
+    onError: (_error, _id, context) => {
+      if (!context?.row) return;
+      const row = context.row;
+      client.setQueryData<Relation[]>(key, (current = []) => {
+        if (current.some((item) => item.id === row.id)) return current;
+        const restored = [...current];
+        restored.splice(context.index, 0, row);
+        return restored;
+      });
+    },
+    onSettled: () => {
+      router.refresh();
+      return client.invalidateQueries({ queryKey: ["issue-relations"] });
+    },
   });
   const rows = relations.data ?? [];
   if (rows.length === 0 && !canEdit) return null;
@@ -229,7 +251,11 @@ export function IssueRelations({ number, canEdit }: { number: number; canEdit: b
         </h3>
         {canEdit ? (
           <span className="ml-auto">
-            <AddRelation number={number} onAdded={(next) => client.setQueryData(key, next)} />
+            <AddRelation number={number} onAdded={(next) => {
+              client.setQueryData(key, next);
+              void client.invalidateQueries({ queryKey: ["issue-relations"] });
+              router.refresh();
+            }} />
           </span>
         ) : null}
       </div>

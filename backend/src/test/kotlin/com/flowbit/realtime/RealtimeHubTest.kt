@@ -11,6 +11,20 @@ class RealtimeHubTest {
     private val lee = Viewer(UUID.randomUUID(), "lee", null, null)
 
     @Test
+    fun `티켓 목록의 열람자는 요청한 티켓만 중복 없이 조회하고 떠나면 사라진다`() {
+        hub.setPresence("a", "issue:12", kim)
+        hub.setPresence("b", "issue:12", kim)
+        hub.setPresence("c", "issue:13", lee)
+        hub.setPresence("d", "project:PAY", lee)
+        assertEquals(setOf("issue:12"), hub.issueViewers(setOf(12)).keys)
+        assertEquals(listOf(kim), hub.issueViewers(setOf(12)).getValue("issue:12"))
+        hub.leave("a")
+        assertEquals(1, hub.issueViewers(setOf(12)).size)
+        hub.leave("b")
+        assertEquals(emptyMap(), hub.issueViewers(setOf(12)))
+    }
+
+    @Test
     fun `같은 화면을 보는 사람은 탭이 여러 개여도 한 번만 나온다`() {
         hub.setPresence("a", "project:PAY", kim)
         hub.setPresence("b", "project:PAY", kim)

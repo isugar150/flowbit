@@ -2,6 +2,7 @@
 
 import { cloneElement } from "react";
 import Link from "next/link";
+import { IssueViewing, IssueViewingLabel } from "@/features/realtime/components/issue-viewing";
 import { useInBrowser, useToday } from "@/components/dates";
 import { MonthRangeFields } from "@/features/share/components/month-range-fields";
 import { ShareButton } from "@/features/share/components/share-button";
@@ -256,12 +257,13 @@ export function IssueTimeline<T extends TimelineIssue = TimelineIssue>({
                     const closed = issue.status === "DONE" || issue.status === "CANCELED";
                     const href = issueHref(issue);
                     const title = `${issue.key} ${issue.title} · ${statusLabel(issue.status)}${issue.dueDate ? ` · ${issue.dueDate}` : ` · ${m.noDueDate}`}`;
-                    const nameClass = "sticky left-0 z-20 flex h-full shrink-0 items-center gap-2 bg-background pr-3 pl-10 text-[0.8125rem] leading-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+                    const nameClass = "sticky left-0 z-20 flex h-full shrink-0 items-center gap-2 bg-background pr-3 pl-10 text-[0.8125rem] leading-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 group-data-[issue-viewers]/timeline:pt-3.5";
                     const nameBody = (
                       <>
                         <SubIssueIndent depth={row.depth} />
                         <span className="shrink-0 text-muted-foreground tabular-nums">{issue.key}</span>
                         <span className={cn("truncate", closed && "text-muted-foreground line-through")}>{issue.title}</span>
+                        <IssueViewingLabel number={issue.number} />
                       </>
                     );
                     const barClass = "absolute top-1/2 h-3 -translate-y-1/2 rounded outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -282,7 +284,7 @@ export function IssueTimeline<T extends TimelineIssue = TimelineIssue>({
                       <div title={card ? undefined : title} className={barClass} style={barStyle} />
                     );
                     return (
-                      <li key={issue.key} className={cn("flex h-8 items-center", href && "hover:bg-muted/60")}>
+                      <IssueViewing key={issue.key} number={issue.number} label={false}><li className={cn("group/timeline relative flex h-8 items-center data-[issue-viewers]:h-11", href && "hover:bg-muted/60")}>
                         <WithCard element={nameElement} card={card}>
                           {nameBody}
                         </WithCard>
@@ -299,7 +301,7 @@ export function IssueTimeline<T extends TimelineIssue = TimelineIssue>({
                             {issue.title}
                           </span>
                         </div>
-                      </li>
+                      </li></IssueViewing>
                     );
                   })}
                 </ul>

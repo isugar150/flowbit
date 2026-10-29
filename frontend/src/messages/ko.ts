@@ -287,6 +287,7 @@ export const ko = {
     hint: "'/' 를 눌러 제목, 목록, 체크리스트, 표, 이미지를 넣을 수 있습니다. 이미지는 붙여 넣거나 끌어다 놓아도 됩니다. Figma·Google·Office·Outline 링크는 붙여 넣으면 화면에 바로 보입니다.",
   },
   realtime: {
+    ticketViewing: (name: string, others: number) => `${name}${others > 0 ? ` 외 ${others}명` : ""} 보는 중`,
     viewersLabel: (names: string) => `지금 보고 있는 사람: ${names}`,
     peopleLabel: "이 화면의 구성원",
     viewingNow: "지금 보는 중",

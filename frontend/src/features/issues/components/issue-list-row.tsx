@@ -1,5 +1,7 @@
 "use client";
 
+import { IssueViewing } from "@/features/realtime/components/issue-viewing";
+
 import { memo } from "react";
 import { useRouter } from "next/navigation";
 import { ActivityIcon, MessageSquareIcon } from "lucide-react";
@@ -176,11 +178,12 @@ export const IssueListRow = memo(function IssueListRow({
   };
 
   return (
+    <IssueViewing number={issue.number}>
     <li
       data-presence-id={`${presence}:${issue.number}`}
       data-tour={presence === "issue-row" ? "issue-row" : undefined}
       onClick={open}
-      className={cn("list-line flex h-10 cursor-pointer items-center gap-2 border-b hover:bg-muted max-md:h-12", className)}
+      className={cn("list-line relative flex h-10 cursor-pointer items-center gap-2 border-b hover:bg-muted data-[issue-viewers]:pt-2 max-md:h-12", className)}
     >
       <SubIssueIndent depth={depth} />
       {editable ? (
@@ -252,5 +255,6 @@ export const IssueListRow = memo(function IssueListRow({
         <IssueAssignee issue={issue} className={columns.assignee} />
       )}
     </li>
+    </IssueViewing>
   );
 });

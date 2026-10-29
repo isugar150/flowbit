@@ -6,6 +6,7 @@ import Link from "next/link";
 import { FileTextIcon, PlusIcon, RepeatIcon, SearchIcon, Trash2Icon, XIcon, ArrowUpDownIcon, CircleCheckIcon, LayersIcon } from "lucide-react";
 
 import { useShownAt, useToday } from "@/components/dates";
+import { RealtimeScope } from "@/features/realtime/realtime-provider";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ShortcutKeys } from "@/components/shortcut-keys";
@@ -433,6 +434,7 @@ export function IssuesView({
 
   return (
     <>
+      <RealtimeScope topics={[]} watchIssues={issues.map((issue) => issue.number)} />
       {allIssues.length === 0 && !deleted ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <Empty>

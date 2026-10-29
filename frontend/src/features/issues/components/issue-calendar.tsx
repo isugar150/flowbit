@@ -1,5 +1,7 @@
 "use client";
 
+import { IssueViewing } from "@/features/realtime/components/issue-viewing";
+
 import { cloneElement, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { DndContext } from "@dnd-kit/core";
@@ -135,7 +137,7 @@ function CalendarBar<T extends CalendarIssue>({
     <div title={card ? undefined : title} className={className} />
   );
   return (
-    <li ref={ref} {...listeners}>
+    <IssueViewing number={issue.number}><li ref={ref} {...listeners} className="relative data-[issue-viewers]:pt-3.5">
       {card ? (
         // No card over a bar that is being dragged, or while any is.
         <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} disabled={drag !== null}>
@@ -144,7 +146,7 @@ function CalendarBar<T extends CalendarIssue>({
       ) : (
         cloneElement(element, undefined, body)
       )}
-    </li>
+    </li></IssueViewing>
   );
 }
 
@@ -189,7 +191,7 @@ function UndatedChip<T extends CalendarIssue>({
     </>
   );
   return (
-    <li ref={ref} {...listeners} className="min-w-0">
+    <IssueViewing number={issue.number}><li ref={ref} {...listeners} className="relative min-w-0 data-[issue-viewers]:pt-3.5">
       {card ? (
         <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} disabled={drag !== null}>
           {body}
@@ -197,7 +199,7 @@ function UndatedChip<T extends CalendarIssue>({
       ) : (
         cloneElement(element, undefined, body)
       )}
-    </li>
+    </li></IssueViewing>
   );
 }
 

@@ -32,6 +32,46 @@ class RealtimeIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `티켓 목록은 접근 가능한 상세의 현재 열람자를 받고 입장과 퇴장을 반영하며 자신은 열람자로 등록하지 않는다`() {
+        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"공유 티켓"}""")
+        val secret = admin.post("/api/v1/projects", """{"name":"비공개"}""").json()["id"]
+        admin.post("/api/v1/projects/$secret/issues", """{"title":"비공개 티켓"}""")
+        val first = Socket(admin)
+        val hidden = Socket(admin)
+        val list = Socket(editor)
+        try {
+            first.send("""{"type":"subscribe","presence":"issue:1"}""")
+            first.awaitPresence { it.size == 1 }
+            hidden.send("""{"type":"subscribe","presence":"issue:2"}""")
+            hidden.awaitPresence { it.size == 1 }
+            list.send("""{"type":"subscribe","watchIssues":[1,2,1]}""")
+            val snapshot = assertNotNull(list.poll("issue-presence-snapshot"))["viewers"] as Map<String, List<Map<String, Any?>>>
+            assertEquals(setOf("issue:1"), snapshot.keys)
+            assertEquals(listOf("admin"), snapshot.getValue("issue:1").map { it["loginId"] })
+
+            list.send("""{"type":"watch-issues","watchIssues":[2]}""")
+            val extended = assertNotNull(list.poll("issue-presence-snapshot"))["viewers"] as Map<String, Any?>
+            assertEquals(setOf("issue:1"), extended.keys)
+
+            first.send("""{"type":"subscribe"}""")
+            list.awaitPresence { it.isEmpty() }
+            first.send("""{"type":"subscribe","presence":"issue:1"}""")
+            list.awaitPresence { it.size == 1 && it.single()["loginId"] == "admin" }
+            // Watching never counts the list user as having the issue open.
+            first.awaitPresence { it.size == 1 && it.single()["loginId"] == "admin" }
+            list.send("""{"type":"subscribe","watchIssues":[]}""")
+            assertEquals(emptyMap<String, Any?>(), assertNotNull(list.poll("issue-presence-snapshot"))["viewers"])
+            first.send("""{"type":"subscribe"}""")
+            assertNull(list.poll("presence"))
+        } finally {
+            first.close()
+            hidden.close()
+            list.close()
+        }
+    }
+
+    @Test
     fun `같은 화면을 보는 사람과 그 사람이 가리키는 곳이 서로에게 전해진다`() {
         val a = Socket(admin)
         val b = Socket(editor)

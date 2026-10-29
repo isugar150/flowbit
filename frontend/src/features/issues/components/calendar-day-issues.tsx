@@ -2,6 +2,7 @@
 
 import { cloneElement, useState } from "react";
 import Link from "next/link";
+import { IssueViewing } from "@/features/realtime/components/issue-viewing";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
@@ -72,7 +73,7 @@ function DayIssueRow<T extends CalendarIssue>({
   );
   const card = cardOf?.(issue);
   return (
-    <li ref={ref} {...listeners}>
+    <IssueViewing number={issue.number}><li ref={ref} {...listeners} className="relative data-[issue-viewers]:pt-3.5">
       {card ? (
         // To the side of the list, so that the card does not cover the lines under it.
         <IssueHoverCard render={element} card={card} load={loadActivity ? () => loadActivity(issue) : undefined} side="right" align="start">
@@ -81,7 +82,7 @@ function DayIssueRow<T extends CalendarIssue>({
       ) : (
         cloneElement(element, undefined, body)
       )}
-    </li>
+    </li></IssueViewing>
   );
 }
 

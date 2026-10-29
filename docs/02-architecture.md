@@ -82,6 +82,10 @@ PostgreSQL 18 ── 데이터, 세션
 
 ## 실시간 동기화 (M3 부터, 사용자 지정 D-024, 구현 D-044)
 
+**목록의 티켓 열람 표시 (2026-10-29 사용자 확정)**: 보드·목록·타임라인·캘린더에서 다른 사용자가 상세를 열어 둔 티켓에 테두리와 이름을 표시한다. 여러 명은 첫 이름과 나머지 인원수, 전체 이름은 말풍선·접근성 설명으로 제공한다. 본인의 다른 탭은 제외하고 같은 사람의 여러 탭은 한 명으로 센다. 공유 화면에는 표시하지 않는다.
+
+WebSocket subscribe의 `watchIssues: [티켓번호]`(최대 10000개)는 열람 정보 수신 대상이며 본인이 열람 중이라는 의미가 아니다. 브라우저는 1000개까지 subscribe에 담고 나머지는 `{"type":"watch-issues","watchIssues":[...]}` 메시지로 1000개씩 추가한다. subscribe는 수신 대상을 교체하고 watch-issues는 추가하며 전체 상한은 10000개다. 서버는 현재 열람자가 있는 접근 가능한 티켓만 `issue-presence-snapshot`의 `viewers: {"issue:12": [Viewer]}`로 보내고, 이후 기존 `presence` 메시지로 입장·퇴장을 전한다. 최초 스냅샷과 변경 전송마다 티켓 접근 권한을 확인한다. 연결이 끊기면 강조를 비우며 재연결 시 구독을 복구한다. DB 변경 없음.
+
 여러 사람이 같은 화면을 보고 있을 때 한 사람의 변경이 다른 사람 화면에 새로 고침 없이 반영되어야 한다. WebSocket 으로 구현한다.
 
 ```
@@ -106,7 +110,7 @@ B 의 브라우저 ◀── WebSocket {"type":"changed","topic":"project:FLOW"}
 - **가리키는 위치** (D-053): 화면의 고칠 수 있는 부분에 `data-presence-id` 를 단다(속성 줄은 `property:<이름>`, 개요의 `description`·`update`, 티켓의 `title`·`body`). `features/realtime/presence-focus.tsx` 가 **그 사람이 조작한 부분**(누른 곳, 키보드로 입력하거나 Tab 으로 옮겨 간 곳)을 120ms 뒤에 `focus` 로 보내고(D-117: 마우스를 올리기만 한 곳과, 대화상자가 열리며 저절로 초점이 간 곳은 보내지 않는다. 부분 밖을 누르거나 화면을 옮기면 지워진다), 다른 사람이 가리키는 부분에는 `data-presence-by`(이름)를 붙인다. 모양(사람별 색 테두리 + 이름표)은 `globals.css`. 서버는 값을 100자까지만 받고 뜻을 해석하지 않는다. 화면을 옮기면 지워진다. 글 안의 커서 위치(몇 번째 글자)까지는 보여 주지 않는다. 새 화면에 고칠 수 있는 부분을 만들면 감싸는 요소(입력 칸 자체가 아니라 `div`)에 `data-presence-id` 를 단다.
 - 끊김: 지수 백오프(1초 → 최대 30초)로 다시 붙고, 다시 붙으면 놓친 변경이 있을 수 있으니 한 번 다시 그린다. 연결이 없어도 앱은 REST 만으로 동작한다.
 - 서버 구현: WebFlux `WebSocketHandler` + 프로세스 안의 이벤트 버스(Reactor `Sinks`, `realtime/RealtimeHub.kt`). **Sink 에는 한 스레드(`realtime-hub`)가 차례로만 신호를 넣는다.** 여러 요청 스레드나 다른 신호를 처리하는 도중(연결이 닫히며 `leave` 가 불릴 때)에 직접 넣으면 Reactor 가 "serially" 오류를 내고 그 연결이 끊긴다(실제로 겪었다. `RealtimeIntegrationTest` 가 지킨다). 인스턴스가 하나이므로 이것으로 충분하다. 여러 인스턴스로 늘릴 때는 PostgreSQL `LISTEN/NOTIFY` 로 인스턴스 사이에 이벤트를 전달한다.
-- 프런트엔드: `features/realtime/realtime-provider.tsx`(연결 하나, `RealtimeScope`, `useViewers`), `features/realtime/components/presence-avatars.tsx`. `RealtimeProvider` 는 앱 틀(`app-shell.tsx`)에 있다. 새 화면이 실시간으로 갱신되어야 하면 그 화면에 `<RealtimeScope topics=[...] presence="..." />` 를 둔다.
+- 프런트엔드: `features/realtime/realtime-provider.tsx`(연결 하나, `RealtimeScope`, `useViewers`, `useIssueViewers`), `features/realtime/components/presence-avatars.tsx`, `features/realtime/components/issue-viewing.tsx`(티켓의 열람 테두리와 이름). `RealtimeProvider` 는 앱 틀(`app-shell.tsx`)에 있다. 새 화면이 실시간으로 갱신되어야 하면 그 화면에 `<RealtimeScope topics=[...] presence="..." />` 를 둔다. 티켓 목록은 `watchIssues`에 표시 대상 번호를 전달한다.
 - **Next.js rewrite 와 WebSocket** (확인함): `next dev`/`next start` 모두 `/api` rewrite 로 WebSocket 업그레이드를 백엔드에 넘기고 `x-forwarded-host` 를 붙인다(`next/dist/server/lib/router-server.js` 의 `upgradeHandler`). 단, 운영 모드의 프록시는 30초 동안 오가는 것이 없으면 끊으므로 서버가 20초마다 `ping` 을 보낸다. 앞에 리버스 프록시(nginx 등)를 두면 `/api/v1/realtime` 에 `Upgrade`/`Connection` 헤더를 넘기도록 설정해야 한다.
 - 서버 종료: `server.shutdown: immediate` (D-103). 열린 WebSocket 연결은 끝나지 않는 요청이라, 기본값(graceful)으로는 종료 신호를 받고도 30초를 기다렸다. 서버가 내려가면 브라우저는 위의 "끊김" 규칙대로 다시 붙는다.
 - 알려진 한계: 구독할 때만 권한을 확인한다. 연결 중에 프로젝트에서 내보내진 사람은 다시 연결하거나 화면을 옮길 때까지 "바뀌었다"는 알림(내용 없음)과 보는 사람 목록을 계속 받는다.
