@@ -89,6 +89,41 @@ object McpToolDefinitions {
 
     val all =
         listOf(
+            tool("list_issue_files", "티켓 본문·댓글·첨부·연결 문서의 사진과 파일 목록. 받은 fileId로 실제 내용 조회 또는 원본 다운로드.", mapOf("issue" to issue), listOf("issue")),
+            tool(
+                "read_file",
+                "사진은 실제 image 응답, 텍스트·Office는 내용 구간, PDF는 page(기본 1)의 글. nextOffset/nextPage로 이어 읽으세요. BASE64는 원본 바이트 구간. 미지원/암호화/추출 제한은 downloadUrl 원본을 분석하세요.",
+                mapOf(
+                    "issue" to issue,
+                    "fileId" to text(),
+                    "mode" to values(listOf("AUTO", "TEXT", "BASE64")),
+                    "offset" to number(),
+                    "limit" to number(),
+                    "page" to number(),
+                ),
+                listOf("issue", "fileId"),
+            ),
+            tool(
+                "render_file_page",
+                "PDF의 지정 페이지를 실제 이미지로 읽습니다. 스캔·그림·표 분석에 사용. page는 1부터.",
+                mapOf("issue" to issue, "fileId" to text(), "page" to number()),
+                listOf("issue", "fileId"),
+            ),
+            tool("get_document", "권한 있는 연결 문서의 원본 편집기 JSON·Markdown·블록 댓글 조회.", mapOf("documentId" to id), listOf("documentId")),
+            tool(
+                "attach_file",
+                "파일 첨부. 128KB 이하 표준 Base64 data만 사용. 큰 파일은 list_issue_files의 uploadUrl에 Bearer 인증 multipart file 전송. placement ATTACHMENT(기본), BODY(본문 끝), COMMENT(새 댓글). image=true는 본문/댓글 사진. markdown은 새 댓글 글.",
+                mapOf(
+                    "issue" to issue,
+                    "fileName" to text(),
+                    "data" to text(),
+                    "placement" to values(McpFilePlacement.entries.map { it.name }),
+                    "image" to bool(),
+                    "markdown" to text(),
+                ),
+                listOf("issue", "fileName", "data"),
+                true,
+            ),
             tool("list_projects", "접근 가능한 프로젝트와 내 역할 조회. 생성 전에 프로젝트 ID를 찾으세요.", paging),
             tool(
                 "get_issue_options",
@@ -99,7 +134,14 @@ object McpToolDefinitions {
             tool("list_statuses", "워크스페이스의 실제 상태 ID·이름·범주·순서."),
             tool("list_issues", "화면과 같은 일반 티켓 목록. 요청함 대기·거절은 일반 목록에서 제외됩니다.", paging + mapOf("projectId" to id, "deleted" to bool())),
             tool("search_issues", "화면과 같은 검색으로 권한 있는 티켓 검색. 요청함 티켓도 찾을 수 있습니다.", mapOf("q" to text(), "limit" to number()), listOf("q")),
-            tool("get_issue", "티켓 상세·원본 content·Markdown·댓글·속성·연결 조회. 수정 전 현재 값을 읽으세요.", mapOf("issue" to issue), listOf("issue")),
+            tool(
+                "get_issue",
+                "티켓 상세·원본 content·Markdown·댓글·블록 댓글·속성·연결·파일 목록 조회. 사진·파일 내용도 요청받았다면 read_file·render_file_page로 실제 내용을 읽으세요. 수정 전 현재 값을 읽으세요.",
+                mapOf(
+                    "issue" to issue,
+                ),
+                listOf("issue"),
+            ),
             tool(
                 "create_issue",
                 "티켓 생성. get_issue_options로 선택값 확인. 요청함이 켜진 프로젝트의 편집 역할은 자동 대기. 반환된 triage로 결과를 안내하세요.",
@@ -139,6 +181,7 @@ object McpToolDefinitions {
                     "markdown" to text(),
                     "content" to content,
                     "parentId" to id,
+                    "attachmentIds" to array(id),
                 ),
                 listOf("issue"),
                 true,
@@ -146,7 +189,7 @@ object McpToolDefinitions {
             tool(
                 "update_comment",
                 "내 댓글 수정. 다른 사람의 댓글은 수정할 수 없습니다.",
-                mapOf("commentId" to id, "markdown" to text(), "content" to content),
+                mapOf("commentId" to id, "markdown" to text(), "content" to content, "attachmentIds" to array(id)),
                 listOf("commentId"),
                 true,
             ),

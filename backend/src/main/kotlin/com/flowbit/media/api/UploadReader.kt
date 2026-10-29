@@ -2,7 +2,7 @@ package com.flowbit.media.api
 
 import com.flowbit.common.error.ApiException
 import com.flowbit.media.application.StorageProperties
-import kotlinx.coroutines.reactor.awaitSingle
+import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.core.io.buffer.DataBufferLimitException
 import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.HttpStatus
@@ -23,7 +23,7 @@ class UploadReader(
         val limit = properties.maxUploadSize
         val buffer =
             try {
-                DataBufferUtils.join(file.content(), limit.toBytes().toInt()).awaitSingle()
+                DataBufferUtils.join(file.content(), limit.toBytes().toInt()).awaitSingleOrNull() ?: return ByteArray(0)
             } catch (_: DataBufferLimitException) {
                 throw UploadTooLargeException(describe(limit))
             }

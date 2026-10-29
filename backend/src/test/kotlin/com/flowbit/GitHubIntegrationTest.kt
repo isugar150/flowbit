@@ -212,7 +212,9 @@ class GitHubIntegrationTest : IntegrationTest() {
         GitHub.compares["s0...s2"] = listOf(commitJson("s2", "Fixes FB-2 결제 오류", "leesj"))
         val third = admin.post("/api/v1/admin/git/connections/$id/sync").json()
         assertEquals(listOf("FB-1", "FB-2"), third["statusChanged"])
-        assertEquals(listOf("DONE", "DONE", "BACKLOG"), (1..3).map(::status))
+        // A merge finishes FB-1; a closing commit advances FB-2 to review-ready (D-241).
+        assertEquals(listOf("DONE", "IN_PROGRESS", "BACKLOG"), (1..3).map(::status))
+        assertEquals("00000000-0000-7000-8000-0000000000a6", admin.get("/api/v1/issues/2").json()["statusId"])
 
         val connection = admin.get("/api/v1/admin/git/connections").jsonList().single()
         assertTrue(connection["lastSyncedAt"] != null)

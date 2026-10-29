@@ -3,6 +3,10 @@ package com.flowbit.mcp
 import com.flowbit.auth.application.AuthenticatedUser
 import com.flowbit.common.error.ForbiddenException
 import com.flowbit.common.error.ValidationException
+import com.flowbit.content.ContentFeedService
+import com.flowbit.content.ContentTarget
+import com.flowbit.content.ContentTargetType
+import com.flowbit.content.ContentThreadService
 import com.flowbit.customproperty.application.CustomPropertyChange
 import com.flowbit.customproperty.application.CustomPropertyOwnerKind
 import com.flowbit.customproperty.application.CustomPropertyService
@@ -11,11 +15,13 @@ import com.flowbit.customproperty.application.ProjectIssueFieldService
 import com.flowbit.cycle.CycleService
 import com.flowbit.issue.api.CommentResponse
 import com.flowbit.issue.api.CreateIssueRequest
+import com.flowbit.issue.api.DocumentResponse
 import com.flowbit.issue.api.IssueAnnouncer
 import com.flowbit.issue.api.IssueRelationResponse
 import com.flowbit.issue.api.IssueResponse
 import com.flowbit.issue.application.IssueChange
 import com.flowbit.issue.application.IssueCommentService
+import com.flowbit.issue.application.IssueDocumentService
 import com.flowbit.issue.application.IssuePatch
 import com.flowbit.issue.application.IssueRelations
 import com.flowbit.issue.application.IssueService
@@ -52,6 +58,11 @@ class McpOperations(
     private val hub: RealtimeHub,
     private val markdown: McpMarkdown,
     private val json: JsonMapper,
+    private val files: McpFiles,
+    private val fileReader: McpFileReader,
+    private val documents: IssueDocumentService,
+    private val threads: ContentThreadService,
+    private val feeds: ContentFeedService,
 ) {
     suspend fun execute(
         identity: TokenIdentity,
@@ -72,7 +83,43 @@ class McpOperations(
 
         fun objectAt(key: String): Map<String, Any?> =
             (args[key] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value } ?: throw ValidationException(key, "INVALID", "객체를 입력하세요")
+
+        fun attachmentIds(): List<UUID>? =
+            (args["attachmentIds"] as? List<*>)?.map { value ->
+                runCatching { UUID.fromString(value as String) }.getOrElse { throw ValidationException("attachmentIds", "INVALID", "올바른 첨부 ID를 지정하세요") }
+            }
         return when (name) {
+            "list_issue_files" -> files.list(user, number())
+            "read_file", "render_file_page" ->
+                fileReader.read(
+                    user,
+                    number(),
+                    text("fileId"),
+                    args["mode"] as? String ?: "AUTO",
+                    (args["offset"] as? Number)?.toInt() ?: 0,
+                    (args["limit"] as? Number)?.toInt() ?: 20_000,
+                    (args["page"] as? Number)?.toInt() ?: 1,
+                    name == "render_file_page",
+                )
+            "attach_file" ->
+                files.attachBase64(
+                    user,
+                    number(),
+                    text("fileName"),
+                    text("data"),
+                    (args["placement"] as? String)?.let(McpFilePlacement::valueOf) ?: McpFilePlacement.ATTACHMENT,
+                    args["image"] == true,
+                    args["markdown"] as? String,
+                )
+            "get_document" -> {
+                val document = documents.document(user, uuid("documentId"))
+                mapOf(
+                    "document" to DocumentResponse.from(document),
+                    "markdown" to markdown.render(document.content),
+                    "feed" to feeds.feed(user, ContentTarget(ContentTargetType.DOCUMENT, document.document.id)),
+                    "files" to document.issue?.number?.let { files.list(user, it) },
+                )
+            }
             "list_projects" ->
                 page(
                     projects.list(user).filter { it.myRole != null && matches(it.name, args) }.map {
@@ -129,14 +176,22 @@ class McpOperations(
                     )
                 }
             "create_comment", "update_comment" -> {
-                val content = body(args)["content"] ?: throw ValidationException("markdown", "REQUIRED", "댓글 내용을 입력하세요")
+                val content = body(args)["content"]
+                val attachments = attachmentIds()
+                if (content == null && attachments.isNullOrEmpty()) throw ValidationException("markdown", "REQUIRED", "댓글 내용이나 첨부파일을 지정하세요")
                 val result =
                     if (name ==
                         "create_comment"
                     ) {
-                        comments.addComment(user, number(), content, parentId = args["parentId"]?.let { uuid("parentId") })
+                        comments.addComment(
+                            user,
+                            number(),
+                            content,
+                            attachmentIds = attachments.orEmpty(),
+                            parentId = args["parentId"]?.let { uuid("parentId") },
+                        )
                     } else {
-                        comments.updateComment(user, uuid("commentId"), content)
+                        comments.updateComment(user, uuid("commentId"), content, attachmentIds = attachments)
                     }
                 announcer.commented(user, result.change)
                 CommentResponse.from(result.comment)
@@ -189,6 +244,8 @@ class McpOperations(
             "properties" to properties.list(user, CustomPropertyOwnerKind.ISSUE, detail.issue.id),
             "relations" to relations.list(user, number).map(IssueRelationResponse::from),
             "activity" to comments.activity(user, number),
+            "blockComments" to threads.threads(user, ContentTarget(ContentTargetType.ISSUE, detail.issue.id)).threads,
+            "files" to files.list(user, number),
         )
     }
 

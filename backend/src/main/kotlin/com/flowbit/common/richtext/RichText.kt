@@ -28,6 +28,30 @@ class RichText(
     private val jsonMapper: JsonMapper,
     private val databaseClient: DatabaseClient,
 ) {
+    fun isStoredImagePath(src: String): Boolean = STORED_IMAGE.matches(src)
+
+    fun isStoredFilePath(src: String): Boolean = STORED_FILE.matches(src)
+
+    /** Append against the document read under the owner's row lock, preserving existing block ids. */
+    fun append(
+        stored: String?,
+        plainText: String,
+        blocks: List<Map<String, Any?>>,
+    ): Map<String, Any?> {
+        val root = stored?.let { jsonMapper.readValue(it, Map::class.java) }
+        val previous =
+            (root?.get("content") as? List<*>) ?: plainText
+                .takeIf { it.isNotBlank() }
+                ?.let {
+                    listOf(mapOf("type" to "paragraph", "content" to listOf(mapOf("type" to "text", "text" to it))))
+                }.orEmpty()
+        val result = linkedMapOf<String, Any?>()
+        root?.forEach { (key, value) -> if (key is String) result[key] = value }
+        result["type"] = "doc"
+        result["content"] = previous + blocks
+        return result
+    }
+
     /**
      * @param field the request field the document came in, named in validation errors.
      * @param blockIds give every top-level block a number that does not change (D-165), and a new

@@ -23,6 +23,13 @@ repositories {
 }
 
 dependencies {
+    implementation("org.apache.tika:tika-core:4.2.0")
+    implementation("org.apache.tika:tika-parser-microsoft-module:4.2.0")
+    implementation("org.apache.tika:tika-parser-miscoffice-module:4.2.0")
+    implementation("org.apache.tika:tika-parser-text-module:4.2.0")
+    // Keep the full OOXML schemas on Tika's POI version for Word/Excel/PowerPoint documents.
+    implementation("org.apache.poi:poi-ooxml-full:5.5.1")
+    implementation("org.apache.pdfbox:pdfbox:3.0.8")
     implementation("org.commonmark:commonmark:0.31.0")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-security")

@@ -117,9 +117,11 @@ class McpController(
                     val args = arguments.entries.associate { it.key.toString() to it.value }
                     try {
                         val value = operations.execute(identity, name, args)
-                        val structured = mapOf("data" to value)
+                        val structured = mapOf("data" to if (value is McpFileContent) value.data else value)
                         mapOf(
-                            "content" to listOf(mapOf("type" to "text", "text" to json.writeValueAsString(structured))),
+                            "content" to
+                                listOf(mapOf("type" to "text", "text" to json.writeValueAsString(structured))) +
+                                if (value is McpFileContent) value.content else emptyList(),
                             "structuredContent" to structured,
                             "isError" to false,
                         )

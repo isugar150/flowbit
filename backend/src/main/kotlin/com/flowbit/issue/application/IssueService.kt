@@ -249,6 +249,18 @@ class IssueService(
     }
 
     @Transactional
+    suspend fun appendContent(
+        user: AuthenticatedUser,
+        number: Int,
+        blocks: List<Map<String, Any?>>,
+    ): IssueChange {
+        val access = lookup.editable(lookup.access(user, number))
+        val locked = repository.lockById(access.issue.id) ?: throw lookup.notFound()
+        val content = richText.append(richText.load(RichText.ContentTable.ISSUES, locked.id), locked.description, blocks)
+        return update(user, number, IssuePatch(mapOf("content" to content)))
+    }
+
+    @Transactional
     suspend fun update(
         user: AuthenticatedUser,
         number: Int,

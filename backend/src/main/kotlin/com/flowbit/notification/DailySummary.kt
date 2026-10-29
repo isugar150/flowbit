@@ -143,7 +143,7 @@ class DailySummaryBuilder(
         val byDue = open.filter { it.dueDate != null }.sortedBy { it.dueDate }
         val overdue = byDue.filter { it.dueDate!! < today }
         val dueToday = byDue.filter { it.dueDate == today }
-        val dueSoon = byDue.filter { it.dueDate!! > today && it.dueDate!! <= today.plusDays(SOON_DAYS) }
+        val dueSoon = byDue.filter { it.dueDate!! > today && it.dueDate <= today.plusDays(SOON_DAYS) }
         val assignedSince = assignedSince(userId, since)
         val newlyAssigned = open.filter { it.number in assignedSince }
         val unread = inbox.unreadCount(userId)

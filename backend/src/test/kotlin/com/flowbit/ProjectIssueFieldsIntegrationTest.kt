@@ -46,7 +46,8 @@ class ProjectIssueFieldsIntegrationTest : IntegrationTest() {
             (admin.get("/api/v1/issues/1/activity").json()["items"] as List<Map<String, Any?>>)
                 .filter { it["type"] != "CREATED" }
 
-        fun latest() = changes().first()["detail"] as Map<String, Any?>
+        // The activity API returns entries oldest first; the UI sorts them newest first.
+        fun latest() = changes().last()["detail"] as Map<String, Any?>
 
         assertEquals(200, admin.put(valuePath(issueId, fieldId), """{"value":["$reviewerId","$secondId"]}""").status)
         assertEquals("리뷰어", latest()["label"])
