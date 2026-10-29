@@ -147,3 +147,7 @@ com.flowbit
 ## 프로젝트 공통 티켓 속성
 
 customproperty의 ProjectIssueFieldService·Store가 정의와 값을 관리하고 기존 값 검증을 공유한다. AutomationEngine은 실행 당시 사람 값을 조회한다. V16 및 [명세](features/project-issue-fields.md) 참고.
+
+`mcp/`: AccessTokens(개인 토큰 해시 저장·조회·폐기), McpSecurity(연동 경로만 Bearer 인증), AccessTokenController(세션 전용 관리), McpController(무상태 JSON-RPC·JSON API), McpOperations(기존 서비스와 알림 경로 연결), McpToolDefinitions(도구 JSON Schema·검증), McpMarkdown(CommonMark 0.31.0을 편집기 JSON으로 변환). V20과 features/mcp.md 참고. MCP 도구에서 업무 규칙을 별도로 만들지 않는다.
+
+McpSetupGuideController는 공개 GET /api/v1/mcp/setup, McpSetupGuide는 resources/mcp/setup.md의 설치 주소 치환을 맡는다. 템플릿은 Dispatchers.IO에서 읽으며 인증된 데이터 저장소에 접근하지 않는다. 공개 허용은 정확한 GET·HEAD 경로 하나만 추가하고 MCP 실행 인증은 유지한다.

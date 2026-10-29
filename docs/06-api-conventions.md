@@ -78,6 +78,7 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
   - `POST /api/v1/setup`
   - `POST /api/v1/auth/login`
   - `GET /api/v1/auth/csrf`
+  - `GET·HEAD /api/v1/mcp/setup` (AI에게 전달하는 공개 MCP 연결 가이드. Markdown, 실제 토큰·사용자·티켓 데이터 없음)
   - `GET /api/v1/auth/methods`, `GET /api/v1/auth/sso/start`, `GET /api/v1/auth/sso/callback` (SSO, [features/M2b-ldap-and-sso.md](features/M2b-ldap-and-sso.md))
   - `GET /api/v1/public/shares/{token}` 와 그 아래 `…/items/{issue|document}/{id}`, `…/files/{키}`, `…/files/{키}/original`, `…/editor-files/{키}` (공유 링크가 보여 주는 내용과 그것이 이끄는 하위 항목·사진·파일. 토큰이 맞으면 누구나, IP 별 요청 제한을 건다(접속은 기록하지 않는다, D-208). [features/sharing.md](features/sharing.md), D-197·D-200)
   - `POST /api/v1/integrations/git/{id}/webhook` (Git 서버가 부른다. 세션 대신 연결의 비밀 값으로 만든 서명을 확인하고, CSRF 검사에서 뺀다. [features/git-integration.md](features/git-integration.md))
@@ -138,3 +139,17 @@ GET /api/v1/me/issues의 assigned는 기본 담당자 또는 현재 프로젝트
 일반 티켓 목록(`GET /api/v1/issues`, 프로젝트별 목록, `GET /api/v1/me/issues?scope=assigned|created`)은 요청함 대기(`triage=true`)·거절(`triage_rejected=true`) 티켓을 제외한다. 프로젝트 필터·삭제된 목록·limit 적용 전 동일하게 거른다. 요청함 전용 조회와 상세 접근 권한은 유지한다(2026-10-28 사용자 확정).
 
 `GET·PUT /api/v1/admin/retention`의 `rejectedRequests`는 거절된 요청 보관 기간(null 또는 amount·unit)이다. 거절 시각부터 계산하고 기본은 영구 삭제 안 함이다. 기존 관리 권한·기간 검증·전체 교체 규칙을 따른다.
+
+## MCP와 JSON 연동 API (2026-10-29)
+
+[MCP 연결 명세](features/mcp.md). GET `/api/v1/me/mcp`, GET·POST `/api/v1/me/access-tokens`, DELETE `/api/v1/me/access-tokens/{id}`는 기존 세션·CSRF 인증으로 토큰을 관리한다. 발급 요청은 `{name, scope: READ|WRITE, expiresInDays: 1..365}`이고 응답은 `{token, item}`(201)이다. 목록과 item은 id·name·scope·createdAt·expiresAt·lastUsedAt만 반환한다.
+
+POST `/api/v1/mcp`는 JSON-RPC MCP 프로토콜, POST `/api/v1/integrations/mcp/tools/{name}`는 같은 도구를 JSON으로 실행(200)한다. 이 두 경로만 개인 토큰 Bearer 인증을 받으며 쿠키를 사용하지 않아 CSRF에서 제외한다. Origin이 있으면 설치 주소와 일치해야 한다. IP당 분당 600 요청, 초과 시 429와 Retry-After. 나머지 API에는 개인 토큰을 사용할 수 없다. 읽기 전용 토큰의 변경은 403. JSON API는 기존 문제 문서, MCP의 도구 실행 실패는 isError=true로 반환한다.
+
+예: `get_issue_options` 인자 `{projectId}`로 선택값을 조회하고, `create_issue` 인자 `{fields:{title,projectId,assigneeIds,statusId,projectFields:[{fieldId,value}],markdown}}`로 생성한다. `get_issue`·`update_issue`·삭제·복원은 issue에 `FB-123` 또는 `123`을 문자열로 지정한다. update_issue는 `{issue,fields:{...}}`, 댓글 작성은 `{issue,markdown}`, 수정은 `{commentId,markdown}`이다. `set_project_field`는 `{issue,fieldId,value}`로 명시한 공통 속성만 변경한다. 개별 속성 변경은 별도 CRUD 도구. Markdown과 content/description은 동시에 지정하지 않는다. 생략은 유지, null은 해당 필드에서 허용하는 비움, 잘못된 형식·미지원 필드는 422이다.
+
+GET `/api/v1/integrations/mcp/tools`로 토큰에 허용된 도구 정의·인자 JSON Schema를 조회한다. `search_issues`는 `{q,limit?}`로 티켓 키·제목·본문·댓글·초성 검색을 실행하며 `{items,hasMore}`를 반환한다. 상세는 결과 key로 get_issue를 호출한다.
+
+## AI 연결 가이드 (2026-10-29)
+
+GET·HEAD `/api/v1/mcp/setup`은 로그인·토큰 없이 읽는 공개 Markdown 응답(JSON 규칙의 예외)이다. 설치별 MCP·개인 토큰 발급 화면·도구 검증 주소와 에이전트용 설정 절차만 제공하며 실제 토큰·사용자·티켓 데이터는 포함하지 않는다. Cache-Control: no-store, X-Robots-Tag: noindex, nofollow. 기존 `/api/v1/me/mcp` 응답에 guidePath·guideUrl을 추가한다. 나머지 MCP·도구 실행 API는 기존 개인 토큰 인증을 유지한다.

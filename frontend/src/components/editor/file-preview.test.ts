@@ -8,6 +8,7 @@ describe("previewKindOf", () => {
     expect(previewKindOf("발표 자료.v2.Pptx")).toBe("pptx");
     expect(previewKindOf("계약서.PDF")).toBe("pdf");
     expect(previewKindOf("메모.txt")).toBe("txt");
+    expect(previewKindOf("설정.JSON")).toBe("json");
     expect(previewKindOf("export.csv")).toBe("csv");
     expect(previewKindOf("export.tsv")).toBe("tsv");
   });
@@ -17,7 +18,7 @@ describe("previewKindOf", () => {
     expect(previewKindOf("old.xls")).toBeNull();
     expect(previewKindOf("old.ppt")).toBeNull();
     expect(previewKindOf("한글.hwp")).toBeNull();
-    expect(previewKindOf("data.json")).toBeNull();
+    expect(previewKindOf("data.json.zip")).toBeNull();
     expect(previewKindOf("docx")).toBeNull();
     expect(previewKindOf("archive.docx.zip")).toBeNull();
     expect(previewKindOf("")).toBeNull();
@@ -35,10 +36,13 @@ describe("isPreviewable", () => {
   it("reads less of a text file than of the others, which are drawn by a viewer", () => {
     expect(isPreviewable("a.txt", MAX_TEXT_PREVIEW_BYTES)).toBe(true);
     expect(isPreviewable("a.txt", MAX_TEXT_PREVIEW_BYTES + 1)).toBe(false);
+    expect(isPreviewable("a.json", MAX_TEXT_PREVIEW_BYTES)).toBe(true);
+    expect(isPreviewable("a.json", MAX_TEXT_PREVIEW_BYTES + 1)).toBe(false);
     expect(isPreviewable("a.csv", MAX_TEXT_PREVIEW_BYTES + 1)).toBe(true);
     expect(isPreviewable("a.pdf", MAX_PREVIEW_BYTES)).toBe(true);
     expect(isPreviewable("a.pdf", MAX_PREVIEW_BYTES + 1)).toBe(false);
     expect(isTextKind("txt")).toBe(true);
+    expect(isTextKind("json")).toBe(true);
     expect(isTextKind("csv")).toBe(false);
   });
 });

@@ -67,6 +67,8 @@ class SecurityConfig {
             }.securityContextRepository(securityContextRepository)
             .authorizeExchange {
                 it
+                    .pathMatchers(HttpMethod.HEAD, "/api/v1/mcp/setup")
+                    .permitAll()
                     .pathMatchers(HttpMethod.GET, *PUBLIC_GET)
                     .permitAll()
                     .pathMatchers(HttpMethod.POST, *PUBLIC_POST)
@@ -95,6 +97,8 @@ class SecurityConfig {
         val PUBLIC_GET =
             arrayOf(
                 "/api/v1/health",
+                // Agents read setup instructions before the user supplies a personal token.
+                "/api/v1/mcp/setup",
                 "/api/v1/setup/status",
                 "/api/v1/upload-limit",
                 "/api/v1/auth/csrf",

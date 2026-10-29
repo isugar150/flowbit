@@ -229,3 +229,7 @@ V13: 리뷰 준비됨·리뷰 중을 IN_PROGRESS에 추가(기존 같은 이름�
 project_issue_fields에 프로젝트별 이름·불변 형식·기본값을 저장한다. 사람 형식은 `multiple`(기본 true, V17, D-238)로 한 명(id 문자열)/여러 명(id 배열)을 구분하고, 값(`issue_field_values.value`)과 기본값이 그 모양을 따른다. issue_field_values는 (issue_id, field_id) 기본 키이며 행 부재는 기본값, NULL 행은 명시적 빈 값이다. FK 삭제는 CASCADE. [명세](features/project-issue-fields.md) 참고.
 
 `V19__rejected_request_retention.sql`: `issues.triage_rejected_at`(timestamptz, 거절 시각; 재요청 시 null), 기존 거절은 마이그레이션 시각으로 초기화. 거절 시각 부분 인덱스 및 `retention_policies.item`의 `REJECTED_REQUESTS` 허용. 기본 정책 행은 만들지 않는다.
+
+## 개인 액세스 토큰 (V20, 2026-10-29)
+
+`personal_access_tokens`: id UUID PK, user_id → users(삭제 시 함께 삭제, 인덱스), name(1~50자), token_hash(SHA-256, unique), scope(READ/WRITE), created_at, updated_at, expires_at, last_used_at(null 허용). 원문은 발급 응답에만 있고 DB·목록·감사 로그에는 없다. WRITE도 소유자의 프로젝트 역할을 넘지 못한다. 백업에 토큰을 내보내지 않는다. [MCP 연결](features/mcp.md).

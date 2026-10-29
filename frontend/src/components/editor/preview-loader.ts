@@ -19,7 +19,7 @@ export function loadPreview(
   onStage: (stage: ViewerStage) => void,
   options: { compact?: boolean } = {},
 ): () => void {
-  if (isTextKind(kind)) return loadTextViewer(container, src, onStage);
+  if (isTextKind(kind)) return loadTextViewer(container, src, onStage, kind);
   if (kind === "pdf") {
     let cancelled = false;
     let stop: (() => void) | null = null;

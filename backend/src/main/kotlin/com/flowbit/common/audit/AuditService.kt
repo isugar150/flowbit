@@ -12,6 +12,8 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 enum class AuditEventType {
+    ACCESS_TOKEN_CREATED,
+    ACCESS_TOKEN_REVOKED,
     SETUP_COMPLETED,
     LOGIN_SUCCEEDED,
     LOGIN_FAILED,

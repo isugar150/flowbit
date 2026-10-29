@@ -1,7 +1,7 @@
 import { apiBytes } from "@/lib/api/client";
 import { messages } from "@/messages";
-import { MAX_TEXT_CHARS, type ViewerStage } from "./file-preview";
-import { decodeText } from "./text-file";
+import { MAX_TEXT_CHARS, type TextKind, type ViewerStage } from "./file-preview";
+import { decodeText, formatJson } from "./text-file";
 
 const m = messages.editor;
 
@@ -13,17 +13,19 @@ function note(text: string): HTMLElement {
   return line;
 }
 
-function textView(text: string): HTMLElement {
+function textView(text: string, kind: TextKind): HTMLElement {
   const wrap = document.createElement("div");
   if (text.trim() === "") {
     wrap.append(note(m.fileViewerEmpty));
     return wrap;
   }
-  const cut = text.length > MAX_TEXT_CHARS;
+  const formatted = kind === "json" ? formatJson(text, MAX_TEXT_CHARS) : null;
+  const cut = formatted ? formatted.truncated : text.length > MAX_TEXT_CHARS;
   const pre = document.createElement("pre");
   pre.className = "m-0 p-4 font-mono text-[13px] leading-5 break-words whitespace-pre-wrap text-foreground";
   // textContent only: what is in the file is never read as markup.
-  pre.textContent = cut ? text.slice(0, MAX_TEXT_CHARS) : text;
+  pre.textContent = formatted?.text ?? (cut ? text.slice(0, MAX_TEXT_CHARS) : text);
+  if (formatted && !formatted.valid) wrap.append(note(m.fileViewerInvalidJson));
   wrap.append(pre);
   if (cut) wrap.append(note(m.fileViewerTextCut));
   return wrap;
@@ -33,13 +35,13 @@ function textView(text: string): HTMLElement {
  * Shows a text file as its text in `container` (D-187). Only the beginning of a long file is shown. The caller gives the
  * container its scrolling. Returns what stops it and empties the container.
  */
-export function loadTextViewer(container: HTMLElement, src: string, onStage: (stage: ViewerStage) => void): () => void {
+export function loadTextViewer(container: HTMLElement, src: string, onStage: (stage: ViewerStage) => void, kind: TextKind = "txt"): () => void {
   let cancelled = false;
   (async () => {
     try {
       const text = decodeText(await apiBytes(src));
       if (cancelled) return;
-      container.replaceChildren(textView(text));
+      container.replaceChildren(textView(text, kind));
       onStage("ready");
     } catch {
       if (!cancelled) onStage("failed");

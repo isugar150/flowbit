@@ -32,3 +32,5 @@
 ## 프로젝트 공통 티켓 속성
 
 [공통 속성과 설정 목차](features/project-issue-fields.md): 리뷰어 등 공통 항목과 사람 속성 알림 대상.
+
+- [AI 도구와 MCP 연결](features/mcp.md) — 개인 토큰, Codex·Claude Code, 티켓·댓글 CRUD와 속성 선택정보.

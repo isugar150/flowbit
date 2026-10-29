@@ -18,6 +18,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         tabs={[
           { href: "/settings", label: m.tabProfile },
           { href: "/settings/shares", label: m.tabShares },
+          { href: "/settings/mcp", label: messages.mcp.title },
         ]}
       />
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-10">{children}</div>

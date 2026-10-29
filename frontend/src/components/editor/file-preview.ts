@@ -1,8 +1,8 @@
 /** The kinds of file that are shown in the text and in a window over the page (D-187). */
-export type PreviewKind = "docx" | "xlsx" | "pptx" | "pdf" | "txt" | "csv" | "tsv";
+export type PreviewKind = "docx" | "xlsx" | "pptx" | "pdf" | "txt" | "json" | "csv" | "tsv";
 
 /** The kind that is plain text: put into the page as the text, not drawn by a viewer library. */
-export type TextKind = "txt";
+export type TextKind = "txt" | "json";
 
 /** The kinds the Office viewer library draws (a CSV or TSV file is read as a sheet of one table). */
 export type OfficeKind = "docx" | "xlsx" | "pptx" | "csv" | "tsv";
@@ -10,7 +10,7 @@ export type OfficeKind = "docx" | "xlsx" | "pptx" | "csv" | "tsv";
 /** Where a viewer is: reading the file, showing it, or unable to (the file is no good, or could not be fetched). */
 export type ViewerStage = "loading" | "ready" | "failed";
 
-const KINDS: Record<string, PreviewKind> = { docx: "docx", xlsx: "xlsx", pptx: "pptx", pdf: "pdf", txt: "txt", csv: "csv", tsv: "tsv" };
+const KINDS: Record<string, PreviewKind> = { docx: "docx", xlsx: "xlsx", pptx: "pptx", pdf: "pdf", txt: "txt", json: "json", csv: "csv", tsv: "tsv" };
 
 /**
  * The largest file that is read into the browser to be previewed. The viewers parse the whole file in memory, so a bigger one
@@ -31,7 +31,7 @@ export function previewKindOf(name: string): PreviewKind | null {
   return KINDS[name.slice(dot + 1).toLowerCase()] ?? null;
 }
 
-export const isTextKind = (kind: PreviewKind): kind is TextKind => kind === "txt";
+export const isTextKind = (kind: PreviewKind): kind is TextKind => kind === "txt" || kind === "json";
 
 /** Whether a file block shows the file in the text, rather than only offering a download. */
 export function isPreviewable(name: string, size: number): boolean {

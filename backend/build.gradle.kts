@@ -23,6 +23,7 @@ repositories {
 }
 
 dependencies {
+    implementation("org.commonmark:commonmark:0.31.0")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")

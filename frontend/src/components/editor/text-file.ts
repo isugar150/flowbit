@@ -20,6 +20,51 @@ export function decodeText(bytes: ArrayBuffer): string {
 
 const DELIMITERS = [",", "\t", ";", "|"] as const;
 
+/** Validate JSON, then format its tokens without changing numbers, key order or escaped strings. */
+export function formatJson(text: string, limit: number): { text: string; valid: boolean; truncated: boolean } {
+  try {
+    JSON.parse(text);
+  } catch {
+    return { text: text.slice(0, limit), valid: false, truncated: text.length > limit };
+  }
+  const parts: string[] = [];
+  let length = 0;
+  let depth = 0;
+  let previous = "";
+  let truncated = false;
+  const append = (part: string) => {
+    if (length + part.length > limit) truncated = true;
+    parts.push(part.slice(0, Math.max(0, limit - length)));
+    length += part.length;
+  };
+  const newline = () => append("\n" + "  ".repeat(Math.min(depth, Math.ceil(limit / 2))));
+  const tokens = /"(?:\\[\s\S]|[^"\\])*"|[{}\[\],:]|[^\s{}\[\],:]+/g;
+  for (const match of text.matchAll(tokens)) {
+    const token = match[0];
+    if (token === "{" || token === "[") {
+      append(token);
+      depth++;
+      let next = match.index + 1;
+      while (/\s/.test(text[next] ?? "") && next < text.length) next++;
+      if (text[next] !== (token === "{" ? "}" : "]")) newline();
+    } else if (token === "}" || token === "]") {
+      depth--;
+      if (previous !== "{" && previous !== "[") newline();
+      append(token);
+    } else if (token === ",") {
+      append(token);
+      newline();
+    } else if (token === ":") {
+      append(": ");
+    } else {
+      append(token);
+    }
+    if (truncated) break;
+    previous = token;
+  }
+  return { text: parts.join(""), valid: true, truncated };
+}
+
 /** The separator of a CSV that does not say which: the one that appears the same number of times, and often, on the first lines. */
 export function detectDelimiter(text: string): string {
   const lines = text.split(/\r\n|\n|\r/).filter((line) => line !== "").slice(0, 10);
