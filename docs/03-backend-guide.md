@@ -151,3 +151,5 @@ customproperty의 ProjectIssueFieldService·Store가 정의와 값을 관리하�
 `mcp/`: AccessTokens(개인 토큰 해시 저장·조회·폐기), McpSecurity(연동 경로만 Bearer 인증), AccessTokenController(세션 전용 관리), McpController(무상태 JSON-RPC·JSON API), McpOperations(기존 서비스와 알림 경로 연결), McpToolDefinitions(도구 JSON Schema·검증), McpMarkdown(CommonMark 0.31.0을 편집기 JSON으로 변환). V20과 features/mcp.md 참고. MCP 도구에서 업무 규칙을 별도로 만들지 않는다.
 
 McpSetupGuideController는 공개 GET /api/v1/mcp/setup, McpSetupGuide는 resources/mcp/setup.md의 설치 주소 치환을 맡는다. 템플릿은 Dispatchers.IO에서 읽으며 인증된 데이터 저장소에 접근하지 않는다. 공개 허용은 정확한 GET·HEAD 경로 하나만 추가하고 MCP 실행 인증은 유지한다.
+
+MCP 파일: McpFiles(현재 본문·댓글·직접 연결 문서의 참조 기반 접근, 기존 저장·알림 재사용), McpFileReader(지원 문서 글 추출·PDF 페이지·이미지·원본 구간), McpFileController(Bearer multipart·원본). RichText.append는 루트 속성·기존 블록을 보존하고 IssueService.appendContent는 행 잠금 후 합친다. 새 참조 저장 실패 시 해당 새 파일을 정리하며 커밋 뒤 알림 실패로 저장된 파일을 삭제하지 않는다. UploadReader는 빈 파일에도 빈 바이트를 반환한다. 파서·파일 읽기는 Dispatchers.IO, 외부 OCR/URL/매크로 실행 없음. 원본·텍스트·이미지를 구분하고 추출 실패를 읽기 성공으로 가장하지 않는다.

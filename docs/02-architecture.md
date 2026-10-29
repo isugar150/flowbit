@@ -263,3 +263,9 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 개인 토큰을 사용하는 무상태 Streamable HTTP 서버는 `/api/v1/mcp`에 있다. 기존 Next.js `/api` rewrite가 전달한다. 별도 AI 모델 서버나 API 키는 필요 없다. MCP·JSON 연동 API는 티켓·댓글·속성·관계의 기존 서비스와 커밋 뒤 알림·실시간 처리를 공유한다. 토큰 전용 보안 체인은 쿠키를 받지 않고 Bearer만 확인하며 일반 API와 토큰 관리 API로 권한을 확장하지 않는다. `FLOWBIT_PUBLIC_URL`을 설정하면 연결 주소와 Origin 검증 기준으로 사용한다. 자세한 계약은 [MCP 연결](features/mcp.md).
 
 AI에게 링크로 연결을 맡기는 공개 가이드는 `/api/v1/mcp/setup`이다. 기존 API 프록시를 통해 로그인 없이 Markdown을 읽으며 PUBLIC_URL이 있으면 그 주소를, 없으면 현재 요청의 외부 주소를 사용한다. 가이드는 인증된 데이터·토큰을 읽지 않는다. template은 resources/mcp/setup.md이고 파일 읽기는 Dispatchers.IO에서 한다. Codex·Claude Code의 사용자 전용 설정을 보존·병합하고 읽기 검증까지 진행하도록 안내한다.
+
+### MCP 파일 전송과 문서 해석
+
+McpFiles는 티켓 본문·댓글·직접 연결 문서와 문서 댓글의 현재 참조로 파일 식별자를 만들고, 매 조회 시 같은 티켓 권한과 참조를 다시 확인한다. 기존 파일 제공 경로를 공개하거나 개인 토큰의 범위를 넓히지 않고 기존 연동 경로 안에 원본 다운로드·multipart 업로드를 둔다. 파일 저장소는 기존 ObjectStore(로컬/S3)를 그대로 쓴다. 업로드는 기존 이미지 재인코딩과 티켓/댓글 서비스를 사용하고 본문 추가는 IssueService.appendContent의 행 잠금·트랜잭션으로 최신 원본에 합친다. 빈 multipart 파일도 파일로 저장할 수 있다.
+
+McpFileReader는 Dispatchers.IO에서 제한된 입력을 읽고 Tika 4.2.0의 Office·OOXML·ODF·RTF·텍스트 파서와 PDFBox 3.0.8을 사용한다. POI 전체 OOXML 스키마는 Tika가 선택한 5.5.1과 맞춘다. 외부 OCR·원격 주소·실행 파일·매크로는 실행하지 않는다. 임베디드 문서의 재귀 파싱은 끄고 ZIP 확장 보호를 유지한다. 사진과 PDF 페이지는 MCP image 블록, 문서는 구간별 글, 미지원/한도 초과는 명시적 상태와 원본 다운로드로 제공한다. DB 스키마·환경 변수 변경 없음.

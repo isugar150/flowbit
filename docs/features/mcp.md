@@ -7,7 +7,7 @@
 - 파일 주소를 그대로 신뢰하지 않는다. 읽을 수 있는 티켓과 현재 본문·댓글·직접 연결 문서에 실제로 참조된 파일만 식별해 조회한다. 삭제된 댓글의 파일·타인 초안·다른 티켓의 파일·임의 저장 키·외부 주소·경로 탈출을 거절한다. READ 토큰도 읽을 수 있다.
 - attach_file(작은 파일은 Base64)과 POST `/api/v1/integrations/mcp/issues/{number}/files`(multipart file)는 티켓 편집 권한·WRITE 토큰·기존 업로드 제한을 확인한다. placement는 ATTACHMENT(기본), BODY(본문 끝에 파일 블록 또는 image=true 사진), COMMENT(새 댓글에 파일 또는 사진). 선택적 markdown은 새 댓글 글이다. 본문 추가는 행 잠금 후 최신 원본에 붙여 다른 수정을 보존한다. 댓글·활동·알림·실시간은 기존 경로를 쓴다.
 - GET `/api/v1/integrations/mcp/issues/{number}/files/{fileId}`는 권한 검사 뒤 원본을 내려준다. fileId는 목록에서 받은 값이며 임의 URL·저장소 키로 접근할 수 없다. 파일을 삭제하거나 참조가 제거되면 이후 요청부터 거절한다. URL에 토큰을 넣지 않는다.
-- 큰 파일은 multipart 업로드/원본 다운로드를 사용한다. JSON 도구 업로드는 128KiB, 읽기 처리 메모리는 파일당 32MiB, 텍스트 추출은 200만 자, 한 응답은 최대 20000자 또는 원본 48KiB. 다음 구간·페이지와 잘림 여부를 명시한다. PDF 이미지는 페이지별 최대 2000px로 제한한다. 임의 형식의 의미 해석은 연결 AI가 처리하며 서버는 원본 접근과 지원 형식의 추출을 제공한다.
+- 큰 파일은 multipart 업로드/원본 다운로드를 사용한다. JSON 도구 업로드는 128KiB, 읽기 처리 메모리는 파일당 32MiB, 텍스트 추출은 200만 자, 한 응답은 최대 20000자 또는 원본 48KiB. 다음 구간·페이지와 잘림 여부를 명시한다. PDF 이미지는 페이지별 최대 1600px로 제한한다. 임의 형식의 의미 해석은 연결 AI가 처리하며 서버는 원본 접근과 지원 형식의 추출을 제공한다.
 - MCP 연결 화면·도움말·공개 AI 연결 가이드에 사진 읽기·문서 페이지·원본 다운로드·multipart 업로드와 권한/제한/실패 처리 방법을 함께 설명한다. 파일 업로드는 화면에서만 가능하다는 이전 설명을 대체한다. DB 스키마 변경 없음.
 
 2026-10-29 사용자 확정. Codex·Claude Code에서 티켓 번호로 조회하고 티켓·댓글 CRUD, 연결된 티켓과 속성 변경을 수행한다. 화면과 같은 사용자 권한·요청함·검증·기록·알림·자동화·실시간 전파를 적용한다.
@@ -28,7 +28,7 @@
 - GET·POST `/api/v1/me/access-tokens`, DELETE `…/{id}`: 내 토큰 관리.
 - GET `/api/v1/integrations/mcp/tools`: 토큰 권한에 맞는 도구 정의와 JSON Schema 조회.
 - POST `/api/v1/integrations/mcp/tools/{name}`: MCP와 같은 도구를 JSON으로 실행하는 API. READ는 조회 도구만, WRITE는 사용자 권한 안에서 변경 가능.
-- 도구: get_issue, list_issues, search_issues, create_issue, update_issue, delete_issue, restore_issue; list_comments, create_comment, update_comment, delete_comment; list_projects, get_issue_options, list_people, list_statuses; list_custom_properties, create_custom_property, update_custom_property, delete_custom_property, set_project_field; list_relations, add_relation, remove_relation.
+- 도구 28개: get_issue, list_issues, search_issues, create_issue, update_issue, delete_issue, restore_issue; list_comments, create_comment, update_comment, delete_comment; list_projects, get_issue_options, list_people, list_statuses; list_custom_properties, create_custom_property, update_custom_property, delete_custom_property, set_project_field; list_relations, add_relation, remove_relation; list_issue_files, read_file, render_file_page, get_document, attach_file.
 - 티켓 식별은 번호 또는 FB-123 형태. 생성·수정 데이터는 기존 REST와 같은 필드다. `markdown`은 편집기 문서로 변환하며 `content`와 동시 지정 불가. 조회는 원본 content와 Markdown을 함께 제공한다. 복잡한 문서는 content를 사용하면 기존 블록·이미지 등을 보존할 수 있다. 마크다운 지원 범위를 연결 화면에 설명한다.
 - get_issue_options는 선택한 프로젝트(생략 시 프로젝트 없음)의 역할·요청함·추정치, 선택 가능한 사람·상태·라벨·사이클·공통 속성 정의(형식·단일/복수·기본값), 우선순위와 사용자 속성 형식을 반환한다. 사람·프로젝트·티켓 목록은 검색·페이지 크기 제한을 제공한다. 없는 선택지를 임의로 만들거나 동명이인을 자동 선택하지 않는다.
 - 프로젝트 공통 속성은 생성 시 projectFields, 변경 시 set_project_field. 개별 속성은 별도 CRUD 도구를 제공한다. 생략은 유지, null은 해당 속성에서 허용되는 경우에만 비움이다.

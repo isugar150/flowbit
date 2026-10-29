@@ -144,7 +144,7 @@ GET /api/v1/me/issues의 assigned는 기본 담당자 또는 현재 프로젝트
 
 [MCP 연결 명세](features/mcp.md). GET `/api/v1/me/mcp`, GET·POST `/api/v1/me/access-tokens`, DELETE `/api/v1/me/access-tokens/{id}`는 기존 세션·CSRF 인증으로 토큰을 관리한다. 발급 요청은 `{name, scope: READ|WRITE, expiresInDays: 1..365}`이고 응답은 `{token, item}`(201)이다. 목록과 item은 id·name·scope·createdAt·expiresAt·lastUsedAt만 반환한다.
 
-POST `/api/v1/mcp`는 JSON-RPC MCP 프로토콜, POST `/api/v1/integrations/mcp/tools/{name}`는 같은 도구를 JSON으로 실행(200)한다. 이 두 경로만 개인 토큰 Bearer 인증을 받으며 쿠키를 사용하지 않아 CSRF에서 제외한다. Origin이 있으면 설치 주소와 일치해야 한다. IP당 분당 600 요청, 초과 시 429와 Retry-After. 나머지 API에는 개인 토큰을 사용할 수 없다. 읽기 전용 토큰의 변경은 403. JSON API는 기존 문제 문서, MCP의 도구 실행 실패는 isError=true로 반환한다.
+POST `/api/v1/mcp`는 JSON-RPC MCP 프로토콜, POST `/api/v1/integrations/mcp/tools/{name}`는 같은 도구를 JSON으로 실행(200)한다. MCP와 /api/v1/integrations/mcp/** 경로만 개인 토큰 Bearer 인증을 받으며 쿠키를 사용하지 않아 CSRF에서 제외한다. Origin이 있으면 설치 주소와 일치해야 한다. IP당 분당 600 요청, 초과 시 429와 Retry-After. 나머지 API에는 개인 토큰을 사용할 수 없다. 읽기 전용 토큰의 변경은 403. JSON API는 기존 문제 문서, MCP의 도구 실행 실패는 isError=true로 반환한다.
 
 예: `get_issue_options` 인자 `{projectId}`로 선택값을 조회하고, `create_issue` 인자 `{fields:{title,projectId,assigneeIds,statusId,projectFields:[{fieldId,value}],markdown}}`로 생성한다. `get_issue`·`update_issue`·삭제·복원은 issue에 `FB-123` 또는 `123`을 문자열로 지정한다. update_issue는 `{issue,fields:{...}}`, 댓글 작성은 `{issue,markdown}`, 수정은 `{commentId,markdown}`이다. `set_project_field`는 `{issue,fieldId,value}`로 명시한 공통 속성만 변경한다. 개별 속성 변경은 별도 CRUD 도구. Markdown과 content/description은 동시에 지정하지 않는다. 생략은 유지, null은 해당 필드에서 허용하는 비움, 잘못된 형식·미지원 필드는 422이다.
 
@@ -153,3 +153,11 @@ GET `/api/v1/integrations/mcp/tools`로 토큰에 허용된 도구 정의·인�
 ## AI 연결 가이드 (2026-10-29)
 
 GET·HEAD `/api/v1/mcp/setup`은 로그인·토큰 없이 읽는 공개 Markdown 응답(JSON 규칙의 예외)이다. 설치별 MCP·개인 토큰 발급 화면·도구 검증 주소와 에이전트용 설정 절차만 제공하며 실제 토큰·사용자·티켓 데이터는 포함하지 않는다. Cache-Control: no-store, X-Robots-Tag: noindex, nofollow. 기존 `/api/v1/me/mcp` 응답에 guidePath·guideUrl을 추가한다. 나머지 MCP·도구 실행 API는 기존 개인 토큰 인증을 유지한다.
+
+## MCP 사진·파일 읽기와 첨부 (2026-10-29)
+
+도구: list_issue_files({issue}), read_file({issue,fileId,mode?,offset?,limit?,page?}), render_file_page({issue,fileId,page?}), get_document({documentId}), attach_file({issue,fileName,data,placement?,image?,markdown?}). get_issue는 파일 목록·블록 댓글도 반환한다. read_file 결과는 JSON API에서 {data,content}, MCP에서는 data를 structuredContent에 넣고 사진/PDF 페이지를 실제 image 콘텐츠로 전달한다. 긴 글은 nextOffset, PDF는 nextPage/pageCount, 원본 바이트는 BASE64 모드의 byteOffset/nextOffset으로 이어 읽는다. 지원하지 않는 파일·암호화·손상·추출 한도는 status와 message로 알리고 원본 접근을 제공한다.
+
+GET `/api/v1/integrations/mcp/issues/{number}/files/{fileId}`: 현재 티켓에 참조된 파일만 권한 검사 후 원본 다운로드(READ 허용, application/octet-stream·attachment·no-store·nosniff). POST `…/issues/{number}/files`: Bearer WRITE, multipart의 file 파트, query placement=ATTACHMENT|BODY|COMMENT(기본 ATTACHMENT), image=true|false, 새 댓글 markdown(선택). 성공 201. 기존 업로드 크기 제한과 편집 권한을 적용한다. BODY는 최신 본문 끝에 추가하며 기존 블록을 보존한다. COMMENT는 새 댓글에 첨부한다. 파일명과 저장 키는 서버에서 처리하며 임의 원격 URL이나 로컬 경로는 받지 않는다.
+
+JSON 도구의 파일은 표준 Base64 최대 128KiB, 큰 파일은 multipart를 사용한다. 파일 해석은 32MiB·추출 글 200만 자, 글 응답 최대 20000자·바이트 응답 최대 48KiB. 원본 HTTP 다운로드에는 이 읽기 추출 한도를 적용하지 않는다. 댓글·문서·현재 본문에서 참조를 제거하거나 접근 권한이 없어지면 파일 ID를 알아도 읽을 수 없다. 파일 URL에 토큰을 넣지 않는다. 일반 `/api/v1/files`·`editor-files` 인증 범위는 확장하지 않는다.
