@@ -1,5 +1,11 @@
 # 진행 상황
 
+## 2026-10-29 사용자 Codex에 운영 Flowbit MCP 등록
+
+- [x] 사용자 요청으로 사용자 전용 `~/.codex/config.toml`에 `flowbit` 서버(`https://issues.motherk.link/api/v1/mcp`)를 등록했다. 기존 MCP 설정을 보존하고 개인 토큰은 저장소에 기록하지 않았다. 설정 파일은 현재 Windows 사용자만 접근하도록 권한을 제한했다.
+- 검증: 실제 MCP HTTP의 initialize → notifications/initialized(202) → tools/list(28개) → tools/call(list_projects) 성공. Codex CLI에서도 설정 구문과 flowbit 활성화·Bearer 인증 인식을 확인했다. 데이터 변경 요청은 수행하지 않았다.
+- 다음: 실행 중인 Codex 앱을 재시작해 새 MCP 도구를 로드한다. 이번 세션의 도구 목록에는 아직 반영되지 않았다. 제품 동작 변경이 없어 도움말·기능 명세 수정 대상은 없다.
+
 ## 2026-10-29 CI의 GitHub·리뷰어 활동 테스트 실패 수정
 
 - [x] GitHub 가져오기 테스트의 오래된 완료 기대를 D-241에 맞춰 수정: PR 병합은 완료, 기본 브랜치 Fixes 커밋은 다음 상태인 리뷰 준비됨(IN_PROGRESS). 범주뿐 아니라 리뷰 준비됨 statusId도 확인한다.
