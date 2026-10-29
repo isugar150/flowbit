@@ -47,6 +47,7 @@ export function IssueDialog({ children, closeTo, path }: { children: React.React
   return (
     <Dialog
       open
+      disablePointerDismissal
       onOpenChange={(open) => {
         if (open) return;
         if (closeTo && path && window.history.state?.[DIRECT_ISSUE_HISTORY] === path) router.back();
