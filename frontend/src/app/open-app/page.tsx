@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { appLinkTarget } from "@/features/notifications/app-link";
+import { acknowledgeNotificationLaunch } from "@/features/notifications/notification-navigation";
 import { messages } from "@/messages";
 
 const subscribe = () => () => {};
@@ -19,7 +20,10 @@ export default function OpenAppPage() {
   const target = useSyncExternalStore(subscribe, browserTarget, serverTarget);
   const invalid = target === "";
   useEffect(() => {
-    if (target) window.location.replace(target);
+    if (target) {
+      acknowledgeNotificationLaunch(new URLSearchParams(window.location.search).get("url"), window.location.origin, window.matchMedia("(display-mode: standalone)").matches);
+      window.location.replace(target);
+    }
   }, [target]);
 
   const m = messages.app.protocolLink;

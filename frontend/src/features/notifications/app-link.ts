@@ -5,6 +5,8 @@ export function isNotificationTarget(path: string): boolean {
   return targetPattern.test(path);
 }
 
+export const launchIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function notificationAppUrl(path: string, origin: string): string | null {
   if (!isNotificationTarget(path)) return null;
   const current = new URL(origin);
@@ -19,7 +21,8 @@ export function appLinkTarget(raw: string | null, origin: string): string | null
     const current = new URL(origin);
     const targetOrigin = new URL(`${current.protocol}//${link.host}`).origin;
     if (link.protocol !== "web+flowbit:" || targetOrigin !== current.origin) return null;
-    if (link.username || link.password || link.search) return null;
+    if (link.username || link.password) return null;
+    if (link.search && (Array.from(link.searchParams.keys()).length !== 1 || !launchIdPattern.test(link.searchParams.get("launch") ?? ""))) return null;
     const path = link.pathname + link.hash;
     return isNotificationTarget(path) ? path : null;
   } catch {

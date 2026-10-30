@@ -183,3 +183,16 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch   (
 - /n/{token} 중간 페이지는 미로그인으로도 읽는다. PWA이면 같은 창에서 대상 상대 경로로 이동한다. Windows Chrome/Edge 일반 창이면 web+flowbit 전용 링크 열기를 한 번 시도하며, 페이지가 숨겨졌거나 브라우저가 포커스를 잃었을 때는 웹 대체 이동을 보류한다. 페이지가 계속 보이고 포커스가 있으면 웹으로 이어 간다. 앱 재시도와 웹 이동 버튼을 항상 제공한다. 자동 호출·설치 여부 판단은 브라우저가 제한할 수 있으며 자동 성공을 보장하지 않는다. 다른 환경은 웹으로 이동한다.
 - 전용 스킴은 브라우저에서 URL을 파싱·직렬화해 +가 공백으로 전달되는 것을 막는다. 앱 프로토콜 수신은 허용된 동일 호스트·포트의 대상 경로로 제한한다. 알림의 직접 웹 주소는 webUrl로 보존하고 appUrl은 고급 연동용으로 유지하지만 기본 text에는 노출하지 않는다. 수신함·푸시는 기존 내부 경로를 유지한다.
 - 이미 발송된 메시지는 바꾸지 않는다. 기존 PWA의 프로토콜 등록 갱신·최초 허용은 필요하다. DB 실패 시 존재하지 않는 중간 링크를 발송하지 않고 해당 발송을 실패로 처리한다.
+
+## 앱 수신 확인 후 중간 탭 닫기 (2026-10-30, 사용자 확정)
+
+- 알림 중간 페이지가 전용 프로토콜을 호출할 때 매 실행마다 임의 launch UUID를 덧붙인다. PWA의 /open-app 수신 페이지는 대상·호스트·UUID를 검증하고 standalone일 때만 동일 origin BroadcastChannel로 해당 UUID 수신 확인을 보낸 뒤 목적지로 이동한다.
+- 중간 탭은 자신이 요청한 UUID 확인을 받은 경우에만 웹 대체 이동을 취소하고 window.close()로 자신을 닫는다. visibilitychange/blur만으로 앱 실행 성공을 판단하거나 탭을 닫지 않는다. 다른 알림 탭의 확인 신호는 무시한다.
+- 브라우저가 자동 탭 닫기를 막으면 ‘앱에서 열었습니다. 이 탭은 닫아도 됩니다.’를 표시하며 웹으로 중복 이동하지 않는다. 다른 브라우저 프로필·저장소 파티션에서는 확인 신호가 전달되지 않을 수 있으므로 성공을 단정하지 않고 기존 수동 버튼을 유지한다. DB·API 변경은 없다.
+
+## 미설치 시 웹으로 바로 이동 (2026-10-30, 사용자 확정)
+
+- 알림 중간 페이지는 PWA 자체에서 열렸거나 Windows Chromium이 아닌 환경이면 웹 목적지로 바로 이동한다. Windows Chromium 일반 창에서는 getInstalledRelatedApps()로 현재 origin의 Flowbit PWA 설치를 조회하고 확인된 경우에만 프로토콜 실행을 시도한다.
+- 미설치, 조회 API 미지원·오류·500ms 초과는 모두 앱 실행 시도 없이 웹 목적지로 이동한다. 예전 설치 여부를 localStorage 등에 캐시하지 않는다. 경로 조회와 설치 확인을 병렬로 수행한다. 현재 프로필/저장소의 설치만 판단하며 다른 브라우저·프로필의 설치까지 추측하지 않는다.
+- manifest.related_applications에 현재 설치의 root 앱 ID와 manifest URL을 webapp으로 자기 참조한다. 요청의 Host·프로토콜로 URL을 만들고 기존 id=/와 scope=/는 유지한다. prefer_related_applications=false로 PWA 설치 UI를 유지한다.
+- 설치 확인 후의 수신 확인·중간 탭 닫기·실패 시 웹 대체 동작은 유지한다. Chrome 공식 지원은 데스크톱 Chrome·Edge140 이상이다: https://developer.chrome.com/docs/capabilities/get-installed-related-apps

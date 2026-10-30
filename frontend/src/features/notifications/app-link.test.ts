@@ -8,6 +8,7 @@ describe("PWA protocol launch", () => {
     expect(appLinkTarget("web+flowbit://issues.motherk.link/issue/MK-9", origin)).toBe("/issue/MK-9");
     expect(appLinkTarget("web+flowbit://ISSUES.MOTHERK.LINK:443/issue/MK-9", origin)).toBe("/issue/MK-9");
     expect(appLinkTarget("web+flowbit://localhost:3100/issue/FB-12", "http://localhost:3100")).toBe("/issue/FB-12");
+    expect(appLinkTarget("web+flowbit://issues.motherk.link/issue/MK-9?launch=12345678-1234-4234-8234-123456789abc", origin)).toBe("/issue/MK-9");
   });
 
   it.each([
@@ -16,6 +17,8 @@ describe("PWA protocol launch", () => {
     "web+flowbit://user:password@issues.motherk.link/issue/MK-9", "web+flowbit://issues.motherk.link/admin",
     "web+flowbit://issues.motherk.link/open-app", "web+flowbit://issues.motherk.link/issue/MK-0",
     "web+flowbit://issues.motherk.link/issue/MK-9?next=https://evil.example",
+    "web+flowbit://issues.motherk.link/issue/MK-9?launch=invalid",
+    "web+flowbit://issues.motherk.link/issue/MK-9?launch=12345678-1234-4234-8234-123456789abc&next=/admin",
     "web+flowbit://issues.motherk.link/issue/MK-9#fragment", "web+flowbit://issues.motherk.link/issue/%2f%2fevil.example",
     "web+flowbit://issues.motherk.link\\@evil.example/issue/MK-9", "web+flowbit://issues.motherk.link/issue/MK-9\n",
   ])("rejects untrusted or unsupported launch URL %s", (raw) => {

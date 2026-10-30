@@ -268,3 +268,11 @@ manifest.protocol_handlers는 web+flowbit를 /open-app?url=%s로 등록한다. o
 ## 알림 중간 화면 (2026-10-30)
 
 /n/{token}은 proxy에서 로그인 없이 통과시키고 공개 경로 조회 API로 목적지를 검증한다. PWA/다른 플랫폼은 상대 목적지로 이동, Windows Chromium 일반 창은 프로토콜 실행 시도 후 2.5초 간격으로 visible·focus인 경우만 웹 대체 이동한다. hidden이면 타이머를 취소하고 프로토콜 선택창의 blur 중에는 이동하지 않는다. 재시도·웹 이동 버튼과 만료/오류 안내를 제공한다. URL만으로 설치 여부를 확정하지 않는다. 토큰 페이지와 API는 no-referrer/no-store, 목적지는 기존 권한을 유지한다.
+
+## PWA 수신 확인과 탭 닫기 (2026-10-30)
+
+프로토콜에 일회성 launch UUID를 실어 보내고 /open-app이 동일 호스트·경로·UUID를 확인한 standalone 창에서만 BroadcastChannel로 확인한다. 중간 페이지는 요청 UUID 일치 때만 window.close를 시도하고 웹 대체 이동을 취소한다. 닫기 차단 시 확인된 앱 실행 안내를 남긴다. hidden은 대체 타이머만 멈추며 채널은 확인/정리까지 유지한다. 다른 탭이나 취소된 실행의 확인은 무시한다.
+
+## 설치 확인 후 알림 분기 (2026-10-30)
+
+manifest는 headers()로 현재 Host·프로토콜의 자기 참조 webapp related_applications(id=origin/, url=origin/manifest.webmanifest)를 생성한다. id=/·scope=/는 유지하고 prefer_related_applications=false다. 경로 조회와 getInstalledRelatedApps를 병렬 처리해 해당 앱 설치가 확인된 경우에만 자동 프로토콜 호출한다. 미설치·미지원·오류·500ms 초과이면 웹으로 직접 이동한다. 설치 상태는 저장하지 않는다.

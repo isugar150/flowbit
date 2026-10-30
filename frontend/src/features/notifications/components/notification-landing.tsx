@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { isNotificationTarget } from "../app-link";
-import { shouldTryNotificationApp, tryNotificationApp } from "../notification-navigation";
+import { hasInstalledNotificationApp, tryNotificationApp } from "../notification-navigation";
 import { messages } from "@/messages";
 
 /** A protocol launch can be blocked; the web destination always keeps its normal access checks. */
@@ -11,13 +11,15 @@ export function NotificationLanding({ token }: { token: string }) {
   const [path, setPath] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [trying, setTrying] = useState(false);
+  const [opened, setOpened] = useState(false);
   const cancel = useRef<() => void>(() => {});
   const m = messages.app.notificationLink;
 
   function openApp(target: string) {
     cancel.current();
     setTrying(true);
-    cancel.current = tryNotificationApp(target);
+    setOpened(false);
+    cancel.current = tryNotificationApp(target, () => setOpened(true));
   }
 
   useEffect(() => {
@@ -26,13 +28,16 @@ export function NotificationLanding({ token }: { token: string }) {
       queueMicrotask(() => { if (!stopped) setFailed(true); });
       return () => { stopped = true; };
     }
-    apiFetch<{ path: string }>(`/api/v1/public/notification-links/${encodeURIComponent(token)}`)
-      .then((result) => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches;
+    Promise.all([
+      apiFetch<{ path: string }>(`/api/v1/public/notification-links/${encodeURIComponent(token)}`),
+      hasInstalledNotificationApp(standalone, navigator, window.location.origin),
+    ])
+      .then(([result, installed]) => {
         if (stopped) return;
         if (!isNotificationTarget(result.path)) { setFailed(true); return; }
         setPath(result.path);
-        const standalone = window.matchMedia("(display-mode: standalone)").matches;
-        if (!shouldTryNotificationApp(standalone, navigator.userAgent)) window.location.replace(result.path);
+        if (!installed) window.location.replace(result.path);
         else openApp(result.path);
       })
       .catch(() => { if (!stopped) setFailed(true); });
@@ -45,7 +50,7 @@ export function NotificationLanding({ token }: { token: string }) {
       <section className="flex w-full max-w-md flex-col gap-4 rounded-xl border bg-card p-6">
         <h1 className="text-lg font-semibold">{m.title}</h1>
         <p role={failed ? "alert" : "status"} className="text-sm text-muted-foreground">
-          {failed ? m.failed : trying ? m.trying : m.loading}
+          {failed ? m.failed : opened ? m.opened : trying ? m.trying : m.loading}
         </p>
         {path ? (
           <div className="flex flex-wrap gap-3 text-sm">

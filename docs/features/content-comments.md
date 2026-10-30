@@ -129,3 +129,7 @@ API: `PUT /api/v1/content/document/{id}/subscription`(구독), `DELETE …`(끊�
 - 해결한 사람과 시각을 표시한다. 펼치기는 해결 상태를 바꾸지 않으며 ‘다시 열기’로 해결을 취소하고 내용을 펼친다. 새 답글은 해결 상태를 자동으로 바꾸지 않는다.
 - 해당 위치에 댓글을 쓸 수 있는 사람이 해결·다시 열기를 할 수 있다. 삭제된 대상·댓글, 접근할 수 없는 대상, 답글 자체는 변경할 수 없다. 해결은 별도 알림을 발송하지 않고 실시간으로 동기화한다.
 - `issue_comments`·`content_comments`에 nullable `resolved_at`, `resolved_by`(users FK)를 V21로 추가한다. 기존 댓글은 미해결이다. 응답에 `resolved`, `resolvedAt`, `resolvedBy`를 추가한다. 해결·해제는 각각 `POST`·`DELETE /api/v1/comments/{id}/resolution`, `/api/v1/content-comments/{id}/resolution`(204)이다. 중복 해결은 최초 처리자·시각을 보존한다.
+
+### 댓글 입력 위치 공유 (2026-10-30)
+
+댓글 입력창은 실시간 조작 위치 표시에서 제외한다. 티켓·프로젝트·문서의 일반 댓글·답글·블록 댓글과 댓글 수정 입력 모두 해당하며, 상위 활동 영역의 표시도 물려받지 않는다. 댓글 입력으로 이동하면 이전 위치 표시를 해제한다. 열람자 아바타와 본문·속성의 위치 공유는 유지한다.

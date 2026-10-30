@@ -102,7 +102,7 @@ export function CommentComposer({
 
   return (
     <div
-      data-presence-id={reply ? undefined : "comment"}
+      data-presence-id=""
       className={cn(
         "flex flex-col gap-2 rounded-lg border p-3 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
         transfer.dragging && "border-ring ring-3 ring-ring/50",
@@ -343,6 +343,7 @@ export function CommentItem({
       <div id={panelId} hidden={!expanded} className={expanded ? "flex flex-col gap-2" : "hidden"}>
         {textless && !editing ? null : (
           <div
+            data-presence-id={editing ? "" : undefined}
             className={cn("flex flex-col gap-2 rounded-md", resolved && !editing && "text-muted-foreground line-through [&_.tiptap]:text-muted-foreground [&_.tiptap_*]:text-muted-foreground", editing && transfer.dragging && "ring-3 ring-ring/50")}
             onKeyDownCapture={(event) => {
               if (editing && takeSubmitKey(event)) save();

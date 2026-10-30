@@ -85,6 +85,7 @@ export function ThreadComposer({
 
   return (
     <div
+      data-presence-id=""
       className="flex flex-col gap-1.5 rounded-lg border p-2 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
       onKeyDownCapture={(event) => {
         if (takeSubmitKey(event)) void send();
@@ -208,6 +209,7 @@ function ThreadCommentItem({
         ) : null}
       </div>
       <div
+        data-presence-id={editing ? "" : undefined}
         className="pl-7"
         onKeyDownCapture={(event) => {
           if (editing && takeSubmitKey(event)) submit();

@@ -21,10 +21,15 @@ const EDITOR = ".ProseMirror";
  */
 const EDITOR_TARGET = /^(.*)#(\d+)(?:@(\d+))?$/;
 
+/** An empty marker stops inheriting a surrounding shared part, such as the activity. */
+function excluded(node: Element | null): boolean {
+  return node?.closest(`[${MARK}]`)?.getAttribute(MARK) === "";
+}
+
 /** The block of an editor (paragraph, heading, list, table…) a node is in, and the editor. */
 function blockOf(node: EventTarget | Node | null) {
   const element = node instanceof Element ? node : node instanceof Node ? node.parentElement : null;
-  const mark = element?.closest(`[${MARK}]`)?.getAttribute(MARK) ?? null;
+  const mark = element?.closest(`[${MARK}]`)?.getAttribute(MARK) || null;
   const editor = element?.closest(EDITOR) ?? null;
   let block: Element | null = editor ? (element ?? null) : null;
   while (block && block.parentElement !== editor) block = block.parentElement;
@@ -210,6 +215,11 @@ export function PresenceFocus() {
     const report = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
+        if (excluded(document.activeElement)) {
+          acted.current = null;
+          sendFocus(null);
+          return;
+        }
         // Inside the part they acted in, the keyboard says where exactly (the caret in an editor).
         const focused = focusedTarget();
         const target = acted.current && focused && partOf(focused) === partOf(acted.current) ? focused : acted.current;
@@ -229,7 +239,7 @@ export function PresenceFocus() {
     // menu that a part opened leave that part marked: the menu is drawn outside it.
     const onKey = (event: KeyboardEvent) => {
       const target = targetOf(document.activeElement);
-      if (target === null && event.key !== "Tab") return;
+      if (target === null && event.key !== "Tab" && !excluded(document.activeElement)) return;
       acted.current = target;
       report();
     };
@@ -269,6 +279,8 @@ export function PresenceFocus() {
       const host = mark ? find(mark) : null;
       const editor = host?.querySelector(EDITOR);
       if (host && editor) {
+        // A nested comment editor does not share the surrounding activity's caret.
+        if (excluded(editor)) continue;
         const caret = offset === undefined ? null : Number(offset);
         frames.push(markEditor(host, editor, Number(index), caret, names, colorOf(people[0].id)));
         continue;
