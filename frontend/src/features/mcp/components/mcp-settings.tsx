@@ -174,6 +174,7 @@ export function McpSettings({ connection, tokens: initialTokens }: { connection:
       <SettingsSection title={m.usage} description={m.usageDescription}>
         <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-6">{m.examples.map((example) => <li key={example}>{example}</li>)}</ul>
         <p className="text-sm leading-6 text-muted-foreground">{m.search}</p>
+        <p className="text-sm leading-6 text-muted-foreground">{m.workLogs}</p>
         <p className="text-sm leading-6 text-muted-foreground">{m.properties}</p>
         <p className="text-sm leading-6 text-muted-foreground">{m.triage}</p>
         <p className="text-sm leading-6 text-muted-foreground">{m.markdown}</p>

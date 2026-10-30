@@ -63,6 +63,7 @@ class McpOperations(
     private val documents: IssueDocumentService,
     private val threads: ContentThreadService,
     private val feeds: ContentFeedService,
+    private val workLogs: McpWorkLogs,
 ) {
     suspend fun execute(
         identity: TokenIdentity,
@@ -89,6 +90,7 @@ class McpOperations(
                 runCatching { UUID.fromString(value as String) }.getOrElse { throw ValidationException("attachmentIds", "INVALID", "올바른 첨부 ID를 지정하세요") }
             }
         return when (name) {
+            "list_work_logs", "search_comments" -> workLogs.query(user, args, name == "search_comments")
             "list_issue_files" -> files.list(user, number())
             "read_file", "render_file_page" ->
                 fileReader.read(
@@ -341,12 +343,6 @@ class McpOperations(
             throw ValidationException("markdown", "CONFLICT", "markdown은 content·description과 함께 지정할 수 없습니다")
         }
         return fields.filterKeys { it != "markdown" } + ("content" to (fields["markdown"] as? String)?.let(markdown::document))
-    }
-
-    private fun issueNumber(value: Any?): Int {
-        val text = value as? String ?: throw ValidationException("issue", "INVALID", "티켓 번호 또는 키를 입력하세요")
-        if (!Regex("(?:[\\p{L}\\d_]+-)?[1-9]\\d*").matches(text)) throw ValidationException("issue", "INVALID", "티켓 번호 또는 키를 입력하세요")
-        return text.substringAfterLast('-').toIntOrNull() ?: throw ValidationException("issue", "INVALID", "티켓 번호가 올바르지 않습니다")
     }
 
     private fun matches(

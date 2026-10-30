@@ -68,6 +68,17 @@ object McpToolDefinitions {
             "triage" to bool(),
         )
     private val paging = mapOf("q" to text("이름 또는 제목 검색"), "offset" to number(), "limit" to number())
+    private val workLogFilters =
+        mapOf(
+            "from" to text("YYYY-MM-DD, 시작 날짜 포함."),
+            "to" to text("YYYY-MM-DD, 마지막 날짜 포함. 최대 366일."),
+            "timezone" to text("IANA 시간대. 생략 시 호출자 설정/조직 기본값."),
+            "userId" to text("생략/me: 본인, 조회한 UUID: 해당 수행자·작성자, all: 전체. 담당자 필터가 아닙니다."),
+            "projectId" to id,
+            "issue" to issue,
+            "limit" to mapOf("type" to "integer", "minimum" to 1, "maximum" to 100, "description" to "기본 50, 최대 100."),
+            "cursor" to text("같은 필터의 nextCursor. 마지막 페이지까지 조회한 뒤 요약하세요."),
+        )
 
     private fun tool(
         name: String,
@@ -89,6 +100,25 @@ object McpToolDefinitions {
 
     val all =
         listOf(
+            tool(
+                "list_work_logs",
+                "기간별 내 작업 근거: 티켓·프로젝트·문서 활동과 일반/답글/블록 댓글 작성·마지막 수정. 댓글 현재 본문을 읽고 분석하세요. 실제 근무 시간·과거 댓글 버전은 알 수 없습니다.",
+                workLogFilters,
+                listOf("from", "to"),
+            ),
+            tool(
+                "search_comments",
+                "기간별 댓글 본문 검색. 기본 본인 작성, userId=all로 전체. 특정 티켓·댓글·답글·블록 대화 필터. 원문·Markdown·작성/수정 시각으로 분석하세요.",
+                workLogFilters +
+                    mapOf(
+                        "q" to text("댓글 본문 부분 일치, 대소문자 무시. 최대 500자."),
+                        "dateField" to values(listOf("createdAt", "updatedAt")),
+                        "commentId" to id,
+                        "parentId" to id,
+                        "threadId" to id,
+                    ),
+                listOf("from", "to"),
+            ),
             tool("list_issue_files", "티켓 본문·댓글·첨부·연결 문서의 사진과 파일 목록. 받은 fileId로 실제 내용 조회 또는 원본 다운로드.", mapOf("issue" to issue), listOf("issue")),
             tool(
                 "read_file",

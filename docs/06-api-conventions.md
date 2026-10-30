@@ -1,5 +1,11 @@
 # 06. API 규칙
 
+## MCP 기간별 작업·댓글 근거 조회 (2026-10-30)
+
+READ/WRITE 개인 토큰 모두 `POST /api/v1/integrations/mcp/tools/list_work_logs`, `…/search_comments`와 MCP tools/call을 사용한다. 공통 입력은 `{from,to,timezone?,userId?,projectId?,issue?,limit?,cursor?}`. from/to는 YYYY-MM-DD 양끝 포함·최대 366일, timezone 생략 시 호출자 설정, userId 생략/me는 본인·UUID는 수행자/작성자·all은 전체, limit 기본 50·최대 100이다. search_comments는 `{q?,dateField?:createdAt|updatedAt,commentId?,parentId?,threadId?}`를 추가한다. q는 최대 500자의 대소문자 무시 본문 부분 일치(와일드카드 없음)다. 기존 list_comments는 유지한다.
+
+응답은 `{from,to,timezone,fromInstant,toExclusive,userId,projectId,issueId,dateField,items,nextCursor,limitations}`. items는 `{id,kind,type,occurredAt,actor,target,comment,detail}`이며 comment는 현재 `{id,parentId,threadId,blockId,quote,content,body,markdown,createdAt,updatedAt}`다. null 필드는 기본 직렬화 정책을 따른다. target은 현재 읽을 수 있는 대상의 type/id/title/path/projectId/issueId/issueKey다. 정렬은 시각·kind·ID 오름차순이며 다음 커서는 같은 조회 조건에만 유효하다. limit 변경은 허용한다. 기록 수정 중 여러 페이지는 스냅샷이 아니며 작성·마지막 수정만 제공한다. 삭제된 댓글·대상은 제외하고 현재 권한을 매번 재검사한다. 잘못된 기간·시간대·UUID·커서·limit은 422, 특정 권한 없는 프로젝트/티켓은 404. 상세 계약과 보고 시 한계는 features/mcp.md 참고.
+
 ## 기본
 
 - 모든 API 는 `/api/v1` 아래에 둔다.

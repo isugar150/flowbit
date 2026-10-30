@@ -1,5 +1,7 @@
 # 03. 백엔드 가이드 (Spring Boot WebFlux + Kotlin)
 
+`mcp/McpWorkLogs`: list_work_logs·search_comments의 기간/사용자/댓글 검색을 R2DBC로 실행한다. 공통 ProjectAccessSql로 현재 읽기 권한을 DB에서 제한하고 명시한 프로젝트·티켓은 기존 서비스로 접근 검사한다. 날짜는 호출자 시간대의 양끝 포함 날짜를 UTC 반열린 구간으로 변환한다. 댓글은 원문·본문·Markdown·작성/마지막 수정 시각을 제공하며 외부 AI 호출은 하지 않는다. V23의 조회 인덱스와 features/mcp.md 계약을 따른다. McpIssueNumber는 기존 티켓 키/번호 검증을 공유한다.
+
 참고 스킬은 [07-skills-guide.md](07-skills-guide.md) 의 "백엔드" 항목을 본다. 참고 스킬 중 Kotlin·WebFlux 전용 자료는 없으므로, 일반 패턴을 이 문서의 규칙에 맞춰 적용한다.
 
 ## 리액티브 스택 규칙 (가장 중요)

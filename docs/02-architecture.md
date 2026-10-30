@@ -260,6 +260,8 @@ docker compose up -d                         # 개발: DB 만 (지금까지와 �
 
 ## MCP 연결 (2026-10-29)
 
+2026-10-30: McpWorkLogs는 현재 프로젝트 접근 규칙을 DB에서 적용해 기간별 작업·댓글 근거를 조회한다. 일반/답글/블록 댓글의 현재 JSON·Markdown·글과 작성/마지막 수정 시각을 연결 AI에 제공하며 서버의 외부 AI 호출·보고서 저장은 추가하지 않는다. UTC 저장을 호출자 시간대의 날짜 구간으로 검색하고 커서로 나눠 반환한다. V23은 기존 활동·댓글 조회 인덱스만 추가한다. 기능 계약은 features/mcp.md의 기간별 작업 기록과 댓글 검색을 따른다.
+
 개인 토큰을 사용하는 무상태 Streamable HTTP 서버는 `/api/v1/mcp`에 있다. 기존 Next.js `/api` rewrite가 전달한다. 별도 AI 모델 서버나 API 키는 필요 없다. MCP·JSON 연동 API는 티켓·댓글·속성·관계의 기존 서비스와 커밋 뒤 알림·실시간 처리를 공유한다. 토큰 전용 보안 체인은 쿠키를 받지 않고 Bearer만 확인하며 일반 API와 토큰 관리 API로 권한을 확장하지 않는다. `FLOWBIT_PUBLIC_URL`을 설정하면 연결 주소와 Origin 검증 기준으로 사용한다. 자세한 계약은 [MCP 연결](features/mcp.md).
 
 AI에게 링크로 연결을 맡기는 공개 가이드는 `/api/v1/mcp/setup`이다. 기존 API 프록시를 통해 로그인 없이 Markdown을 읽으며 PUBLIC_URL이 있으면 그 주소를, 없으면 현재 요청의 외부 주소를 사용한다. 가이드는 인증된 데이터·토큰을 읽지 않는다. template은 resources/mcp/setup.md이고 파일 읽기는 Dispatchers.IO에서 한다. Codex·Claude Code의 사용자 전용 설정을 보존·병합하고 읽기 검증까지 진행하도록 안내한다.

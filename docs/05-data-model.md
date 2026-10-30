@@ -1,5 +1,9 @@
 # 05. 데이터 모델
 
+## 기간별 MCP 근거 조회 인덱스 (2026-10-30)
+
+`V23__work_log_query_indexes.sql`: issue_activities·content_activities에 (actor_id, created_at, id), (created_at, id)를 추가한다. issue_comments·content_comments·content_thread_comments에는 삭제되지 않은 행의 (author_id, created_at, id), (author_id, updated_at, id), (created_at, id), (updated_at, id) 부분 인덱스를 추가한다. 기존 기록을 기간·실제 수행자별 조회하며 새 테이블·수정 이력 보관·근무 시간 측정은 추가하지 않는다.
+
 > **스키마의 바탕은 `backend/src/main/resources/db/migration/V1__schema.sql` 이다** (D-067). 이 파일은 더 고치지 않고, 이후의 변경은 `V2` 부터 새 파일로 추가한다 (D-084). 첫 운영 배포 전에 그동안의 단계별 마이그레이션을 이 파일 하나로 합쳤다(2026-10-13, D-104). 그 뒤 개발하면서 `V2`~`V26` 이 다시 쌓였고, **첫 배포를 앞두고 2026-10-21 에 한 번 더 이 파일 하나로 합쳤다**(D-168: 사용자가 그때까지의 DB 를 모두 지우기로 했다. 합친 파일을 실제 PostgreSQL 에 적용해 예전 26개를 차례로 적용한 DB 와 열·제약·인덱스·함수·시드를 비교해 같음을 확인했다). 그 뒤 `V2`(목표 담당자)·`V3`(사용자 속성)·`V4`(목표 제거)가 더해졌다가 **2026-10-23 에 다시 `V1` 하나로 합쳤다**(D-191: DB 는 지우지 않고 `flyway_schema_history` 를 고쳐 맞춘다). 지금 마이그레이션 파일은 `V1__schema.sql` 하나뿐이다. **아래 표와 이 문서의 기록에 남아 있는 `V2`~`V26` 같은 표시는 합치기 전 파일 번호로, 그 컬럼이 언제 생겼는지의 기록일 뿐이다.** 모두 `V1` 안에 있다. 이 문서의 표는 그 파일의 설명이고, 어긋나면 파일이 기준이다. `issues.project_id` 는 프로젝트가 지워지면 null 이 된다(티켓은 남는다).
 
 스키마 설계나 검토 시 `agent-skills/wshobson-agents/plugins/database-design/skills/postgresql-table-design/SKILL.md` 를 참고한다.
