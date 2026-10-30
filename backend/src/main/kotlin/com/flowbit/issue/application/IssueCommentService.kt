@@ -184,6 +184,20 @@ class IssueCommentService(
     private suspend fun CommentView.withExtras(user: AuthenticatedUser): CommentView =
         copy(reactions = extras.commentReactionsOf(id, user.id), attachments = extras.commentAttachmentsOf(id))
 
+    /** Resolution belongs to the root comment and uses the same permission as writing a reply. */
+    @Transactional
+    suspend fun setCommentResolved(
+        user: AuthenticatedUser,
+        commentId: UUID,
+        resolved: Boolean,
+    ): Int {
+        val existing = comments.find(commentId) ?: throw commentNotFound()
+        val access = lookup.editable(lookup.accessById(user, existing.issueId))
+        if (existing.parentId != null) throw ValidationException("id", "INVALID", "원 댓글에서 해결 상태를 바꾸세요")
+        comments.setResolved(commentId, user.id, clock.instant(), resolved)
+        return access.issue.number
+    }
+
     /** Its author or a workspace admin may delete a comment. Returns the number of the issue it was on. */
     @Transactional
     suspend fun removeComment(

@@ -242,6 +242,11 @@ data class CommentResponse(
     val parentId: UUID?,
     /** Deleted, but kept because it has replies: no text, files or emoji (D-167). */
     val deleted: Boolean,
+    val resolved: Boolean,
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val resolvedAt: Instant?,
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val resolvedBy: IssuePersonResponse?,
 ) {
     companion object {
         fun from(comment: CommentView) =
@@ -257,6 +262,9 @@ data class CommentResponse(
                 comment.attachments.map(AttachmentResponse::from),
                 comment.parentId,
                 comment.deleted,
+                comment.resolvedAt != null,
+                comment.resolvedAt,
+                comment.resolvedBy?.let(IssuePersonResponse::from),
             )
     }
 }

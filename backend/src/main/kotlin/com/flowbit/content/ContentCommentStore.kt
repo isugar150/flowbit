@@ -43,6 +43,8 @@ data class ContentCommentView(
     val parentId: UUID? = null,
     /** Deleted but kept because it has replies: no text, files or emoji (D-167). */
     val deleted: Boolean = false,
+    val resolvedAt: Instant? = null,
+    val resolvedBy: IssuePerson? = null,
 )
 
 /** A comment after a change, with the page it is on. */
@@ -130,6 +132,27 @@ class ContentCommentStore(
             .bind("content", document.json)
             .bind("body", document.plainText)
             .bind("now", at(now))
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
+    suspend fun setResolved(
+        id: UUID,
+        userId: UUID,
+        now: Instant,
+        resolved: Boolean,
+    ) {
+        val sql =
+            if (resolved) {
+                "update content_comments set resolved_at = :now, resolved_by = :userId where id = :id and deleted_at is null and resolved_at is null"
+            } else {
+                "update content_comments set resolved_at = null, resolved_by = null where id = :id and deleted_at is null"
+            }
+        databaseClient
+            .sql(sql)
+            .bind("id", id)
+            .let { if (resolved) it.bind("now", now.atOffset(java.time.ZoneOffset.UTC)).bind("userId", userId) else it }
             .fetch()
             .rowsUpdated()
             .awaitSingle()
@@ -262,9 +285,11 @@ class ContentCommentStore(
         bind(
             databaseClient.sql(
                 """
-                select c.id, c.target_type, c.target_id, c.parent_id, c.deleted_at, c.content::text as content, c.created_at, c.updated_at,
-                       u.id as author_id, u.login_id, u.display_name, u.avatar_key
+                select c.id, c.target_type, c.target_id, c.parent_id, c.deleted_at, c.resolved_at, c.content::text as content, c.created_at, c.updated_at,
+                       u.id as author_id, u.login_id, u.display_name, u.avatar_key,
+                       r.id as resolver_id, r.login_id as resolver_login_id, r.display_name as resolver_display_name, r.avatar_key as resolver_avatar_key
                 from content_comments c join users u on u.id = c.author_id
+                left join users r on r.id = c.resolved_by
                 where $live and $where
                 """.trimIndent(),
             ),
@@ -274,6 +299,20 @@ class ContentCommentStore(
                 id = checkNotNull(row.get("id", UUID::class.java)),
                 parentId = row.get("parent_id", UUID::class.java),
                 deleted = deleted,
+                resolvedAt = if (deleted) null else row.get("resolved_at", OffsetDateTime::class.java)?.toInstant(),
+                resolvedBy =
+                    if (deleted) {
+                        null
+                    } else {
+                        row.get("resolver_id", UUID::class.java)?.let {
+                            IssuePerson(
+                                it,
+                                checkNotNull(row.get("resolver_login_id", String::class.java)),
+                                row.get("resolver_display_name", String::class.java),
+                                row.get("resolver_avatar_key", String::class.java),
+                            )
+                        }
+                    },
                 target =
                     ContentTarget(
                         ContentTargetType.valueOf(checkNotNull(row.get("target_type", String::class.java))),

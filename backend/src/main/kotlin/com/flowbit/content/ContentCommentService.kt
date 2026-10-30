@@ -141,6 +141,19 @@ class ContentCommentService(
     }
 
     @Transactional
+    suspend fun setResolved(
+        user: AuthenticatedUser,
+        commentId: UUID,
+        resolved: Boolean,
+    ): ContentContext {
+        val existing = store.find(commentId) ?: throw commentNotFound()
+        val context = writable(user, existing.target)
+        if (existing.parentId != null) throw ValidationException("id", "INVALID", "원 댓글에서 해결 상태를 바꾸세요")
+        store.setResolved(commentId, user.id, clock.instant(), resolved)
+        return context
+    }
+
+    @Transactional
     suspend fun delete(
         user: AuthenticatedUser,
         commentId: UUID,

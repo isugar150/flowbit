@@ -62,6 +62,24 @@ class CommentController(
     private val commentService: IssueCommentService,
     private val announcer: IssueAnnouncer,
 ) {
+    @PostMapping("/{id}/resolution")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun resolve(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+    ) {
+        announcer.commentsChanged(user, commentService.setCommentResolved(user, id, true))
+    }
+
+    @DeleteMapping("/{id}/resolution")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun reopen(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+    ) {
+        announcer.commentsChanged(user, commentService.setCommentResolved(user, id, false))
+    }
+
     @PatchMapping("/{id}")
     suspend fun update(
         @AuthenticationPrincipal user: AuthenticatedUser,

@@ -161,3 +161,7 @@ GET·HEAD `/api/v1/mcp/setup`은 로그인·토큰 없이 읽는 공개 Markdown
 GET `/api/v1/integrations/mcp/issues/{number}/files/{fileId}`: 현재 티켓에 참조된 파일만 권한 검사 후 원본 다운로드(READ 허용, application/octet-stream·attachment·no-store·nosniff). POST `…/issues/{number}/files`: Bearer WRITE, multipart의 file 파트, query placement=ATTACHMENT|BODY|COMMENT(기본 ATTACHMENT), image=true|false, 새 댓글 markdown(선택). 성공 201. 기존 업로드 크기 제한과 편집 권한을 적용한다. BODY는 최신 본문 끝에 추가하며 기존 블록을 보존한다. COMMENT는 새 댓글에 첨부한다. 파일명과 저장 키는 서버에서 처리하며 임의 원격 URL이나 로컬 경로는 받지 않는다.
 
 JSON 도구의 파일은 표준 Base64 최대 128KiB, 큰 파일은 multipart를 사용한다. 파일 해석은 32MiB·추출 글 200만 자, 글 응답 최대 20000자·바이트 응답 최대 48KiB. 원본 HTTP 다운로드에는 이 읽기 추출 한도를 적용하지 않는다. 댓글·문서·현재 본문에서 참조를 제거하거나 접근 권한이 없어지면 파일 ID를 알아도 읽을 수 없다. 파일 URL에 토큰을 넣지 않는다. 일반 `/api/v1/files`·`editor-files` 인증 범위는 확장하지 않는다.
+
+## 일반 댓글 해결 (2026-10-30)
+
+POST·DELETE /api/v1/comments/{id}/resolution 및 /api/v1/content-comments/{id}/resolution: 해결·다시 열기, 204. 댓글 작성 권한이 필요하며 답글 자체는 422, 없는 댓글·접근 불가는 404. 일반 댓글 응답에 resolved·resolvedAt·resolvedBy(사람) 추가. 중복 해결은 최초 기록을 보존한다. 별도 알림 없이 실시간 갱신한다.

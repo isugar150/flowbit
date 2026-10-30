@@ -273,6 +273,9 @@ export type IssueComment = {
   parentId: string | null;
   /** Deleted but kept because it has replies: no text, files or emoji, and shown as "삭제된 댓글" (D-167). */
   deleted: boolean;
+  resolved: boolean;
+  resolvedAt: string | null;
+  resolvedBy: IssuePerson | null;
 };
 
 /** GET /api/v1/issues/{number}/activity */

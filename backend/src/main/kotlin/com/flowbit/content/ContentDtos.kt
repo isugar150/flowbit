@@ -80,6 +80,11 @@ data class ContentCommentResponse(
     val parentId: UUID?,
     /** Deleted, but kept because it has replies: no text, files or emoji (D-167). */
     val deleted: Boolean,
+    val resolved: Boolean,
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val resolvedAt: Instant?,
+    @get:JsonInclude(JsonInclude.Include.ALWAYS)
+    val resolvedBy: IssuePersonResponse?,
 ) {
     companion object {
         fun from(comment: ContentCommentView) =
@@ -95,6 +100,9 @@ data class ContentCommentResponse(
                 attachments = comment.files.map(::file),
                 parentId = comment.parentId,
                 deleted = comment.deleted,
+                resolved = comment.resolvedAt != null,
+                resolvedAt = comment.resolvedAt,
+                resolvedBy = comment.resolvedBy?.let(IssuePersonResponse::from),
             )
 
         fun file(file: ContentFileView) = AttachmentResponse(file.id, file.fileName, file.sizeBytes, "/api/v1/content-files/${file.id}", file.createdAt)

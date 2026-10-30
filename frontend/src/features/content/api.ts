@@ -47,10 +47,10 @@ export function reopenThread(threadId: string): Promise<ContentThread> {
  * The general comments under the activity of a page (not an issue: it has its own), with
  * `changed` called after each change, so that the page's feed is read again.
  */
-export function contentCommentApi(target: ContentTarget, changed: () => void): CommentApi {
+export function contentCommentApi(target: ContentTarget, changed: () => void | Promise<unknown>): CommentApi {
   const then = async <T>(request: Promise<T>): Promise<T> => {
     const result = await request;
-    changed();
+    await changed();
     return result;
   };
   return {
@@ -58,6 +58,7 @@ export function contentCommentApi(target: ContentTarget, changed: () => void): C
       then(apiFetch<IssueComment>(`${base(target)}/comments`, { method: "POST", body: { content, attachmentIds, parentId } })),
     update: ({ id, content, attachmentIds }) =>
       then(apiFetch<IssueComment>(`/api/v1/content-comments/${id}`, { method: "PATCH", body: { content, attachmentIds } })),
+    setResolved: ({ id, resolved }) => then(apiFetch<void>(`/api/v1/content-comments/${id}/resolution`, { method: resolved ? "POST" : "DELETE" })),
     remove: (id) => then(apiFetch<void>(`/api/v1/content-comments/${id}`, { method: "DELETE" })),
     react: ({ id, emoji }) => then(apiFetch<Reaction[]>(`/api/v1/content-comments/${id}/reactions`, { method: "POST", body: { emoji } })),
     uploadFile: (file) => apiFetch<Attachment>(`${base(target)}/comment-files`, { method: "POST", body: fileForm(file) }),

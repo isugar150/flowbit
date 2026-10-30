@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api/client";
 import type { RichDoc } from "@/components/editor/rich-text-editor";
 import { createComment, deleteAttachment, deleteComment, toggleCommentReaction, updateComment, uploadCommentFile } from "./api";
 import type { Attachment, Reaction } from "./types";
@@ -13,6 +14,7 @@ export type CommentApi = {
   /** `attachmentIds` is the whole set of files the comment keeps. */
   update(input: { id: string; content: RichDoc | null; attachmentIds: string[] }): Promise<unknown>;
   remove(id: string): Promise<void>;
+  setResolved(input: { id: string; resolved: boolean }): Promise<void>;
   /** Puts the signed-in person's emoji on the comment, or takes it back. */
   react(input: { id: string; emoji: string }): Promise<Reaction[]>;
   /** Stores a file for a comment being written. */
@@ -27,6 +29,7 @@ export function issueCommentApi(number: number): CommentApi {
     create: ({ content, attachmentIds, parentId }) => createComment({ number, content, attachmentIds, parentId }),
     update: updateComment,
     remove: deleteComment,
+    setResolved: ({ id, resolved }) => apiFetch<void>(`/api/v1/comments/${id}/resolution`, { method: resolved ? "POST" : "DELETE" }),
     react: toggleCommentReaction,
     uploadFile: (file) => uploadCommentFile({ number, file }),
     discardFile: deleteAttachment,

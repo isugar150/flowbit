@@ -156,6 +156,24 @@ class ContentController(
         return ContentCommentResponse.from(result.comment)
     }
 
+    @PostMapping("/content-comments/{id}/resolution")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun resolveComment(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+    ) {
+        publish(user, comments.setResolved(user, id, true))
+    }
+
+    @DeleteMapping("/content-comments/{id}/resolution")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun reopenComment(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @PathVariable id: UUID,
+    ) {
+        publish(user, comments.setResolved(user, id, false))
+    }
+
     @PatchMapping("/content-comments/{id}")
     suspend fun editComment(
         @AuthenticationPrincipal user: AuthenticatedUser,

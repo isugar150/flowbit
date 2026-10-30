@@ -47,8 +47,8 @@ export function useContentSubscription(target: ContentTarget) {
 }
 
 /** Reads the page's feed again: after something was added to it, changed or taken away. */
-export function useFeedRefresh(target: ContentTarget): () => void {
+export function useFeedRefresh(target: ContentTarget): () => Promise<void> {
   const queryClient = useQueryClient();
   const { type, id } = target;
-  return useCallback(() => void queryClient.invalidateQueries({ queryKey: contentFeedKey({ type, id }) }), [queryClient, type, id]);
+  return useCallback(() => queryClient.invalidateQueries({ queryKey: contentFeedKey({ type, id }) }), [queryClient, type, id]);
 }

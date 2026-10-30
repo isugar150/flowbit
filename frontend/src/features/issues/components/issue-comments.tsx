@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { MessageSquareReplyIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, MessageSquareReplyIcon, PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import type { MentionPerson } from "@/components/editor/mention";
 import { RichTextEditor, type RichDoc, type RichTextEditorHandle } from "@/components/editor/rich-text-editor";
@@ -11,7 +11,7 @@ import { PersonAvatar, personName } from "@/components/person";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { apiErrorMessage } from "@/lib/api/error-message";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
 import type { CommentApi } from "../comment-api";
@@ -20,6 +20,15 @@ import { AttachButton, CommentFiles, DraftFiles, useCommentFiles, useFileTransfe
 import { ReactionPicker, ReactionPills, useReactions } from "./issue-reactions";
 
 const m = messages.issues.comments;
+
+/** Plain text for the collapsed comment; never renders uploaded HTML. */
+function commentPreview(node: unknown): string {
+  if (!node || typeof node !== "object") return "";
+  const { text, content, type, attrs } = node as { text?: string; content?: unknown[]; type?: string; attrs?: { label?: string; name?: string } };
+  if (text) return text;
+  if (type === "mention") return attrs?.label ?? attrs?.name ?? "";
+  return (content ?? []).map(commentPreview).join(type === "doc" ? " " : "");
+}
 
 /** Ctrl/⌘+Enter sends; caught before the editor, which would break the line instead. */
 export function takeSubmitKey(event: React.KeyboardEvent): boolean {
@@ -175,6 +184,13 @@ export function CommentItem({
   canReply?: boolean;
   isReply?: boolean;
 }) {
+  const panelId = useId();
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
+  const resolution = useOptimisticMutation(comment.resolved ?? false, (_current: boolean, resolved: boolean) => resolved,
+    (resolved: boolean) => api.setResolved({ id: comment.id, resolved }));
+  const resolved = !isReply && resolution.value;
+  const resolutionKey = comment.resolvedAt ?? "pending";
+  const expanded = !resolved || expandedFor === resolutionKey;
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const draft = useRef<RichDoc | null>(comment.content);
@@ -207,7 +223,7 @@ export function CommentItem({
   };
   const takeFiles = (list: File[]) => void editor.current?.insertFiles(list);
   const transfer = useFileTransfer(takeFiles);
-  const failure = saving.error ?? removal.error;
+  const failure = saving.error ?? removal.error ?? resolution.error;
   const error = files.error ?? (failure ? apiErrorMessage(failure) : null);
   // A comment of files alone has no text to show.
   const textless = isBlankDoc(comment.content) && comment.attachments.length > 0;
@@ -246,18 +262,33 @@ export function CommentItem({
   }
 
   return (
-    <li className={cn("flex flex-col gap-2", isReply ? "py-1" : "rounded-lg border p-3")}>
+    <li className={cn("flex flex-col gap-2", isReply ? "py-1" : "rounded-lg border p-3", resolved && "bg-muted text-muted-foreground")} data-resolved={resolved || undefined}>
       <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] leading-5">
+        {resolved ? (
+          <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-controls={panelId} aria-expanded={expanded}
+            aria-label={expanded ? m.collapseResolved : m.expandResolved} title={expanded ? m.collapseResolved : m.expandResolved}
+            onClick={() => setExpandedFor(expanded ? null : resolutionKey)}>
+            {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+          </Button>
+        ) : null}
         <PersonAvatar person={comment.author} />
         <span className="min-w-0 truncate font-medium">{personName(comment.author)}</span>
         <span className="text-muted-foreground">
           <TimeAgo iso={comment.createdAt} />
           {comment.updatedAt !== comment.createdAt ? ` · ${m.edited}` : null}
         </span>
+        {resolved ? <span className="inline-flex items-center gap-1 text-muted-foreground"><CheckIcon className="size-3.5" />{m.resolved}</span> : null}
         {!editing && (comment.canEdit || comment.canDelete || !readOnly) ? (
           <span className="ml-auto flex items-center">
-            {readOnly ? null : <ReactionPicker variant="icon" onPick={reactions.toggle} />}
-            {comment.canEdit ? (
+            {!isReply && canReply && !readOnly && !replying ? (
+              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground"
+                onClick={() => { setExpandedFor(null); resolution.mutate(!resolved); }}>
+                {resolved ? <RotateCcwIcon data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
+                {resolved ? m.reopen : m.resolve}
+              </Button>
+            ) : null}
+            {readOnly || !expanded ? null : <ReactionPicker variant="icon" onPick={reactions.toggle} />}
+            {comment.canEdit && expanded ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -299,72 +330,80 @@ export function CommentItem({
           </span>
         ) : null}
       </div>
-      {textless && !editing ? null : (
-        <div
-          className={cn("flex flex-col gap-2 rounded-md", editing && transfer.dragging && "ring-3 ring-ring/50")}
-          onKeyDownCapture={(event) => {
-            if (editing && takeSubmitKey(event)) save();
-          }}
-          {...(editing ? transfer.props : {})}
-        >
-          <RichTextEditor
-            key={revision}
-            ref={editor}
-            initialContent={comment.content}
-            editable={editing}
-            autoFocus={editing}
-            ariaLabel={editing ? m.editLabel : m.label}
-            className="text-sm"
-            mentionables={mentionables}
-            keepLocal={() => editing}
-            onChange={(doc) => {
-              draft.current = doc;
-              setEmpty(doc === null || isBlankDoc(doc));
-              setChanged(true);
-            }}
-          />
-          {editing && transfer.dragging ? (
-            <p className="text-[0.8125rem] leading-5 text-muted-foreground" role="status">
-              {m.dropFiles}
-            </p>
-          ) : null}
-        </div>
-      )}
-      {editing ? <DraftFiles files={files.files} onRemove={files.remove} /> : <CommentFiles attachments={comment.attachments} />}
-      {!editing && reactions.reactions.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1">
-          <ReactionPills reactions={reactions.reactions} onToggle={reactions.toggle} readOnly={readOnly} small />
-        </div>
+      {resolved && comment.resolvedBy && comment.resolvedAt ? (
+        <p className="text-xs text-muted-foreground">{m.resolvedBy(personName(comment.resolvedBy))} · <TimeAgo iso={comment.resolvedAt} /></p>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-[0.8125rem] leading-5 text-destructive">
-          {error}
-        </p>
+      {resolved && !expanded ? (
+        <button type="button" className="min-w-0 truncate text-left text-sm text-muted-foreground line-through focus-visible:outline-ring"
+          aria-expanded={false} aria-controls={panelId} aria-label={m.expandResolved} onClick={() => setExpandedFor(resolutionKey)}>
+          {commentPreview(comment.content) || comment.attachments.map((file) => file.fileName).join(", ") || m.attachmentComment}
+          {replies.length ? <span className="ml-2 inline-block text-xs no-underline">{m.replies(replies.length)}</span> : null}
+        </button>
       ) : null}
-      {!editing ? answers : null}
-      {editing ? (
-        <div className="flex items-center gap-2">
-          <AttachButton onFiles={takeFiles} disabled={saving.isPending} />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={saving.isPending}
-            className="ml-auto max-md:h-11"
-            onClick={() => {
-              if (changed || files.ids.join() !== comment.attachments.map((file) => file.id).join()) setAsking(true);
-              else giveUpEditing();
+      <div id={panelId} hidden={!expanded} className={expanded ? "flex flex-col gap-2" : "hidden"}>
+        {textless && !editing ? null : (
+          <div
+            className={cn("flex flex-col gap-2 rounded-md", resolved && !editing && "text-muted-foreground line-through [&_.tiptap]:text-muted-foreground [&_.tiptap_*]:text-muted-foreground", editing && transfer.dragging && "ring-3 ring-ring/50")}
+            onKeyDownCapture={(event) => {
+              if (editing && takeSubmitKey(event)) save();
             }}
+            {...(editing ? transfer.props : {})}
           >
-            {m.cancel}
-          </Button>
-          <Button type="button" size="sm" disabled={!savable} className="max-md:h-11" onClick={save}>
-            {saving.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}
-            {saving.isPending ? m.saving : m.save}
-          </Button>
-          <ConfirmDiscardDialog open={asking} onKeep={() => setAsking(false)} onDiscard={giveUpEditing} />
-        </div>
-      ) : null}
+            <RichTextEditor
+              key={revision}
+              ref={editor}
+              initialContent={comment.content}
+              editable={editing}
+              autoFocus={editing}
+              ariaLabel={editing ? m.editLabel : m.label}
+              className="text-sm"
+              mentionables={mentionables}
+              keepLocal={() => editing}
+              onChange={(doc) => {
+                draft.current = doc;
+                setEmpty(doc === null || isBlankDoc(doc));
+                setChanged(true);
+              }}
+            />
+            {editing && transfer.dragging ? (
+              <p className="text-[0.8125rem] leading-5 text-muted-foreground" role="status">
+                {m.dropFiles}
+              </p>
+            ) : null}
+          </div>
+        )}
+        {editing ? <DraftFiles files={files.files} onRemove={files.remove} /> : <CommentFiles attachments={comment.attachments} />}
+        {!editing && reactions.reactions.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1">
+            <ReactionPills reactions={reactions.reactions} onToggle={reactions.toggle} readOnly={readOnly} small />
+          </div>
+        ) : null}
+        {!editing ? answers : null}
+        {editing ? (
+          <div className="flex items-center gap-2">
+            <AttachButton onFiles={takeFiles} disabled={saving.isPending} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={saving.isPending}
+              className="ml-auto max-md:h-11"
+              onClick={() => {
+                if (changed || files.ids.join() !== comment.attachments.map((file) => file.id).join()) setAsking(true);
+                else giveUpEditing();
+              }}
+            >
+              {m.cancel}
+            </Button>
+            <Button type="button" size="sm" disabled={!savable} className="max-md:h-11" onClick={save}>
+              {saving.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}
+              {saving.isPending ? m.saving : m.save}
+            </Button>
+            <ConfirmDiscardDialog open={asking} onKeep={() => setAsking(false)} onDiscard={giveUpEditing} />
+          </div>
+        ) : null}
+      </div>
+      {error ? <p role="alert" className="text-[0.8125rem] leading-5 text-destructive">{error}</p> : null}
     </li>
   );
 }

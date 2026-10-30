@@ -34,6 +34,8 @@ data class CommentView(
      * emoji, so that the replies still have something to hang from (D-167).
      */
     val deleted: Boolean = false,
+    val resolvedAt: Instant? = null,
+    val resolvedBy: IssuePerson? = null,
 )
 
 /**
@@ -109,6 +111,27 @@ class IssueCommentStore(
             .awaitSingle()
     }
 
+    suspend fun setResolved(
+        id: UUID,
+        userId: UUID,
+        now: Instant,
+        resolved: Boolean,
+    ) {
+        val sql =
+            if (resolved) {
+                "update issue_comments set resolved_at = :now, resolved_by = :userId where id = :id and deleted_at is null and resolved_at is null"
+            } else {
+                "update issue_comments set resolved_at = null, resolved_by = null where id = :id and deleted_at is null"
+            }
+        databaseClient
+            .sql(sql)
+            .bind("id", id)
+            .let { if (resolved) it.bind("now", now.atOffset(java.time.ZoneOffset.UTC)).bind("userId", userId) else it }
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
+
     suspend fun delete(
         id: UUID,
         now: Instant,
@@ -131,9 +154,11 @@ class IssueCommentStore(
         databaseClient
             .sql(
                 """
-                select c.id, c.issue_id, c.parent_id, c.deleted_at, c.content::text as content, c.created_at, c.updated_at,
-                       u.id as author_id, u.login_id, u.display_name, u.avatar_key
+                select c.id, c.issue_id, c.parent_id, c.deleted_at, c.resolved_at, c.content::text as content, c.created_at, c.updated_at,
+                       u.id as author_id, u.login_id, u.display_name, u.avatar_key,
+                       r.id as resolver_id, r.login_id as resolver_login_id, r.display_name as resolver_display_name, r.avatar_key as resolver_avatar_key
                 from issue_comments c join users u on u.id = c.author_id
+                left join users r on r.id = c.resolved_by
                 where $live and $where
                 """.trimIndent(),
             ).bind("id", id)
@@ -144,6 +169,20 @@ class IssueCommentStore(
                     issueId = checkNotNull(row.get("issue_id", UUID::class.java)),
                     parentId = row.get("parent_id", UUID::class.java),
                     deleted = deleted,
+                    resolvedAt = if (deleted) null else row.get("resolved_at", OffsetDateTime::class.java)?.toInstant(),
+                    resolvedBy =
+                        if (deleted) {
+                            null
+                        } else {
+                            row.get("resolver_id", UUID::class.java)?.let {
+                                IssuePerson(
+                                    it,
+                                    checkNotNull(row.get("resolver_login_id", String::class.java)),
+                                    row.get("resolver_display_name", String::class.java),
+                                    row.get("resolver_avatar_key", String::class.java),
+                                )
+                            }
+                        },
                     author =
                         IssuePerson(
                             id = checkNotNull(row.get("author_id", UUID::class.java)),

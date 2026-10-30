@@ -233,3 +233,7 @@ project_issue_fields에 프로젝트별 이름·불변 형식·기본값을 저�
 ## 개인 액세스 토큰 (V20, 2026-10-29)
 
 `personal_access_tokens`: id UUID PK, user_id → users(삭제 시 함께 삭제, 인덱스), name(1~50자), token_hash(SHA-256, unique), scope(READ/WRITE), created_at, updated_at, expires_at, last_used_at(null 허용). 원문은 발급 응답에만 있고 DB·목록·감사 로그에는 없다. WRITE도 소유자의 프로젝트 역할을 넘지 못한다. 백업에 토큰을 내보내지 않는다. [MCP 연결](features/mcp.md).
+
+## 일반 댓글 해결 (2026-10-30)
+
+V21__comment_resolution.sql: issue_comments·content_comments에 resolved_at(timestamptz null)·resolved_by(uuid null, users FK·부분 인덱스) 추가. 두 값은 함께 null이거나 원 댓글에서 함께 채워져야 한다. 기존 댓글은 미해결이다.
