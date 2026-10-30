@@ -16,6 +16,7 @@ export default function manifest(): MetadataRoute.Manifest {
     // dark. A browser that does not know `color_scheme_dark` keeps the light colours.
     color_scheme_dark: { theme_color: "#131416", background_color: "#131416" },
     launch_handler: { client_mode: ["navigate-existing", "auto"] as Array<"navigate-existing" | "auto"> },
+    protocol_handlers: [{ protocol: "web+flowbit", url: "/open-app?url=%s" }],
   };
   return {
     ...links,

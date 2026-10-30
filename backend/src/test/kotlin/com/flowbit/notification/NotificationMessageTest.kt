@@ -88,7 +88,12 @@ class NotificationMessageTest {
     @Test
     fun `한 덩어리 글의 마지막 줄은 티켓을 여는 주소다`() {
         assertEquals(
-            "[FB-12] 로그인 화면 깨짐 — 김지민 님이 티켓을 수정했습니다\n상태: 백로그 → 진행 중\nhttps://flowbit.example.com/issue/FB-12",
+            """
+            [FB-12] 로그인 화면 깨짐 — 김지민 님이 티켓을 수정했습니다
+            상태: 백로그 → 진행 중
+            앱에서 열기: web+flowbit://flowbit.example.com/issue/FB-12
+            https://flowbit.example.com/issue/FB-12
+            """.trimIndent(),
             message("https://flowbit.example.com/issue/FB-12").text,
         )
     }

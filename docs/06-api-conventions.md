@@ -165,3 +165,7 @@ JSON 도구의 파일은 표준 Base64 최대 128KiB, 큰 파일은 multipart를
 ## 일반 댓글 해결 (2026-10-30)
 
 POST·DELETE /api/v1/comments/{id}/resolution 및 /api/v1/content-comments/{id}/resolution: 해결·다시 열기, 204. 댓글 작성 권한이 필요하며 답글 자체는 422, 없는 댓글·접근 불가는 404. 일반 댓글 응답에 resolved·resolvedAt·resolvedBy(사람) 추가. 중복 해결은 최초 기록을 보존한다. 별도 알림 없이 실시간 갱신한다.
+
+## PWA 알림 링크 (2026-10-30)
+
+API 알림의 표준 JSON에 appUrl(null 가능), 티켓 issue 객체에 appUrl을 추가한다. 기존 url은 웹 주소를 유지한다. {{appUrl}}·{{issue.appUrl}} 템플릿 변수는 전용 티켓 링크이며 미지원 대상이나 공개 주소 미설정 시 빈 문자열이다. 프런트 manifest의 전용 프로토콜 수신 화면은 /open-app?url=인코딩된전용링크다. 인증·권한 API는 확장하지 않는다.

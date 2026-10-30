@@ -166,3 +166,12 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch   (
 ## 댓글·답글 발송 시점 (2026-10-29 사용자 재확정)
 
 일반 댓글·블록 댓글·답글은 티켓·프로젝트·문서 모두 저장 후 즉시 각 알림 통로에 전달한다. `batch-delay`가 켜져 있어도 댓글마다 별도로 발송하고, 창 닫기/flush를 기다리지 않는다. 대기 중인 제목·본문·속성 변경은 댓글과 합치지 않는다. 수신자는 D-218을 따른다. 실제 외부 통로의 도착 시간은 해당 서비스의 전송 시간에 따른다.
+
+## PWA 전용 티켓 링크 (2026-10-30, 사용자 확정)
+
+- Windows Chrome·Edge PWA는 manifest의 protocol_handlers로 web+flowbit를 등록한다. 형식은 web+flowbit://설치호스트/issue/MK-9이며 /open-app?url=%s에서 받는다. 기존 navigate-existing으로 실행 중인 앱 창을 재사용하도록 요청한다.
+- 수신 페이지는 현재 설치 주소와 같은 호스트·포트의 올바른 티켓 경로만 허용한다. 자격증명·검색문자열·프래그먼트·다른 스킴·외부 호스트·임의 경로는 거부하고 안내한다. 허용된 상대 티켓 경로로만 이동하며 기존 로그인·티켓 권한을 적용한다.
+- 티켓 알림의 API 알림 표준 JSON에 appUrl, issue.appUrl을 추가하고 {{appUrl}}·{{issue.appUrl}} 변수를 제공한다. {{text}}에는 앱 전용 링크와 기존 웹 링크를 함께 넣는다. FLOWBIT_PUBLIC_URL이 유효한 절대 티켓 주소를 만들 수 없으면 앱 링크는 null/빈 변수이며 표시하지 않는다. 일반 수신함·푸시·기존 issue.url은 HTTP 경로를 유지한다.
+- PWA의 manifest 갱신과 OS 프로토콜 등록 뒤 사용한다. 이미 설치한 앱은 브라우저의 manifest 갱신을 기다리거나 필요하면 다시 설치한다. 첫 프로토콜 실행은 브라우저 허용이 필요하다. 메신저가 전용 스킴을 링크로 허용해야 클릭할 수 있으며 이를 지원하지 않으면 기존 HTTPS 링크로 연다. 여러 Flowbit 설치가 같은 스킴을 등록하면 OS 선택을 따르고 수신 앱은 다른 호스트를 거부한다.
+- HTTPS 링크 자체를 자동 전환하는 기능이나 Windows 전용 실행 도우미, 최초 진입 alert은 이번 범위에 넣지 않는다.
+구현 근거: [Chrome PWA URL protocol handlers](https://developer.chrome.com/docs/web-platform/best-practices/url-protocol-handler). manifest 갱신으로 프로토콜 등록이 동기화되며 최초 실행 허용과 외부 앱의 링크 지원이 필요하다.

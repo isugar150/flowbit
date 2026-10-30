@@ -6,6 +6,11 @@ export const ko = {
   app: {
     name: "Flowbit",
     description: "빠르고 단순한 티켓 트래커",
+    protocolLink: {
+      opening: "Flowbit 앱에서 티켓을 여는 중입니다…",
+      invalid: "이 앱에서 열 수 없는 링크입니다. 원래 알림의 웹 링크를 이용해 주세요.",
+      home: "내 티켓으로 이동",
+    },
   },
   common: {
     showPassword: "비밀번호 보기",
@@ -1949,7 +1954,7 @@ export const ko = {
       headersHint: "한 줄에 하나씩 \"이름: 값\". 예: Authorization: Bearer abc123",
       bodyTemplate: "본문 템플릿",
       bodyTemplateHint:
-        "비워 두면 표준 JSON 을 보냅니다. 직접 쓰면 {{자리표시자}}가 값으로 바뀝니다: {{text}} {{title}} {{headline}} {{changes}} {{event}} {{issue.key}} {{issue.title}} {{issue.url}} {{issue.number}} {{actor.name}} {{recipient.email}} {{recipient.name}} {{recipient.loginId}} {{deliveryId}} {{payload}}(표준 JSON 전체). JSON 본문에서는 따옴표 같은 문자가 자동으로 이스케이프됩니다.",
+        "비워 두면 표준 JSON 을 보냅니다. 직접 쓰면 {{자리표시자}}가 값으로 바뀝니다: {{text}} {{title}} {{headline}} {{changes}} {{event}} {{issue.key}} {{issue.title}} {{issue.url}} {{issue.appUrl}} {{appUrl}} {{issue.number}} {{actor.name}} {{recipient.email}} {{recipient.name}} {{recipient.loginId}} {{deliveryId}} {{payload}}(표준 JSON 전체). JSON 본문에서는 따옴표 같은 문자가 자동으로 이스케이프됩니다.",
       presets: "예시 넣기",
       presetStandard: "표준 JSON",
       signingSecret: "서명 비밀 값",

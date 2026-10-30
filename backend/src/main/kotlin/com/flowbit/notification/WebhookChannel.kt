@@ -84,6 +84,7 @@ class WebhookSender(
                             "number" to notification.issueNumber,
                             "title" to notification.issueTitle,
                             "url" to message.url,
+                            "appUrl" to message.appUrl,
                             "projectId" to notification.projectId?.toString(),
                         ),
                     "actor" to mapOf("id" to notification.actorId?.toString(), "name" to notification.actorName),
@@ -95,6 +96,7 @@ class WebhookSender(
                     "issue.number" to notification.issueNumber.toString(),
                     "issue.title" to notification.issueTitle,
                     "issue.url" to message.url,
+                    "issue.appUrl" to message.appUrl.orEmpty(),
                     "actor.name" to notification.actorName,
                 ),
         )
@@ -188,6 +190,7 @@ class WebhookSender(
                 "headline" to message.headline,
                 "lines" to message.lines,
                 "text" to message.text,
+                "appUrl" to message.appUrl,
             )
     }
 
@@ -235,6 +238,7 @@ class WebhookSender(
             "headline" to message.headline,
             "changes" to message.lines.joinToString("\n"),
             "text" to message.text,
+            "appUrl" to message.appUrl.orEmpty(),
             "recipient.id" to recipient.id.toString(),
             "recipient.loginId" to recipient.loginId,
             "recipient.name" to recipient.name,

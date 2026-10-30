@@ -241,3 +241,7 @@ Flowbit 이 내보내는 페이지에는 `X-Content-Type-Options`, `Content-Secu
 docker build -t flowbit-check .
 docker run --rm -p 3100:3000 -e FLOWBIT_DB_HOST=host.docker.internal -e FLOWBIT_DB_USER=… -e FLOWBIT_DB_PASSWORD=… flowbit-check
 ```
+
+## PWA 전용 티켓 링크 (2026-10-30)
+
+Windows Chrome·Edge로 설치한 PWA는 web+flowbit 프로토콜을 등록한다. 티켓 API 알림의 앱에서 열기 링크는 web+flowbit://설치호스트/issue/MK-9이며 기존 HTTPS 웹 링크도 함께 제공한다. manifest가 갱신돼 OS에 등록되어야 하므로 기존 앱은 재실행 후 갱신을 기다리고, 등록되지 않으면 재설치한다. 첫 실행 때 브라우저가 요청하는 프로토콜 처리 허용이 필요하다. 메신저가 이 스킴을 클릭 가능한 링크로 지원해야 한다. 일반 HTTPS 링크의 자동 PWA 전환을 보장하는 설정은 아니며 미설치·미지원 환경은 웹 링크로 연다. 여러 설치가 등록되면 OS 선택을 따르며 다른 설치 호스트는 거부한다.

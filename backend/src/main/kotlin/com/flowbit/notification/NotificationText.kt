@@ -2,6 +2,7 @@ package com.flowbit.notification
 
 import com.flowbit.common.web.PublicUrl
 import org.springframework.stereotype.Component
+import java.net.URI
 
 /** A notification as words, shared by every channel so mail, push and API calls say the same thing. */
 data class NotificationMessage(
@@ -24,6 +25,24 @@ data class NotificationMessage(
      */
     val spaced: Boolean = false,
 ) {
+    /** OS protocol activation for a ticket, alongside the ordinary web URL. */
+    val appUrl: String?
+        get() =
+            runCatching {
+                val address = URI(url)
+                if (address.scheme !in listOf("https", "http") ||
+                    address.host == null ||
+                    address.rawUserInfo != null ||
+                    address.rawQuery != null ||
+                    address.rawFragment != null ||
+                    !APP_TICKET_PATH.matches(address.rawPath.orEmpty())
+                ) {
+                    null
+                } else {
+                    "web+flowbit://${address.rawAuthority}${address.rawPath}"
+                }
+            }.getOrNull()
+
     /** What follows the headline: the lines, behind a blank one when they are [spaced]. */
     val bodyLines: List<String>
         get() = if (spaced && lines.isNotEmpty()) listOf("") + lines else lines
@@ -36,9 +55,13 @@ data class NotificationMessage(
     val text: String
         get() {
             val link = url.takeIf { it.startsWith("http") }
-            val body = listOf("$title — $headline") + bodyLines
+            val body = listOf("$title — $headline") + bodyLines + listOfNotNull(appUrl?.let { "앱에서 열기: $it" })
             return (if (spaced && link != null) body + "" + link else body + listOfNotNull(link)).joinToString("\n")
         }
+
+    private companion object {
+        val APP_TICKET_PATH = Regex("/issue/[A-Za-z][A-Za-z0-9]*-[1-9][0-9]*")
+    }
 }
 
 @Component
