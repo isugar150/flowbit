@@ -29,7 +29,7 @@ class AppLinkNotificationTest {
         val content = sender.contentOf(notification)
         val message = content.message
         assertEquals("web+flowbit://issues.motherk.link/issue/MK-9", message.appUrl)
-        assertTrue(message.text.contains("앱에서 열기: ${message.appUrl}"))
+        assertTrue(!message.text.contains("web+flowbit"))
         assertTrue(message.text.endsWith("https://issues.motherk.link/issue/MK-9"))
         assertEquals(message.appUrl, content.values["issue.appUrl"])
         val payload = sender.payload(content, UUID.randomUUID(), WebhookRecipient(UUID.randomUUID(), "kim", "김민수", null))
@@ -70,7 +70,7 @@ class AppLinkNotificationTest {
     fun `공개 주소가 없거나 티켓 주소가 아니면 앱 링크를 만들지 않는다`() {
         for (url in listOf(
             "/issue/MK-9",
-            "https://issues.motherk.link/my-issues",
+            "https://issues.motherk.link/admin",
             "javascript:alert(1)",
             "https://user:pass@issues.motherk.link/issue/MK-9",
             "https://issues.motherk.link/issue/MK-9?next=other",

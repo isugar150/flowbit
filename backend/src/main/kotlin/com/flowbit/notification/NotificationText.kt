@@ -24,22 +24,22 @@ data class NotificationMessage(
      * rather than as a bulleted list.
      */
     val spaced: Boolean = false,
+    val webUrl: String? = null,
 ) {
     /** OS protocol activation for a ticket, alongside the ordinary web URL. */
     val appUrl: String?
         get() =
             runCatching {
-                val address = URI(url)
+                val address = URI(webUrl ?: url)
                 if (address.scheme !in listOf("https", "http") ||
                     address.host == null ||
                     address.rawUserInfo != null ||
                     address.rawQuery != null ||
-                    address.rawFragment != null ||
-                    !APP_TICKET_PATH.matches(address.rawPath.orEmpty())
+                    !NotificationLinks.validTarget(address.rawPath.orEmpty() + (address.rawFragment?.let { "#$it" } ?: ""))
                 ) {
                     null
                 } else {
-                    "web+flowbit://${address.rawAuthority}${address.rawPath}"
+                    "web+flowbit://${address.rawAuthority}${address.rawPath}${address.rawFragment?.let { "#$it" } ?: ""}"
                 }
             }.getOrNull()
 
@@ -55,13 +55,9 @@ data class NotificationMessage(
     val text: String
         get() {
             val link = url.takeIf { it.startsWith("http") }
-            val body = listOf("$title — $headline") + bodyLines + listOfNotNull(appUrl?.let { "앱에서 열기: $it" })
+            val body = listOf("$title — $headline") + bodyLines
             return (if (spaced && link != null) body + "" + link else body + listOfNotNull(link)).joinToString("\n")
         }
-
-    private companion object {
-        val APP_TICKET_PATH = Regex("/issue/[A-Za-z][A-Za-z0-9]*-[1-9][0-9]*")
-    }
 }
 
 @Component

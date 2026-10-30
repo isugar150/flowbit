@@ -85,6 +85,7 @@ class WebhookSender(
                             "title" to notification.issueTitle,
                             "url" to message.url,
                             "appUrl" to message.appUrl,
+                            "webUrl" to (message.webUrl ?: message.url),
                             "projectId" to notification.projectId?.toString(),
                         ),
                     "actor" to mapOf("id" to notification.actorId?.toString(), "name" to notification.actorName),
@@ -191,6 +192,7 @@ class WebhookSender(
                 "lines" to message.lines,
                 "text" to message.text,
                 "appUrl" to message.appUrl,
+                "webUrl" to (message.webUrl ?: message.url),
             )
     }
 
@@ -239,6 +241,7 @@ class WebhookSender(
             "changes" to message.lines.joinToString("\n"),
             "text" to message.text,
             "appUrl" to message.appUrl.orEmpty(),
+            "webUrl" to (message.webUrl ?: message.url),
             "recipient.id" to recipient.id.toString(),
             "recipient.loginId" to recipient.loginId,
             "recipient.name" to recipient.name,
@@ -383,6 +386,7 @@ data class WebhookTally(
  */
 @Component
 class WebhookNotificationChannel(
+    private val links: NotificationLinks,
     private val webhooks: WebhookRepository,
     private val userRepository: UserRepository,
     private val sender: WebhookSender,
@@ -418,7 +422,7 @@ class WebhookNotificationChannel(
      * (D-216), and says how many answered and how many did not. A webhook addressed by e-mail skips a member without one.
      */
     suspend fun sendDailySummary(summary: DailySummaryNotification): WebhookTally {
-        val content = sender.contentOf(summary)
+        val content = links.prepare(sender.contentOf(summary))
         val wanted = webhooks.findEnabled().toList().filter { it.eventTypeSet.let { types -> types.isEmpty() || DailySummaryNotification.TYPE in types } }
         val user = userRepository.findActiveByIds(listOf(summary.recipientId)).toList().firstOrNull() ?: return WebhookTally(0, 0)
         val recipient = WebhookRecipient(user.id, user.loginId, user.displayName ?: user.loginId, user.email)
@@ -444,7 +448,8 @@ class WebhookNotificationChannel(
                 .findActiveByIds(recipientIds)
                 .toList()
                 .map { WebhookRecipient(it.id, it.loginId, it.displayName ?: it.loginId, it.email) }
-        for ((webhook, content) in wanted) {
+        for ((webhook, original) in wanted) {
+            val content = links.prepare(original)
             // Someone without an address cannot be reached through an API that is addressed by e-mail.
             val needsEmail = "recipient.email" in webhook.url || "recipient.email" in webhook.bodyTemplate
             for (recipient in recipients) {

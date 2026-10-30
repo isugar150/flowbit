@@ -97,6 +97,7 @@ class SecurityConfig {
         val PUBLIC_GET =
             arrayOf(
                 "/api/v1/health",
+                "/api/v1/public/notification-links/*",
                 // Agents read setup instructions before the user supplies a personal token.
                 "/api/v1/mcp/setup",
                 "/api/v1/setup/status",

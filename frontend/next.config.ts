@@ -53,6 +53,7 @@ const nextConfig: NextConfig = {
       // A share link's page may be shown inside a frame of any other site: that is what "embed" means (docs/features/sharing.md).
       // It comes after the rule above, so for these pages it replaces that rule's frame-ancestors.
       { source: "/s/:token", headers: [{ key: "Content-Security-Policy", value: "frame-ancestors *" }] },
+      { source: "/n/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }, { key: "Cache-Control", value: "no-store" }] },
     ];
   },
   experimental: {

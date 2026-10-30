@@ -56,6 +56,7 @@ abstract class IntegrationTest {
     @BeforeEach
     fun resetState() {
         projectIds.clear()
+        execute("delete from notification_links")
         execute("truncate table audit_events, user_sessions, issues, project_members, projects, users cascade")
         // The three labels every installation starts with stay; the ones tests add go.
         execute("delete from labels where name not in ('버그', '기능', '중요')")

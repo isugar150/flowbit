@@ -39,6 +39,7 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/session-expired" || pathname === "/unavailable") return NextResponse.next();
   // A share link opens for anyone, signed in or not (docs/features/sharing.md). It asks the backend for what it shows
   // by itself, which answers "not found" when the link is not right.
+  if (pathname.startsWith("/n/")) return NextResponse.next();
   if (pathname.startsWith("/s/")) return NextResponse.next();
 
   const hasSession = request.cookies.has(SESSION_COOKIE);

@@ -91,7 +91,6 @@ class NotificationMessageTest {
             """
             [FB-12] 로그인 화면 깨짐 — 김지민 님이 티켓을 수정했습니다
             상태: 백로그 → 진행 중
-            앱에서 열기: web+flowbit://flowbit.example.com/issue/FB-12
             https://flowbit.example.com/issue/FB-12
             """.trimIndent(),
             message("https://flowbit.example.com/issue/FB-12").text,

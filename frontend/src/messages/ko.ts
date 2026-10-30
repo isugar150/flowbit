@@ -11,6 +11,15 @@ export const ko = {
       invalid: "이 앱에서 열 수 없는 링크입니다. 원래 알림의 웹 링크를 이용해 주세요.",
       home: "내 티켓으로 이동",
     },
+    notificationLink: {
+      title: "Flowbit 알림 열기",
+      loading: "알림 링크를 확인하고 있습니다…",
+      trying: "설치한 앱을 여는 중입니다. 앱이 열리지 않으면 웹에서 이어집니다.",
+      failed: "알림 링크가 만료되었거나 불러올 수 없습니다. Flowbit에서 알림을 확인해 주세요.",
+      app: "앱에서 열기",
+      web: "웹에서 열기",
+      hint: "처음 앱을 열 때 브라우저의 허용이 필요할 수 있습니다. 앱을 설치하지 않았다면 웹에서 열기를 선택하세요.",
+    },
   },
   common: {
     showPassword: "비밀번호 보기",
@@ -1954,7 +1963,7 @@ export const ko = {
       headersHint: "한 줄에 하나씩 \"이름: 값\". 예: Authorization: Bearer abc123",
       bodyTemplate: "본문 템플릿",
       bodyTemplateHint:
-        "비워 두면 표준 JSON 을 보냅니다. 직접 쓰면 {{자리표시자}}가 값으로 바뀝니다: {{text}} {{title}} {{headline}} {{changes}} {{event}} {{issue.key}} {{issue.title}} {{issue.url}} {{issue.appUrl}} {{appUrl}} {{issue.number}} {{actor.name}} {{recipient.email}} {{recipient.name}} {{recipient.loginId}} {{deliveryId}} {{payload}}(표준 JSON 전체). JSON 본문에서는 따옴표 같은 문자가 자동으로 이스케이프됩니다.",
+        "비워 두면 표준 JSON 을 보냅니다. 직접 쓰면 {{자리표시자}}가 값으로 바뀝니다: {{text}} {{title}} {{headline}} {{changes}} {{event}} {{issue.key}} {{issue.title}} {{issue.url}} {{issue.appUrl}} {{appUrl}} {{webUrl}} {{issue.number}} {{actor.name}} {{recipient.email}} {{recipient.name}} {{recipient.loginId}} {{deliveryId}} {{payload}}(표준 JSON 전체). JSON 본문에서는 따옴표 같은 문자가 자동으로 이스케이프됩니다.",
       presets: "예시 넣기",
       presetStandard: "표준 JSON",
       signingSecret: "서명 비밀 값",

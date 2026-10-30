@@ -237,3 +237,7 @@ project_issue_fields에 프로젝트별 이름·불변 형식·기본값을 저�
 ## 일반 댓글 해결 (2026-10-30)
 
 V21__comment_resolution.sql: issue_comments·content_comments에 resolved_at(timestamptz null)·resolved_by(uuid null, users FK·부분 인덱스) 추가. 두 값은 함께 null이거나 원 댓글에서 함께 채워져야 한다. 기존 댓글은 미해결이다.
+
+## 알림 연결 링크 (2026-10-30)
+
+V22__notification_links.sql: notification_links(token_hash text PK SHA-256 64자리, target_path text 1~512, created_at·expires_at timestamptz). 32바이트 난수 토큰의 원문은 발송 HTTPS URL에만 사용하며 DB에는 해시만 저장한다. 90일 뒤 만료, expires_at 인덱스와 새 발급 시 만료 정리. 알림 내용·사용자·인증 권한은 저장하지 않고 백업의 업무 데이터에는 포함하지 않는다.

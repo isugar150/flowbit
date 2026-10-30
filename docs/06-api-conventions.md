@@ -169,3 +169,7 @@ POST·DELETE /api/v1/comments/{id}/resolution 및 /api/v1/content-comments/{id}/
 ## PWA 알림 링크 (2026-10-30)
 
 API 알림의 표준 JSON에 appUrl(null 가능), 티켓 issue 객체에 appUrl을 추가한다. 기존 url은 웹 주소를 유지한다. {{appUrl}}·{{issue.appUrl}} 템플릿 변수는 전용 티켓 링크이며 미지원 대상이나 공개 주소 미설정 시 빈 문자열이다. 프런트 manifest의 전용 프로토콜 수신 화면은 /open-app?url=인코딩된전용링크다. 인증·권한 API는 확장하지 않는다.
+
+## 알림별 HTTPS 연결 (2026-10-30)
+
+GET /api/v1/public/notification-links/{token}: 익명 경로 조회, {path}, no-store·no-referrer. 유효하지 않거나 만료면 404 NOTIFICATION_LINK_NOT_FOUND, IP당 분당120회. 콘텐츠 조회/로그인/권한 API는 열지 않는다. 알림 발송 시 url·issue.url·{{text}}는 /n/{token} HTTPS 중간 링크를 사용하고, webUrl·{{webUrl}}은 원래 웹 주소, appUrl은 고급 프로토콜 연동을 유지한다.

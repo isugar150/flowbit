@@ -75,6 +75,7 @@ class Mailer {
 /** Mails each subscriber who has an address and has not switched mail off. One mail per person. */
 @Component
 class MailNotificationChannel(
+    private val links: NotificationLinks,
     private val settingsService: NotificationSettingsService,
     private val userRepository: UserRepository,
     private val mailer: Mailer,
@@ -113,10 +114,12 @@ class MailNotificationChannel(
                 .toList()
                 .filter { it.notifyEmail }
                 .mapNotNull { it.email }
+        if (addresses.isEmpty()) return 0
+        val linked = links.prepare(message)
         var sent = 0
         for (address in addresses) {
             try {
-                mailer.send(settings, address, message.title, textOf(message), htmlOf(message))
+                mailer.send(settings, address, linked.title, textOf(linked), htmlOf(linked))
                 sent += 1
             } catch (e: Exception) {
                 // One bad address must not keep the mail from everyone after it.
