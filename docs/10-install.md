@@ -116,7 +116,7 @@ docker run -d --name flowbit --restart unless-stopped \
 | `FLOWBIT_DB_PORT` | `5432` | PostgreSQL 포트 |
 | `FLOWBIT_DB_NAME` | `flowbit` | DB 이름 |
 | `FLOWBIT_DB_USER`, `FLOWBIT_DB_PASSWORD` | (필수) | DB 계정 |
-| `FLOWBIT_PUBLIC_URL` | (없음) | 사람들이 Flowbit 을 여는 주소. 메일·API 알림의 링크와 SSO 리다이렉트에 쓴다. 없으면 알림에 `/issue/FB-12` 같은 경로만 들어간다 |
+| `FLOWBIT_PUBLIC_URL` | (없음) | 사람들이 Flowbit 을 여는 주소. 메일·API 알림의 링크, SSO 리다이렉트와 PWA 설치 조회용 공개 origin에 쓴다. 없으면 알림에 `/issue/FB-12` 같은 경로만 들어간다 |
 | `FLOWBIT_WEB_PORT` | `3000` | 서버가 여는 포트. `80` 으로 바꾸면 `http://서버주소` 로 바로 열린다 |
 | `FLOWBIT_WEB_BIND` | `0.0.0.0` | 그 포트를 여는 주소. 앞에 nginx 를 두고 이 서버 안에서만 열려면 `127.0.0.1` |
 | `FLOWBIT_MAX_UPLOAD_SIZE` | `5MB` | 올릴 수 있는 파일 하나의 최대 크기(백엔드가 한 파트를 20MB 에서 끊으므로 그 이상으로는 올릴 수 없다). 프록시를 두면 그 쪽 본문 제한(`client_max_body_size`)도 맞춘다. 화면에 보이는 "N MB까지"와 올리기 전의 크기 검사도 이 값을 따르고, 관리자 설정 > 파일 관리에서 현재 값을 볼 수 있다 |
@@ -251,3 +251,5 @@ Windows Chrome·Edge로 설치한 PWA는 web+flowbit 프로토콜을 등록한�
 새 알림 메시지는 /n/{임의토큰} HTTPS 링크 하나로 표시한다. V22 마이그레이션은 백엔드 재시작 때 적용되고 기존 FLOWBIT_PUBLIC_URL을 사용한다. 메일·API 알림이 발송될 때 해시와 목적지를 저장하고 링크는90일 유효하다. 중간 페이지는 앱 실행을 시도하고 웹 대체·수동 선택을 제공한다. 브라우저가 자동 실행을 막을 수 있으며 최초 허용/프로토콜 등록 갱신 조건은 동일하다. 이전 메시지의 web+flowbit 문자열을 갱신하지는 않는다.
 
 2026-10-30 설치 감지: 현재 origin의 PWA 자기 참조를 manifest.related_applications에 제공하고 getInstalledRelatedApps로 설치를 확인한다. 데스크톱 지원은 Chrome·Edge140 이상이며 같은 브라우저 프로필의 설치만 조회한다. 미설치·조회 불가이면 웹으로 직접 연다. 추가 환경 변수는 없다.
+
+PWA가 설치돼 있는데 알림이 웹으로 열리면 `/manifest.webmanifest`의 related_applications.id·url이 실제 HTTPS 설치 주소와 같은지 확인한다. TLS를 외부에서 종료하면 내부 X-Forwarded-Proto가 http일 수 있으므로 기존 FLOWBIT_PUBLIC_URL을 정확한 HTTPS 공개 주소로 지정한다. 프런트도 컨테이너의 이 변수를 읽어 설치 ID를 생성한다.

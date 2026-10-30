@@ -275,4 +275,4 @@ manifest.protocol_handlers는 web+flowbit를 /open-app?url=%s로 등록한다. o
 
 ## 설치 확인 후 알림 분기 (2026-10-30)
 
-manifest는 headers()로 현재 Host·프로토콜의 자기 참조 webapp related_applications(id=origin/, url=origin/manifest.webmanifest)를 생성한다. id=/·scope=/는 유지하고 prefer_related_applications=false다. 경로 조회와 getInstalledRelatedApps를 병렬 처리해 해당 앱 설치가 확인된 경우에만 자동 프로토콜 호출한다. 미설치·미지원·오류·500ms 초과이면 웹으로 직접 이동한다. 설치 상태는 저장하지 않는다.
+manifest는 유효한 FLOWBIT_PUBLIC_URL의 origin을 우선하고, 미설정/잘못된 값일 때만 headers()의 Host·프로토콜을 사용해 자기 참조 webapp related_applications(id=origin/, url=origin/manifest.webmanifest)를 생성한다. TLS 뒤 내부 HTTP 헤더가 HTTPS 설치 ID를 바꾸지 않게 한다. id=/·scope=/는 유지하고 prefer_related_applications=false다. 경로 조회와 getInstalledRelatedApps를 병렬 처리해 해당 앱 설치가 확인된 경우에만 자동 프로토콜 호출한다. 미설치·미지원·오류·500ms 초과이면 웹으로 직접 이동한다. 설치 상태는 저장하지 않는다.

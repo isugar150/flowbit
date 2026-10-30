@@ -13,7 +13,14 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const protocol = forwardedProtocol === "http" || forwardedProtocol === "https"
     ? forwardedProtocol
     : /^(localhost|127\.0\.0\.1|\[::1\])(:|$)/.test(host) ? "http" : "https";
-  const origin = new URL(`${protocol}://${host}`).origin;
+  let origin = new URL(`${protocol}://${host}`).origin;
+  // TLS can end before Next.js; the final internal hop may report plain HTTP.
+  try {
+    const configured = new URL(process.env.FLOWBIT_PUBLIC_URL?.trim() ?? "");
+    if ((configured.protocol === "https:" || configured.protocol === "http:") && !configured.username && !configured.password) {
+      origin = configured.origin;
+    }
+  } catch { /* Without a valid public URL, use the request's origin. */ }
   // Newer manifest members (`handle_links` is not in Next's type yet); browsers that do not know them ignore them.
   const links = {
     // A link to this site is better opened in the installed app than in a browser tab (Chrome decides; see docs/10-install.md).

@@ -1,5 +1,12 @@
 # 진행 상황
 
+## 2026-10-30 HTTPS 프록시 뒤 PWA 설치 조회 실패 수정
+
+- [x] 사용자 링크를 같은 사용자 Chrome에서 열어 /issue/MK-62 웹 화면으로 이동하는 것을 재현했다. 브라우저에서 운영 manifest도 직접 열어 related_applications.id·url이 http://issues.motherk.link로 내려오고 실제 HTTPS 설치 origin과 다른 것을 확인했다. getInstalledRelatedApps 반환값 자체는 브라우저 읽기 전용 평가 범위 제한으로 관찰하지 못했다.
+- [x] 요청 헤더만으로 origin을 만들던 부분을 수정했다. 기존 FLOWBIT_PUBLIC_URL의 유효한 HTTP(S) origin을 우선하고, 없거나 잘못된 경우에만 기존 헤더를 사용한다. 컨테이너는 기존 환경 변수를 프런트와 백엔드가 함께 상속하므로 새 변수/배포 계약/DB 변경 없음. 기존 앱 id=/는 유지한다. 도움말·운영/개발 가이드·명세·결정을 갱신했다.
+- 검증: 프런트 lint·typecheck·156개 단위·프로덕션 빌드 통과. 외부 HTTPS+내부 전달 http 헤더 회귀, localhost 포트, 잘못된/사용자정보 포함 공개 URL의 대체를 검증했다. 브라우저 연결 도구로 실제 운영의 잘못된 ID와 링크 이동을 확인했으나 수정본의 운영 배포·실제 설치 조회/앱 실행은 아직 확인하지 않았다.
+- 다음: 수정본을 재배포하고 운영 manifest 자기 참조가 https://issues.motherk.link/와 https://issues.motherk.link/manifest.webmanifest인지 확인한 뒤 제공된 알림 링크로 실기기 검증한다.
+
 ## 2026-10-30 미설치 시 웹으로 바로 열기
 
 - [x] 사용자 요청: PWA가 미설치이면 앱 실행 시도/2.5초 대기 없이 웹으로 바로 연다. 현재 프로필의 getInstalledRelatedApps에서 Flowbit 설치가 확인된 Windows Chromium 일반 창만 자동 프로토콜 실행을 한다. 미설치·미지원·오류·500ms 초과는 웹으로 이동하고, 경로 조회와 설치 확인은 병렬로 수행한다. 설치 상태를 캐시하지 않는다.

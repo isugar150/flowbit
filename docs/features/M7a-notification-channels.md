@@ -196,3 +196,7 @@ IssueAnnouncer.changed ─ 커밋 뒤 ─▶ NotificationDispatcher.dispatch   (
 - 미설치, 조회 API 미지원·오류·500ms 초과는 모두 앱 실행 시도 없이 웹 목적지로 이동한다. 예전 설치 여부를 localStorage 등에 캐시하지 않는다. 경로 조회와 설치 확인을 병렬로 수행한다. 현재 프로필/저장소의 설치만 판단하며 다른 브라우저·프로필의 설치까지 추측하지 않는다.
 - manifest.related_applications에 현재 설치의 root 앱 ID와 manifest URL을 webapp으로 자기 참조한다. 요청의 Host·프로토콜로 URL을 만들고 기존 id=/와 scope=/는 유지한다. prefer_related_applications=false로 PWA 설치 UI를 유지한다.
 - 설치 확인 후의 수신 확인·중간 탭 닫기·실패 시 웹 대체 동작은 유지한다. Chrome 공식 지원은 데스크톱 Chrome·Edge140 이상이다: https://developer.chrome.com/docs/capabilities/get-installed-related-apps
+
+## HTTPS 프록시 뒤 설치 조회 ID 수정 (2026-10-30)
+
+실제 https://issues.motherk.link/manifest.webmanifest 조회에서 related_applications.id와 url이 http://issues.motherk.link로 생성되는 것을 확인했다. 외부 TLS 뒤 내부 HTTP 구간의 x-forwarded-proto를 그대로 쓰면서 설치된 HTTPS 앱과 조회 대상 origin이 달라졌다. manifest 자기 참조 origin은 기존 FLOWBIT_PUBLIC_URL의 유효한 HTTP(S) origin을 우선 사용하고, 미설정/잘못된 값일 때만 기존 요청 Host·전달 프로토콜을 사용한다. 상대 앱 id=/·scope=/·프로토콜 수신 경로는 유지한다. 새 환경 변수는 없다.
