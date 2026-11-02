@@ -71,6 +71,15 @@ class IssueService(
             view.project?.let { projectService.accessById(user, it.id)?.role?.canManage } == true
         }
 
+    /**
+     * The requests the caller made that wait in a triage queue (or were declined), whether or not they manage the project,
+     * so the one who asked can follow what became of it. They stay out of the ordinary lists until accepted.
+     */
+    suspend fun myRequests(
+        user: AuthenticatedUser,
+        rejected: Boolean = false,
+    ): List<IssueView> = queries.myRequests(lookup.viewer(user), rejected)
+
     /** The caller's own issues ("내 티켓"). */
     suspend fun mine(
         user: AuthenticatedUser,

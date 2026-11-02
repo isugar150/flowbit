@@ -195,6 +195,18 @@ class IssueQueries(
             it.visibleTo(viewer)
         }
 
+    /** The requests the viewer made that are waiting in a triage queue, or were declined from it, the newest first. */
+    suspend fun myRequests(
+        viewer: Viewer,
+        rejected: Boolean = false,
+    ): List<IssueView> =
+        select(
+            "where $VISIBLE and i.deleted_at is null and ${if (rejected) "i.triage_rejected" else "i.triage"} and i.project_id is not null " +
+                "and i.created_by = :viewerId order by i.created_at desc limit $LIST_LIMIT",
+        ) {
+            it.visibleTo(viewer)
+        }
+
     /** The viewer's own issues ("내 티켓"), most recently changed first. */
     suspend fun listForUser(
         viewer: Viewer,

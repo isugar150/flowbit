@@ -39,6 +39,57 @@ class TriageIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `관리 역할이 아닌 사람도 자기가 요청한 티켓을 대기 중과 거절됨으로 볼 수 있다`() {
+        admin.patch("/api/v1/projects/${p("PAY")}", """{"triageEnabled":true}""")
+        val otherId = admin.post("/api/v1/admin/members", """{"loginId":"other","password":"$PASSWORD"}""").json()["id"]
+        admin.put("/api/v1/projects/${p("PAY")}/members/$otherId", """{"role":"EDITOR"}""")
+        val other = client().also { it.login("other", PASSWORD) }
+        for (title in listOf("대기할 요청", "거절될 요청", "수락될 요청")) {
+            requester.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"$title"}""")
+        }
+        other.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"다른 사람의 요청"}""")
+        admin.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"관리자의 요청","triage":true}""")
+
+        fun keys(
+            client: ApiClient,
+            path: String,
+        ) = client
+            .get(path)
+            .jsonList()
+            .map { it["key"] }
+            .sortedBy { it.toString() }
+
+        // Each one sees what they asked for, and nothing of what others asked.
+        assertEquals(listOf("FB-1", "FB-2", "FB-3"), keys(requester, "/api/v1/triage/mine"))
+        assertEquals(listOf("FB-4"), keys(other, "/api/v1/triage/mine"))
+        assertEquals(listOf("FB-5"), keys(admin, "/api/v1/triage/mine"))
+        assertEquals(emptyList(), keys(requester, "/api/v1/triage/mine?rejected=true"))
+        // Seeing their own is not the right to sort: the queue stays the managers'.
+        assertEquals(emptyList(), keys(requester, "/api/v1/triage"))
+
+        admin.patch("/api/v1/issues/2", """{"triage":false,"status":"CANCELED","triageRejected":true}""")
+        admin.patch("/api/v1/issues/3", """{"triage":false}""")
+
+        assertEquals(listOf("FB-1"), keys(requester, "/api/v1/triage/mine"))
+        assertEquals(listOf("FB-2"), keys(requester, "/api/v1/triage/mine?rejected=true"))
+        assertEquals(listOf("FB-4"), keys(other, "/api/v1/triage/mine"))
+        assertTrue("FB-3" in keys(requester, "/api/v1/issues"))
+    }
+
+    @Test
+    fun `요청한 티켓은 지우면 요청 목록에서 빠지고 프로젝트가 없으면 들어가지 않는다`() {
+        admin.patch("/api/v1/projects/${p("PAY")}", """{"triageEnabled":true}""")
+        requester.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"지울 요청"}""")
+        requester.post("/api/v1/issues", """{"title":"프로젝트 없는 티켓"}""")
+
+        assertEquals(listOf("FB-1"), requester.get("/api/v1/triage/mine").jsonList().map { it["key"] })
+
+        requester.delete("/api/v1/issues/1")
+
+        assertEquals(emptyList(), requester.get("/api/v1/triage/mine").jsonList())
+    }
+
+    @Test
     fun `관리 역할인 사람은 티켓을 만들 때 트리아지로 보낼지 고른다`() {
         admin.patch("/api/v1/projects/${p("PAY")}", """{"triageEnabled":true}""")
 

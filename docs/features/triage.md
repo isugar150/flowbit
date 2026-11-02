@@ -17,6 +17,17 @@
 
 표 마이그레이션 `V10`. 코드: `IssueService.triageQueue`, `IssueController.TriageController`, 프런트 `app/(app)/triage`, `features/issues/components/triage-queue.tsx`, `features/projects/components/project-triage-field.tsx`. 테스트 `TriageIntegrationTest`.
 
+## 내가 요청한 티켓 보기 (2026-11-03)
+
+관리 역할이 아닌 사람이 만든 티켓은 대기 중인 동안 내 티켓·전체 티켓에서 빠지므로, 만든 본인도 그 티켓이 어떻게 됐는지 볼 곳이 없었다. 요청함 화면의 세 번째 보기 **내가 요청한**(`/triage?mine=true`)이 이를 채운다.
+
+- 내가 만든 티켓 중 **분류를 기다리는 것**과 **거절된 것**을 두 구역으로 보인다. 최근에 만든 것부터 보이고, 줄에는 번호·제목·프로젝트·시각이 있다. 제목을 누르면 티켓을 열어 거절 이유 댓글과 상세를 읽는다. 수락되면 이 보기에서 빠지고 전체 티켓과 내 티켓에 나타난다.
+- **읽기 전용**이다. 우선순위 변경·수락·중복·거절 버튼은 없고, 분류는 프로젝트 관리 역할만 한다(관리 역할이 자기 티켓을 요청함으로 보낸 경우도 이 보기에는 읽기 전용으로 나오며, 분류는 ‘대기 중’에서 한다). **남이 요청한 티켓은 보이지 않는다.**
+- 지금 들어갈 수 있는 프로젝트의 티켓만 보인다(프로젝트에서 빠졌거나 프로젝트를 아카이브하면 보이지 않는다). 삭제한 티켓과 프로젝트 없는 티켓은 대기열에 들어가지 않으므로 나오지 않는다.
+- 사이드바의 **요청함**을 열었을 때 ‘대기 중’이 비어 있고 내가 요청한 티켓이 있으면 ‘내가 요청한’이 먼저 열린다(관리 역할이 아닌 사람이 빈 화면을 보지 않게 한다). ‘대기 중’ 탭은 `/triage?rejected=false`로 직접 연다.
+- API: `GET /api/v1/triage/mine`(분류를 기다리는 내 요청), `?rejected=true`(거절된 내 요청). 응답은 `GET /api/v1/triage`와 같은 티켓 목록이다. 기존 `GET /api/v1/triage`는 그대로 내가 관리하는 프로젝트의 대기열이다.
+- 코드: `IssueQueries.myRequests`, `IssueService.myRequests`, `TriageController.mine`, 프런트 `app/(app)/triage/page.tsx`, `triage-queue.tsx`의 `MyRequests`. 테스트 `TriageIntegrationTest`.
+
 ## 거절된 요청 다시 보기 (2026-10-28)
 
 요청함 화면에서 **대기 중 / 거절됨**을 전환한다. 거절됨 목록에서 제목을 눌러 이유 댓글과 상세를 읽는다. 일반 취소·중복과 구분하려고 `issues.triage_rejected`를 저장한다(V12). 기존 PATCH에 `triageRejected: true`를 함께 보내며, 대기 티켓을 관리 역할이 취소하며 분류할 때만 허용한다. 다시 대기열로 보내면 거절 표시는 초기화한다. `GET /api/v1/triage?rejected=true`로 조회한다. 이전 버전은 거절 여부를 저장하지 않아 기존 취소 티켓을 소급 분류하지 않는다.

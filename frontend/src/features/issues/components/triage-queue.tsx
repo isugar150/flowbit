@@ -20,7 +20,8 @@ const m = messages.triage;
 /** A plain paragraph as an editor document, for the reason a request is declined. */
 const textDoc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
-function TriageRow({ issue, rejected }: { issue: Issue; rejected: boolean }) {
+/** `readOnly` is a request the person made themself: they follow it here, but sorting it is for the project's managers. */
+function TriageRow({ issue, rejected, readOnly = false }: { issue: Issue; rejected: boolean; readOnly?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
@@ -43,10 +44,11 @@ function TriageRow({ issue, rejected }: { issue: Issue; rejected: boolean }) {
         </Link>
         <span className="text-xs text-muted-foreground">
           {issue.project ? `${issue.project.name} · ` : ""}
-          {m.requestedBy(personName(issue.createdBy))} · <TimeAgo iso={issue.createdAt} />
+          {readOnly ? null : <>{m.requestedBy(personName(issue.createdBy))} · </>}
+          <TimeAgo iso={issue.createdAt} />
         </span>
       </div>
-      {!rejected ? <div className="flex flex-wrap items-center gap-2">
+      {!rejected && !readOnly ? <div className="flex flex-wrap items-center gap-2">
         <ChipSelect
           label={m.priorityOf(issue.key)}
           value={issue.priority}
@@ -113,6 +115,33 @@ export function TriageQueue({ issues, rejected = false }: { issues: Issue[]; rej
           <TriageRow key={issue.id} issue={issue} rejected={rejected} />
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** The requests the person made: the ones waiting, then the declined ones, to follow without sorting them (docs/features/triage.md). */
+export function MyRequests({ waiting, declined }: { waiting: Issue[]; declined: Issue[] }) {
+  if (waiting.length === 0 && declined.length === 0) {
+    return <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">{m.mineEmpty}</p>;
+  }
+  return (
+    <div className="flex flex-col">
+      <p className="px-5 pb-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.mineHint}</p>
+      {[
+        { title: m.mineWaiting(waiting.length), issues: waiting, rejected: false },
+        { title: m.mineRejected(declined.length), issues: declined, rejected: true },
+      ]
+        .filter((section) => section.issues.length > 0)
+        .map((section) => (
+          <section key={String(section.rejected)} aria-label={section.title}>
+            <h2 className="border-t px-5 py-2 text-xs font-medium text-muted-foreground">{section.title}</h2>
+            <ul className="border-t">
+              {section.issues.map((issue) => (
+                <TriageRow key={issue.id} issue={issue} rejected={section.rejected} readOnly />
+              ))}
+            </ul>
+          </section>
+        ))}
     </div>
   );
 }
