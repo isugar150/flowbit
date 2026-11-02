@@ -20,8 +20,8 @@ const m = messages.triage;
 /** A plain paragraph as an editor document, for the reason a request is declined. */
 const textDoc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
-/** `readOnly` is a request the person made themself: they follow it here, but sorting it is for the project's managers. */
-function TriageRow({ issue, rejected, readOnly = false }: { issue: Issue; rejected: boolean; readOnly?: boolean }) {
+/** What a manager does with a waiting request: set its priority, accept it, mark it a duplicate or decline it. */
+function TriageActions({ issue }: { issue: Issue }) {
   const [error, setError] = useState<string | null>(null);
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
@@ -36,19 +36,8 @@ function TriageRow({ issue, rejected, readOnly = false }: { issue: Issue; reject
   const close = useRefreshingMutation(updateIssue, done);
 
   return (
-    <li className="flex flex-col gap-2 border-b px-5 py-3 text-[0.8125rem] leading-5">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-xs text-muted-foreground tabular-nums">{issue.key}</span>
-        <Link href={`/issue/${issue.key}`} className="min-w-0 flex-1 truncate rounded-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          {issue.title}
-        </Link>
-        <span className="text-xs text-muted-foreground">
-          {issue.project ? `${issue.project.name} · ` : ""}
-          {readOnly ? null : <>{m.requestedBy(personName(issue.createdBy))} · </>}
-          <TimeAgo iso={issue.createdAt} />
-        </span>
-      </div>
-      {!rejected && !readOnly ? <div className="flex flex-wrap items-center gap-2">
+    <>
+      <div className="flex flex-wrap items-center gap-2">
         <ChipSelect
           label={m.priorityOf(issue.key)}
           value={issue.priority}
@@ -67,7 +56,7 @@ function TriageRow({ issue, rejected, readOnly = false }: { issue: Issue; reject
         <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setDeclining((current) => !current)}>
           {m.decline}
         </Button>
-      </div> : null}
+      </div>
       {declining ? (
         <form
           className="flex flex-col gap-2"
@@ -98,50 +87,70 @@ function TriageRow({ issue, rejected, readOnly = false }: { issue: Issue; reject
         </form>
       ) : null}
       {error ? <FormAlert>{error}</FormAlert> : null}
+    </>
+  );
+}
+
+/** One request as a card: its number and age, the title that opens it, where it was asked and by whom, and what can be done with it. */
+function RequestCard({ issue, byline, children }: { issue: Issue; byline?: string; children?: React.ReactNode }) {
+  const origin = [issue.project?.name, byline].filter(Boolean).join(" · ");
+  return (
+    <li className="flex min-w-0 flex-col gap-3 rounded-lg border bg-background p-4 text-[0.8125rem] leading-5 shadow-xs">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span className="tabular-nums">{issue.key}</span>
+        <TimeAgo iso={issue.createdAt} />
+      </div>
+      <Link href={`/issue/${issue.key}`} className="line-clamp-2 break-words rounded-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        {issue.title}
+      </Link>
+      {origin ? <p className="truncate text-xs text-muted-foreground">{origin}</p> : null}
+      {children}
     </li>
   );
 }
 
-/** The issues waiting to be sorted, oldest first (docs/features/triage.md). */
-export function TriageQueue({ issues, rejected = false }: { issues: Issue[]; rejected?: boolean }) {
-  if (issues.length === 0) {
-    return <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">{rejected ? m.rejectedEmpty : m.empty}</p>;
-  }
+function CardSection({ title, count, hint, children }: { title: string; count: number; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col">
-      <p className="px-5 pb-2 text-[0.8125rem] leading-5 text-muted-foreground">{rejected ? m.rejectedCount(issues.length) : m.waiting(issues.length)}</p>
-      <ul className="border-t">
-        {issues.map((issue) => (
-          <TriageRow key={issue.id} issue={issue} rejected={rejected} />
-        ))}
-      </ul>
-    </div>
+    <section aria-label={title} className="flex flex-col gap-2">
+      <h2 className="flex items-baseline gap-2 px-5 text-sm font-semibold">
+        {title}
+        <span className="text-xs font-normal text-muted-foreground tabular-nums">{count}</span>
+      </h2>
+      {hint ? <p className="px-5 text-xs leading-5 text-muted-foreground">{hint}</p> : null}
+      <ul className="grid gap-3 px-5 sm:grid-cols-2 xl:grid-cols-3">{children}</ul>
+    </section>
   );
 }
 
-/** The requests the person made: the ones waiting, then the declined ones, to follow without sorting them (docs/features/triage.md). */
-export function MyRequests({ waiting, declined }: { waiting: Issue[]; declined: Issue[] }) {
-  if (waiting.length === 0 && declined.length === 0) {
-    return <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">{m.mineEmpty}</p>;
+/**
+ * The requests as cards: the ones waiting to be sorted in the projects the person manages (or the declined ones) above,
+ * the ones the person made themself below, which they follow but cannot sort (docs/features/triage.md).
+ */
+export function TriageCards({ queue, mine, rejected = false }: { queue: Issue[]; mine: Issue[]; rejected?: boolean }) {
+  // A manager's own request is in both lists; it shows once, above, where it can be sorted.
+  const queued = new Set(queue.map((issue) => issue.id));
+  const requested = mine.filter((issue) => !queued.has(issue.id));
+  if (queue.length === 0 && requested.length === 0) {
+    return <p className="border-t px-5 py-6 text-[0.8125rem] leading-5 text-muted-foreground">{rejected ? m.rejectedEmpty : m.empty}</p>;
   }
   return (
-    <div className="flex flex-col">
-      <p className="px-5 pb-2 text-[0.8125rem] leading-5 text-muted-foreground">{m.mineHint}</p>
-      {[
-        { title: m.mineWaiting(waiting.length), issues: waiting, rejected: false },
-        { title: m.mineRejected(declined.length), issues: declined, rejected: true },
-      ]
-        .filter((section) => section.issues.length > 0)
-        .map((section) => (
-          <section key={String(section.rejected)} aria-label={section.title}>
-            <h2 className="border-t px-5 py-2 text-xs font-medium text-muted-foreground">{section.title}</h2>
-            <ul className="border-t">
-              {section.issues.map((issue) => (
-                <TriageRow key={issue.id} issue={issue} rejected={section.rejected} readOnly />
-              ))}
-            </ul>
-          </section>
-        ))}
+    <div className="flex flex-col gap-6 border-t pt-4 pb-6">
+      {queue.length > 0 ? (
+        <CardSection title={rejected ? m.rejectedSection : m.waitingSection} count={queue.length}>
+          {queue.map((issue) => (
+            <RequestCard key={issue.id} issue={issue} byline={m.requestedBy(personName(issue.createdBy))}>
+              {rejected ? null : <TriageActions issue={issue} />}
+            </RequestCard>
+          ))}
+        </CardSection>
+      ) : null}
+      {requested.length > 0 ? (
+        <CardSection title={m.mineSection} count={requested.length} hint={m.mineHint}>
+          {requested.map((issue) => (
+            <RequestCard key={issue.id} issue={issue} />
+          ))}
+        </CardSection>
+      ) : null}
     </div>
   );
 }
