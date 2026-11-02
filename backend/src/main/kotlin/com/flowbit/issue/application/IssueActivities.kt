@@ -104,7 +104,6 @@ data class IssueChange(
      */
     val taggedIds: List<UUID> = emptyList(),
     /** Managers to ask to classify a newly queued issue, independently of subscriptions. */
-    val triageRecipientIds: List<UUID> = emptyList(),
     val automationNotices: List<AutomationNotice> = emptyList(),
 ) {
     companion object {

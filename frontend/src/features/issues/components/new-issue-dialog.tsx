@@ -100,8 +100,6 @@ export function NewIssueDialog({
   const [revision, setRevision] = useState(0);
   const content = useRef<RichDoc | null>(null);
   const [createMore, setCreateMore] = useState(false);
-  // A manager of a project that uses triage picks whether the ticket goes through the queue (D-236); off, it goes straight onto the list.
-  const [sendToTriage, setSendToTriage] = useState(false);
   const [titleError, setTitleError] = useState(false);
   const [lastCreated, setLastCreated] = useState<string | null>(null);
   // Closing with a title or a body that was not made into a ticket asks first (D-182).
@@ -147,8 +145,6 @@ export function NewIssueDialog({
       setTouched(false);
       setTitleError(false);
       setLastCreated(null);
-      // Each time the dialog opens the ticket starts as one that goes straight in; "계속 만들기" keeps the pick between tickets.
-      setSendToTriage(false);
     }
   }
 
@@ -192,9 +188,6 @@ export function NewIssueDialog({
     },
   });
   const members = other ? (fetched.data ?? []) : defaultMembers;
-  // Only a manager has the choice: what anyone else makes in a project that uses triage always goes through the queue.
-  const chosenProject = projects.find((project) => project.id === projectId);
-  const canChooseTriage = chosenProject?.triageEnabled === true && chosenProject.myRole === "MANAGER";
   // Assignees belong to a project; changing the project starts those over.
   const setProject = (key: string | null) => {
     // The person the list is for (D-195) stays while they are still picked: they may make a ticket in this project, so they can be given it.
@@ -228,7 +221,6 @@ export function NewIssueDialog({
       ...(drafts.length > 0 ? { customProperties: draftsToInput(drafts) } : null),
       projectFields: Object.entries(projectValues).map(([fieldId, value]) => ({ fieldId, value })),
       ...(relations.length > 0 ? { relations: relations.map((relation) => ({ kind: relation.kind, targetNumber: relation.target.number })) } : null),
-      ...(canChooseTriage && sendToTriage ? { triage: true } : null),
     });
   };
 
@@ -385,17 +377,6 @@ export function NewIssueDialog({
               <p role="status" className="mr-auto text-[0.8125rem] leading-5 text-muted-foreground">
                 {m.created(lastCreated)}
               </p>
-            ) : null}
-            {canChooseTriage ? (
-              <label title={m.sendToTriageHint} className="flex items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  checked={sendToTriage}
-                  onChange={(event) => setSendToTriage(event.target.checked)}
-                />
-                {m.sendToTriage}
-              </label>
             ) : null}
             <label className="flex items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground">
               <input

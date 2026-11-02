@@ -72,12 +72,6 @@ class IssueAnnouncer(
     ) {
         realtime.publish(RealtimeHub.ISSUES, actorId ?: RealtimeHub.NOBODY)
         change.projectIds.forEach { realtime.publish("project:$it", actorId ?: RealtimeHub.NOBODY) }
-        if (change.triageRecipientIds.isNotEmpty()) {
-            val notification =
-                notificationOf(actorId, change, actorName(), recipientIds = change.triageRecipientIds)
-                    .copy(events = listOf(IssueNotification.Event("TRIAGE_REQUESTED", emptyMap())))
-            notifications.dispatchImmediate(notification)
-        }
         if (change.automationNotices.isNotEmpty()) announceAutomations(actorId, change, actorName())
         commented(actorId, change, actorName)
     }

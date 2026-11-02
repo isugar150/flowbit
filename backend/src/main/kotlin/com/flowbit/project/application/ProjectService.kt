@@ -78,8 +78,6 @@ data class ProjectView(
     val openToAll: Boolean = false,
     /** Whether the project's issues carry an estimate (D-228). */
     val estimatesEnabled: Boolean = false,
-    /** Whether an issue made by someone who does not manage the project waits in the triage queue (D-231). */
-    val triageEnabled: Boolean = false,
     /** The overview document as raw editor JSON. Loaded for a single project only, never in lists. */
     val content: String? = null,
 )
@@ -300,10 +298,10 @@ class ProjectService(
         val access = access(user, projectId, administrator)
         val project = access.project
         if (administrator && !ADMINISTRATOR_FIELDS.containsAll(changes.keys)) {
-            throw ForbiddenException("관리자 화면에서는 프로젝트의 이름, 공개 범위, 추정치, 요청함만 바꿀 수 있습니다")
+            throw ForbiddenException("관리자 화면에서는 프로젝트의 이름, 공개 범위, 추정치만 바꿀 수 있습니다")
         }
         if (!access.role.canEdit ||
-            (("name" in changes || "openToAll" in changes || "estimatesEnabled" in changes || "triageEnabled" in changes) && !access.role.canManage)
+            (("name" in changes || "openToAll" in changes || "estimatesEnabled" in changes) && !access.role.canManage)
         ) {
             throw ForbiddenException("프로젝트를 수정할 권한이 없습니다")
         }
@@ -318,12 +316,6 @@ class ProjectService(
                 changes["estimatesEnabled"] as? Boolean ?: throw ValidationException("estimatesEnabled", "INVALID", "값이 올바르지 않습니다")
             } else {
                 project.estimatesEnabled
-            }
-        val triageEnabled =
-            if ("triageEnabled" in changes) {
-                changes["triageEnabled"] as? Boolean ?: throw ValidationException("triageEnabled", "INVALID", "값이 올바르지 않습니다")
-            } else {
-                project.triageEnabled
             }
         val name = if ("name" in changes) (changes["name"] as? String)?.trim().orEmpty() else project.name
         val description =
@@ -342,7 +334,6 @@ class ProjectService(
         if ("content" in changes) richText.store(RichText.ContentTable.PROJECTS, project.id, document)
         val accessEvents = changeAccess(project, openToAll, user, client, now)
         if (estimatesEnabled != project.estimatesEnabled) repository.updateEstimatesEnabled(project.id, estimatesEnabled, now)
-        if (triageEnabled != project.triageEnabled) repository.updateTriageEnabled(project.id, triageEnabled, now)
         contentLog.record(
             projectTarget(project.id),
             user.id,
@@ -714,7 +705,6 @@ class ProjectService(
             archivedAt = row.archivedAt,
             openToAll = row.openToAll,
             estimatesEnabled = row.estimatesEnabled,
-            triageEnabled = row.triageEnabled,
         )
 
     private fun detailErrors(
@@ -742,7 +732,7 @@ class ProjectService(
 private val PROPERTY_FIELDS = listOf("status", "priority", "leadId", "startDate", "targetDate", "labels")
 
 /** What the administrator screen may change in a project: the fields of its settings page (D-236). */
-private val ADMINISTRATOR_FIELDS = setOf("name", "openToAll", "estimatesEnabled", "triageEnabled")
+private val ADMINISTRATOR_FIELDS = setOf("name", "openToAll", "estimatesEnabled")
 
 data class ProjectAccess(
     val project: Project,

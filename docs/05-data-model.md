@@ -245,3 +245,7 @@ V21__comment_resolution.sql: issue_comments·content_comments에 resolved_at(tim
 ## 알림 연결 링크 (2026-10-30)
 
 V22__notification_links.sql: notification_links(token_hash text PK SHA-256 64자리, target_path text 1~512, created_at·expires_at timestamptz). 32바이트 난수 토큰의 원문은 발송 HTTPS URL에만 사용하며 DB에는 해시만 저장한다. 90일 뒤 만료, expires_at 인덱스와 새 발급 시 만료 정리. 알림 내용·사용자·인증 권한은 저장하지 않고 백업의 업무 데이터에는 포함하지 않는다.
+
+## V24 — 요청함 제거 (2026-11-03)
+
+위 V10·V12·V19의 요청함 컬럼과 인덱스를 제거했다. 기존 대기 티켓은 기본 백로그 상태로 이전하고 버전을 증가시킨다. 거절 티켓은 취소 상태와 내용을 보존한다. `retention_policies`의 REJECTED_REQUESTS 행을 제거하고 CHECK를 ISSUES/DOCUMENTS/COMMENTS로 제한한다. 기존 마이그레이션은 배포 이력으로 보존한다.

@@ -182,14 +182,17 @@ class McpIntegrationTest : IntegrationTest() {
     }
 
     @Test
-    fun `API와 MCP 생성은 화면의 요청함과 권한 규칙을 따른다`() {
-        admin.patch("/api/v1/projects/$project", """{"triageEnabled":true}""")
+    fun `API와 MCP 생성은 즉시 표시되고 기존 권한 규칙을 따른다`() {
         val secret = token()
-        val created = tool(secret, "create_issue", mapOf("fields" to mapOf("title" to "요청", "projectId" to project, "triage" to false)))
+        val created = tool(secret, "create_issue", mapOf("fields" to mapOf("title" to "요청", "projectId" to project)))
         assertEquals(200, created.status, created.body)
-        assertTrue(created.body.contains("\"triage\":true"))
-        assertEquals(1, admin.get("/api/v1/triage").jsonList().size)
-        assertEquals(403, tool(secret, "update_issue", mapOf("issue" to "FB-1", "fields" to mapOf("triage" to false))).status)
+        assertFalse(created.body.contains("\"triage\""))
+        assertEquals(1, admin.get("/api/v1/issues").jsonList().size)
+        assertEquals(1, editor.get("/api/v1/me/issues?scope=created").jsonList().size)
+        assertEquals(1, editor.get("/api/v1/projects/$project/issues").jsonList().size)
+        assertEquals(404, admin.get("/api/v1/triage").status)
+        assertEquals(404, admin.get("/api/v1/triage/mine").status)
+        assertFalse(tool(secret, "get_issue_options", mapOf("projectId" to project)).body.contains("triage", ignoreCase = true))
         val privateProject = admin.post("/api/v1/projects", """{"name":"비공개"}""").json()["id"]
         assertEquals(404, tool(secret, "get_issue_options", mapOf("projectId" to privateProject)).status)
         assertEquals(404, tool(secret, "create_issue", mapOf("fields" to mapOf("title" to "차단", "projectId" to privateProject))).status)
@@ -306,7 +309,6 @@ class McpIntegrationTest : IntegrationTest() {
         val privateProject = admin.post("/api/v1/projects", """{"name":"비공개 검색"}""").json()["id"]
         admin.post("/api/v1/issues", """{"title":"결제 비공개","projectId":"$privateProject"}""")
         assertFalse(tool(secret, "search_issues", mapOf("q" to "결제")).body.contains("결제 비공개"))
-        admin.patch("/api/v1/projects/$project", """{"triageEnabled":true}""")
         tool(secret, "create_issue", mapOf("fields" to mapOf("title" to "결제 요청함", "projectId" to project)))
         assertTrue(tool(secret, "search_issues", mapOf("q" to "결제 요청함")).body.contains("결제 요청함"))
     }

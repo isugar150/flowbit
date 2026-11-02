@@ -41,10 +41,6 @@ class Issue(
     var deletedBy: UUID? = null,
     /** Story points; only shown where the project turned estimates on. */
     var estimate: Int? = null,
-    /** Waiting in the triage queue of its project until a manager accepts, declines or marks it a duplicate (D-231). */
-    var triage: Boolean = false,
-    var triageRejected: Boolean = false,
-    var triageRejectedAt: Instant? = null,
     /** The cycle of its project the issue is planned in (D-232). */
     var cycleId: UUID? = null,
 ) {

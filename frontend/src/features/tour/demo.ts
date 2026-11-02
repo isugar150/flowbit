@@ -72,7 +72,6 @@ export function createDemo(): Demo {
     archivedAt: null,
     openToAll: false,
     estimatesEnabled: false,
-    triageEnabled: false,
     content: null,
   };
   const issue = (number: number, fields: Partial<Issue>): Issue => {
@@ -89,7 +88,6 @@ export function createDemo(): Demo {
     statusName: inStatus.name,
     estimate: null,
     openBlockers: 0,
-    triage: false,
     cycle: null,
     priority: "NONE",
     assignees: [],

@@ -43,8 +43,6 @@ export type Project = {
   openToAll: boolean;
   /** Whether the project's issues carry an estimate (story points); off unless a manager turns it on. */
   estimatesEnabled: boolean;
-  /** Whether an issue made by someone who does not manage the project waits in the triage queue first (D-231). */
-  triageEnabled: boolean;
   /** The overview document. Only sent when a single project is requested; null in lists. */
   content: RichDoc | null;
 };
@@ -66,8 +64,6 @@ export type ProjectChanges = Partial<{
   openToAll: boolean;
   /** Managers only. */
   estimatesEnabled: boolean;
-  /** Managers only. */
-  triageEnabled: boolean;
   description: string;
   content: RichDoc | null;
   status: ProjectStatus;

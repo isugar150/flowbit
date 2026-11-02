@@ -110,17 +110,16 @@ RFC 9457 Problem Details (`Content-Type: application/problem+json`) 를 쓴다.
 
 - `GET·PUT /api/v1/me/password` — 내 비밀번호 변경(LDAP 가 꺼져 있을 때). `GET /api/v1/admin/audit` — 감사 로그(종류·사람·날짜·쪽).
 - 티켓 목록 `GET /api/v1/issues`·`/me/issues`·`/projects/{id}/issues` 는 `limit`(기본 1000, 최대 10000)을 받는다.
-- `GET /api/v1/issue-statuses`, `POST·PATCH·DELETE /api/v1/admin/issue-statuses`. 티켓: `statusId`·`estimate`·`triage`·`cycleId`(요청), `statusName`·`openBlockers`·`cycle`(응답).
-- `GET·POST·PATCH·DELETE /api/v1/views` — 저장한 뷰. `GET·POST /api/v1/issues/{번호}/relations`, `DELETE …/{id}` — 관계. `GET /api/v1/triage` — 트리아지 대기열.
-- `GET /api/v1/projects/{id}/cycles`, `PUT …/cycles/settings` — 사이클. 프로젝트: `estimatesEnabled`·`triageEnabled`.
-- `/api/v1/admin/projects/{id}/…` (D-236) — 관리자가 구성원이 아닌 프로젝트의 설정을 바꾸는 길. `PATCH`(이름·공개 범위·추정치·트리아지), `icon`, `archive`·`restore`, `members`, `access-requests`, `cycles`, `git`, `issue-fields`, `automations` 가 프로젝트 쪽 `/api/v1/projects/{id}/…` 와 같은 요청·응답이다. 프로젝트의 티켓·문서·개요는 열어 주지 않는다. [features/admin-projects.md](features/admin-projects.md).
+- `GET /api/v1/issue-statuses`, `POST·PATCH·DELETE /api/v1/admin/issue-statuses`. 티켓: `statusId`·`estimate`·`cycleId`(요청), `statusName`·`openBlockers`·`cycle`(응답).
+- `GET·POST·PATCH·DELETE /api/v1/views` — 저장한 뷰. `GET·POST /api/v1/issues/{번호}/relations`, `DELETE …/{id}` — 관계.
+- `GET /api/v1/projects/{id}/cycles`, `PUT …/cycles/settings` — 사이클. 프로젝트: `estimatesEnabled`.
+- `/api/v1/admin/projects/{id}/…` (D-236) — 관리자가 구성원이 아닌 프로젝트의 설정을 바꾸는 길. `PATCH`(이름·공개 범위·추정치), `icon`, `archive`·`restore`, `members`, `access-requests`, `cycles`, `git`, `issue-fields`, `automations` 가 프로젝트 쪽 `/api/v1/projects/{id}/…` 와 같은 요청·응답이다. 프로젝트의 티켓·문서·개요는 열어 주지 않는다. [features/admin-projects.md](features/admin-projects.md).
 
 ## API 문서
 
 - 아직 OpenAPI 문서를 만들지 않는다. 엔드포인트의 기준은 각 기능 명세의 "API" 절이고, 프론트엔드 타입은 `features/<기능>/types.ts` 에 직접 적는다.
 - 엔드포인트가 늘어나는 M3 에서 OpenAPI 생성(springdoc 의 WebFlux 지원 버전)과 타입 생성을 도입한다 (D-023).
 
-트리아지: `GET /api/v1/triage/mine`은 내가 만든 요청 중 분류를 기다리는 티켓(`?rejected=true`는 거절된 티켓)이며 프로젝트 관리 역할이 아니어도 읽을 수 있다(2026-11-03). `GET /api/v1/triage?rejected=true`는 거절됨 목록, 생략 시 대기 중 목록이다. `PATCH /api/v1/issues/{번호}`의 `triageRejected: true`는 관리 역할이 대기 티켓을 `triage: false`, 취소 상태로 함께 바꾸는 경우에 사용한다.
 
 ## 티켓 구독 범위 (2026-10-28)
 
@@ -142,9 +141,9 @@ GET·POST /api/v1/projects/{id}/issue-fields, PUT·DELETE …/{fieldId}. 관리�
 
 GET /api/v1/me/issues의 assigned는 기본 담당자 또는 현재 프로젝트 공통 PERSON 속성의 유효값에 요청자가 지정된 티켓을 반환한다. 단일 문자열·복수 배열 모두 지원. created 범위·접근 권한·페이지 한도는 유지한다. 기본값/빈 값 규칙은 [명세](features/project-issue-fields.md).
 
-일반 티켓 목록(`GET /api/v1/issues`, 프로젝트별 목록, `GET /api/v1/me/issues?scope=assigned|created`)은 요청함 대기(`triage=true`)·거절(`triage_rejected=true`) 티켓을 제외한다. 프로젝트 필터·삭제된 목록·limit 적용 전 동일하게 거른다. 요청함 전용 조회와 상세 접근 권한은 유지한다(2026-10-28 사용자 확정).
+일반 티켓 목록은 프로젝트 접근 권한과 삭제 여부를 적용하며 생성 즉시 표시한다. 요청함 대기·거절 여부로 숨기지 않는다(2026-11-03).
 
-`GET·PUT /api/v1/admin/retention`의 `rejectedRequests`는 거절된 요청 보관 기간(null 또는 amount·unit)이다. 거절 시각부터 계산하고 기본은 영구 삭제 안 함이다. 기존 관리 권한·기간 검증·전체 교체 규칙을 따른다.
+2026-11-03: 요청함 API(`/api/v1/triage`, `/api/v1/triage/mine`)와 `triage`, `triageRejected`, `triageEnabled`, `rejectedRequests` 속성을 제거했다. 보관 설정은 삭제된 티켓·문서·댓글만 다룬다.
 
 ## MCP와 JSON 연동 API (2026-10-29)
 

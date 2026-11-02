@@ -37,7 +37,6 @@ export type NotificationSettings = { smtp: SmtpSettings; push: PushSettings };
 
 export const WEBHOOK_EVENT_TYPES = [
   "CREATED",
-  "TRIAGE_REQUESTED",
   "AUTOMATION_TRIGGERED",
   "TITLE_CHANGED",
   "DESCRIPTION_CHANGED",

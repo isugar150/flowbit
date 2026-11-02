@@ -62,7 +62,6 @@ export function RelationPicker({
   onPick: (kind: AddableKind, target: RelationTarget) => Promise<unknown> | void;
   /** An issue that is not offered: the one the relation starts from. */
   exclude?: number;
-  /** Only this kind is offered (the triage queue's "duplicate"). */
   fixedKind?: AddableKind;
   /** A button with these words instead of the "+" icon. */
   triggerLabel?: string;
@@ -133,7 +132,7 @@ export function RelationPicker({
               ))}
             </NativeSelect>
           )}
-          <p id={hintId} className="text-xs leading-5 text-muted-foreground">{fixedKind === "DUPLICATE_OF" ? m.duplicateTriageHint : m.kindHints[kind]}</p>
+          <p id={hintId} className="text-xs leading-5 text-muted-foreground">{m.kindHints[kind]}</p>
           <div className="flex items-center gap-2 rounded-md border px-2">
             <SearchIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <input

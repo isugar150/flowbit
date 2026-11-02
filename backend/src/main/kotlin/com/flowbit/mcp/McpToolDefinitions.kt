@@ -65,7 +65,6 @@ object McpToolDefinitions {
             "startDate" to text("YYYY-MM-DD", true),
             "dueDate" to text("YYYY-MM-DD", true),
             "estimate" to mapOf("type" to listOf("integer", "null"), "minimum" to 0, "maximum" to 1000),
-            "triage" to bool(),
         )
     private val paging = mapOf("q" to text("이름 또는 제목 검색"), "offset" to number(), "limit" to number())
     private val workLogFilters =
@@ -162,8 +161,8 @@ object McpToolDefinitions {
             ),
             tool("list_people", "프로젝트 사람 검색. 담당자 canAssign, 사람 속성 canSelectPerson 값을 확인하세요. 동명이인은 구분하세요.", paging + mapOf("projectId" to id)),
             tool("list_statuses", "워크스페이스의 실제 상태 ID·이름·범주·순서."),
-            tool("list_issues", "화면과 같은 일반 티켓 목록. 요청함 대기·거절은 일반 목록에서 제외됩니다.", paging + mapOf("projectId" to id, "deleted" to bool())),
-            tool("search_issues", "화면과 같은 검색으로 권한 있는 티켓 검색. 요청함 티켓도 찾을 수 있습니다.", mapOf("q" to text(), "limit" to number()), listOf("q")),
+            tool("list_issues", "화면과 같은 일반 티켓 목록. 생성 즉시 표시되며 프로젝트 접근 권한이 적용됩니다.", paging + mapOf("projectId" to id, "deleted" to bool())),
+            tool("search_issues", "화면과 같은 검색으로 접근 권한이 있는 티켓을 검색합니다.", mapOf("q" to text(), "limit" to number()), listOf("q")),
             tool(
                 "get_issue",
                 "티켓 상세·원본 content·Markdown·댓글·블록 댓글·속성·연결·파일 목록 조회. 사진·파일 내용도 요청받았다면 read_file·render_file_page로 실제 내용을 읽으세요. 수정 전 현재 값을 읽으세요.",
@@ -174,7 +173,7 @@ object McpToolDefinitions {
             ),
             tool(
                 "create_issue",
-                "티켓 생성. get_issue_options로 선택값 확인. 요청함이 켜진 프로젝트의 편집 역할은 자동 대기. 반환된 triage로 결과를 안내하세요.",
+                "티켓 생성. get_issue_options로 선택값 확인. 생성 즉시 일반 티켓으로 표시됩니다.",
                 mapOf(
                     "fields" to
                         obj(
@@ -195,7 +194,7 @@ object McpToolDefinitions {
                 "티켓 수정. fields에서 생략한 필드는 유지. null은 비우기. 공통 속성은 set_project_field, 개별 속성은 해당 CRUD 도구 사용. 사이클은 cycleId로 선택.",
                 mapOf(
                     "issue" to issue,
-                    "fields" to obj(fields + mapOf("cycleId" to text(nullable = true), "triageRejected" to bool())),
+                    "fields" to obj(fields + mapOf("cycleId" to text(nullable = true))),
                 ),
                 listOf("issue", "fields"),
                 true,

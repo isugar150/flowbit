@@ -17,7 +17,6 @@ import { ProjectDetailsForm } from "./project-details-form";
 import { ProjectEstimatesField } from "./project-estimates-field";
 import { ProjectIconField } from "./project-icon-field";
 import { ProjectMembersPanel } from "./project-members-panel";
-import { ProjectTriageField } from "./project-triage-field";
 
 const m = messages.projects;
 
@@ -35,7 +34,7 @@ export function ProjectSettingsSections({
   currentUserId,
   scope = "project",
 }: {
-  project: Pick<Project, "id" | "name" | "iconUrl" | "openToAll" | "triageEnabled" | "estimatesEnabled">;
+  project: Pick<Project, "id" | "name" | "iconUrl" | "openToAll" | "estimatesEnabled">;
   /** Everyone who is in the project, added or not (the ones an open project lets in); only the added ones are listed. */
   members: ProjectMember[];
   /** Everyone who could be added. */
@@ -55,9 +54,6 @@ export function ProjectSettingsSections({
       </SettingsSection>) },
     { id: "cycles", title: messages.cycles.settingsTitle, content: (<SettingsSection title={messages.cycles.settingsTitle} description={messages.cycles.settingsDescription}>
         <CycleSettingsField projectId={project.id} />
-      </SettingsSection>) },
-    { id: "triage", title: m.triageTitle, content: (<SettingsSection title={m.triageTitle} description={m.triageDescription}>
-        <ProjectTriageField projectId={project.id} enabled={project.triageEnabled} />
       </SettingsSection>) },
     { id: "fields", title: messages.projectFields.title, content: <SettingsSection title={messages.projectFields.title} description={messages.projectFields.description}><ProjectIssueFields projectId={project.id} members={members} /></SettingsSection> },
     { id: "automations", title: messages.automations.title, content: (<SettingsSection title={messages.automations.title} description={messages.automations.description}>

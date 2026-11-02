@@ -305,26 +305,6 @@ class ProjectIssueController(
     }
 }
 
-/** The triage queue: the issues of the projects the caller may edit that wait to be sorted (D-231). */
-@RestController
-@RequestMapping("/api/v1/triage")
-class TriageController(
-    private val issueService: IssueService,
-) {
-    @GetMapping
-    suspend fun queue(
-        @AuthenticationPrincipal user: AuthenticatedUser,
-        @RequestParam(defaultValue = "false") rejected: Boolean,
-    ): List<IssueResponse> = issueService.triageQueue(user, rejected).map(IssueResponse::from)
-
-    /** The requests the caller made themself, waiting or (`rejected=true`) declined; open to a person who does not manage the project. */
-    @GetMapping("/mine")
-    suspend fun mine(
-        @AuthenticationPrincipal user: AuthenticatedUser,
-        @RequestParam(defaultValue = "false") rejected: Boolean,
-    ): List<IssueResponse> = issueService.myRequests(user, rejected).map(IssueResponse::from)
-}
-
 /** "내 티켓": the caller's issues across projects. `scope` is `assigned` (default) or `created`. */
 @RestController
 @RequestMapping("/api/v1/me/issues")

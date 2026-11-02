@@ -108,8 +108,6 @@ data class IssueResponse(
     val estimate: Int?,
     /** How many issues that block it are still open (D-230). */
     val openBlockers: Int,
-    /** Waiting in the triage queue of its project (D-231). */
-    val triage: Boolean,
     /** The cycle of its project it is planned in (D-232), or null. */
     @get:JsonInclude(JsonInclude.Include.ALWAYS)
     val cycle: IssueCycleResponse?,
@@ -176,7 +174,6 @@ data class IssueResponse(
                 priority = issue.priority,
                 estimate = issue.estimate,
                 openBlockers = issue.openBlockers,
-                triage = issue.triage,
                 cycle = issue.cycle?.let { IssueCycleResponse(it.id, it.number, it.startsOn, it.endsOn) },
                 assignees = issue.assignees.map(IssuePersonResponse::from),
                 startDate = issue.startDate,
@@ -368,8 +365,6 @@ data class CreateIssueRequest(
     /** Starts the issue in this status (otherwise in the first one of `status`'s category). */
     val statusId: UUID? = null,
     val estimate: Int? = null,
-    /** True sends the issue to the project's triage queue even when a manager makes it (D-236); ignored where triage is off. */
-    val triage: Boolean? = null,
     /** Relations to give the issue as it is made (D-237), from its point of view like `POST …/relations`. */
     val relations: List<NewRelationRequest>? = null,
     val projectFields: List<com.flowbit.customproperty.application.IssueFieldInput> = emptyList(),
@@ -390,7 +385,6 @@ data class CreateIssueRequest(
             customProperties.orEmpty().map { NewCustomProperty(it.label, it.type, it.value) },
             statusId,
             estimate,
-            triage,
             relations.orEmpty().map { NewRelation(it.kind, it.targetNumber) },
             projectFields,
         )

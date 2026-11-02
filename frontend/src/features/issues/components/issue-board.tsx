@@ -81,7 +81,6 @@ function CardBody({
             {issue.project.name}
           </span>
         ) : null}
-        {issue.triage ? <span className="shrink-0 rounded-full border border-dashed px-1.5 text-xs leading-4 text-muted-foreground">{messages.triage.badge}</span> : null}
         <span className="ml-auto flex shrink-0 items-center gap-1">
           <PriorityMark priority={issue.priority} />
           {/* The same move as the drag, for the keyboard and for a touch screen. Pressing it is not the start of a drag. */}

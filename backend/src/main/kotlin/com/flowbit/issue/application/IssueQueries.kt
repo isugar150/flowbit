@@ -86,8 +86,6 @@ data class IssueView(
     val estimate: Int? = null,
     /** How many issues that block it are still open (D-230); above zero, the issue is waiting on something. */
     val openBlockers: Int = 0,
-    /** Waiting in the triage queue (D-231). */
-    val triage: Boolean = false,
     /** The cycle it is planned in, or null. */
     val cycle: IssueCycle? = null,
 )
@@ -149,9 +147,6 @@ private const val LIST_LIMIT = ISSUE_LIST_LIMIT
 private val VISIBLE =
     "(i.project_id is null or (p.archived_at is null and (:seesAll or ${ProjectAccessSql.mayEnter("i.project_id", ":viewerId")})))"
 
-/** Pending and rejected requests stay out of ordinary lists, regardless of status or ownership. */
-private const val CLASSIFIED = "not i.triage and not i.triage_rejected"
-
 /** Read side of issues: one query that joins the project, the assignees and the author. */
 @Component
 class IssueQueries(
@@ -166,45 +161,11 @@ class IssueQueries(
         limit: Int = LIST_LIMIT,
     ): List<IssueView> =
         select(
-            "where $VISIBLE and $CLASSIFIED and ${deletedIs(deleted)} ${if (projectId != null) "and i.project_id = :projectId" else ""} " +
+            "where $VISIBLE and ${deletedIs(deleted)} ${if (projectId != null) "and i.project_id = :projectId" else ""} " +
                 "order by i.number desc limit ${limit.coerceIn(1, ISSUE_LIST_MAX)}",
         ) {
             val spec = it.visibleTo(viewer)
             if (projectId != null) spec.bind("projectId", projectId) else spec
-        }
-
-    /** Active members who can classify requests in this project. */
-    suspend fun triageManagers(projectId: UUID): List<UUID> =
-        databaseClient
-            .sql(
-                "select pm.user_id from project_members pm join users u on u.id = pm.user_id where pm.project_id = :projectId and pm.role = 'MANAGER' and u.status = 'ACTIVE'",
-            ).bind("projectId", projectId)
-            .map { row -> checkNotNull(row.get("user_id", UUID::class.java)) }
-            .all()
-            .collectList()
-            .awaitSingle()
-
-    /** The issues waiting in the triage queue that the viewer may see, the oldest first (D-231). */
-    suspend fun triageQueue(
-        viewer: Viewer,
-        rejected: Boolean = false,
-    ): List<IssueView> =
-        select(
-            "where $VISIBLE and i.deleted_at is null and ${if (rejected) "i.triage_rejected" else "i.triage"} and i.project_id is not null order by i.created_at limit $LIST_LIMIT",
-        ) {
-            it.visibleTo(viewer)
-        }
-
-    /** The requests the viewer made that are waiting in a triage queue, or were declined from it, the newest first. */
-    suspend fun myRequests(
-        viewer: Viewer,
-        rejected: Boolean = false,
-    ): List<IssueView> =
-        select(
-            "where $VISIBLE and i.deleted_at is null and ${if (rejected) "i.triage_rejected" else "i.triage"} and i.project_id is not null " +
-                "and i.created_by = :viewerId order by i.created_at desc limit $LIST_LIMIT",
-        ) {
-            it.visibleTo(viewer)
         }
 
     /** The viewer's own issues ("내 티켓"), most recently changed first. */
@@ -215,7 +176,7 @@ class IssueQueries(
         limit: Int = LIST_LIMIT,
     ): List<IssueView> =
         select(
-            "where $VISIBLE and $CLASSIFIED and ${deletedIs(
+            "where $VISIBLE and ${deletedIs(
                 deleted,
             )} and ${scope.condition} order by i.updated_at desc limit ${limit.coerceIn(1, ISSUE_LIST_MAX)}",
         ) {
@@ -383,7 +344,7 @@ class IssueQueries(
         bind(
             databaseClient.sql(
                 """
-                select i.id, i.number, i.title, ${if (withDescription) "i.description" else "'' as description"}, i.status, st.id as status_id, st.name as status_name, i.estimate, i.triage, cy.id as cycle_id, cy.number as cycle_number, cy.starts_on as cycle_starts_on, cy.ends_on as cycle_ends_on, i.priority, i.start_date, i.due_date,
+                select i.id, i.number, i.title, ${if (withDescription) "i.description" else "'' as description"}, i.status, st.id as status_id, st.name as status_name, i.estimate, cy.id as cycle_id, cy.number as cycle_number, cy.starts_on as cycle_starts_on, cy.ends_on as cycle_ends_on, i.priority, i.start_date, i.due_date,
                        i.version, i.created_at, i.updated_at, i.deleted_at,
                        case when i.status in ('DONE', 'CANCELED') then coalesce(
                            (select max(sa.created_at) from issue_activities sa where sa.issue_id = i.id and sa.type = 'STATUS_CHANGED'),
@@ -462,7 +423,6 @@ class IssueQueries(
                 statusId = checkNotNull(row.get("status_id", UUID::class.java)),
                 statusName = checkNotNull(row.get("status_name", String::class.java)),
                 estimate = row.get("estimate", Int::class.javaObjectType),
-                triage = checkNotNull(row.get("triage", Boolean::class.javaObjectType)),
                 cycle =
                     row.get("cycle_id", UUID::class.java)?.let { cycleId ->
                         IssueCycle(

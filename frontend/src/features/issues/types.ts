@@ -86,8 +86,6 @@ export type Issue = {
   estimate: number | null;
   /** How many issues that block it are still open (D-230). */
   openBlockers: number;
-  /** Waiting in the triage queue of its project (D-231). */
-  triage: boolean;
   /** The cycle of its project it is planned in (D-232); null when none. */
   cycle: { id: string; number: number; startsOn: string; endsOn: string } | null;
   /** In the order they were given the issue; empty when no one has it (D-125). */
@@ -161,8 +159,6 @@ export type NewIssueInput = {
   /** Properties to give the issue as it is made, in order (D-193); left out for none. */
   customProperties?: NewCustomPropertyInput[];
   projectFields?: import("@/features/project-fields/types").IssueFieldInput[];
-  /** True sends the issue to the project's triage queue when a manager makes it (D-236); anyone else's goes there anyway where triage is on. */
-  triage?: boolean;
   /** Relations to make together with the issue (D-237): how it stands to each other issue, as `POST …/relations` takes them. */
   relations?: { kind: "BLOCKS" | "BLOCKED_BY" | "DUPLICATE_OF" | "RELATED"; targetNumber: number }[];
 };
@@ -178,14 +174,11 @@ export type NewSubIssueInput = Omit<NewIssueInput, "projectId" | "assigneeIds" |
 
 /** Only the fields present are changed; null clears the due date. `labelIds` and `assigneeIds` replace all labels and assignees. */
 export type IssueChanges = Partial<{
-  triageRejected: boolean;
   title: string;
   content: RichDoc | null;
   status: IssueStatus;
   /** Moves the issue to this status (its category follows). */
   statusId: string;
-  /** False takes it out of the triage queue; managers only (D-231). */
-  triage: boolean;
   /** Plans the issue in a cycle of its project, or in none with null (D-232). */
   cycleId: string | null;
   priority: IssuePriority;

@@ -43,7 +43,7 @@ class AdminProjectController(
     private val realtime: RealtimeHub,
     private val audit: AdminProjectAudit,
 ) {
-    /** Only the name, who may enter (`openToAll`), the estimates and the triage: the fields of the settings page. */
+    /** Only the name, who may enter (`openToAll`), the estimates: the fields of the settings page. */
     @PatchMapping
     suspend fun update(
         @AuthenticationPrincipal admin: AuthenticatedUser,

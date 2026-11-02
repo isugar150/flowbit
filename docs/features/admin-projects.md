@@ -19,7 +19,7 @@
 
 | 요청 | 설명 |
 |---|---|
-| `PATCH ` | `name`, `openToAll`, `estimatesEnabled`, `triageEnabled` 만. 그 밖의 항목은 403 |
+| `PATCH ` | `name`, `openToAll`, `estimatesEnabled` 만. 그 밖의 항목은 403 |
 | `PUT·DELETE /icon` | 프로젝트 아이콘 바꾸기·되돌리기 |
 | `POST /archive` · `POST /restore` | 보관(204) · 복원(200). 감사는 `PROJECT_ARCHIVED`·`PROJECT_RESTORED` |
 | `GET /members` · `PUT·DELETE /members/{userId}` | 구성원 목록, 역할 정하기·내보내기. 프로젝트에는 관리 역할이 한 명 이상 있어야 한다(409 `LAST_MANAGER`) |

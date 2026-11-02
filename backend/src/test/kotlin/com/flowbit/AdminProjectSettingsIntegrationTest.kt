@@ -39,12 +39,11 @@ class AdminProjectSettingsIntegrationTest : IntegrationTest() {
         val listed = admin.get("/api/v1/projects").jsonList().single()
         assertEquals(false, listed["member"])
 
-        val changed = admin.patch(base, """{"name":"결제 재개편","openToAll":true,"estimatesEnabled":true,"triageEnabled":true}""")
+        val changed = admin.patch(base, """{"name":"결제 재개편","openToAll":true,"estimatesEnabled":true}""")
         assertEquals(200, changed.status)
         assertEquals("결제 재개편", changed.json()["name"])
         assertEquals(true, changed.json()["openToAll"])
         assertEquals(true, changed.json()["estimatesEnabled"])
-        assertEquals(true, changed.json()["triageEnabled"])
         // The overview is the project's own data: it is not in the answer.
         assertNull(changed.json()["content"])
 
@@ -52,14 +51,13 @@ class AdminProjectSettingsIntegrationTest : IntegrationTest() {
         assertEquals("결제 재개편", seen["name"])
         assertEquals(true, seen["openToAll"])
         assertEquals(true, seen["estimatesEnabled"])
-        assertEquals(true, seen["triageEnabled"])
         // Opened to everyone: the other member of the workspace is in, as an editor.
         assertEquals("EDITOR", outsider.get("/api/v1/projects/${p("PAY")}").json()["myRole"])
         assertEquals(false, admin.get("/api/v1/projects").jsonList().single()["member"])
 
         assertEquals(false, admin.patch(base, """{"openToAll":false}""").json()["openToAll"])
         assertEquals(
-            "estimatesEnabled,name,openToAll,triageEnabled",
+            "estimatesEnabled,name,openToAll",
             text("select detail ->> 'fields' from audit_events where event_type = 'PROJECT_ADMIN_CHANGED' and detail ->> 'fields' like '%name%'"),
         )
         assertEquals(2, count("select count(*) from audit_events where event_type = 'PROJECT_ADMIN_CHANGED'"))

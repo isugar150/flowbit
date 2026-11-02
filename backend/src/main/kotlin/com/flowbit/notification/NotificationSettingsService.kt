@@ -300,7 +300,6 @@ class NotificationSettingsService(
         val EVENT_TYPES =
             listOf(
                 "CREATED",
-                "TRIAGE_REQUESTED",
                 "AUTOMATION_TRIGGERED",
                 "TITLE_CHANGED",
                 "DESCRIPTION_CHANGED",

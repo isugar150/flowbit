@@ -176,7 +176,7 @@ export function McpSettings({ connection, tokens: initialTokens }: { connection:
         <p className="text-sm leading-6 text-muted-foreground">{m.search}</p>
         <p className="text-sm leading-6 text-muted-foreground">{m.workLogs}</p>
         <p className="text-sm leading-6 text-muted-foreground">{m.properties}</p>
-        <p className="text-sm leading-6 text-muted-foreground">{m.triage}</p>
+        <p className="text-sm leading-6 text-muted-foreground">{m.behavior}</p>
         <p className="text-sm leading-6 text-muted-foreground">{m.markdown}</p>
         <p className="text-sm leading-6 text-muted-foreground">{m.files}</p>
         <p className="text-sm leading-6 text-muted-foreground">{m.uploadFiles}</p>

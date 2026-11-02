@@ -20,13 +20,11 @@ data class RetentionSettingsBody(
     val issues: RetentionPeriodBody? = null,
     val documents: RetentionPeriodBody? = null,
     val comments: RetentionPeriodBody? = null,
-    val rejectedRequests: RetentionPeriodBody? = null,
 ) {
-    fun toSettings() = RetentionSettings(issues?.toPeriod(), documents?.toPeriod(), comments?.toPeriod(), rejectedRequests?.toPeriod())
+    fun toSettings() = RetentionSettings(issues?.toPeriod(), documents?.toPeriod(), comments?.toPeriod())
 
     companion object {
-        fun from(settings: RetentionSettings) =
-            RetentionSettingsBody(settings.issues?.toBody(), settings.documents?.toBody(), settings.comments?.toBody(), settings.rejectedRequests?.toBody())
+        fun from(settings: RetentionSettings) = RetentionSettingsBody(settings.issues?.toBody(), settings.documents?.toBody(), settings.comments?.toBody())
 
         private fun RetentionPeriodBody.toPeriod() = RetentionPeriod(amount, unit)
 

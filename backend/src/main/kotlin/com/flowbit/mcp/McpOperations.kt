@@ -130,7 +130,6 @@ class McpOperations(
                             "name" to it.name,
                             "myRole" to it.myRole,
                             "canCreate" to it.myRole?.canEdit,
-                            "triageEnabled" to it.triageEnabled,
                             "estimatesEnabled" to it.estimatesEnabled,
                         )
                     },
@@ -292,8 +291,6 @@ class McpOperations(
             "projectId" to access?.project?.id,
             "myRole" to access?.role,
             "canCreate" to (access?.role?.canEdit ?: true),
-            "triageEnabled" to (access?.project?.triageEnabled ?: false),
-            "willEnterTriage" to (access?.project?.triageEnabled == true && !access.role.canManage),
             "estimatesEnabled" to (access?.project?.estimatesEnabled ?: false),
             "estimateRange" to mapOf("min" to 0, "max" to 1000),
             "people" to people(user, args),
@@ -303,7 +300,7 @@ class McpOperations(
             "projectFields" to projectId?.let { fields.list(user, it, false) }.orEmpty(),
             "priorities" to IssuePriority.entries.map { it.name },
             "customPropertyTypes" to CustomPropertyType.entries.map { it.name },
-            "instructions" to "이름이 겹치면 사용자를 구분하세요. 공통 속성은 fieldId와 형식·multiple·defaultValue를 확인하세요. 기본값은 서버가 적용합니다. 생성 결과의 triage가 true이면 요청함에서 수락 대기 중입니다.",
+            "instructions" to "이름이 겹치면 사용자를 구분하세요. 공통 속성은 fieldId와 형식·multiple·defaultValue를 확인하세요. 기본값은 서버가 적용합니다. 생성한 티켓은 즉시 일반 목록에 표시됩니다.",
         )
     }
 
