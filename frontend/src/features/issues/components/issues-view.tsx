@@ -570,7 +570,7 @@ export function IssuesView({
               issues={boardIssues}
               statuses={statuses}
               projects={projects}
-              canMove={mayEdit}
+              canMove={(issue) => writable && mayEdit(issue)}
               onMove={changeStatus}
               hiddenFinished={hiddenFinished}
               showProject={projectId === null}

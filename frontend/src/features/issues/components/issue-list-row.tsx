@@ -1,6 +1,5 @@
 "use client";
 
-import { IssueViewing } from "@/features/realtime/components/issue-viewing";
 
 import { memo } from "react";
 import { useRouter } from "next/navigation";
@@ -12,6 +11,7 @@ import { StatusIcon } from "../meta";
 import { priorityOptions } from "../options";
 import { useStatusOptions } from "../statuses";
 import type { Issue, IssueChanges } from "../types";
+import { IssueContextMenu } from "./issue-context-menu";
 import { AssigneeChip } from "./assignee-chip";
 import { ChipSelect } from "./chip-select";
 import { DateRangeChip } from "./date-chips";
@@ -178,8 +178,7 @@ export const IssueListRow = memo(function IssueListRow({
   };
 
   return (
-    <IssueViewing number={issue.number}>
-    <li
+    <IssueContextMenu issue={issue} editable={editable} onStatusChange={editing ? undefined : onStatusChange}>{(issue) => <li
       data-presence-id={`${presence}:${issue.number}`}
       data-tour={presence === "issue-row" ? "issue-row" : undefined}
       onClick={open}
@@ -254,7 +253,6 @@ export const IssueListRow = memo(function IssueListRow({
       ) : (
         <IssueAssignee issue={issue} className={columns.assignee} />
       )}
-    </li>
-    </IssueViewing>
+    </li>}</IssueContextMenu>
   );
 });

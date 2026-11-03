@@ -3,7 +3,6 @@
 import { createContext, useContext, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IssueViewing } from "@/features/realtime/components/issue-viewing";
 import {
   DndContext,
   DragOverlay,
@@ -29,6 +28,7 @@ import { StatusIcon } from "../meta";
 import type { IssueStatusItem } from "../status-defaults";
 import { statusChoices } from "../statuses";
 import type { Issue } from "../types";
+import { IssueContextMenu } from "./issue-context-menu";
 import { ChipSelect } from "./chip-select";
 import { LabelPill } from "./label-chip";
 import { PriorityMark } from "./issue-row";
@@ -186,7 +186,7 @@ function BoardCard({
   };
 
   return (
-    <IssueViewing number={issue.number}><li
+    <IssueContextMenu issue={issue} editable={movable} onStatusChange={onMove}>{(issue) => <li
       ref={setNodeRef}
       {...listeners}
       data-presence-id={`issue-card:${issue.number}`}
@@ -194,7 +194,7 @@ function BoardCard({
       className={cn(cardClass, "relative cursor-pointer", movable && "active:cursor-grabbing", isDragging && "opacity-40")}
     >
       <CardBody issue={issue} options={options} movable={movable} showEstimate={showEstimate} showProject={showProject} onMove={onMove} />
-    </li></IssueViewing>
+    </li>}</IssueContextMenu>
   );
 }
 

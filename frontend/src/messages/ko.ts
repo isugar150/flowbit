@@ -415,6 +415,16 @@ export const ko = {
     exists: "같은 이름의 속성이 이미 있습니다.",
     notANumberOf: (label: string) => `'${label}' 속성의 값은 숫자여야 합니다.`,
   },
+  issueContext: {
+    menuOf: (key: string) => `${key} 속성 변경`,
+    datesOf: (key: string) => `${key} 기한 변경`,
+    dismiss: "닫기",
+    loading: "속성을 불러오는 중…",
+    saving: "저장 중…",
+    readOnly: "이 티켓을 수정할 권한이 없습니다.",
+    startDate: "시작일",
+    save: "저장",
+  },
   dates: {
     clear: "날짜 지우기",
     pickStart: "시작일을 고르세요",
