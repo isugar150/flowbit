@@ -13,15 +13,16 @@ import type { CustomPropertyChanges, CustomPropertyList, CustomPropertyOwner, Cu
  * what the server last rendered the page from: when it changes (someone else changed the page, and
  * it was read again), the properties are read again too (the same as the activity under a page).
  */
-export function useCustomProperties(owner: CustomPropertyOwner, watch?: unknown) {
+export function useCustomProperties(owner: CustomPropertyOwner, watch?: unknown, enabled = true) {
   const queryClient = useQueryClient();
   const key = customPropertiesKey(owner);
-  const query = useQuery({ queryKey: key, queryFn: () => getCustomProperties(owner), staleTime: 0 });
+  const query = useQuery({ queryKey: key, queryFn: () => getCustomProperties(owner), staleTime: 0, enabled });
   const refetch = query.refetch;
   useEffect(() => {
+    if (!enabled) return;
     // Not while a reading is already on its way (the first one, when the page opens).
     void refetch({ cancelRefetch: false });
-  }, [watch, refetch]);
+  }, [watch, refetch, enabled]);
 
   /** Applies `edit` to the cached list; returns what to put back if the server says no. */
   const show = async (edit: (list: CustomPropertyList) => CustomPropertyList) => {

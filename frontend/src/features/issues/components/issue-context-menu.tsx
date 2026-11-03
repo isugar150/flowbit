@@ -8,9 +8,13 @@ import { CalendarIcon, CircleDotIcon, FolderIcon, GaugeIcon, RepeatIcon, SignalH
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { IssueViewing } from "@/features/realtime/components/issue-viewing";
-import { personName } from "@/components/person";
+import { ProjectIcon } from "@/components/project-icon";
+import { LabelDot } from "./label-chip";
+import { Choices, SearchChoices, Choice } from "./issue-context-choices";
+import { IssueContextProjectFields } from "./issue-context-project-fields";
+import { PersonAvatar, personName } from "@/components/person";
 import { FormAlert } from "@/features/auth/components/form-alert";
 import type { UserSummary } from "@/features/members/types";
 import { usersAsMembers, type ProjectMember, type ProjectSummary } from "@/features/projects/types";
@@ -27,14 +31,6 @@ import type { Issue, IssueChanges, IssueDetail, Label } from "../types";
 
 const m = messages.issues;
 const text = messages.issueContext;
-
-function Choices({ label, icon, children, disabled }: { label: string; icon: ReactNode; children: ReactNode; disabled?: boolean }) {
-  return <DropdownMenuSub><DropdownMenuSubTrigger disabled={disabled}>{icon}{label}</DropdownMenuSubTrigger><DropdownMenuSubContent className="max-h-80 w-64">{children}</DropdownMenuSubContent></DropdownMenuSub>;
-}
-
-function Choice({ checked, children, onClick, disabled }: { checked: boolean; children: ReactNode; onClick: () => void; disabled?: boolean }) {
-  return <DropdownMenuCheckboxItem checked={checked} disabled={disabled} closeOnClick onCheckedChange={onClick}>{children}</DropdownMenuCheckboxItem>;
-}
 
 type ContextChange = UndoableChange & { next: Issue };
 
@@ -113,21 +109,41 @@ function IssueContextMenuBody({ saved, open, pending, error, mutate, reset, onSt
           <Choices label={m.priority} icon={<SignalHighIcon />}>
             {priorityOptions.map((option) => <Choice key={option.value} checked={issue.priority === option.value} onClick={() => change({ priority: option.value })}>{option.icon}{option.label}</Choice>)}
           </Choices>
-          <Choices label={m.assignee} icon={<UserIcon />} disabled={!members.data}>
-            <Choice checked={issue.assignees.length === 0} onClick={() => change({ assigneeIds: [] })}>{m.noAssignee}</Choice>
-            {people.map((person) => {
-              const selected = issue.assignees.some((current) => current.id === person.userId);
-              return <Choice key={person.userId} checked={selected} disabled={!selected && issue.assignees.length >= MAX_ASSIGNEES} onClick={() => change({ assigneeIds: selected ? issue.assignees.filter((current) => current.id !== person.userId).map((current) => current.id) : [...issue.assignees.map((current) => current.id), person.userId] })}><span className="truncate">{personName(person)} <span className="text-xs text-muted-foreground">{person.loginId}</span></span></Choice>;
-            })}
-          </Choices>
-          <Choices label={m.labels} icon={<TagIcon />} disabled={!labels.data}>
-            <Choice checked={issue.labels.length === 0} onClick={() => change({ labelIds: [] })}>{m.noLabels}</Choice>
-            {labels.data?.map((label) => <Choice key={label.id} checked={issue.labels.some((current) => current.id === label.id)} onClick={() => change({ labelIds: issue.labels.some((current) => current.id === label.id) ? issue.labels.filter((current) => current.id !== label.id).map((current) => current.id) : [...issue.labels.map((current) => current.id), label.id] })}><span className="truncate">{label.name}</span></Choice>)}
-          </Choices>
-          <Choices label={m.project} icon={<FolderIcon />} disabled={Boolean(issue.parent) || !projects.data}>
-            <Choice checked={!issue.project} onClick={() => change({ projectId: null })}>{m.noProject}</Choice>
-            {projects.data?.filter((project) => project.myRole && project.myRole !== "VIEWER").map((project) => <Choice key={project.id} checked={issue.project?.id === project.id} onClick={() => change({ projectId: project.id })}><span className="truncate">{project.name}</span></Choice>)}
-          </Choices>
+          <SearchChoices label={m.assignee} icon={<UserIcon />} placeholder={text.searchPeople} disabled={!members.data}>
+            {(query) => {
+              const shown = people.filter((person) => personName(person).toLocaleLowerCase().includes(query) || person.loginId.toLocaleLowerCase().includes(query));
+              return <>
+                {!query ? <Choice checked={issue.assignees.length === 0} onClick={() => change({ assigneeIds: [] })}>{m.noAssignee}</Choice> : null}
+                {shown.map((person) => {
+                  const selected = issue.assignees.some((current) => current.id === person.userId);
+                  return <Choice key={person.userId} checked={selected} disabled={!selected && issue.assignees.length >= MAX_ASSIGNEES} onClick={() => change({ assigneeIds: selected ? issue.assignees.filter((current) => current.id !== person.userId).map((current) => current.id) : [...issue.assignees.map((current) => current.id), person.userId] })}>
+                    <PersonAvatar person={person} /><span className="min-w-0 truncate">{personName(person)} <span className="text-xs text-muted-foreground">{person.loginId}</span></span>
+                  </Choice>;
+                })}
+                {!shown.length ? <p role="status" className="px-2 py-2 text-sm text-muted-foreground">{m.noAssigneeCandidates}</p> : null}
+              </>;
+            }}
+          </SearchChoices>
+          <SearchChoices label={m.labels} icon={<TagIcon />} placeholder={text.searchLabels} disabled={!labels.data}>
+            {(query) => {
+              const shown = labels.data?.filter((label) => label.name.toLocaleLowerCase().includes(query)) ?? [];
+              return <>
+                {!query ? <Choice checked={issue.labels.length === 0} onClick={() => change({ labelIds: [] })}>{m.noLabels}</Choice> : null}
+                {shown.map((label) => <Choice key={label.id} checked={issue.labels.some((current) => current.id === label.id)} onClick={() => change({ labelIds: issue.labels.some((current) => current.id === label.id) ? issue.labels.filter((current) => current.id !== label.id).map((current) => current.id) : [...issue.labels.map((current) => current.id), label.id] })}><LabelDot color={label.color} /><span className="truncate">{label.name}</span></Choice>)}
+                {!shown.length ? <p role="status" className="px-2 py-2 text-sm text-muted-foreground">{m.noLabelsFound}</p> : null}
+              </>;
+            }}
+          </SearchChoices>
+          <SearchChoices label={m.project} icon={<FolderIcon />} placeholder={text.searchProjects} disabled={Boolean(issue.parent) || !projects.data}>
+            {(query) => {
+              const shown = projects.data?.filter((project) => project.myRole && project.myRole !== "VIEWER" && project.name.toLocaleLowerCase().includes(query)) ?? [];
+              return <>
+                {!query ? <Choice checked={!issue.project} onClick={() => change({ projectId: null })}>{m.noProject}</Choice> : null}
+                {shown.map((project) => <Choice key={project.id} checked={issue.project?.id === project.id} onClick={() => change({ projectId: project.id })}><ProjectIcon iconUrl={project.iconUrl} /><span className="truncate">{project.name}</span></Choice>)}
+                {!shown.length ? <p role="status" className="px-2 py-2 text-sm text-muted-foreground">{text.noProjects}</p> : null}
+              </>;
+            }}
+          </SearchChoices>
           <DropdownMenuItem onClick={() => setDates({ start: issue.startDate ?? "", end: issue.dueDate ?? "" })}><CalendarIcon />{m.dueDate}</DropdownMenuItem>
           {projects.data?.some((project) => project.id === projectId && project.estimatesEnabled) ? <Choices label={m.estimate} icon={<GaugeIcon />}>
             {estimateOptions(issue.estimate).map((option) => <Choice key={option.value} checked={(issue.estimate === null ? NONE : String(issue.estimate)) === option.value} onClick={() => change({ estimate: option.value === NONE ? null : Number(option.value) })}>{option.label}</Choice>)}
@@ -136,6 +152,7 @@ function IssueContextMenuBody({ saved, open, pending, error, mutate, reset, onSt
             <Choice checked={!issue.cycle} onClick={() => change({ cycleId: null })}>{messages.cycles.none}</Choice>
             {cycleChoices.map((cycle) => <Choice key={cycle.id} checked={issue.cycle?.id === cycle.id} onClick={() => change({ cycleId: cycle.id })}>{messages.cycles.option("", cycle.number, cycleSpan(cycle))}</Choice>)}
           </Choices> : null}
+          <IssueContextProjectFields issue={issue} members={members.data} open={open} allowed={Boolean(allowed)} />
         </ContextMenu.Group> : null}
       </ContextMenu.Popup></ContextMenu.Positioner></ContextMenu.Portal>
     <Dialog open={dates !== null} onOpenChange={(next) => { if (!next) setDates(null); }}>
