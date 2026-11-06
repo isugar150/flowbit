@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "@tiptap/extension-image";
+import { ResizableImage } from "./resizable-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
@@ -515,7 +515,7 @@ export function RichTextEditor({
           TaskList,
           TaskItem.configure({ nested: true, a11y: { checkboxLabel: (node) => m.taskItemLabel(node.textContent) } }),
           Placeholder.configure({ placeholder: placeholder ?? "" }),
-          Image.configure({ allowBase64: false }),
+          ResizableImage.configure({ allowBase64: false }),
           ...tableExtensions,
           PageLink,
           Mention,

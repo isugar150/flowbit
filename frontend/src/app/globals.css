@@ -278,6 +278,41 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  .editor-image-frame {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+  }
+  .editor-image-frame[data-selected] img {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  .editor-image-resize {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--background);
+    border-radius: 0.25rem;
+    background: var(--primary);
+    cursor: ew-resize;
+    touch-action: none;
+    opacity: 0;
+  }
+  .editor-image-frame:hover .editor-image-resize,
+  .editor-image-frame:focus-within .editor-image-resize,
+  .editor-image-frame[data-selected] .editor-image-resize {
+    opacity: 1;
+  }
+  .editor-image-resize:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (hover: none) {
+    .editor-image-resize { opacity: 1; }
+  }
   /* A file block that is selected shows its ring. The browser would also paint all the text of a document shown in it (D-187)
      as selected, over the page, and over a slide's own colours. */
   .rich-text .tiptap .rich-text-file.ProseMirror-selectednode ::selection {

@@ -244,6 +244,7 @@ export const ko = {
     // What the block being carried says under the pointer when it has no text (a picture, a divider).
     dragBlockGhost: "블록",
     imageUploading: "이미지를 올리는 중…",
+    imageResize: "이미지 너비 조절 (드래그 또는 좌우 화살표)",
     imageFailed: "이미지를 올리지 못했습니다.",
     // A file placed in the text as a block of its own (D-182).
     file: "파일",
