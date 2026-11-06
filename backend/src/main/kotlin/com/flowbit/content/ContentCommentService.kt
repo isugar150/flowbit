@@ -10,6 +10,8 @@ import com.flowbit.common.transaction.AfterCommit
 import com.flowbit.issue.application.IssueCommentService
 import com.flowbit.issue.application.ReactionSummary
 import com.flowbit.media.application.FileStorage
+import com.flowbit.notification.CommentConversation
+import com.flowbit.notification.CommentInboxCompletion
 import com.flowbit.user.domain.UserRole
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -32,6 +34,7 @@ class ContentCommentService(
     private val fileStorage: FileStorage,
     private val afterCommit: AfterCommit,
     private val clock: Clock,
+    private val inboxCompletion: CommentInboxCompletion,
 ) {
     /** The comments of a page for the person looking, with their emoji and files. */
     suspend fun list(
@@ -154,6 +157,7 @@ class ContentCommentService(
         val context = writable(user, existing.target)
         if (existing.parentId != null) throw ValidationException("id", "INVALID", "원 댓글에서 해결 상태를 바꾸세요")
         store.setResolved(commentId, user.id, clock.instant(), resolved)
+        if (resolved) inboxCompletion.complete(CommentConversation.CONTENT, commentId)
         return context
     }
 

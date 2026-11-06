@@ -5,8 +5,10 @@ import com.flowbit.realtime.RealtimeHub
 import com.flowbit.user.domain.UserRepository
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingle
+import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -32,17 +34,20 @@ data class InboxItem(
 class InboxStore(
     private val databaseClient: DatabaseClient,
 ) {
+    @Transactional
     suspend fun add(
         userIds: Collection<UUID>,
         message: NotificationMessage,
         now: Instant,
     ) {
+        val commentId = runCatching { UUID.fromString(message.path.substringAfterLast("#comment-", "")) }.getOrNull()
+        val resolved = message.actionable && commentId != null && lockCommentResolution(commentId)
         for (userId in userIds.distinct()) {
             databaseClient
                 .sql(
                     """
-                    insert into inbox_notifications (id, user_id, title, headline, body, path, created_at, actionable)
-                    values (:id, :userId, :title, :headline, :body, :path, :now, :actionable)
+                    insert into inbox_notifications (id, user_id, title, headline, body, path, created_at, actionable, completed_at)
+                    values (:id, :userId, :title, :headline, :body, :path, :now, :actionable, :completedAt)
                     """.trimIndent(),
                 ).bind("id", UuidV7.generate(now))
                 .bind("userId", userId)
@@ -52,11 +57,58 @@ class InboxStore(
                 .bind("path", message.path)
                 .bind("actionable", message.actionable)
                 .bind("now", now)
+                .let { if (resolved) it.bind("completedAt", now) else it.bindNull("completedAt", Instant::class.java) }
                 .fetch()
                 .rowsUpdated()
                 .awaitSingle()
         }
     }
+
+    /** Lock the root before insertion, in the same order as resolution, so a late delivery cannot escape completion. */
+    private suspend fun lockCommentResolution(commentId: UUID): Boolean {
+        val reference =
+            databaseClient
+                .sql(
+                    """
+                    select 'ISSUE' as kind, coalesce(parent_id, id) as root_id from issue_comments where id = :id
+                    union all
+                    select 'CONTENT' as kind, coalesce(parent_id, id) as root_id from content_comments where id = :id
+                    union all
+                    select 'THREAD' as kind, thread_id as root_id from content_thread_comments where id = :id
+                    """.trimIndent(),
+                ).bind("id", commentId)
+                .map { row ->
+                    CommentConversation.valueOf(checkNotNull(row.get("kind", String::class.java))) to
+                        checkNotNull(row.get("root_id", UUID::class.java))
+                }.one()
+                .awaitSingleOrNull() ?: return false
+        return databaseClient
+            .sql("select resolved_at from ${reference.first.rootTable} where id = :id for update")
+            .bind("id", reference.second)
+            .map { row -> row.get("resolved_at", OffsetDateTime::class.java) != null }
+            .one()
+            .awaitSingleOrNull() ?: false
+    }
+
+    suspend fun completeConversation(
+        kind: CommentConversation,
+        id: UUID,
+        now: Instant,
+    ): List<UUID> =
+        databaseClient
+            .sql(
+                """
+                update inbox_notifications set completed_at = :now
+                where actionable and completed_at is null
+                  and split_part(path, '#comment-', 2) in (select id::text from ${kind.commentsTable} where ${kind.condition})
+                returning user_id
+                """.trimIndent(),
+            ).bind("id", id)
+            .bind("now", now)
+            .map { row -> checkNotNull(row.get("user_id", UUID::class.java)) }
+            .all()
+            .collectList()
+            .awaitSingle()
 
     /** The latest [limit] of the person's notifications, newest first. */
     suspend fun latest(

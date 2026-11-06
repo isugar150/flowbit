@@ -9,6 +9,8 @@ import com.flowbit.common.richtext.RichTextDocument
 import com.flowbit.common.transaction.AfterCommit
 import com.flowbit.issue.domain.Issue
 import com.flowbit.media.application.FileStorage
+import com.flowbit.notification.CommentConversation
+import com.flowbit.notification.CommentInboxCompletion
 import com.flowbit.user.domain.UserRole
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -32,6 +34,7 @@ class IssueCommentService(
     private val fileStorage: FileStorage,
     private val afterCommit: AfterCommit,
     private val clock: Clock,
+    private val inboxCompletion: CommentInboxCompletion,
 ) {
     /** The history of an issue with who follows it. Anyone who may see the issue can read it. */
     suspend fun activity(
@@ -209,6 +212,7 @@ class IssueCommentService(
         val access = lookup.editable(lookup.accessById(user, existing.issueId))
         if (existing.parentId != null) throw ValidationException("id", "INVALID", "원 댓글에서 해결 상태를 바꾸세요")
         comments.setResolved(commentId, user.id, clock.instant(), resolved)
+        if (resolved) inboxCompletion.complete(CommentConversation.ISSUE, commentId)
         return access.issue.number
     }
 

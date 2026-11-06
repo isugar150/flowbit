@@ -263,3 +263,7 @@ inbox_notifications.completed_at(timestamptz null): 개인 처리 완료 시각.
 ## V26 — 티켓 수정 알림을 정보로 전환 (2026-11-06)
 
 기존 V25는 보존한다. 티켓 수정 머리말과 티켓 경로로 식별되는 기존 알림을 actionable=false, completed_at=null로 바꾸며 read_at·본문·댓글·새 티켓 알림은 보존한다. 신규 티켓 알림은 CREATED/COMMENT_ADDED일 때만 처리 가능하다. 과거 임의 자동화 문구는 식별할 수 없다.
+
+## V27 — 이전 댓글 알림의 원문 경로 복구 (2026-11-06)
+
+새 열 없이 inbox_notifications.path를 복구한다. 대상·현재 작성자 이름·기존 300자 미리보기(첨부 파일 이름·블록 인용·언급 포함)·댓글 작성 후 5분 이내의 발송 기록이 정확히 하나인 경우에만 #comment-UUID를 붙인다. 중복·삭제·수정으로 식별 불가한 것은 보존한다. 이미 해결된 댓글과 답글의 연결 알림은 completed_at만 채우고 read_at은 그대로 둔다. 신규 수신 시에도 해결 상태를 확인한다.

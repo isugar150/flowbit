@@ -9,6 +9,8 @@ import com.flowbit.common.richtext.RichText
 import com.flowbit.common.richtext.RichTextDocument
 import com.flowbit.issue.application.IssueActivityStore
 import com.flowbit.issue.application.IssueQueries
+import com.flowbit.notification.CommentConversation
+import com.flowbit.notification.CommentInboxCompletion
 import com.flowbit.notification.IssueNotification
 import com.flowbit.notification.NotificationDispatcher
 import com.flowbit.user.domain.UserRole
@@ -35,6 +37,7 @@ class ContentThreadService(
     private val subscriptions: DocumentSubscriptionStore,
     private val notifications: NotificationDispatcher,
     private val clock: Clock,
+    private val inboxCompletion: CommentInboxCompletion,
 ) {
     suspend fun threads(
         user: AuthenticatedUser,
@@ -123,6 +126,7 @@ class ContentThreadService(
         val existing = store.find(threadId) ?: throw threadNotFound()
         val context = writable(user, existing.target)
         if (resolved) store.resolve(threadId, user.id, clock.instant()) else store.reopen(threadId)
+        if (resolved) inboxCompletion.complete(CommentConversation.THREAD, threadId)
         return ThreadResult(thread(user, context, threadId), context)
     }
 
