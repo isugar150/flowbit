@@ -13,7 +13,7 @@
 | M4 | 커맨드 팔레트와 단축키, 실행 취소 | 구현됨 (첫 판: 실행 취소는 티켓 속성 변경만, D-233) | [features/command-palette.md](features/command-palette.md) |
 | M5 | 보드 | 구현됨 (목록 화면의 보기 방식, D-234) | [features/board.md](features/board.md) |
 | M6 | 사이클 | 구현됨 (프로젝트별 자동 반복, D-232) | [features/cycles.md](features/cycles.md) |
-| M7 | 수신함 | 알림 수신함 구현됨. 요청함은 2026-11-03 제거 | [features/inbox-and-daily-summary.md](features/inbox-and-daily-summary.md) |
+| M7 | 수신함 | 알림 수신함·읽음/개인 처리 분리·복원·댓글 이동 구현됨. 상태 변경은 읽음만 관리. 요청함은 2026-11-03 제거 | [features/inbox-and-daily-summary.md](features/inbox-and-daily-summary.md) |
 | M7a | 알림 통로: 메일(SMTP), 웹 푸시(Firebase), API 알림 (M7 의 일부를 먼저) | 구현됨 | [features/M7a-notification-channels.md](features/M7a-notification-channels.md) |
 | (마일스톤 밖) | 관리자 설정의 백업 및 복원: 워크스페이스·로그인 연동·알림 설정과 구성원을 파일로 (사용자 지정, D-112) | 구현됨 | [features/admin-backup.md](features/admin-backup.md) |
 | (마일스톤 밖) | 티켓·문서 검색: `Ctrl/⌘+K` 검색 창과 `/search` 결과 페이지 (사용자 지정, D-133) | 구현됨 | [features/search.md](features/search.md) |

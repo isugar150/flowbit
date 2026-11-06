@@ -2,9 +2,12 @@ package com.flowbit
 
 import com.flowbit.notification.DailySummaryBuilder
 import com.flowbit.notification.DailySummaryService
+import com.flowbit.notification.InboxStore
+import com.flowbit.notification.NotificationMessage
 import com.flowbit.support.ApiClient
 import com.flowbit.support.IntegrationTest
 import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -33,6 +36,9 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
     @Autowired
     private lateinit var builder: DailySummaryBuilder
 
+    @Autowired
+    private lateinit var inboxStore: InboxStore
+
     private lateinit var admin: ApiClient
     private lateinit var kim: ApiClient
     private lateinit var kimId: String
@@ -43,6 +49,98 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
         admin = client().also { it.setup("admin", PASSWORD) }
         kimId = admin.post("/api/v1/admin/members", """{"loginId":"kimjm","password":"$PASSWORD"}""").json()["id"] as String
         kim = client().also { it.login("kimjm", PASSWORD) }
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `상태 변경 알림은 읽음만 관리하고 직접 요청해도 처리 완료되지 않는다`() {
+        admin.post("/api/v1/issues", """{"title":"상태 알림","assigneeIds":["$kimId"]}""")
+        admin.post("/api/v1/issues/1/notifications/flush", "{}")
+        awaitUnread(kim, 1)
+        admin.patch("/api/v1/issues/1", """{"status":"IN_PROGRESS"}""")
+        admin.post("/api/v1/issues/1/notifications/flush", "{}")
+        awaitUnread(kim, 2)
+        val items = kim.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
+        val status = items.single { it["actionable"] == false }
+        val id = status["id"]
+        kim.post("/api/v1/me/inbox/completion", """{"id":"$id","completed":true}""")
+        assertEquals(0, (kim.get("/api/v1/me/inbox?completed=true").json()["items"] as List<*>).size)
+        val pending = kim.get("/api/v1/me/inbox?completed=false").json()["items"] as List<Map<String, Any?>>
+        assertEquals(1, pending.size)
+        assertTrue(pending.none { it["id"] == id })
+        assertEquals(2, kim.get("/api/v1/me/inbox/unread-count").json()["count"])
+        kim.post("/api/v1/me/inbox/read-path", """{"path":"/issue/FB-1"}""")
+        assertEquals(0, kim.get("/api/v1/me/inbox/unread-count").json()["count"])
+        val after = kim.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
+        assertEquals(false, after.single { it["id"] == id }["completed"])
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `처리 여부는 조회 제한 전에 걸러지고 이전 알림도 이어서 조회한다`() =
+        runBlocking {
+            val userId = UUID.fromString(kimId)
+            repeat(35) { index ->
+                inboxStore.add(listOf(userId), NotificationMessage("알림 $index", emptyList(), "알림", "/issue/FB-1", "/issue/FB-1"), clock.instant())
+            }
+            val first = kim.get("/api/v1/me/inbox?completed=false").json()
+            val items = first["items"] as List<Map<String, Any?>>
+            assertEquals(30, items.size)
+            assertEquals(true, first["hasMore"])
+            val second = kim.get("/api/v1/me/inbox?completed=false&offset=30").json()
+            val older = second["items"] as List<Map<String, Any?>>
+            assertEquals(5, older.size)
+            assertEquals(false, second["hasMore"])
+            assertEquals(35, (items + older).map { it["id"] }.toSet().size)
+            for (item in items) kim.post("/api/v1/me/inbox/completion", """{"id":"${item["id"]}","completed":true}""")
+            val remaining = kim.get("/api/v1/me/inbox?completed=false").json()["items"] as List<Map<String, Any?>>
+            assertEquals(older.map { it["id"] }, remaining.map { it["id"] })
+            assertEquals(30, (kim.get("/api/v1/me/inbox?completed=true").json()["items"] as List<*>).size)
+        }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `댓글과 답글 알림은 각각 작성한 댓글의 경로를 포함한다`() {
+        admin.post("/api/v1/issues", """{"title":"댓글 이동","assigneeIds":["$kimId"]}""")
+        admin.post("/api/v1/issues/1/notifications/flush", "{}")
+        awaitUnread(kim, 1)
+        val content = """{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"확인해주세요"}]}]}"""
+        val parent = admin.post("/api/v1/issues/1/comments", """{"content":$content}""").json()["id"]
+        awaitUnread(kim, 2)
+        val parentItems = kim.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
+        assertTrue(parentItems.any { it["path"] == "/issue/FB-1#comment-$parent" })
+        val reply = kim.post("/api/v1/issues/1/comments", """{"content":$content,"parentId":"$parent"}""").json()["id"]
+        awaitUnread(admin, 1)
+        val replyItems = admin.get("/api/v1/me/inbox").json()["items"] as List<Map<String, Any?>>
+        assertTrue(replyItems.any { it["path"] == "/issue/FB-1#comment-$reply" })
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `알림 처리 완료와 복원은 읽음과 독립적이고 다른 사람은 변경하지 못한다`() {
+        admin.post("/api/v1/issues", """{"title":"처리 구분","assigneeIds":["$kimId"]}""")
+        admin.post("/api/v1/issues/1/notifications/flush", "{}")
+        awaitUnread(kim, 1)
+
+        fun list(query: String = "") = kim.get("/api/v1/me/inbox$query").json()["items"] as List<Map<String, Any?>>
+        val id = list().single()["id"]
+        assertEquals(false, list().single()["completed"])
+        assertEquals(204, admin.post("/api/v1/me/inbox/completion", """{"id":"$id","completed":true}""").status)
+        assertEquals(false, list().single()["completed"])
+        repeat(2) { assertEquals(204, kim.post("/api/v1/me/inbox/completion", """{"id":"$id","completed":true}""").status) }
+        assertEquals(0, list("?completed=false").size)
+        assertEquals(true, list("?completed=true").single()["completed"])
+        assertEquals(false, list().single()["read"])
+        assertEquals(1, kim.get("/api/v1/me/inbox/unread-count").json()["count"])
+        kim.post("/api/v1/me/inbox/read-path", """{"path":"/issue/FB-1"}""")
+        assertEquals(true, list("?completed=true").single()["completed"])
+        repeat(2) { assertEquals(204, kim.post("/api/v1/me/inbox/completion", """{"id":"$id","completed":false}""").status) }
+        assertEquals(true, list("?completed=false").single()["read"])
+        assertEquals(0, list("?completed=true").size)
+        admin.patch("/api/v1/issues/1", """{"priority":"HIGH"}""")
+        admin.post("/api/v1/issues/1/notifications/flush", "{}")
+        awaitUnread(kim, 1)
+        assertEquals(2, list("?completed=false").size)
     }
 
     @Test

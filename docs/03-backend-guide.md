@@ -155,3 +155,7 @@ customproperty의 ProjectIssueFieldService·Store가 정의와 값을 관리하�
 McpSetupGuideController는 공개 GET /api/v1/mcp/setup, McpSetupGuide는 resources/mcp/setup.md의 설치 주소 치환을 맡는다. 템플릿은 Dispatchers.IO에서 읽으며 인증된 데이터 저장소에 접근하지 않는다. 공개 허용은 정확한 GET·HEAD 경로 하나만 추가하고 MCP 실행 인증은 유지한다.
 
 MCP 파일: McpFiles(현재 본문·댓글·직접 연결 문서의 참조 기반 접근, 기존 저장·알림 재사용), McpFileReader(지원 문서 글 추출·PDF 페이지·이미지·원본 구간), McpFileController(Bearer multipart·원본). RichText.append는 루트 속성·기존 블록을 보존하고 IssueService.appendContent는 행 잠금 후 합친다. 새 참조 저장 실패 시 해당 새 파일을 정리하며 커밋 뒤 알림 실패로 저장된 파일을 삭제하지 않는다. UploadReader는 빈 파일에도 빈 바이트를 반환한다. 파서·파일 읽기는 Dispatchers.IO, 외부 OCR/URL/매크로 실행 없음. 원본·텍스트·이미지를 구분하고 추출 실패를 읽기 성공으로 가장하지 않는다.
+
+## 알림 개인 처리 여부 (2026-11-06)
+
+InboxStore는 읽음과 독립적인 completed_at/actionable(V25)을 저장한다. 상태 변경만 있는 알림·상태 자동화는 actionable=false이고, 필터/완료 갱신 모두 서버에서 처리 불가 알림을 제외한다. 본인 소유 조건과 개인 실시간 주제를 유지한다. NotificationText는 댓글 이벤트의 commentId로 #comment-UUID를 만들며 알림 링크·앱 실행 검증도 이를 허용한다.

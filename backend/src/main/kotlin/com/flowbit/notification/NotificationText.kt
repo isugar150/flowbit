@@ -25,6 +25,7 @@ data class NotificationMessage(
      */
     val spaced: Boolean = false,
     val webUrl: String? = null,
+    val actionable: Boolean = true,
 ) {
     /** OS protocol activation for a ticket, alongside the ordinary web URL. */
     val appUrl: String?
@@ -81,6 +82,7 @@ class NotificationText(
                 path = path,
                 url = publicUrl.of(path),
                 spaced = true,
+                actionable = false,
             )
         }
         // Changes a Git server made say so (D-141); they carry `via` in their details.
@@ -97,7 +99,7 @@ class NotificationText(
                 fromGit -> "Git에서 티켓을 수정했습니다"
                 else -> "티켓을 수정했습니다"
             }
-        val path = "/issue/${notification.issueKey}"
+        val path = commentPath("/issue/${notification.issueKey}", notification.events)
         return NotificationMessage(
             title = "[${notification.issueKey}] ${notification.issueTitle}",
             lines = notification.events.flatMap(::lines) + notification.commits.flatMap(::commitLines),
@@ -109,6 +111,7 @@ class NotificationText(
                 },
             path = path,
             url = publicUrl.of(path),
+            actionable = notification.events.any { it.type !in setOf("STATUS_CHANGED", "AUTOMATION_TRIGGERED") },
         )
     }
 
@@ -130,14 +133,27 @@ class NotificationText(
                         else -> "문서를 수정했습니다"
                     }
             }
+        val path = commentPath(notification.path, notification.events)
         return NotificationMessage(
             title = notification.title,
             lines = notification.events.mapNotNull(::contentLine),
             headline = "${notification.actorName} 님이 $did",
-            path = notification.path,
-            url = publicUrl.of(notification.path),
+            path = path,
+            url = publicUrl.of(path),
             linkLabel = "열기",
+            actionable = notification.events.any { it.type != "STATUS_CHANGED" },
         )
+    }
+
+    private fun commentPath(
+        path: String,
+        events: List<IssueNotification.Event>,
+    ): String {
+        val id =
+            events
+                .firstNotNullOfOrNull { it.detail["commentId"] as? String }
+                ?.let { runCatching { java.util.UUID.fromString(it) }.getOrNull() }
+        return if (id == null) path else "${path.substringBefore('#')}#comment-$id"
     }
 
     private fun contentLine(event: IssueNotification.Event): String? {

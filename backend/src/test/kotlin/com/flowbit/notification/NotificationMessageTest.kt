@@ -21,6 +21,28 @@ class NotificationMessageTest {
         )
 
     @Test
+    fun `상태 변경과 자동화 알림에는 처리 기능이 없고 댓글과 다른 변경에는 있다`() {
+        assertEquals(false, text.of(change(IssueNotification.Event("STATUS_CHANGED", emptyMap()))).actionable)
+        assertEquals(false, text.of(change(IssueNotification.Event("AUTOMATION_TRIGGERED", mapOf("message" to "리뷰 요청")))).actionable)
+        assertEquals(true, text.of(comment(emptyMap())).actionable)
+        assertEquals(true, text.of(change(IssueNotification.Event("ASSIGNEE_CHANGED", emptyMap()))).actionable)
+        assertEquals(
+            true,
+            text.of(change(IssueNotification.Event("STATUS_CHANGED", emptyMap()), IssueNotification.Event("ASSIGNEE_CHANGED", emptyMap()))).actionable,
+        )
+    }
+
+    @Test
+    fun `댓글과 답글 알림은 해당 댓글을 가리키고 과거 알림은 원래 경로를 유지한다`() {
+        val id = "019a1234-5678-7000-8000-123456789abc"
+        for (reply in listOf(false, true)) {
+            assertEquals("/issue/FB-12#comment-$id", text.of(comment(mapOf("commentId" to id, "reply" to reply))).path)
+        }
+        assertEquals("/issue/FB-12", text.of(comment(emptyMap())).path)
+        assertEquals("/issue/FB-12", text.of(comment(mapOf("commentId" to "bad#fragment"))).path)
+    }
+
+    @Test
     fun `답글이면 머리말이 댓글에 답글을 남겼다고 말한다`() {
         assertEquals("김지민 님이 댓글을 남겼습니다", text.of(comment(mapOf("text" to "확인했습니다"))).headline)
         assertEquals("김지민 님이 댓글에 답글을 남겼습니다", text.of(comment(mapOf("text" to "확인했습니다", "reply" to true))).headline)

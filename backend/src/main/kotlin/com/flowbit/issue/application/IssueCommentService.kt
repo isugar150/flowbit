@@ -102,7 +102,7 @@ class IssueCommentService(
         val change =
             IssueChange(
                 checkNotNull(queries.find(number)),
-                listOf(commentEvent(document, tagged, files, reply = parent != null)),
+                listOf(commentEvent(document, tagged, files, id, reply = parent != null)),
                 followers,
                 taggedIds = told.distinct(),
             )
@@ -156,7 +156,21 @@ class IssueCommentService(
         afterCommit.run { removed.forEach { fileStorage.delete(it.fileKey) } }
         val tagged = tagging.tag(access.issue, document.mentions - richText.mentionsIn(existing.content), user)
         val comment = checkNotNull(comments.find(commentId)).withRights(user, access).withExtras(user)
-        val events = if (tagged.isEmpty()) emptyList() else listOf(commentEvent(document, tagged, comment.attachments, reply = existing.parentId != null))
+        val events =
+            if (tagged.isEmpty()) {
+                emptyList()
+            } else {
+                listOf(
+                    commentEvent(
+                        document,
+                        tagged,
+                        comment.attachments,
+                        commentId,
+                        reply =
+                            existing.parentId != null,
+                    ),
+                )
+            }
         return CommentResult(
             comment,
             IssueChange(checkNotNull(queries.find(access.issue.number)), events, emptyList(), taggedIds = tagged.map { it.first }),
@@ -237,10 +251,12 @@ class IssueCommentService(
         document: RichTextDocument,
         tagged: List<Pair<UUID, String>>,
         files: List<AttachmentView>,
+        commentId: UUID,
         reply: Boolean = false,
     ) = IssueEvent(
         IssueActivityType.COMMENT_ADDED,
         mapOf(
+            "commentId" to commentId.toString(),
             "text" to document.plainText.ifBlank { files.joinToString(", ") { it.fileName } }.take(COMMENT_PREVIEW_LENGTH),
             "mentions" to tagged.map { it.second },
         ) + (if (reply) mapOf("reply" to true) else emptyMap()),

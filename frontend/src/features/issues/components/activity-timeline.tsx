@@ -47,10 +47,12 @@ export const ACTIVITY_PAGE_SIZE = 15;
  * The newest [ACTIVITY_PAGE_SIZE] entries; the rest wait until the button is pressed, and then they all show.
  * `ShowOlderButton` is that button, below the list.
  */
-export function useCollapsedEntries<T>(entries: T[]) {
+export function useCollapsedEntries<T>(entries: T[], required?: (entry: T) => boolean) {
   const [expanded, setExpanded] = useState(false);
-  const hidden = expanded ? 0 : Math.max(0, entries.length - ACTIVITY_PAGE_SIZE);
-  return { shown: hidden > 0 ? entries.slice(0, ACTIVITY_PAGE_SIZE) : entries, hidden, expand: () => setExpanded(true) };
+  const requiredIndex = required ? entries.findIndex(required) : -1;
+  const count = expanded ? entries.length : Math.max(ACTIVITY_PAGE_SIZE, requiredIndex + 1);
+  const hidden = Math.max(0, entries.length - count);
+  return { shown: entries.slice(0, count), hidden, expand: () => setExpanded(true) };
 }
 
 export function ShowOlderButton({ hidden, onClick }: { hidden: number; onClick: () => void }) {

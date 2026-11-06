@@ -80,7 +80,7 @@ class ContentCommentService(
         val text = document.plainText.ifBlank { files.joinToString(", ") { it.fileName } }.take(PREVIEW_LENGTH)
         val names = tagged.map { directory.displayName(it) }
         followTagged(target, tagged)
-        val detail = mapOf("text" to text, "mentions" to names) + (if (parent != null) mapOf("reply" to true) else emptyMap())
+        val detail = mapOf("text" to text, "mentions" to names, "commentId" to id.toString()) + (if (parent != null) mapOf("reply" to true) else emptyMap())
         // A new comment is for everyone who follows the page; a reply is for the ones it is about (D-218).
         val told = tagged + if (parent == null) directory.followers(context) else conversation
         log.announce(target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, detail)), told.distinct())
@@ -132,7 +132,11 @@ class ContentCommentService(
         val tagged = taggedPeople(context, document.mentions - richText.mentionsIn(existing.content), user.id)
         if (tagged.isNotEmpty()) {
             val detail =
-                mapOf("text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to tagged.map { directory.displayName(it) }) +
+                mapOf(
+                    "text" to document.plainText.take(PREVIEW_LENGTH),
+                    "mentions" to tagged.map { directory.displayName(it) },
+                    "commentId" to commentId.toString(),
+                ) +
                     (if (existing.parentId != null) mapOf("reply" to true) else emptyMap())
             followTagged(existing.target, tagged)
             log.announce(existing.target, user.id, listOf(ContentEvent(ContentEventType.COMMENT_ADDED, detail)), tagged)

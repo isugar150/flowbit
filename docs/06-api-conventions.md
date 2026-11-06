@@ -182,3 +182,9 @@ API 알림의 표준 JSON에 appUrl(null 가능), 티켓 issue 객체에 appUrl�
 ## 알림별 HTTPS 연결 (2026-10-30)
 
 GET /api/v1/public/notification-links/{token}: 익명 경로 조회, {path}, no-store·no-referrer. 유효하지 않거나 만료면 404 NOTIFICATION_LINK_NOT_FOUND, IP당 분당120회. 콘텐츠 조회/로그인/권한 API는 열지 않는다. 알림 발송 시 url·issue.url·{{text}}는 /n/{token} HTTPS 중간 링크를 사용하고, webUrl·{{webUrl}}은 원래 웹 주소, appUrl은 고급 프로토콜 연동을 유지한다.
+
+## 알림 개인 처리 여부 (2026-11-06)
+
+GET /api/v1/me/inbox: completed(boolean, 선택), offset(기본 0), limit(기본 30, 1~100). DB 필터 후 최신순 조회. 항목 completed와 응답 hasMore 추가. POST /api/v1/me/inbox/completion {id: UUID, completed: boolean} → 204. 본인 소유만 갱신하며 읽음·티켓 상태와 독립적이다. 댓글 알림 경로 #comment-UUID는 해당 댓글로 이동한다.
+
+2026-11-06 추가 확정: 상태 변경만 있는 알림과 상태 자동화 알림은 처리 기능이 없다(actionable=false). 읽음만 관리하고 미처리·처리 완료 필터에서 제외하며 전체 목록에 표시한다. 혼합 변경에 다른 종류의 변경이 있으면 처리 가능하다. 기본 목록은 전체다. V25에 actionable(boolean, 기본 true)와 처리 가능 여부 제약을 추가한다. 기존 알림 중 본문이 단일 상태 변경 줄인 것은 처리 불가로 이전한다. 과거 임의 자동화 문구는 이벤트 종류가 저장되지 않아 자동 판별할 수 없다.

@@ -1,5 +1,6 @@
 const id = "[0-9a-fA-F-]{36}";
-const targetPattern = new RegExp(`^/(issue/[A-Za-z][A-Za-z0-9]*-[1-9]\\d*|doc/${id}|project/${id}(/settings)?|my-issues(/created)?)(#access-requests)?$`);
+const commentId = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+const targetPattern = new RegExp(`^/(issue/[A-Za-z][A-Za-z0-9]*-[1-9]\\d*|doc/${id}|project/${id}(/settings)?|my-issues(/created)?)(#access-requests|#comment-${commentId})?$`);
 
 export function isNotificationTarget(path: string): boolean {
   return targetPattern.test(path);

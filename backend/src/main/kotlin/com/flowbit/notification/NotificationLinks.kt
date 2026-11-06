@@ -101,7 +101,9 @@ class NotificationLinks(
     companion object {
         private val TOKEN = Regex("[A-Za-z0-9_-]{43}")
         private const val ID = "[0-9a-fA-F-]{36}"
-        private val TARGET = Regex("/(issue/[A-Za-z][A-Za-z0-9]*-[1-9][0-9]*|doc/$ID|project/$ID(/settings)?|my-issues(/created)?)(#access-requests)?")
+        private const val COMMENT_ID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+        private val TARGET =
+            Regex("/(issue/[A-Za-z][A-Za-z0-9]*-[1-9][0-9]*|doc/$ID|project/$ID(/settings)?|my-issues(/created)?)(#access-requests|#comment-$COMMENT_ID)?")
 
         fun validTarget(path: String): Boolean = TARGET.matches(path)
     }

@@ -253,3 +253,9 @@ V22__notification_links.sql: notification_links(token_hash text PK SHA-256 64자
 ## V24 — 요청함 제거 (2026-11-03)
 
 위 V10·V12·V19의 요청함 컬럼과 인덱스를 제거했다. 기존 대기 티켓은 기본 백로그 상태로 이전하고 버전을 증가시킨다. 거절 티켓은 취소 상태와 내용을 보존한다. `retention_policies`의 REJECTED_REQUESTS 행을 제거하고 CHECK를 ISSUES/DOCUMENTS/COMMENTS로 제한한다. 기존 마이그레이션은 배포 이력으로 보존한다.
+
+## V25 — 알림 처리 여부 (2026-11-06)
+
+inbox_notifications.completed_at(timestamptz null): 개인 처리 완료 시각. 기존/신규 기본 null(미처리), 복원 시 null, read_at과 독립적. 사용자·처리 여부·created_at/id 정렬 인덱스. 기존 90일 정리는 유지한다.
+
+2026-11-06 추가 확정: 상태 변경만 있는 알림과 상태 자동화 알림은 처리 기능이 없다(actionable=false). 읽음만 관리하고 미처리·처리 완료 필터에서 제외하며 전체 목록에 표시한다. 혼합 변경에 다른 종류의 변경이 있으면 처리 가능하다. 기본 목록은 전체다. V25에 actionable(boolean, 기본 true)와 처리 가능 여부 제약을 추가한다. 기존 알림 중 본문이 단일 상태 변경 줄인 것은 처리 불가로 이전한다. 과거 임의 자동화 문구는 이벤트 종류가 저장되지 않아 자동 판별할 수 없다.

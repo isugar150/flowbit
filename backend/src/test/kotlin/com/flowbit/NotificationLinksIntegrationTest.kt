@@ -27,6 +27,17 @@ class NotificationLinksIntegrationTest : IntegrationTest() {
     private fun message(path: String = "/issue/MK-62") = NotificationMessage("제목", emptyList(), "변경 내용", path, "https://issues.motherk.link$path")
 
     @Test
+    fun `댓글 목적지는 HTTPS 링크와 앱 실행 링크 모두에서 보존한다`() =
+        runBlocking {
+            val path = "/issue/MK-62#comment-019a1234-5678-7000-8000-123456789abc"
+            val linked = links.prepare(message(path))
+            assertTrue(linked.url.contains("/n/"))
+            assertEquals(path, client().get("/api/v1/public/notification-links/${linked.url.substringAfterLast('/')}").json()["path"])
+            assertEquals("web+flowbit://issues.motherk.link$path", linked.appUrl)
+            assertEquals(false, NotificationLinks.validTarget("/issue/MK-62#comment-invalid"))
+        }
+
+    @Test
     fun `고유 HTTPS 링크는 해시만 저장하며 익명으로 경로만 반복 조회한다`() =
         runBlocking {
             val first = links.prepare(message())

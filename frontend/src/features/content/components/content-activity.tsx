@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import { useCommentDestination } from "@/features/content/use-comment-destination";
+import { containsComment } from "@/features/content/comment-destination";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import type { MentionPerson } from "@/components/editor/mention";
 import { ActivitySkeleton } from "@/components/skeletons";
@@ -70,7 +72,8 @@ export function ContentActivity({
   const api = useMemo(() => contentCommentApi(target, refresh), [target, refresh]);
   const data = feed.data;
   // Hooks come before any return: the entries are those of the feed once it is there.
-  const timeline = useCollapsedEntries(data ? timelineOf(data.items, data.comments, data.threads) : []);
+  const { commentId, attachContainer } = useCommentDestination();
+  const timeline = useCollapsedEntries(data ? timelineOf(data.items, data.comments, data.threads) : [], (entry) => containsComment(entry, commentId));
 
   if (!data) {
     // Until the feed arrives the section is drawn as it will be, so what is under it does not move when it does.
@@ -88,7 +91,7 @@ export function ContentActivity({
   const subscription = data.subscription;
 
   return (
-    <section data-presence-id="activity" aria-label={m.activity.heading} className="flex flex-col gap-3 border-t pt-5">
+    <section ref={attachContainer} data-presence-id="activity" aria-label={m.activity.heading} className="flex flex-col gap-3 border-t pt-5">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="mr-auto text-[0.9375rem] leading-[1.375rem] font-semibold">{m.activity.heading}</h3>
         {subscription && subscription.subscribers.length > 0 ? <SubscriberAvatars people={subscription.subscribers} /> : null}
@@ -115,6 +118,7 @@ export function ContentActivity({
               key={entry.comment.id}
               api={api}
               comment={entry.comment}
+              focusedCommentId={commentId}
               replies={entry.replies}
               mentionables={mentionables}
               readOnly={data.readOnly}
@@ -125,6 +129,7 @@ export function ContentActivity({
               <ThreadCard
                 target={target}
                 thread={entry.thread}
+                focusedCommentId={commentId}
                 canComment={data.canComment}
                 mentionables={mentionables}
                 quote

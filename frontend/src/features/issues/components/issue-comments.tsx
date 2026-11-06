@@ -172,6 +172,7 @@ export function CommentItem({
   readOnly = false,
   canReply = false,
   isReply = false,
+  focusedCommentId = null,
 }: {
   /** What the comment does to the server: its issue's calls, or those of the page it is on. */
   api: CommentApi;
@@ -183,6 +184,7 @@ export function CommentItem({
   /** Whether the person may write here at all (the same as for a new comment). */
   canReply?: boolean;
   isReply?: boolean;
+  focusedCommentId?: string | null;
 }) {
   const panelId = useId();
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
@@ -190,7 +192,8 @@ export function CommentItem({
     (resolved: boolean) => api.setResolved({ id: comment.id, resolved }));
   const resolved = !isReply && resolution.value;
   const resolutionKey = comment.resolvedAt ?? "pending";
-  const expanded = !resolved || expandedFor === resolutionKey;
+  const targeted = focusedCommentId === comment.id || replies.some((reply) => reply.id === focusedCommentId);
+  const expanded = !resolved || expandedFor === resolutionKey || targeted;
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const draft = useRef<RichDoc | null>(comment.content);
@@ -234,7 +237,7 @@ export function CommentItem({
         {replies.length > 0 ? (
           <ol aria-label={m.replies(replies.length)} className="flex flex-col gap-2 border-l-2 pl-3">
             {replies.map((reply) => (
-              <CommentItem key={reply.id} api={api} comment={reply} mentionables={mentionables} readOnly={readOnly} isReply />
+              <CommentItem key={reply.id} api={api} comment={reply} mentionables={mentionables} readOnly={readOnly} isReply focusedCommentId={focusedCommentId} />
             ))}
           </ol>
         ) : null}
@@ -262,7 +265,7 @@ export function CommentItem({
   }
 
   return (
-    <li className={cn("flex flex-col gap-2", isReply ? "py-1" : "rounded-lg border p-3", resolved && "bg-muted text-muted-foreground")} data-resolved={resolved || undefined}>
+    <li data-comment-id={comment.id} id={`comment-${comment.id}`} className={cn("flex flex-col gap-2 scroll-mt-20", isReply ? "py-1" : "rounded-lg border p-3", resolved && "bg-muted text-muted-foreground")} data-resolved={resolved || undefined}>
       <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] leading-5">
         {resolved ? (
           <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-controls={panelId} aria-expanded={expanded}

@@ -58,8 +58,8 @@ class ContentThreadService(
                 ?: throw ConflictException("BLOCK_NOT_FOUND", "이 블록은 아직 저장되지 않았거나 지워졌습니다. 잠시 뒤 다시 시도하세요")
         val now = clock.instant()
         val threadId = store.create(target, blockId, quote, user.id, now)
-        store.addComment(threadId, user.id, document, now)
-        announce(user, context, quote, document, inConversation = emptyList())
+        val commentId = store.addComment(threadId, user.id, document, now)
+        announce(user, context, quote, document, commentId, inConversation = emptyList())
         return ThreadResult(thread(user, context, threadId), context)
     }
 
@@ -77,8 +77,8 @@ class ContentThreadService(
                 .map { it.author.id }
                 .distinct()
                 .filter { it != user.id && directory.canReach(context, it) }
-        store.addComment(threadId, user.id, document, clock.instant())
-        announce(user, context, existing.quote, document, inConversation, reply = true)
+        val commentId = store.addComment(threadId, user.id, document, clock.instant())
+        announce(user, context, existing.quote, document, commentId, inConversation, reply = true)
         return ThreadResult(thread(user, context, threadId), context)
     }
 
@@ -96,7 +96,7 @@ class ContentThreadService(
         store.updateComment(commentId, document, clock.instant())
         // Only the people newly tagged by the change are told.
         val tagged = taggedPeople(context, document.mentions - richText.mentionsIn(comment.content), user.id)
-        if (tagged.isNotEmpty()) announceTo(user, context, existing.quote, document, tagged)
+        if (tagged.isNotEmpty()) announceTo(user, context, existing.quote, document, commentId, tagged)
         return ThreadResult(thread(user, context, comment.threadId), context)
     }
 
@@ -177,13 +177,14 @@ class ContentThreadService(
         context: ContentContext,
         quote: String,
         document: RichTextDocument,
+        commentId: UUID,
         inConversation: List<UUID>,
         reply: Boolean = false,
     ) {
         val tagged = taggedPeople(context, document.mentions, user.id)
         // A new comment is for everyone who follows the page; a reply is for the ones it is about (D-218).
         val told = tagged + if (reply) inConversation else directory.followers(context)
-        announceTo(user, context, quote, document, tagged, told = told.distinct(), reply = reply)
+        announceTo(user, context, quote, document, commentId, tagged, told = told.distinct(), reply = reply)
     }
 
     private suspend fun taggedPeople(
@@ -197,13 +198,14 @@ class ContentThreadService(
         context: ContentContext,
         quote: String,
         document: RichTextDocument,
+        commentId: UUID,
         tagged: List<UUID>,
         told: List<UUID> = tagged,
         reply: Boolean = false,
     ) {
         val names = tagged.map { directory.displayName(it) }
         val detail =
-            mapOf("quote" to quote, "text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to names) +
+            mapOf("quote" to quote, "text" to document.plainText.take(PREVIEW_LENGTH), "mentions" to names, "commentId" to commentId.toString()) +
                 (if (reply) mapOf("reply" to true) else emptyMap())
         if (context.issueId != null && context.target.type == ContentTargetType.ISSUE) {
             // A comment on a ticket's body is a comment on the ticket: the people in it follow the ticket, and the ones tagged are told.

@@ -282,3 +282,7 @@ manifest.protocol_handlers는 web+flowbit를 /open-app?url=%s로 등록한다. o
 ## 설치 확인 후 알림 분기 (2026-10-30)
 
 manifest는 유효한 FLOWBIT_PUBLIC_URL의 origin을 우선하고, 미설정/잘못된 값일 때만 headers()의 Host·프로토콜을 사용해 자기 참조 webapp related_applications(id=origin/, url=origin/manifest.webmanifest)를 생성한다. TLS 뒤 내부 HTTP 헤더가 HTTPS 설치 ID를 바꾸지 않게 한다. id=/·scope=/는 유지하고 prefer_related_applications=false다. 경로 조회와 getInstalledRelatedApps를 병렬 처리해 해당 앱 설치가 확인된 경우에만 자동 프로토콜 호출한다. 미설치·미지원·오류·500ms 초과이면 웹으로 직접 이동한다. 설치 상태는 저장하지 않는다.
+
+## 알림 처리와 댓글 이동 (2026-11-06)
+
+InboxBell은 전체(기본)/미처리/처리 완료를 서버에서 필터링하고 useInfiniteQuery로 이어 읽는다. 완료·복원은 기존 useOptimisticMutation의 직렬 저장·실패 원복을 사용하고 조회 캐시를 갱신한다. 상태 변경 알림은 읽음만 관리한다. 개인 inbox 실시간 변경은 목록 캐시도 무효화한다. use-comment-destination은 링크의 댓글 UUID를 읽고 비동기 활동 DOM을 기다려 해당 댓글을 스크롤·강조한다. timeline은 대상이 있는 위치까지 표시하고 CommentItem/ThreadCard는 해결된 대화를 펼친다. 직접 링크·같은 페이지 이동·뒤로 가기를 지원하고 동작 줄이기에서는 부드러운 스크롤 없이 색상으로 강조한다.

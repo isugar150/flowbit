@@ -585,6 +585,13 @@
 
 /* A block of a page that a thread in the activity leads to lights up for a moment (features/content/go-to-block.ts). */
 @layer components {
+  .comment-focus {
+    background-color: color-mix(in oklab, var(--primary) 16%, var(--background));
+    outline: 2px solid color-mix(in oklab, var(--primary) 45%, transparent);
+    outline-offset: 3px;
+    border-radius: 0.375rem;
+  }
+
   .block-flash {
     animation: block-flash 1.5s ease-out;
     border-radius: 0.25rem;

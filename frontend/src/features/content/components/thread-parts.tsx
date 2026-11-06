@@ -163,7 +163,7 @@ function ThreadCommentItem({
   };
 
   return (
-    <li className="flex flex-col gap-1">
+    <li data-comment-id={comment.id} className="flex scroll-mt-20 flex-col gap-1">
       <div className="flex min-h-6 items-center gap-2 text-[0.8125rem] leading-5">
         <PersonAvatar person={comment.author} />
         <span className="min-w-0 truncate font-medium">{personName(comment.author)}</span>
@@ -264,6 +264,7 @@ export function ThreadCard({
   mentionables,
   quote = false,
   collapseResolved = false,
+  focusedCommentId = null,
   onGoToBlock,
 }: {
   target: ContentTarget;
@@ -273,6 +274,7 @@ export function ThreadCard({
   mentionables: MentionPerson[];
   quote?: boolean;
   collapseResolved?: boolean;
+  focusedCommentId?: string | null;
   onGoToBlock?: (blockId: string) => void;
 }) {
   const refresh = useFeedRefresh(target);
@@ -352,7 +354,7 @@ export function ThreadCard({
 
   if (collapseResolved && thread.resolved) {
     return (
-      <details className="group rounded-lg border bg-muted/30 p-3">
+      <details open={thread.comments.some((comment) => comment.id === focusedCommentId) || undefined} className="group rounded-lg border bg-muted/30 p-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
           <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">
             ›

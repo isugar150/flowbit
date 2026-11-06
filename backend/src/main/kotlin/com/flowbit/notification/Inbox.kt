@@ -23,6 +23,8 @@ data class InboxItem(
     val path: String,
     val createdAt: Instant,
     val read: Boolean,
+    val completed: Boolean,
+    val actionable: Boolean,
 )
 
 /** `inbox_notifications` (docs/features/inbox-and-daily-summary.md, D-216). */
@@ -39,8 +41,8 @@ class InboxStore(
             databaseClient
                 .sql(
                     """
-                    insert into inbox_notifications (id, user_id, title, headline, body, path, created_at)
-                    values (:id, :userId, :title, :headline, :body, :path, :now)
+                    insert into inbox_notifications (id, user_id, title, headline, body, path, created_at, actionable)
+                    values (:id, :userId, :title, :headline, :body, :path, :now, :actionable)
                     """.trimIndent(),
                 ).bind("id", UuidV7.generate(now))
                 .bind("userId", userId)
@@ -48,6 +50,7 @@ class InboxStore(
                 .bind("headline", message.headline)
                 .bind("body", message.lines.joinToString("\n"))
                 .bind("path", message.path)
+                .bind("actionable", message.actionable)
                 .bind("now", now)
                 .fetch()
                 .rowsUpdated()
@@ -59,16 +62,26 @@ class InboxStore(
     suspend fun latest(
         userId: UUID,
         limit: Int,
+        completed: Boolean? = null,
+        offset: Int = 0,
     ): List<InboxItem> =
         databaseClient
             .sql(
                 """
-                select id, title, headline, body, path, created_at, read_at
+                select id, title, headline, body, path, created_at, read_at, completed_at, actionable
                 from inbox_notifications where user_id = :userId
-                order by created_at desc, id desc limit :limit
+                ${if (completed == null) {
+                    ""
+                } else if (completed) {
+                    "and actionable and completed_at is not null"
+                } else {
+                    "and actionable and completed_at is null"
+                }}
+                order by created_at desc, id desc limit :limit offset :offset
                 """.trimIndent(),
             ).bind("userId", userId)
             .bind("limit", limit)
+            .bind("offset", offset)
             .map { row ->
                 InboxItem(
                     id = checkNotNull(row.get("id", UUID::class.java)),
@@ -78,10 +91,33 @@ class InboxStore(
                     path = checkNotNull(row.get("path", String::class.java)),
                     createdAt = checkNotNull(row.get("created_at", OffsetDateTime::class.java)).toInstant(),
                     read = row.get("read_at", OffsetDateTime::class.java) != null,
+                    completed = row.get("completed_at", OffsetDateTime::class.java) != null,
+                    actionable = checkNotNull(row.get("actionable", Boolean::class.javaObjectType)),
                 )
             }.all()
             .collectList()
             .awaitSingle()
+
+    suspend fun setCompleted(
+        userId: UUID,
+        id: UUID,
+        completed: Boolean,
+        now: Instant,
+    ) {
+        databaseClient
+            .sql(
+                """
+                update inbox_notifications
+                set completed_at = ${if (completed) "coalesce(completed_at, :now)" else "null"}
+                where user_id = :userId and id = :id and actionable
+                """.trimIndent(),
+            ).let { if (completed) it.bind("now", now) else it }
+            .bind("userId", userId)
+            .bind("id", id)
+            .fetch()
+            .rowsUpdated()
+            .awaitSingle()
+    }
 
     suspend fun unreadCount(userId: UUID): Int =
         databaseClient

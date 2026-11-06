@@ -5,6 +5,9 @@ const origin = "https://issues.motherk.link";
 
 describe("PWA protocol launch", () => {
   it("opens only the ticket path on the current installation", () => {
+    const id = "019a1234-5678-7000-8000-123456789abc";
+    expect(appLinkTarget(`web+flowbit://issues.motherk.link/issue/MK-9#comment-${id}`, origin)).toBe(`/issue/MK-9#comment-${id}`);
+    expect(appLinkTarget("web+flowbit://issues.motherk.link/issue/MK-9#comment-invalid", origin)).toBeNull();
     expect(appLinkTarget("web+flowbit://issues.motherk.link/issue/MK-9", origin)).toBe("/issue/MK-9");
     expect(appLinkTarget("web+flowbit://ISSUES.MOTHERK.LINK:443/issue/MK-9", origin)).toBe("/issue/MK-9");
     expect(appLinkTarget("web+flowbit://localhost:3100/issue/FB-12", "http://localhost:3100")).toBe("/issue/FB-12");

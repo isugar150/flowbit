@@ -11,13 +11,13 @@
 - **그 화면을 열면 그 화면에 대한 알림이 읽음이 된다** (사용자 지정, D-217). 종에서 누르든, 메일·푸시의 링크든, 주소를 직접 쳐서 들어가든 같다. 앱이 화면을 열 때마다(읽지 않은 알림이 있고 탭이 앞에 있을 때만) 서버에 그 화면의 주소를 알리고(`POST /api/v1/me/inbox/read-path`), 서버는 알림의 주소(`#` 뒤는 뺀 것, 대소문자 무시)가 그 주소인 안 읽은 알림을 읽음으로 한다. 티켓 `/issue/FB-12`, 문서 `/doc/<id>`, 프로젝트 개요 `/project/<id>`, 프로젝트 접근 요청은 `/project/<id>/settings`. 탭이 뒤에 있다 앞으로 오거나, 그 화면을 보는 중에 새 알림이 와도 읽음이 된다(이미 보고 있으므로). 알림이 하나도 안 읽혀 있으면 서버를 부르지 않는다. 주소가 `/issue/12`(번호만)이거나 워크스페이스 키를 바꾸기 전의 알림은 맞지 않아 종에서 눌러야 읽음이 된다.
 - 새 알림이 오거나 다른 탭에서 읽으면 **새로 고침 없이** 숫자가 바뀐다(실시간 `inbox:<내 id>`, 본인만 들을 수 있다). 목록이 열려 있으면 다시 읽는다.
 - **무엇이 쌓이는가**: 다른 통로가 알리는 것과 **같은 것, 같은 받는 사람, 같은 문구**다. 티켓·프로젝트·문서의 구독자가 받는 변경, 댓글에서 태그된 사람, 프로젝트 접근 요청의 관리 역할. 내가 한 변경은 나에게 오지 않는다. 메일 주소가 없거나 푸시를 안 켠 사람도 수신함에는 쌓인다(설정이 필요 없는 통로). Git 서버의 링크·커밋(API 알림이 직접 고른 경우에만 가는 것)은 쌓지 않는다.
-- **얼마나 두는가**: 90일이 지난 것은 읽었든 안 읽었든 지운다(1시간에 한 번 정리). 목록은 최근 30건만 보인다. 앱 안에 전체 수신함 페이지는 아직 없다(범위 밖).
+- **얼마나 두는가**: 90일이 지난 것은 읽었든 안 읽었든 지운다(1시간에 한 번 정리). 목록은 필터마다 최근 30건부터 더 보기로 이어 읽는다. 앱 안에 전체 수신함 페이지는 아직 없다(범위 밖).
 
 ### API
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| GET | `/api/v1/me/inbox?limit=30` | `{ items: [{ id, title, headline, lines, path, createdAt, read }], unreadCount }`. `limit` 1~100. `unreadCount` 는 목록에 없는 것까지 센 전체 |
+| GET | `/api/v1/me/inbox?limit=30` | `{ items: [{ id, title, headline, lines, path, createdAt, read, completed, actionable }], unreadCount, hasMore }`. `limit` 1~100. `unreadCount` 는 목록에 없는 것까지 센 전체 |
 | GET | `/api/v1/me/inbox/unread-count` | `{ count }`. 페이지가 서버에서 읽어 종에 넘긴다 |
 | POST | `/api/v1/me/inbox/read` | `{ ids: [...] }` 또는 `{ all: true }` → 204. 남의 것은 건드리지 않는다 |
 | POST | `/api/v1/me/inbox/read-path` | `{ path: "/issue/FB-12" }` → `{ marked }`. 그 화면에 대한 안 읽은 알림을 읽음으로 한다(D-217) |
@@ -26,7 +26,7 @@
 
 ### 데이터 (`V6`)
 
-`inbox_notifications(id, user_id → users CASCADE, title, headline, body, path, created_at, read_at)`. `body` 는 변경 줄을 줄바꿈으로 이은 것. 인덱스: `(user_id, created_at desc)`, 안 읽은 것만 `(user_id) where read_at is null`. 백업에는 넣지 않는다.
+`inbox_notifications(id, user_id → users CASCADE, title, headline, body, path, created_at, read_at, completed_at, actionable)`. `body` 는 변경 줄을 줄바꿈으로 이은 것. 인덱스: `(user_id, created_at desc)`, 안 읽은 것만 `(user_id) where read_at is null`. 백업에는 넣지 않는다.
 
 ### 코드
 
@@ -107,3 +107,14 @@ https://flowbit.example.com/my-issues
 - 요약의 줄: 기한 지남·오늘 마감·새로 할당·상태별 수가 들어가고 끝난 티켓은 빠진다. 보낼 내용이 없는 구성원에게는 보내지 않는다
 
 2026-11-03: 요청함 제거로 TRIAGE_REQUESTED를 새로 발송하지 않는다. 이미 발송된 알림은 과거 기록으로 보존한다.
+
+## 알림 처리 여부와 댓글 이동 (2026-11-06, 사용자 확정)
+
+- 접근·클릭·모두 읽음은 유지한다. 읽음과 개인 처리 여부는 독립적이며 티켓 완료·댓글 해결을 바꾸지 않는다.
+- 종 목록은 전체(기본), 미처리, 처리 완료 필터를 제공한다. 읽은 미처리 알림도 남는다. 최신순 30건부터 더 보기로 이어 읽는다.
+- 처리 완료 직후 되돌리기, 처리 완료·전체 목록의 미처리로 되돌리기로 복원한다(기존 90일 보관 내). 실패 시 원복·오류를 표시한다. 처리 가능한 기존/신규 알림은 기본 미처리다.
+- GET /api/v1/me/inbox에 completed(생략 시 전체), offset(기본 0), 항목 completed와 응답 hasMore를 추가한다. DB에서 필터 후 제한한다. POST /api/v1/me/inbox/completion {id, completed} → 204: 본인 알림만 갱신하며 읽음은 바꾸지 않는다. 개인 수신함 실시간 주제로 전파한다.
+- V25: inbox_notifications.completed_at(nullable timestamptz) 및 사용자·처리 여부·시각 인덱스.
+- 새 일반 댓글·답글·블록 댓글 알림은 #comment-UUID를 포함한다. 이전 활동과 해결된 대화를 펼쳐 댓글로 이동·강조한다. 기존 알림은 원래 경로를 유지하며 접근 권한은 기존 화면을 따른다.
+
+2026-11-06 추가 확정: 상태 변경만 있는 알림과 상태 자동화 알림은 처리 기능이 없다(actionable=false). 읽음만 관리하고 미처리·처리 완료 필터에서 제외하며 전체 목록에 표시한다. 혼합 변경에 다른 종류의 변경이 있으면 처리 가능하다. 기본 목록은 전체다. V25에 actionable(boolean, 기본 true)와 처리 가능 여부 제약을 추가한다. 기존 알림 중 본문이 단일 상태 변경 줄인 것은 처리 불가로 이전한다. 과거 임의 자동화 문구는 이벤트 종류가 저장되지 않아 자동 판별할 수 없다.

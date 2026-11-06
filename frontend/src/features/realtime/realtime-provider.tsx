@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { lastLocalWriteAt } from "@/lib/api/client";
 import { PresenceFocus } from "./presence-focus";
 
@@ -61,6 +62,7 @@ const SESSION_ENDED = 4401;
  */
 export function RealtimeProvider({ userId, children }: { userId: string; children: React.ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const scopes = useRef(new Map<number, Scope>());
   const nextScopeId = useRef(0);
   const socket = useRef<WebSocket | null>(null);
@@ -136,6 +138,7 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
           return;
         }
         if (message.type === "changed") {
+          if (message.topic === `inbox:${userId}`) void queryClient.invalidateQueries({ queryKey: ["inbox"] });
           const ownEcho = message.actorId === userId && Date.now() - lastLocalWriteAt() < OWN_WRITE_WINDOW_MS;
           if (!ownEcho) scheduleRefresh();
         } else if (message.type === "presence") {
@@ -167,7 +170,7 @@ export function RealtimeProvider({ userId, children }: { userId: string; childre
       socket.current?.close();
       socket.current = null;
     };
-  }, [userId, sendSubscription, scheduleRefresh]);
+  }, [userId, sendSubscription, scheduleRefresh, queryClient]);
 
   const register = useCallback(
     (scope: Scope) => {

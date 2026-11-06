@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import { useCommentDestination } from "@/features/content/use-comment-destination";
+import { containsComment } from "@/features/content/comment-destination";
 import type { MentionPerson } from "@/components/editor/mention";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { useOptimisticMutation } from "@/lib/use-refreshing-mutation";
@@ -55,10 +57,11 @@ export function IssueActivity({
   // The comments on the blocks of the body stand among the rest, where their first comment was written.
   const target = useMemo(() => ({ type: "issue" as const, id: issueId }), [issueId]);
   const threads = useContentFeed(target, feed).data?.threads ?? [];
-  const timeline = useCollapsedEntries(timelineOf(feed.items, feed.comments, threads));
+  const { commentId, attachContainer } = useCommentDestination();
+  const timeline = useCollapsedEntries(timelineOf(feed.items, feed.comments, threads), (entry) => containsComment(entry, commentId));
 
   return (
-    <section data-presence-id="activity" aria-labelledby="issue-activity-title" className="flex flex-col gap-3 border-t pt-5">
+    <section ref={attachContainer} data-presence-id="activity" aria-labelledby="issue-activity-title" className="flex flex-col gap-3 border-t pt-5">
       <div className="flex flex-wrap items-center gap-2">
         <h3 id="issue-activity-title" className="mr-auto text-[0.9375rem] leading-[1.375rem] font-semibold">
           {m.heading}
@@ -85,6 +88,7 @@ export function IssueActivity({
               key={entry.comment.id}
               api={api}
               comment={entry.comment}
+              focusedCommentId={commentId}
               replies={entry.replies}
               mentionables={mentionables}
               readOnly={readOnly}
@@ -95,6 +99,7 @@ export function IssueActivity({
               <ThreadCard
                 target={target}
                 thread={entry.thread}
+                focusedCommentId={commentId}
                 canComment={!readOnly}
                 mentionables={mentionables}
                 quote

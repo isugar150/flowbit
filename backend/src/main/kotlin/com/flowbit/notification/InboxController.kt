@@ -23,9 +23,12 @@ data class InboxItemResponse(
     val path: String,
     val createdAt: Instant,
     val read: Boolean,
+    val completed: Boolean,
+    val actionable: Boolean,
 ) {
     companion object {
-        fun from(item: InboxItem) = InboxItemResponse(item.id, item.title, item.headline, item.lines, item.path, item.createdAt, item.read)
+        fun from(item: InboxItem) =
+            InboxItemResponse(item.id, item.title, item.headline, item.lines, item.path, item.createdAt, item.read, item.completed, item.actionable)
     }
 }
 
@@ -33,6 +36,7 @@ data class InboxItemResponse(
 data class InboxResponse(
     val items: List<InboxItemResponse>,
     val unreadCount: Int,
+    val hasMore: Boolean,
 )
 
 /** `path` is the address of the page that was opened: `/issue/FB-12`. */
@@ -55,6 +59,11 @@ data class MarkReadRequest(
     val all: Boolean = false,
 )
 
+data class InboxCompletionRequest(
+    val id: UUID,
+    val completed: Boolean,
+)
+
 /**
  * The signed-in person's inbox (docs/features/inbox-and-daily-summary.md, D-216): the notifications
  * they were told about, newest first, and how many are not read yet. Nobody reads another person's.
@@ -70,7 +79,23 @@ class InboxController(
     suspend fun list(
         @AuthenticationPrincipal user: AuthenticatedUser,
         @RequestParam(defaultValue = "30") limit: Int,
-    ): InboxResponse = InboxResponse(store.latest(user.id, limit.coerceIn(1, MAX_LIMIT)).map(InboxItemResponse::from), store.unreadCount(user.id))
+        @RequestParam(required = false) completed: Boolean?,
+        @RequestParam(defaultValue = "0") offset: Int,
+    ): InboxResponse {
+        val size = limit.coerceIn(1, MAX_LIMIT)
+        val items = store.latest(user.id, size + 1, completed, offset.coerceAtLeast(0))
+        return InboxResponse(items.take(size).map(InboxItemResponse::from), store.unreadCount(user.id), items.size > size)
+    }
+
+    @PostMapping("/completion")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    suspend fun setCompleted(
+        @AuthenticationPrincipal user: AuthenticatedUser,
+        @RequestBody body: InboxCompletionRequest,
+    ) {
+        store.setCompleted(user.id, body.id, body.completed, clock.instant())
+        hub.publish(RealtimeHub.inbox(user.id), user.id)
+    }
 
     @GetMapping("/unread-count")
     suspend fun unreadCount(

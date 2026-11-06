@@ -130,10 +130,13 @@ export type InboxItem = {
   path: string;
   createdAt: string;
   read: boolean;
+  completed: boolean;
+  actionable: boolean;
 };
 
 export type Inbox = {
   items: InboxItem[];
   /** Of all of them, not only the ones listed. */
   unreadCount: number;
+  hasMore: boolean;
 };

@@ -96,8 +96,12 @@ export function unregisterPushToken(token: string): Promise<void> {
 }
 
 /** The latest notifications of the signed-in person and how many of all of them are not read yet (D-216). */
-export function fetchInbox(): Promise<Inbox> {
-  return apiFetch<Inbox>("/api/v1/me/inbox?limit=30");
+export function fetchInbox(completed?: boolean, offset = 0): Promise<Inbox> {
+  return apiFetch<Inbox>(`/api/v1/me/inbox?limit=30&offset=${offset}${completed === undefined ? "" : `&completed=${completed}`}`);
+}
+
+export function setInboxCompleted(input: { id: string; completed: boolean }): Promise<void> {
+  return apiFetch<void>("/api/v1/me/inbox/completion", { method: "POST", body: input });
 }
 
 /** The person opened the page `path` (`/issue/FB-12`): what they were told about it is read (D-217). `marked` is how many were unread. */

@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { BellIcon } from "lucide-react";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { BellIcon, CheckIcon, RotateCcwIcon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
-import { useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { useOptimisticMutation, useRefreshingMutation } from "@/lib/use-refreshing-mutation";
+import { apiErrorMessage } from "@/lib/api/error-message";
+import { notifyCommentNavigation } from "@/features/content/use-comment-destination";
 import { cn } from "@/lib/utils";
 import { messages } from "@/messages";
-import { fetchInbox, markInboxRead } from "../api";
+import { fetchInbox, markInboxRead, setInboxCompleted } from "../api";
 import type { InboxItem } from "../types";
 
 const m = messages.inbox;
@@ -26,9 +28,32 @@ const SHOWN_LINES = 3;
  */
 export function InboxBell({ unread, placement }: { unread: number; placement: "sidebar" | "header" }) {
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<"pending" | "completed" | "all">("all");
+  const [undoId, setUndoId] = useState<string | null>(null);
+  const client = useQueryClient();
   // The count in the key: a notification that comes while the list is open reads it again.
-  const inbox = useQuery({ queryKey: ["inbox", unread], queryFn: fetchInbox, enabled: open, staleTime: 0, retry: false });
-  const read = useRefreshingMutation(markInboxRead);
+  const inbox = useInfiniteQuery({
+    queryKey: ["inbox", unread, filter],
+    queryFn: ({ pageParam }) => fetchInbox(filter === "all" ? undefined : filter === "completed", pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => last.hasMore ? pages.reduce((sum, page) => sum + page.items.length, 0) : undefined,
+    enabled: open, staleTime: 0, retry: false,
+  });
+  const refreshInbox = () => client.invalidateQueries({ queryKey: ["inbox"] });
+  const read = useRefreshingMutation(async (input: { ids: string[] } | { all: true }) => {
+    await markInboxRead(input);
+    await refreshInbox();
+  });
+  const completion = useOptimisticMutation(
+    inbox.data?.pages.flatMap((page) => page.items) ?? [],
+    (items, input: { id: string; completed: boolean }) => items.map((item) => item.id === input.id ? { ...item, completed: input.completed } : item),
+    async (input: { id: string; completed: boolean }) => {
+      await setInboxCompleted(input);
+      await refreshInbox();
+    },
+  );
+  const items = completion.value.filter((item) => filter === "all" || (item.actionable && item.completed === (filter === "completed")));
+  const failure = completion.error ?? read.error;
   const inSidebar = placement === "sidebar";
 
   return (
@@ -74,6 +99,22 @@ export function InboxBell({ unread, placement }: { unread: number; placement: "s
             {m.markAllRead}
           </Button>
         </div>
+        <div className="flex gap-1 border-b px-3 py-2" role="group" aria-label={m.title}>
+          {(["pending", "completed", "all"] as const).map((value) => (
+            <Button key={value} variant={filter === value ? "secondary" : "ghost"} size="sm" className="max-md:h-11"
+              aria-pressed={filter === value} onClick={() => setFilter(value)}>{m[value]}</Button>
+          ))}
+        </div>
+        {undoId && !completion.isError ? (
+          <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs" role="status">
+            <span>{m.completedNotice}</span>
+            <Button variant="ghost" size="sm" className="shrink-0 max-md:h-11" onClick={() => {
+              completion.mutate({ id: undoId, completed: false });
+              setUndoId(null);
+            }}>{m.undo}</Button>
+          </div>
+        ) : null}
+        {failure ? <p role="alert" className="px-3 py-2 text-xs text-destructive">{apiErrorMessage(failure)}</p> : null}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {inbox.isPending ? (
             <p className="flex items-center gap-2 px-3 py-6 text-[0.8125rem] leading-5 text-muted-foreground">
@@ -84,12 +125,12 @@ export function InboxBell({ unread, placement }: { unread: number; placement: "s
             <p role="alert" className="px-3 py-6 text-[0.8125rem] leading-5 text-destructive">
               {m.failed}
             </p>
-          ) : inbox.data.items.length === 0 ? (
-            <p className="px-3 py-6 text-center text-[0.8125rem] leading-5 text-muted-foreground">{m.empty}</p>
+          ) : items.length === 0 ? (
+            <p className="px-3 py-6 text-center text-[0.8125rem] leading-5 text-muted-foreground">{filter === "pending" ? m.emptyPending : filter === "completed" ? m.emptyCompleted : m.empty}</p>
           ) : (
             <ul className="flex flex-col divide-y">
-              {inbox.data.items.map((item) => (
-                <li key={item.id}>
+              {items.map((item) => (
+                <li key={item.id} className="flex items-start">
                   <Notification
                     item={item}
                     onOpen={() => {
@@ -97,10 +138,22 @@ export function InboxBell({ unread, placement }: { unread: number; placement: "s
                       setOpen(false);
                     }}
                   />
+                  {item.actionable ? <Button type="button" variant="ghost" size="icon-sm" className="mt-2 mr-2 shrink-0 max-md:size-11"
+                    aria-label={item.completed ? m.restore : m.complete} title={item.completed ? m.restore : m.complete}
+                    onClick={() => {
+                      completion.mutate({ id: item.id, completed: !item.completed });
+                      setUndoId(item.completed ? null : item.id);
+                    }}>
+                    {item.completed ? <RotateCcwIcon /> : <CheckIcon />}
+                  </Button> : null}
                 </li>
               ))}
             </ul>
           )}
+          {inbox.hasNextPage ? (
+            <Button variant="ghost" size="sm" className="my-2 w-full max-md:h-11" disabled={inbox.isFetchingNextPage}
+              onClick={() => void inbox.fetchNextPage()}>{inbox.isFetchingNextPage ? m.loading : m.more}</Button>
+          ) : null}
         </div>
       </PopoverContent>
     </Popover>
@@ -112,9 +165,10 @@ function Notification({ item, onOpen }: { item: InboxItem; onOpen: () => void })
   return (
     <Link
       href={item.path}
+      onNavigate={() => notifyCommentNavigation(item.path)}
       onClick={onOpen}
       className={cn(
-        "flex gap-2 px-3 py-2.5 text-[0.8125rem] leading-5 outline-none hover:bg-accent focus-visible:bg-accent max-md:min-h-11",
+        "flex min-w-0 flex-1 gap-2 px-3 py-2.5 text-[0.8125rem] leading-5 outline-none hover:bg-accent focus-visible:bg-accent max-md:min-h-11",
         !item.read && "bg-muted/40",
       )}
     >
@@ -141,6 +195,7 @@ function Notification({ item, onOpen }: { item: InboxItem; onOpen: () => void })
         ) : null}
         <span className="text-xs leading-4 text-muted-foreground">
           <TimeAgo iso={item.createdAt} />
+          {item.completed ? <span className="ml-2">{m.completed}</span> : null}
         </span>
       </span>
     </Link>
