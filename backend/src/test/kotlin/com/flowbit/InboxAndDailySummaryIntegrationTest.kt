@@ -140,7 +140,9 @@ class InboxAndDailySummaryIntegrationTest : IntegrationTest() {
         admin.patch("/api/v1/issues/1", """{"priority":"HIGH"}""")
         admin.post("/api/v1/issues/1/notifications/flush", "{}")
         awaitUnread(kim, 1)
-        assertEquals(2, list("?completed=false").size)
+        assertEquals(1, list("?completed=false").size)
+        assertEquals(2, list().size)
+        assertEquals(1, list().count { it["actionable"] == false })
     }
 
     @Test

@@ -259,3 +259,7 @@ V22__notification_links.sql: notification_links(token_hash text PK SHA-256 64자
 inbox_notifications.completed_at(timestamptz null): 개인 처리 완료 시각. 기존/신규 기본 null(미처리), 복원 시 null, read_at과 독립적. 사용자·처리 여부·created_at/id 정렬 인덱스. 기존 90일 정리는 유지한다.
 
 2026-11-06 추가 확정: 상태 변경만 있는 알림과 상태 자동화 알림은 처리 기능이 없다(actionable=false). 읽음만 관리하고 미처리·처리 완료 필터에서 제외하며 전체 목록에 표시한다. 혼합 변경에 다른 종류의 변경이 있으면 처리 가능하다. 기본 목록은 전체다. V25에 actionable(boolean, 기본 true)와 처리 가능 여부 제약을 추가한다. 기존 알림 중 본문이 단일 상태 변경 줄인 것은 처리 불가로 이전한다. 과거 임의 자동화 문구는 이벤트 종류가 저장되지 않아 자동 판별할 수 없다.
+
+## V26 — 티켓 수정 알림을 정보로 전환 (2026-11-06)
+
+기존 V25는 보존한다. 티켓 수정 머리말과 티켓 경로로 식별되는 기존 알림을 actionable=false, completed_at=null로 바꾸며 read_at·본문·댓글·새 티켓 알림은 보존한다. 신규 티켓 알림은 CREATED/COMMENT_ADDED일 때만 처리 가능하다. 과거 임의 자동화 문구는 식별할 수 없다.

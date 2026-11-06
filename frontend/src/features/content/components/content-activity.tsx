@@ -72,7 +72,7 @@ export function ContentActivity({
   const api = useMemo(() => contentCommentApi(target, refresh), [target, refresh]);
   const data = feed.data;
   // Hooks come before any return: the entries are those of the feed once it is there.
-  const { commentId, attachContainer } = useCommentDestination();
+  const { commentId, navigationKey, attachContainer } = useCommentDestination();
   const timeline = useCollapsedEntries(data ? timelineOf(data.items, data.comments, data.threads) : [], (entry) => containsComment(entry, commentId));
 
   if (!data) {
@@ -119,6 +119,7 @@ export function ContentActivity({
               api={api}
               comment={entry.comment}
               focusedCommentId={commentId}
+              focusedNavigationKey={navigationKey}
               replies={entry.replies}
               mentionables={mentionables}
               readOnly={data.readOnly}
@@ -130,6 +131,7 @@ export function ContentActivity({
                 target={target}
                 thread={entry.thread}
                 focusedCommentId={commentId}
+                focusedNavigationKey={navigationKey}
                 canComment={data.canComment}
                 mentionables={mentionables}
                 quote

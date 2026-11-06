@@ -286,3 +286,7 @@ manifest는 유효한 FLOWBIT_PUBLIC_URL의 origin을 우선하고, 미설정/�
 ## 알림 처리와 댓글 이동 (2026-11-06)
 
 InboxBell은 전체(기본)/미처리/처리 완료를 서버에서 필터링하고 useInfiniteQuery로 이어 읽는다. 완료·복원은 기존 useOptimisticMutation의 직렬 저장·실패 원복을 사용하고 조회 캐시를 갱신한다. 상태 변경 알림은 읽음만 관리한다. 개인 inbox 실시간 변경은 목록 캐시도 무효화한다. use-comment-destination은 링크의 댓글 UUID를 읽고 비동기 활동 DOM을 기다려 해당 댓글을 스크롤·강조한다. timeline은 대상이 있는 위치까지 표시하고 CommentItem/ThreadCard는 해결된 대화를 펼친다. 직접 링크·같은 페이지 이동·뒤로 가기를 지원하고 동작 줄이기에서는 부드러운 스크롤 없이 색상으로 강조한다.
+
+2026-11-06 UX 개선: 알림 창의 높이를 화면 안에서 유지하고 조회/빈 상태를 가운데 표시해 필터 전환 중 위치가 바뀌지 않게 한다. 상태 글자와 아래쪽 처리/복원 버튼은 링크와 분리한다. 읽은 미처리 제목의 대비를 유지한다. 완료·복원 양방향 되돌리기를 제목과 함께 고정 하단에 제공하고, 키보드 조작 후에는 되돌리기/현재 필터로 포커스를 이어 준다. 티켓 수정 알림은 정보만 표시한다.
+
+2026-11-06 해결 댓글 재진입: useCommentDestination의 navigationKey를 CommentItem/ThreadCard에 전달한다. useCommentExpansion은 해결 시각·알림 이동 키별 펼침 선택을 보관해 자동 펼침 후 사용자가 접을 수 있고 같은 알림을 다시 누르면 다시 펼친다. ThreadCard의 details는 open/onToggle을 동기화하여 네이티브 수동 접힘 뒤에도 재진입을 반영한다. 해결 상태 API를 호출하지 않는다.

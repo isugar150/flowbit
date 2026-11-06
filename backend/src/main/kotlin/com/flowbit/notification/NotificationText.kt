@@ -111,7 +111,7 @@ class NotificationText(
                 },
             path = path,
             url = publicUrl.of(path),
-            actionable = notification.events.any { it.type !in setOf("STATUS_CHANGED", "AUTOMATION_TRIGGERED") },
+            actionable = notification.events.any { it.type in setOf("CREATED", "COMMENT_ADDED") },
         )
     }
 

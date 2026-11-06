@@ -188,3 +188,5 @@ GET /api/v1/public/notification-links/{token}: 익명 경로 조회, {path}, no-
 GET /api/v1/me/inbox: completed(boolean, 선택), offset(기본 0), limit(기본 30, 1~100). DB 필터 후 최신순 조회. 항목 completed와 응답 hasMore 추가. POST /api/v1/me/inbox/completion {id: UUID, completed: boolean} → 204. 본인 소유만 갱신하며 읽음·티켓 상태와 독립적이다. 댓글 알림 경로 #comment-UUID는 해당 댓글로 이동한다.
 
 2026-11-06 추가 확정: 상태 변경만 있는 알림과 상태 자동화 알림은 처리 기능이 없다(actionable=false). 읽음만 관리하고 미처리·처리 완료 필터에서 제외하며 전체 목록에 표시한다. 혼합 변경에 다른 종류의 변경이 있으면 처리 가능하다. 기본 목록은 전체다. V25에 actionable(boolean, 기본 true)와 처리 가능 여부 제약을 추가한다. 기존 알림 중 본문이 단일 상태 변경 줄인 것은 처리 불가로 이전한다. 과거 임의 자동화 문구는 이벤트 종류가 저장되지 않아 자동 판별할 수 없다.
+
+2026-11-06 추가 확정: 티켓 수정 알림 전체는 actionable=false. 티켓 알림은 새 티켓·댓글(CREATED/COMMENT_ADDED)만 처리 가능하며 처리 API와 필터는 기존 actionable 조건을 유지한다. V26은 식별 가능한 기존 수정 알림의 처리 여부만 정리하고 읽음은 보존한다.

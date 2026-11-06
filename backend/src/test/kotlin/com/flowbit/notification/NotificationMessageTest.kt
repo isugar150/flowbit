@@ -21,13 +21,16 @@ class NotificationMessageTest {
         )
 
     @Test
-    fun `상태 변경과 자동화 알림에는 처리 기능이 없고 댓글과 다른 변경에는 있다`() {
+    fun `티켓 수정과 자동화 알림에는 처리 기능이 없고 새 티켓과 댓글에는 있다`() {
         assertEquals(false, text.of(change(IssueNotification.Event("STATUS_CHANGED", emptyMap()))).actionable)
         assertEquals(false, text.of(change(IssueNotification.Event("AUTOMATION_TRIGGERED", mapOf("message" to "리뷰 요청")))).actionable)
         assertEquals(true, text.of(comment(emptyMap())).actionable)
-        assertEquals(true, text.of(change(IssueNotification.Event("ASSIGNEE_CHANGED", emptyMap()))).actionable)
+        for (type in listOf("TITLE_CHANGED", "DESCRIPTION_CHANGED", "ASSIGNEE_CHANGED", "PRIORITY_CHANGED", "LABELS_CHANGED", "MENTIONED")) {
+            assertEquals(false, text.of(change(IssueNotification.Event(type, emptyMap()))).actionable)
+        }
+        assertEquals(true, text.of(change(IssueNotification.Event("CREATED", emptyMap()))).actionable)
         assertEquals(
-            true,
+            false,
             text.of(change(IssueNotification.Event("STATUS_CHANGED", emptyMap()), IssueNotification.Event("ASSIGNEE_CHANGED", emptyMap()))).actionable,
         )
     }

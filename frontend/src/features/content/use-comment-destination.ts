@@ -65,5 +65,5 @@ export function useCommentDestination() {
     };
   }, [commentId, destination, root]);
 
-  return { commentId, attachContainer: ref };
+  return { commentId, navigationKey: destination, attachContainer: ref };
 }

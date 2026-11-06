@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { useCommentExpansion } from "@/features/content/use-comment-expansion";
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, MessageSquareReplyIcon, PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
 import type { MentionPerson } from "@/components/editor/mention";
@@ -173,6 +174,7 @@ export function CommentItem({
   canReply = false,
   isReply = false,
   focusedCommentId = null,
+  focusedNavigationKey = "",
 }: {
   /** What the comment does to the server: its issue's calls, or those of the page it is on. */
   api: CommentApi;
@@ -185,15 +187,16 @@ export function CommentItem({
   canReply?: boolean;
   isReply?: boolean;
   focusedCommentId?: string | null;
+  focusedNavigationKey?: string;
 }) {
   const panelId = useId();
-  const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const resolution = useOptimisticMutation(comment.resolved ?? false, (_current: boolean, resolved: boolean) => resolved,
     (resolved: boolean) => api.setResolved({ id: comment.id, resolved }));
   const resolved = !isReply && resolution.value;
   const resolutionKey = comment.resolvedAt ?? "pending";
   const targeted = focusedCommentId === comment.id || replies.some((reply) => reply.id === focusedCommentId);
-  const expanded = !resolved || expandedFor === resolutionKey || targeted;
+  const expansion = useCommentExpansion(resolved, resolutionKey, targeted, focusedNavigationKey || focusedCommentId || "");
+  const { expanded } = expansion;
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const draft = useRef<RichDoc | null>(comment.content);
@@ -237,7 +240,7 @@ export function CommentItem({
         {replies.length > 0 ? (
           <ol aria-label={m.replies(replies.length)} className="flex flex-col gap-2 border-l-2 pl-3">
             {replies.map((reply) => (
-              <CommentItem key={reply.id} api={api} comment={reply} mentionables={mentionables} readOnly={readOnly} isReply focusedCommentId={focusedCommentId} />
+              <CommentItem key={reply.id} api={api} comment={reply} mentionables={mentionables} readOnly={readOnly} isReply focusedCommentId={focusedCommentId} focusedNavigationKey={focusedNavigationKey} />
             ))}
           </ol>
         ) : null}
@@ -270,7 +273,7 @@ export function CommentItem({
         {resolved ? (
           <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-controls={panelId} aria-expanded={expanded}
             aria-label={expanded ? m.collapseResolved : m.expandResolved} title={expanded ? m.collapseResolved : m.expandResolved}
-            onClick={() => setExpandedFor(expanded ? null : resolutionKey)}>
+            onClick={() => expansion.setExpanded(!expanded)}>
             {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
           </Button>
         ) : null}
@@ -285,7 +288,7 @@ export function CommentItem({
           <span className="ml-auto flex items-center">
             {!isReply && canReply && !readOnly && !replying ? (
               <Button type="button" variant="ghost" size="sm" className="text-muted-foreground"
-                onClick={() => { setExpandedFor(null); resolution.mutate(!resolved); }}>
+                onClick={() => { expansion.reset(); resolution.mutate(!resolved); }}>
                 {resolved ? <RotateCcwIcon data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
                 {resolved ? m.reopen : m.resolve}
               </Button>
@@ -338,7 +341,7 @@ export function CommentItem({
       ) : null}
       {resolved && !expanded ? (
         <button type="button" className="min-w-0 truncate text-left text-sm text-muted-foreground line-through focus-visible:outline-ring"
-          aria-expanded={false} aria-controls={panelId} aria-label={m.expandResolved} onClick={() => setExpandedFor(resolutionKey)}>
+          aria-expanded={false} aria-controls={panelId} aria-label={m.expandResolved} onClick={() => expansion.setExpanded(true)}>
           {commentPreview(comment.content) || comment.attachments.map((file) => file.fileName).join(", ") || m.attachmentComment}
           {replies.length ? <span className="ml-2 inline-block text-xs no-underline">{m.replies(replies.length)}</span> : null}
         </button>

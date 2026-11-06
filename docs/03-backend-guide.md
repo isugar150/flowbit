@@ -159,3 +159,5 @@ MCP 파일: McpFiles(현재 본문·댓글·직접 연결 문서의 참조 기�
 ## 알림 개인 처리 여부 (2026-11-06)
 
 InboxStore는 읽음과 독립적인 completed_at/actionable(V25)을 저장한다. 상태 변경만 있는 알림·상태 자동화는 actionable=false이고, 필터/완료 갱신 모두 서버에서 처리 불가 알림을 제외한다. 본인 소유 조건과 개인 실시간 주제를 유지한다. NotificationText는 댓글 이벤트의 commentId로 #comment-UUID를 만들며 알림 링크·앱 실행 검증도 이를 허용한다.
+
+2026-11-06 추가 확정: NotificationText의 티켓 알림은 CREATED/COMMENT_ADDED만 처리 가능하다. 제목·본문·담당자·우선순위·라벨·본문 언급 등 수정은 정보다. V26은 기존 티켓 수정 머리말/경로로 식별 가능한 알림을 처리 불가로 전환한다.

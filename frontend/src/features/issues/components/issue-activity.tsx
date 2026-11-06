@@ -57,7 +57,7 @@ export function IssueActivity({
   // The comments on the blocks of the body stand among the rest, where their first comment was written.
   const target = useMemo(() => ({ type: "issue" as const, id: issueId }), [issueId]);
   const threads = useContentFeed(target, feed).data?.threads ?? [];
-  const { commentId, attachContainer } = useCommentDestination();
+  const { commentId, navigationKey, attachContainer } = useCommentDestination();
   const timeline = useCollapsedEntries(timelineOf(feed.items, feed.comments, threads), (entry) => containsComment(entry, commentId));
 
   return (
@@ -89,6 +89,7 @@ export function IssueActivity({
               api={api}
               comment={entry.comment}
               focusedCommentId={commentId}
+              focusedNavigationKey={navigationKey}
               replies={entry.replies}
               mentionables={mentionables}
               readOnly={readOnly}
@@ -100,6 +101,7 @@ export function IssueActivity({
                 target={target}
                 thread={entry.thread}
                 focusedCommentId={commentId}
+                focusedNavigationKey={navigationKey}
                 canComment={!readOnly}
                 mentionables={mentionables}
                 quote

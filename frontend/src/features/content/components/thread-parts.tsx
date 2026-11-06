@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useCommentExpansion } from "../use-comment-expansion";
 import { useMutation } from "@tanstack/react-query";
 import { CheckIcon, PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { TimeAgo } from "@/components/dates";
@@ -265,6 +266,7 @@ export function ThreadCard({
   quote = false,
   collapseResolved = false,
   focusedCommentId = null,
+  focusedNavigationKey = "",
   onGoToBlock,
 }: {
   target: ContentTarget;
@@ -275,9 +277,12 @@ export function ThreadCard({
   quote?: boolean;
   collapseResolved?: boolean;
   focusedCommentId?: string | null;
+  focusedNavigationKey?: string;
   onGoToBlock?: (blockId: string) => void;
 }) {
   const refresh = useFeedRefresh(target);
+  const focused = thread.comments.some((comment) => comment.id === focusedCommentId);
+  const expansion = useCommentExpansion(thread.resolved, thread.resolvedAt ?? "pending", focused, focusedNavigationKey || focusedCommentId || "");
   const reply = useMutation({ mutationFn: (content: RichDoc) => replyToThread({ threadId: thread.id, content }), onSuccess: refresh });
   const toggle = useMutation({
     mutationFn: () => (thread.resolved ? reopenThread(thread.id) : resolveThread(thread.id)),
@@ -354,7 +359,11 @@ export function ThreadCard({
 
   if (collapseResolved && thread.resolved) {
     return (
-      <details open={thread.comments.some((comment) => comment.id === focusedCommentId) || undefined} className="group rounded-lg border bg-muted/30 p-3">
+      <details open={expansion.expanded} onToggle={(event) => {
+        if (event.target === event.currentTarget && event.currentTarget.open !== expansion.expanded) {
+          expansion.setExpanded(event.currentTarget.open);
+        }
+      }} className="group rounded-lg border bg-muted/30 p-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-[0.8125rem] leading-5 text-muted-foreground outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
           <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">
             ›

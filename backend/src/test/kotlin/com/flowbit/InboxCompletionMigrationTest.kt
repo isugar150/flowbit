@@ -51,6 +51,31 @@ class InboxCompletionMigrationTest {
                             assertNull(rows.getObject("completed_at"))
                         }
                     }
+                    statement.execute(
+                        """
+                        insert into inbox_notifications (id, user_id, title, headline, body, path, created_at, read_at, completed_at)
+                        values
+                        ('00000000-0000-7000-8000-000000000005', '00000000-0000-7000-8000-000000000001', '수정', '김민수 님이 티켓을 수정했습니다', '우선순위: 낮음 → 높음', '/issue/FB-1', now(), now(), now()),
+                        ('00000000-0000-7000-8000-000000000006', '00000000-0000-7000-8000-000000000001', '댓글 보존', '김민수 님이 댓글을 남겼습니다', '댓글', '/issue/FB-1#comment-00000000-0000-7000-8000-000000000003', now(), now(), now()),
+                        ('00000000-0000-7000-8000-000000000007', '00000000-0000-7000-8000-000000000001', '새 티켓', '김민수 님이 티켓을 만들었습니다', '', '/issue/FB-1', now(), null, null);
+                        """.trimIndent(),
+                    )
+                    assertEquals(1, migrate("26").migrationsExecuted)
+                    statement.executeQuery("select actionable, read_at, completed_at from inbox_notifications where title = '수정'").use { rows ->
+                        assertTrue(rows.next())
+                        assertFalse(rows.getBoolean("actionable"))
+                        assertTrue(rows.getObject("read_at") != null)
+                        assertNull(rows.getObject("completed_at"))
+                    }
+                    statement.executeQuery("select actionable, completed_at from inbox_notifications where title = '댓글 보존'").use { rows ->
+                        assertTrue(rows.next())
+                        assertTrue(rows.getBoolean("actionable"))
+                        assertTrue(rows.getObject("completed_at") != null)
+                    }
+                    statement.executeQuery("select actionable from inbox_notifications where title = '새 티켓'").use { rows ->
+                        assertTrue(rows.next())
+                        assertTrue(rows.getBoolean("actionable"))
+                    }
                 }
             }
         }
