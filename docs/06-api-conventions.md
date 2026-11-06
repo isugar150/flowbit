@@ -1,5 +1,9 @@
 # 06. API 규칙
 
+## 이미지 정렬·자동 배치 (2026-11-06)
+
+기존 본문 JSON의 image.attrs에 `align`(null/left/center/right), `imageGroup`(null 또는 6~64자의 영문·숫자·하이픈·밑줄 식별자)을 저장한다. RichText는 값이 잘못되면 422 INVALID_DOCUMENT로 거부한다. 별도 엔드포인트 없이 기존 본문·댓글 저장 API와 권한을 사용한다. 개별 width·blockId·파일 src는 그대로 보존한다.
+
 ## MCP 기간별 작업·댓글 근거 조회 (2026-10-30)
 
 READ/WRITE 개인 토큰 모두 `POST /api/v1/integrations/mcp/tools/list_work_logs`, `…/search_comments`와 MCP tools/call을 사용한다. 공통 입력은 `{from,to,timezone?,userId?,projectId?,issue?,limit?,cursor?}`. from/to는 YYYY-MM-DD 양끝 포함·최대 366일, timezone 생략 시 호출자 설정, userId 생략/me는 본인·UUID는 수행자/작성자·all은 전체, limit 기본 50·최대 100이다. search_comments는 `{q?,dateField?:createdAt|updatedAt,commentId?,parentId?,threadId?}`를 추가한다. q는 최대 500자의 대소문자 무시 본문 부분 일치(와일드카드 없음)다. 기존 list_comments는 유지한다.

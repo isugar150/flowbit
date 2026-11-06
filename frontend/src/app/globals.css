@@ -284,6 +284,80 @@
     max-width: 100%;
     vertical-align: top;
   }
+  .editor-image {
+    position: relative;
+    min-width: 0;
+    text-align: left;
+  }
+  .editor-image[data-align="center"] { text-align: center; }
+  .editor-image[data-align="right"] { text-align: right; }
+  .editor-image[data-in-gallery] .editor-image-frame { width: 100%; }
+  /* A shared grid retains each image's top-level block and comment anchor. */
+  .rich-text .tiptap:has(> .image-gallery-item) {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    column-gap: 12px;
+    align-items: start;
+    align-content: start;
+  }
+  .rich-text .tiptap:has(> .image-gallery-item) > * {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .rich-text .tiptap > .image-gallery-item {
+    --image-span: 6;
+    grid-column: span var(--image-span);
+    margin-block: 6px;
+  }
+  .rich-text .tiptap[data-image-layout="2"] > .image-gallery-item,
+  .rich-text .tiptap[data-image-layout="3"] > .image-gallery-item {
+    --image-span: 3;
+  }
+  .rich-text .tiptap[data-image-layout="3"] > .image-gallery-item[data-image-columns="3"] {
+    --image-span: 2;
+  }
+  .rich-text .tiptap > .image-gallery-start { grid-column: 1 / span var(--image-span); }
+  .editor-image-tools {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    display: flex;
+    max-width: calc(100% - 16px);
+    overflow-x: auto;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .editor-image:hover .editor-image-tools,
+  .editor-image:focus-within .editor-image-tools,
+  .editor-image:has([data-selected]) .editor-image-tools {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .editor-image[data-align="center"] .editor-image-tools { left: 50%; transform: translateX(-50%); }
+  .editor-image[data-align="right"] .editor-image-tools { left: auto; right: 8px; }
+  .editor-image-tools button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+  }
+  .editor-image-tools button:hover,
+  .editor-image-tools button[aria-pressed="true"] { background: var(--accent); }
+  .editor-image-tools button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .editor-image-tools button:disabled { opacity: 0.4; cursor: default; }
   .editor-image-frame[data-selected] img {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
@@ -291,15 +365,30 @@
   .editor-image-resize {
     position: absolute;
     right: 0;
-    bottom: 0;
+    top: 50%;
+    transform: translateY(-50%);
     width: 24px;
-    height: 24px;
-    border: 2px solid var(--background);
-    border-radius: 0.25rem;
-    background: var(--primary);
+    height: 44px;
+    max-height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
     cursor: ew-resize;
     touch-action: none;
     opacity: 0;
+  }
+  .editor-image-resize::after {
+    content: "";
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 32px;
+    max-height: 80%;
+    border-radius: 999px;
+    background: #000;
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 70%);
   }
   .editor-image-frame:hover .editor-image-resize,
   .editor-image-frame:focus-within .editor-image-resize,
@@ -312,6 +401,7 @@
   }
   @media (hover: none) {
     .editor-image-resize { opacity: 1; }
+    .editor-image-tools { opacity: 1; pointer-events: auto; }
   }
   /* A file block that is selected shows its ring. The browser would also paint all the text of a document shown in it (D-187)
      as selected, over the page, and over a slide's own colours. */

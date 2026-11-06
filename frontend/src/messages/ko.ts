@@ -245,6 +245,12 @@ export const ko = {
     dragBlockGhost: "블록",
     imageUploading: "이미지를 올리는 중…",
     imageResize: "이미지 너비 조절 (드래그 또는 좌우 화살표)",
+    imageLayout: "이미지 정렬·배치",
+    imageAlignLeft: "이미지 왼쪽 정렬",
+    imageAlignCenter: "이미지 가운데 정렬",
+    imageAlignRight: "이미지 오른쪽 정렬",
+    imageAutoLayout: "연속 이미지 자동 배치",
+    imageUngroup: "이미지 묶음 해제",
     imageFailed: "이미지를 올리지 못했습니다.",
     // A file placed in the text as a block of its own (D-182).
     file: "파일",

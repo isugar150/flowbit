@@ -230,6 +230,8 @@ class RichText(
             "image" -> {
                 val src = attrs?.get("src") as? String ?: throw invalid(field)
                 if (!STORED_IMAGE.matches(src)) throw invalid(field)
+                if (attrs["align"] !in CELL_ALIGN) throw invalid(field)
+                attrs["imageGroup"]?.let { if (it !is String || !BLOCK_ID.matches(it)) throw invalid(field) }
             }
             "pageLink" -> {
                 val id = attrs?.get("id") as? String ?: throw invalid(field)

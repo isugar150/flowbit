@@ -1,5 +1,9 @@
 # 05. 데이터 모델
 
+## 이미지 정렬·자동 배치 (2026-11-06)
+
+기존 본문 JSONB의 image.attrs에 align과 imageGroup을 저장한다. 최상위 이미지의 blockId·width·src는 유지하며 묶음 부모 노드나 새 테이블·컬럼·마이그레이션은 추가하지 않는다. 묶음은 같은 식별자의 연속 이미지 2장 이상일 때 표시하는 편집기 레이아웃이다.
+
 ## 기간별 MCP 근거 조회 인덱스 (2026-10-30)
 
 `V23__work_log_query_indexes.sql`: issue_activities·content_activities에 (actor_id, created_at, id), (created_at, id)를 추가한다. issue_comments·content_comments·content_thread_comments에는 삭제되지 않은 행의 (author_id, created_at, id), (author_id, updated_at, id), (created_at, id), (updated_at, id) 부분 인덱스를 추가한다. 기존 기록을 기간·실제 수행자별 조회하며 새 테이블·수정 이력 보관·근무 시간 측정은 추가하지 않는다.

@@ -127,6 +127,43 @@ class RichTextIntegrationTest : IntegrationTest() {
     }
 
     @Test
+    fun `이미지 묶음과 개별 정렬 너비 블록 번호는 저장 후 읽기 역할에도 보존된다`() {
+        val src = "/api/v1/files/0b6f2c1e-8a41-4c57-9f0e-2d6a1b3c4d5e.webp"
+        val document =
+            """{"type":"doc","content":[
+                {"type":"image","attrs":{"src":"$src","align":"center","width":320,"imageGroup":"gallery-123","blockId":"image-111"}},
+                {"type":"image","attrs":{"src":"$src","align":"right","width":480,"imageGroup":"gallery-123","blockId":"image-222"}}
+            ]}"""
+        assertEquals(200, editor.patch("/api/v1/projects/${p("PAY")}", """{"content":$document}""").status)
+        val saved = viewer.get("/api/v1/projects/${p("PAY")}").json()["content"] as Map<*, *>
+        val images = saved["content"] as List<*>
+        val first = (images[0] as Map<*, *>)["attrs"] as Map<*, *>
+        val second = (images[1] as Map<*, *>)["attrs"] as Map<*, *>
+        assertEquals("gallery-123", first["imageGroup"])
+        assertEquals("gallery-123", second["imageGroup"])
+        assertEquals("image-111", first["blockId"])
+        assertEquals("image-222", second["blockId"])
+        assertEquals("center", first["align"])
+        assertEquals("right", second["align"])
+        assertEquals(320, first["width"])
+        assertEquals(480, second["width"])
+    }
+
+    @Test
+    fun `잘못된 이미지 정렬과 묶음 값은 거부한다`() {
+        val src = "/api/v1/files/0b6f2c1e-8a41-4c57-9f0e-2d6a1b3c4d5e.webp"
+        listOf(
+            """"align":"justify"""",
+            """"align":12""",
+            """"imageGroup":"bad group"""",
+            """"imageGroup":42""",
+        ).forEach { attrs ->
+            val document = """{"type":"doc","content":[{"type":"image","attrs":{"src":"$src",$attrs}}]}"""
+            assertEquals(422, editor.patch("/api/v1/projects/${p("PAY")}", """{"content":$document}""").status, attrs)
+        }
+    }
+
+    @Test
     fun `티켓을 문서와 함께 만들면 본문이 저장되고 설명은 문서의 글자로 채워진다`() {
         val created = editor.post("/api/v1/projects/${p("PAY")}/issues", """{"title":"환불 흐름","content":$DOCUMENT}""")
 

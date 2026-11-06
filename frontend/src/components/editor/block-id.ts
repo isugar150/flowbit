@@ -19,7 +19,7 @@ const BLOCK_TYPES = [
 ];
 
 /** A random id; `crypto.randomUUID` only exists on secure pages, and a self-hosted site may be served over plain http. */
-function newBlockId(): string {
+export function newBlockId(): string {
   const random = globalThis.crypto;
   if (typeof random?.randomUUID === "function") return random.randomUUID();
   const bytes = new Uint8Array(16);

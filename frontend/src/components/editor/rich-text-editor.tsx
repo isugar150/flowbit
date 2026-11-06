@@ -392,7 +392,7 @@ export function RichTextEditor({
       try {
         let node: Record<string, unknown>;
         if (picture) {
-          node = { type: "image", attrs: { src: await uploadEditorImage(file), alt: file.name } };
+          node = { type: "image", attrs: { src: await uploadEditorImage(file), alt: file.name, align: "center" } };
         } else {
           const stored = await uploadEditorFile(file);
           node = { type: "fileBlock", attrs: { src: stored.url, name: stored.name, size: stored.size } };
