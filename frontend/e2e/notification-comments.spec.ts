@@ -30,6 +30,8 @@ async function visibleInScrollBox(target: Locator) {
 
 async function openNotification(page: Page, commentId: string) {
   await page.getByRole("button", { name: /^알림(?:,|$)/ }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "미처리", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("dialog").getByRole("button", { name: "전체", exact: true }).click();
   await page.getByRole("dialog").locator(`a[href$="#comment-${commentId}"]`).click();
   const target = page.locator(`[data-comment-id="${commentId}"]`);
   await expect(target).toBeVisible();

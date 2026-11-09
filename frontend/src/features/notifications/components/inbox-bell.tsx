@@ -28,7 +28,7 @@ const SHOWN_LINES = 3;
  */
 export function InboxBell({ unread, placement }: { unread: number; placement: "sidebar" | "header" }) {
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<"pending" | "completed" | "all">("all");
+  const [filter, setFilter] = useState<"pending" | "completed" | "all">("pending");
   const [lastAction, setLastAction] = useState<{ id: string; title: string; completed: boolean } | null>(null);
   const focusUndo = useRef(false);
   const focusFilter = useRef(false);
@@ -59,7 +59,10 @@ export function InboxBell({ unread, placement }: { unread: number; placement: "s
   const inSidebar = placement === "sidebar";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(nextOpen) => {
+      if (nextOpen) setFilter("pending");
+      setOpen(nextOpen);
+    }}>
       <PopoverTrigger
         render={
           <Button
