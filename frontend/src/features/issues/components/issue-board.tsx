@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -43,6 +43,20 @@ const MOUSE_DISTANCE_PX = 6;
 /** On a touch screen a card is picked up by holding it, so that touching it to scroll the board still scrolls. */
 const TOUCH_HOLD_MS = 250;
 const TOUCH_TOLERANCE_PX = 8;
+
+/**
+ * While a card is carried the board scrolls sideways by itself when the pointer is this close to its left or right edge.
+ * dnd-kit's own zone is a fifth of the board's width and its speed is 10, which carries the board off from under a card that
+ * only means to reach the last column in view. A fixed width is used, not a share, so that the zone feels the same on a wide
+ * screen and a narrow one.
+ */
+const AUTO_SCROLL_EDGE_PX = 80;
+/** On a narrow screen the zone never takes more than this share of the board, so that the middle is left alone. */
+const AUTO_SCROLL_EDGE_MAX_SHARE = 0.25;
+/** Pixels scrolled per tick (about 5ms) with the pointer on the very edge. It grows from 0 at the inner border of the zone. */
+const AUTO_SCROLL_SPEED = 4;
+/** dnd-kit's default for the up-and-down zone, kept: only the sideways one is narrowed. */
+const AUTO_SCROLL_VERTICAL_SHARE = 0.2;
 
 /** The column the pointer is in; where that is not clear (between columns), the one the dragged card overlaps most. */
 const inColumn: CollisionDetection = (args) => {
@@ -245,6 +259,12 @@ export function IssueBoard({
 }) {
   const [active, setActive] = useState<Issue | null>(null);
   const dragEnded = useRef(false);
+  const scroller = useRef<HTMLDivElement>(null);
+  const [edgeShare, setEdgeShare] = useState(AUTO_SCROLL_EDGE_MAX_SHARE);
+  const autoScroll = useMemo(
+    () => ({ acceleration: AUTO_SCROLL_SPEED, threshold: { x: edgeShare, y: AUTO_SCROLL_VERTICAL_SHARE } }),
+    [edgeShare],
+  );
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: MOUSE_DISTANCE_PX } }),
     useSensor(TouchSensor, { activationConstraint: { delay: TOUCH_HOLD_MS, tolerance: TOUCH_TOLERANCE_PX } }),
@@ -254,6 +274,8 @@ export function IssueBoard({
 
   const onDragStart = (event: DragStartEvent) => {
     dragEnded.current = false;
+    const width = scroller.current?.clientWidth;
+    if (width) setEdgeShare(Math.min(AUTO_SCROLL_EDGE_MAX_SHARE, AUTO_SCROLL_EDGE_PX / width));
     setActive(issues.find((issue) => issue.number === event.active.data.current?.number) ?? null);
   };
   const onDragEnd = (event: DragEndEvent) => {
@@ -271,8 +293,16 @@ export function IssueBoard({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <DragEndedContext value={dragEnded}>
-        <DndContext sensors={sensors} collisionDetection={inColumn} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActive(null)}>
-          <div className="flex w-full min-w-0 snap-x gap-3 overflow-x-auto px-4 pb-4" role="list" aria-label={m.label}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={inColumn}
+          autoScroll={autoScroll}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => setActive(null)}
+        >
+          {/* No snapping to the columns while a card is carried: the slow auto-scroll steps would be pulled back to the column they left. */}
+          <div ref={scroller} className={cn("flex w-full min-w-0 gap-3 overflow-x-auto px-4 pb-4", !active && "snap-x")} role="list" aria-label={m.label}>
             {statuses.map((status) => {
               const cards = issues.filter((issue) => issue.statusId === status.id);
               return (
