@@ -267,3 +267,7 @@ inbox_notifications.completed_at(timestamptz null): 개인 처리 완료 시각.
 ## V27 — 이전 댓글 알림의 원문 경로 복구 (2026-11-06)
 
 새 열 없이 inbox_notifications.path를 복구한다. 대상·현재 작성자 이름·기존 300자 미리보기(첨부 파일 이름·블록 인용·언급 포함)·댓글 작성 후 5분 이내의 발송 기록이 정확히 하나인 경우에만 #comment-UUID를 붙인다. 중복·삭제·수정으로 식별 불가한 것은 보존한다. 이미 해결된 댓글과 답글의 연결 알림은 completed_at만 채우고 read_at은 그대로 둔다. 신규 수신 시에도 해결 상태를 확인한다.
+
+2026-11-11: image.attrs.caption에 이미지별 설명을 저장한다. null 또는 최대 500자의 문자열이며 기존 본문 저장·검증 경로를 사용한다.
+
+묶음의 이미지 표시 높이는 image.attrs.galleryHeight에 저장한다. null 또는 96~720px 정수이며 누락 시 편집기는 240px을 사용한다.

@@ -22,7 +22,7 @@ class RichTextImageLayoutTest {
             listOf("left", "center", "right").mapIndexed { index, align ->
                 mapOf(
                     "type" to "image",
-                    "attrs" to mapOf("src" to src, "align" to align, "imageGroup" to "gallery-123", "width" to 200 + index, "blockId" to "image-00$index"),
+                    "attrs" to mapOf("src" to src, "align" to align, "imageGroup" to "gallery-123", "caption" to "설명 $index", "galleryHeight" to 320, "width" to 200 + index, "blockId" to "image-00$index"),
                 )
             }
         val saved = richText.parse(mapOf("type" to "doc", "content" to images), blockIds = true)
@@ -43,6 +43,11 @@ class RichTextImageLayoutTest {
     fun `임의 스타일 정렬과 잘못된 묶음 식별자는 거부한다`() {
         val invalid =
             listOf(
+                mapOf("galleryHeight" to 95),
+                mapOf("galleryHeight" to 721),
+                mapOf("galleryHeight" to 240.5),
+                mapOf("caption" to 42),
+                mapOf("caption" to "a".repeat(501)),
                 mapOf("align" to "justify"),
                 mapOf("align" to "center; color:red"),
                 mapOf("align" to 12),

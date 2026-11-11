@@ -2,12 +2,18 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
+export const DEFAULT_GALLERY_HEIGHT = 240;
+
+export function limitGalleryHeight(height: number) {
+  return Math.max(96, Math.min(720, Math.round(height)));
+}
+
 /** Keep images as individual top-level blocks so their comments and file references survive grouping. */
-export function imageRun(doc: ProseMirrorNode, pos: number, group?: string) {
+export function imageRun(doc: ProseMirrorNode, pos: number, group: string) {
   if (pos < 0 || pos >= doc.content.size) return [];
   const at = doc.resolve(pos);
   if (at.depth !== 0 || at.nodeAfter?.type.name !== "image") return [];
-  const matches = (node: ProseMirrorNode) => node.type.name === "image" && (group === undefined || node.attrs.imageGroup === group);
+  const matches = (node: ProseMirrorNode) => node.type.name === "image" && node.attrs.imageGroup === group;
   let first = at.index();
   let last = first + 1;
   let offset = pos;
@@ -25,14 +31,36 @@ export function imageRun(doc: ProseMirrorNode, pos: number, group?: string) {
   return result;
 }
 
+export function ungroupedImagesFrom(doc: ProseMirrorNode, pos: number) {
+  if (pos < 0 || pos >= doc.content.size) return [];
+  const at = doc.resolve(pos);
+  if (at.depth !== 0) return [];
+  const images: { pos: number; node: ProseMirrorNode }[] = [];
+  for (let index = at.index(), offset = pos; index < doc.childCount; index++) {
+    const node = doc.child(index);
+    if (node.type.name !== "image") break;
+    const group = node.attrs.imageGroup;
+    if (group && imageRun(doc, offset, group).length > 1) break;
+    images.push({ pos: offset, node });
+    offset += node.nodeSize;
+  }
+  return images;
+}
+
 function decorate(doc: ProseMirrorNode) {
   const decorations: Decoration[] = [];
   let run: { pos: number; node: ProseMirrorNode }[] = [];
   function flush() {
     if (run.length >= 2) {
+      const height = run[0].node.attrs.galleryHeight;
+      const displayHeight = typeof height === "number" && Number.isFinite(height)
+        ? limitGalleryHeight(height) : DEFAULT_GALLERY_HEIGHT;
+      const hasCaption = run.some(({ node }) => Boolean(node.attrs.caption));
       run.forEach(({ pos, node }, index) => decorations.push(Decoration.node(pos, pos + node.nodeSize, {
         class: `image-gallery-item${index === 0 ? " image-gallery-start" : ""}`,
         "data-image-columns": run.length >= 3 ? "3" : "2",
+        "data-gallery-caption": hasCaption ? "true" : "false",
+        style: `grid-column: ${index + 1}; --gallery-height: ${displayHeight}px`,
       }, { imageGallery: true })));
     }
     run = [];

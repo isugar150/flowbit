@@ -10,7 +10,7 @@ UI 작업을 시작하기 전에 [07-skills-guide.md](07-skills-guide.md) 의 "�
 
 ## 이미지 너비 조절 (2026-11-06)
 
-이미지 정렬·자동 배치도 같은 NodeView에서 제공한다. 새 업로드만 `align: center`를 지정하고 기존 null 값은 왼쪽으로 표시한다. `image-layout.ts`의 Plugin은 같은 `imageGroup`을 가진 연속 최상위 이미지에 Decoration을 적용한다. 최상위 블록을 유지해 댓글 ID와 파일 참조를 보존하며 묶음 해제는 imageGroup만 지운다. CSS Grid와 편집기 너비를 관찰하는 ResizeObserver로 480/760px 경계에서 1~3열로 전환한다. 너비 관찰은 다음 프레임에서 레이아웃 속성을 갱신해 관찰 반복 오류를 막는다. 정렬·묶음 변경은 기존 onChange와 저장 경로를 사용하며 읽기 전용에서도 같은 배치를 표시한다.
+이미지 정렬·자동 배치도 같은 NodeView에서 제공한다. 새 업로드만 `align: center`를 지정하고 기존 null 값은 왼쪽으로 표시한다. `image-layout.ts`의 Plugin은 같은 `imageGroup`을 가진 연속 최상위 이미지에 Decoration을 적용한다. 최상위 블록을 유지해 댓글 ID와 파일 참조를 보존하며 묶음 해제는 imageGroup만 지운다. CSS Grid와 ResizeObserver로 화면에 1~3장씩 보이도록 한 줄로 배치하고 넘치는 이미지는 편집기에서 가로 스크롤한다. 묶음 Decoration은 공통 표시 높이와 설명 공간을 지정하고, 높이 조절은 묶음 전체의 galleryHeight를 한 트랜잭션으로 저장한다. 이미지별 caption은 NodeView에서 편집하고 이미지 아래에 표시한다. 묶기는 시작 이미지에서 뒤로 이어지는 미배치 범위 안에서 장수를 선택한다. 정렬·묶음 변경은 기존 onChange와 저장 경로를 사용하며 읽기 전용에서도 같은 배치를 표시한다.
 
 `components/editor/resizable-image.tsx`는 기존 Tiptap Image의 속성과 HTML 직렬화를 유지하는 React NodeView다. 포인터 캡처 중에는 로컬 미리보기만 바꾸고 완료할 때 `width`와 `height: null`을 한 번 저장해 기존 onChange·자동 저장·실행 취소를 사용한다. 취소 시 미리보기를 버린다. 손잡이는 키보드 좌우 화살표로도 조절하며 읽기 전용 전환 시 제거한다. `data-block-id`는 바깥 블록에 유지하고 이미지 클릭의 크게 보기는 기존 편집기에서 처리한다. CSS `max-width: 100%`와 `height: auto`로 좁은 화면에서도 비율을 유지한다.
 
