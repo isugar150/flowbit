@@ -113,6 +113,8 @@ function ImageNode({ node, editor, updateAttributes, selected, getPos }: NodeVie
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={imageRef}
+            draggable={editable}
+            data-drag-handle={editable ? "" : undefined}
             src={node.attrs.src}
             alt={node.attrs.alt ?? ""}
             title={node.attrs.title ?? undefined}
@@ -202,10 +204,20 @@ function ImageNode({ node, editor, updateAttributes, selected, getPos }: NodeVie
         </div>
         {editable && editingCaption ? (
           <textarea ref={captionRef} className="editor-image-caption-input" aria-label={m.imageCaption} placeholder={m.imageCaptionPlaceholder}
-            value={node.attrs.caption ?? ""} maxLength={500} rows={2}
-            onChange={(event) => updateAttributes({ caption: event.target.value || null })}
-            onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); event.currentTarget.blur(); } }}
-            onBlur={() => setEditingCaption(false)} />
+            defaultValue={node.attrs.caption ?? ""} maxLength={500} rows={2}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+            }}
+            onBlur={(event) => {
+              // Let the browser finish IME composition before updating the document node.
+              const caption = event.currentTarget.value.slice(0, 500) || null;
+              setEditingCaption(false);
+              if (editor.isEditable && caption !== node.attrs.caption) updateAttributes({ caption });
+            }} />
         ) : (node.attrs.caption || grouped) ? (
           <div className="editor-image-caption" onClick={() => { if (editable) setEditingCaption(true); }}>{node.attrs.caption ?? null}</div>
         ) : null}

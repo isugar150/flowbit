@@ -17,6 +17,44 @@ const HIDE_DELAY_MS = 300;
 const DRAG_START_PX = 3;
 /** How many characters of the block the ghost under the pointer shows. */
 const GHOST_CHARS = 80;
+const SCROLL_EDGE = 64;
+const SCROLL_SPEED = 18;
+
+function scrollParents(container: HTMLElement) {
+  const parents: Element[] = [];
+  const root = document.scrollingElement;
+  for (let element: HTMLElement | null = container; element; element = element.parentElement) {
+    if (element !== root && /^(auto|scroll)$/.test(getComputedStyle(element).overflowY)) parents.push(element);
+  }
+  if (root) parents.push(root);
+  return parents;
+}
+
+function scrollAtEdge(parents: Element[], y: number, elapsed: number) {
+  let top = 0;
+  let bottom = window.innerHeight;
+  const bounds = parents.map((parent) => parent === document.scrollingElement ? null : parent.getBoundingClientRect());
+  const visible = bounds.map(() => ({ top: 0, bottom: 0 }));
+  for (let index = bounds.length - 1; index >= 0; index--) {
+    const box = bounds[index];
+    if (box) {
+      top = Math.max(top, box.top);
+      bottom = Math.min(bottom, box.bottom);
+    }
+    visible[index] = { top, bottom };
+  }
+  return parents.some((parent, index) => {
+    const { top, bottom } = visible[index];
+    if (bottom <= top) return false;
+    const edge = Math.min(SCROLL_EDGE, (bottom - top) / 4);
+    const strength = y < top + edge ? -Math.min(1, (top + edge - y) / edge)
+      : y > bottom - edge ? Math.min(1, (y - bottom + edge) / edge) : 0;
+    if (!strength) return false;
+    const before = parent.scrollTop;
+    parent.scrollTop += Math.sign(strength) * Math.max(1, Math.round(Math.abs(strength) * SCROLL_SPEED * elapsed / 16.7));
+    return parent.scrollTop !== before;
+  });
+}
 
 type Target = { pos: number; top: number; left: number };
 
@@ -56,8 +94,18 @@ function blockAt(editor: Editor, container: HTMLElement, clientY: number): Targe
 /** Where a block let go at this height would land: before the block under the pointer in its upper half, after it in its lower half. */
 function dropAt(editor: Editor, container: HTMLElement, clientY: number): DropAt | null {
   const content = editor.view.dom.getBoundingClientRect();
-  // Above or below the text the nearest block is meant: the first, or the last.
-  const y = Math.min(Math.max(clientY, content.top + 1), content.bottom - 1);
+  // Hit test inside the visible text even when the pointer is in the scroll box's padding.
+  let top = Math.max(0, content.top);
+  let bottom = Math.min(window.innerHeight, content.bottom);
+  for (const parent of scrollParents(container)) {
+    if (parent === document.scrollingElement) continue;
+    const box = parent.getBoundingClientRect();
+    const style = getComputedStyle(parent);
+    top = Math.max(top, box.top + parent.clientTop + parseFloat(style.paddingTop));
+    bottom = Math.min(bottom, box.top + parent.clientTop + parent.clientHeight - parseFloat(style.paddingBottom));
+  }
+  if (bottom - top < 2) return null;
+  const y = Math.min(Math.max(clientY, top + 1), bottom - 1);
   const hit = blockHit(editor, y);
   if (!hit) return null;
   const before = y < hit.rect.top + hit.rect.height / 2;
@@ -161,15 +209,57 @@ export function BlockDragHandle({ editor, container }: { editor: Editor; contain
     setLine((previous) => (previous?.insertPos === next?.insertPos && previous?.top === next?.top ? previous : next));
   };
 
-  // While a block is carried the line follows the pointer (and the text under it, which moves when the editor scrolls).
   useEffect(() => {
-    if (!carrying) return;
+    if (!container) return;
+    let frame = 0;
+    let lastFrame = 0;
+    let nativeDrag = false;
+    let parents: Element[] = [];
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      lastFrame = 0;
+      nativeDrag = false;
+    };
+    const tick = (time: number) => {
+      if (!carryingRef.current && (!nativeDrag || !editor.view.dragging)) {
+        stop();
+        return;
+      }
+      const elapsed = lastFrame ? Math.min(32, time - lastFrame) : 16.7;
+      lastFrame = time;
+      if (scrollAtEdge(parents, pointerY.current, elapsed) && carryingRef.current) aim();
+      frame = requestAnimationFrame(tick);
+    };
+    const start = () => {
+      if (frame) return;
+      parents = scrollParents(container);
+      frame = requestAnimationFrame(tick);
+    };
     const follow = (event: MouseEvent) => {
+      if (!carryingRef.current) return;
       pointerY.current = event.clientY;
       aim();
+      start();
     };
+    const followNative = (event: DragEvent) => {
+      if (!editor.view.dragging || carryingRef.current) return;
+      nativeDrag = true;
+      pointerY.current = event.clientY;
+      start();
+    };
+    if (carryingRef.current) start();
     window.addEventListener("mousemove", follow);
-    return () => window.removeEventListener("mousemove", follow);
+    window.addEventListener("dragover", followNative);
+    window.addEventListener("drop", stop);
+    window.addEventListener("dragend", stop);
+    return () => {
+      stop();
+      window.removeEventListener("mousemove", follow);
+      window.removeEventListener("dragover", followNative);
+      window.removeEventListener("drop", stop);
+      window.removeEventListener("dragend", stop);
+    };
     // `aim` is rebuilt every render and reads only refs and the editor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carrying, editor, container]);
@@ -206,7 +296,7 @@ export function BlockDragHandle({ editor, container }: { editor: Editor; contain
   };
 
   return (
-    <DndContext sensors={sensors} autoScroll accessibility={dndAccessibility} onDragStart={onDragStart} onDragMove={aim} onDragEnd={onDragEnd} onDragCancel={reset}>
+    <DndContext sensors={sensors} autoScroll={false} accessibility={dndAccessibility} onDragStart={onDragStart} onDragMove={aim} onDragEnd={onDragEnd} onDragCancel={reset}>
       {target ? <Grip target={target} /> : null}
       {/* Where the block will land. */}
       {line ? (
